@@ -1,0 +1,234 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String?        @unique
+  name          String?
+  password      String?
+  phone         String?
+  status        String         @default("ATIVO")
+  role          String         @default("MEMBRO")
+  failedAttempts Int           @default(0)
+  lockoutUntil  DateTime?
+  tokenVersion  Int            @default(1)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt @default(now())
+  wallets       Wallet[]
+  goals         Goal[]
+  eventProjects EventProject[]
+  auditLogs     AuditLog[]
+}
+
+model Wallet {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id])
+  title          String
+  bankName       String?
+  walletType     String
+  agencia        String?
+  conta          String?
+  holder         String?
+  vencimento     Int?          @default(10)
+  diaFechamento  Int?          @default(1)
+  initialBalance Decimal
+  creditLimit    Decimal?      // Limite total para cartões de crédito
+  transactions   Transaction[]
+  goals          Goal[]
+}
+
+model Category {
+  id           String        @id @default(uuid())
+  name         String
+  color        String
+  transactions Transaction[]
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Transaction {
+  id                String          @id @default(uuid())
+  walletId          String
+  wallet            Wallet          @relation(fields: [walletId], references: [id])
+  categoryId        String?
+  category          Category?       @relation(fields: [categoryId], references: [id])
+  description       String
+  type              TransactionType
+  amount            Decimal
+  date              DateTime
+  status            String          @default("COMPLETED")
+  isRecurring       Boolean         @default(false)
+  source            String          @default("MANUAL")
+  tags              String?         // Tags ou centro de custos (ex: #viagem2026, #reforma)
+  deletedAt         DateTime?
+  installmentsCount Int?            // Quantidade de parcelas se for compra parcelada
+}
+
+model Goal {
+  id         String        @id @default(uuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+  walletId   String?
+  wallet     Wallet?       @relation(fields: [walletId], references: [id])
+  title      String
+  dataInicio DateTime
+  dataFim    DateTime
+  acumulado  Decimal       @default(0)
+  objetivo   Decimal
+  iconName   String        @default("Target")
+  history    GoalHistory[]
+}
+
+model GoalHistory {
+  id        String   @id @default(uuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  date      DateTime
+  amount    Decimal
+}
+
+model Investment {
+  id              String   @id @default(uuid())
+  titulo          String
+  categoria       String   @default("Renda Fixa")
+  dataInicial     DateTime
+  valorInvestido  Decimal
+  valorAtualBruto Decimal
+  taxasAcumuladas Decimal  @default(0)
+  impostoEstimado Decimal  @default(0)
+  status          String   @default("ATIVO")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model VariableAsset {
+  id                  String                @id @default(uuid())
+  titulo              String
+  categoria           String                @default("Ação")
+  cotacaoAtual        Decimal
+  dividendosRecebidos Decimal               @default(0)
+  status              String                @default("ABERTO")
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  transacoes          VariableTransaction[]
+}
+
+model VariableTransaction {
+  id            String        @id @default(uuid())
+  assetId       String
+  asset         VariableAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tipo          String
+  data          DateTime
+  quantidade    Int
+  precoUnitario Decimal
+  taxas         Decimal       @default(0)
+  loteOrigemId  String?
+  createdAt     DateTime      @default(now())
+}
+
+model CryptoAsset {
+  id             String              @id @default(uuid())
+  token          String
+  nome           String
+  cotacaoAtual   Decimal
+  status         String              @default("ABERTO")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  transacoes     CryptoTransaction[]
+}
+
+model CryptoTransaction {
+  id            String      @id @default(uuid())
+  cryptoId      String
+  crypto        CryptoAsset @relation(fields: [cryptoId], references: [id], onDelete: Cascade)
+  tipo          String
+  data          DateTime
+  quantidade    Decimal
+  precoUnitario Decimal
+  taxas         Decimal     @default(0)
+  loteOrigemId  String?
+  createdAt     DateTime    @default(now())
+}
+
+model BettingAccount {
+  id              String               @id @default(uuid())
+  nomePlataforma  String
+  saldoAtualBruto Decimal
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  movimentacoes   BettingTransaction[]
+}
+
+model BettingTransaction {
+  id        String         @id @default(uuid())
+  accountId String
+  account   BettingAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  tipo      String
+  data      DateTime
+  valor     Decimal
+  createdAt DateTime       @default(now())
+}
+
+model OtherInvestment {
+  id             String    @id @default(uuid())
+  nome           String
+  data           DateTime?
+  totalInvestido Decimal   @default(0)
+  taxaImposto    Decimal   @default(0)
+  totalSaque     Decimal   @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model EventProject {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  dateStr   String?
+  startDate DateTime?
+  endDate   DateTime?
+  status    String      @default("Em Planejamento")
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt @default(now())
+  items     EventItem[]
+}
+
+model EventItem {
+  id            String       @id @default(uuid())
+  projectId     String
+  project       EventProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  description   String
+  minAmount     Decimal?
+  maxAmount     Decimal
+  paidAmount    Decimal?     @default(0)
+  isPaid        Boolean      @default(false)
+  notes         String?
+  transactionId String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+}
+
