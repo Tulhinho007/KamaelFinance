@@ -226,3 +226,47 @@ export async function deleteUserAction(id: string) {
   }
 }
 
+// ── GERENCIAMENTO DE CONVITES (WHITELIST) ───────────────────────────────────
+
+export async function getAllowedEmails() {
+  const entries = await (prisma as any).allowedEmail.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+  return entries;
+}
+
+export async function addAllowedEmail(email: string) {
+  const emailCheck = validateEmailHygiene(email);
+  if (!emailCheck.valid) {
+    return { success: false, error: emailCheck.error };
+  }
+  const cleanEmail = email.toLowerCase().trim();
+
+  // Verifica se já está cadastrado como usuário
+  const existingUser = await prisma.user.findUnique({ where: { email: cleanEmail } });
+  if (existingUser) {
+    return { success: false, error: "Este e-mail já tem uma conta ativa no sistema." };
+  }
+
+  try {
+    await (prisma as any).allowedEmail.upsert({
+      where: { email: cleanEmail },
+      update: { used: false }, // Permite reenvio de convite se necessário
+      create: { email: cleanEmail },
+    });
+    revalidatePath("/usuarios");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: "Erro ao adicionar convite: " + error.message };
+  }
+}
+
+export async function removeAllowedEmail(id: string) {
+  try {
+    await (prisma as any).allowedEmail.delete({ where: { id } });
+    revalidatePath("/usuarios");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: "Erro ao remover convite: " + error.message };
+  }
+}

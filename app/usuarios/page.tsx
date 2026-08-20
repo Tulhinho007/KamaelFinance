@@ -7,13 +7,20 @@ import {
   UserPlus,
   Pencil,
   Trash2,
-  X
+  X,
+  Mail,
+  ShieldCheck,
+  Clock,
+  CheckCircle2
 } from "lucide-react";
 import {
   getUsers,
   createUserAction,
   updateUserAction,
   deleteUserAction,
+  getAllowedEmails,
+  addAllowedEmail,
+  removeAllowedEmail,
   UserInput
 } from "@/lib/user-actions";
 
@@ -51,6 +58,13 @@ export default function UsuariosPage() {
   });
   const [formError, setFormError] = useState("");
 
+  // Invite/Whitelist State
+  const [invites, setInvites] = useState<{id: string; email: string; used: boolean; createdAt: string}[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteSuccess, setInviteSuccess] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(false);
+
   const loadUsers = async () => {
     setLoading(true);
     try {
@@ -66,10 +80,20 @@ export default function UsuariosPage() {
     }
   };
 
+  const loadInvites = async () => {
+    try {
+      const data = await getAllowedEmails();
+      setInvites(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       loadUsers();
     }, 200);
+    loadInvites();
     return () => clearTimeout(timer);
   }, [search, statusFilter]);
 
@@ -489,6 +513,98 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
+
+      {/* ── SEÇÃO DE CONVITES / WHITELIST ─────────────────────────────── */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-600/10 border border-indigo-500/20 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Convites de Acesso</h2>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">Apenas e-mails autorizados aqui podem criar conta no sistema.</p>
+          </div>
+        </div>
+
+        {/* Formulário de Adicionar Convite */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={e => { setInviteEmail(e.target.value); setInviteError(""); setInviteSuccess(""); }}
+              placeholder="email@dominio.com"
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          <button
+            onClick={async () => {
+              if (!inviteEmail.trim()) return;
+              setInviteLoading(true);
+              setInviteError("");
+              setInviteSuccess("");
+              const res = await addAllowedEmail(inviteEmail.trim());
+              if (res.success) {
+                setInviteSuccess(`Convite enviado para ${inviteEmail}!`);
+                setInviteEmail("");
+                await loadInvites();
+              } else {
+                setInviteError(res.error || "Erro ao adicionar convite.");
+              }
+              setInviteLoading(false);
+            }}
+            disabled={inviteLoading || !inviteEmail.trim()}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-2 flex-shrink-0"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            Convidar
+          </button>
+        </div>
+
+        {inviteError && <p className="text-xs text-rose-500 font-semibold">{inviteError}</p>}
+        {inviteSuccess && <p className="text-xs text-emerald-500 font-semibold flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" />{inviteSuccess}</p>}
+
+        {/* Lista de Convites */}
+        <div className="space-y-2">
+          {invites.length === 0 ? (
+            <p className="text-[11px] text-slate-400 text-center py-4">Nenhum convite cadastrado.</p>
+          ) : (
+            invites.map((inv) => (
+              <div key={inv.id} className={`flex items-center justify-between px-4 py-2.5 rounded-xl border ${
+                inv.used
+                  ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50"
+                  : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800"
+              }`}>
+                <div className="flex items-center gap-2.5">
+                  {inv.used
+                    ? <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                    : <Clock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                  }
+                  <div>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{inv.email}</p>
+                    <p className="text-[10px] text-slate-400">
+                      {inv.used ? "✅ Convite utilizado" : "⏳ Aguardando cadastro"}
+                    </p>
+                  </div>
+                </div>
+                {!inv.used && (
+                  <button
+                    onClick={async () => {
+                      await removeAllowedEmail(inv.id);
+                      await loadInvites();
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
+                    title="Remover convite"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -232,3 +232,10 @@ model AuditLog {
   createdAt DateTime @default(now())
 }
 
+// Lista de e-mails autorizados a se cadastrar (Convites / Whitelist)
+model AllowedEmail {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

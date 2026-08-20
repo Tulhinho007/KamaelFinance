@@ -23,10 +23,6 @@ export default function RegisterPage() {
     e.preventDefault();
     setErrorMessage("");
 
-    if (!name.trim()) {
-      setErrorMessage("Por favor, informe seu nome completo.");
-      return;
-    }
     if (!email.trim()) {
       setErrorMessage("Por favor, informe seu e-mail de acesso.");
       return;
@@ -131,7 +127,7 @@ export default function RegisterPage() {
             {/* Campo Nome Completo */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Nome Completo *
+                Nome Completo <span className="text-slate-500 font-normal normal-case">(Opcional)</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
@@ -139,8 +135,7 @@ export default function RegisterPage() {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Seu nome executivo"
-                  required
+                  placeholder="Seu nome (opcional)"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>

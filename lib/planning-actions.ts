@@ -248,14 +248,15 @@ export async function updateEventItemAction(
 
   if (data.isPaid !== undefined) {
     updateData.isPaid = data.isPaid;
-    if (data.isPaid) {
-      const targetMax = data.maxAmount ?? Number(item.maxAmount);
-      updateData.paidAmount = data.paidAmount !== undefined && data.paidAmount !== null && data.paidAmount > 0 
-        ? data.paidAmount 
-        : (Number(item.paidAmount) > 0 ? Number(item.paidAmount) : targetMax);
-    } else {
-      updateData.paidAmount = 0;
+    // Ao MARCAR como pago: define paidAmount se ainda não tiver valor
+    if (data.isPaid && data.paidAmount === undefined) {
+      const currentPaid = Number(item.paidAmount);
+      if (currentPaid <= 0) {
+        updateData.paidAmount = Number(item.maxAmount);
+      }
+      // Se já há paidAmount salvo, preserva-o
     }
+    // Ao DESMARCAR como pago: paidAmount é PRESERVADO (não zeramos)
   } else if (data.paidAmount !== undefined) {
     updateData.paidAmount = data.paidAmount;
   }
@@ -277,7 +278,7 @@ export async function deleteEventItemAction(id: string) {
   revalidatePath("/planejamento");
 }
 
-export async function toggleItemPaidAction(id: string, customPaidAmount?: number) {
+export async function toggleItemPaidAction(id: string) {
   const current = await db.eventItem.findUnique({
     where: { id },
     select: { isPaid: true, maxAmount: true, paidAmount: true }
@@ -286,24 +287,17 @@ export async function toggleItemPaidAction(id: string, customPaidAmount?: number
   if (!current) throw new Error("Item não encontrado");
 
   const nextPaidState = !current.isPaid;
-  let newPaidAmount = 0;
+  const updateData: any = { isPaid: nextPaidState };
 
-  if (nextPaidState) {
-    if (customPaidAmount !== undefined && customPaidAmount > 0) {
-      newPaidAmount = customPaidAmount;
-    } else if (Number(current.paidAmount) > 0) {
-      newPaidAmount = Number(current.paidAmount);
-    } else {
-      newPaidAmount = Number(current.maxAmount);
-    }
+  // Ao MARCAR como pago: se não houver paidAmount, usa o maxAmount como padrão
+  // Ao DESMARCAR como pago: paidAmount é PRESERVADO (não zeramos)
+  if (nextPaidState && Number(current.paidAmount) <= 0) {
+    updateData.paidAmount = Number(current.maxAmount);
   }
 
   const updated = await db.eventItem.update({
     where: { id },
-    data: {
-      isPaid: nextPaidState,
-      paidAmount: newPaidAmount,
-    }
+    data: updateData,
   });
 
   revalidatePath("/planejamento");

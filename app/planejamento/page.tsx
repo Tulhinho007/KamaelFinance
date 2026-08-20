@@ -249,24 +249,41 @@ export default function PlanningPage() {
   };
 
   // Alternar Status de Pago (Checkbox)
+  // Nota: ao desmarcar, o paidAmount é PRESERVADO (não zerado).
   const handleTogglePaid = async (item: EventItem) => {
+    const newIsPaid = !item.isPaid;
+    // Atualização otimista local: só altera isPaid, preserva paidAmount
+    setProjects(prev =>
+      prev.map((p: EventProject) => {
+        if (p.id !== activeProject?.id) return p;
+        return {
+          ...p,
+          items: p.items.map((i: EventItem) =>
+            i.id === item.id ? { ...i, isPaid: newIsPaid } : i
+          )
+        };
+      })
+    );
     try {
-      await toggleItemPaidAction(item.id);
-      await loadData();
+      await updateEventItemAction(item.id, { isPaid: newIsPaid });
     } catch (err) {
       console.error(err);
+      // Reverte em caso de erro
+      await loadData();
     }
   };
 
   // ATUALIZAÇÃO DIRETA DOS INPUTS DE VALOR NA TABELA
+  // Nota: alterar o paidAmount NÃO altera isPaid automaticamente.
+  // O checkbox de "Pago" é controlado separadamente pelo handleTogglePaid.
   const handleItemValueChange = async (
     itemId: string,
     field: "minAmount" | "maxAmount" | "paidAmount",
     valueStr: string
   ) => {
     const numericVal = valueStr === "" ? 0 : Number(valueStr);
-    
-    // Atualização otimista no estado local
+
+    // Atualização otimista no estado local (sem alterar isPaid)
     setProjects(prev =>
       prev.map((p: EventProject) => {
         if (p.id !== activeProject?.id) return p;
@@ -274,25 +291,17 @@ export default function PlanningPage() {
           ...p,
           items: p.items.map((i: EventItem) => {
             if (i.id !== itemId) return i;
-            const updated = { ...i, [field]: field === "minAmount" && valueStr === "" ? null : numericVal };
-            if (field === "paidAmount") {
-              updated.isPaid = numericVal > 0;
-            }
-            return updated;
+            return { ...i, [field]: field === "minAmount" && valueStr === "" ? null : numericVal };
           })
         };
       })
     );
 
-    // Persistência no banco
+    // Persistência no banco (sem alterar isPaid)
     try {
-      const patchData: any = {
+      await updateEventItemAction(itemId, {
         [field]: field === "minAmount" && valueStr === "" ? null : numericVal,
-      };
-      if (field === "paidAmount") {
-        patchData.isPaid = numericVal > 0;
-      }
-      await updateEventItemAction(itemId, patchData);
+      });
     } catch (err) {
       console.error("Erro ao atualizar valor do item:", err);
     }

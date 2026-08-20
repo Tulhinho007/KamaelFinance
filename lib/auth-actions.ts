@@ -168,7 +168,7 @@ export async function loginAction(data: {
 }
 
 export async function registerAction(data: {
-  name: string;
+  name?: string;
   email: string;
   password?: string;
   phone?: string;
@@ -186,11 +186,8 @@ export async function registerAction(data: {
       return { success: false, error: "Registro indisponível." };
     }
 
-    // 2. Hygiene Controllers: Name, Email, Password
-    const cleanName = sanitizeInputString(data.name || "");
-    if (!cleanName || cleanName.length < 2) {
-      return { success: false, error: "Nome completo é obrigatório (mínimo 2 caracteres)." };
-    }
+    // 2. Hygiene Controllers: Email (obrigatório), Nome (opcional)
+    const cleanName = data.name ? sanitizeInputString(data.name) : null;
 
     const emailCheck = validateEmailHygiene(data.email);
     if (!emailCheck.valid) {
@@ -214,16 +211,46 @@ export async function registerAction(data: {
       return { success: false, error: "Este e-mail já está cadastrado. Faça login." };
     }
 
+    // 3. ⛔ WHITELIST: Verifica se o e-mail está autorizado a se cadastrar
+    // O PRIMEIRO usuário do sistema (MASTER) sempre pode se cadastrar sem convite.
+    const countUsers = await prisma.user.count();
+    if (countUsers > 0) {
+      const allowedEntry = await (prisma as any).allowedEmail.findUnique({
+        where: { email: cleanEmail },
+      });
+      if (!allowedEntry) {
+        await recordAuditLog({
+          userId: null,
+          action: "REGISTER_BLOCKED",
+          details: `E-mail não autorizado tentou se cadastrar: ${cleanEmail}`,
+        });
+        return {
+          success: false,
+          error: "Cadastro restrito. Solicite um convite ao administrador do sistema.",
+        };
+      }
+      if (allowedEntry.used) {
+        return {
+          success: false,
+          error: "Este convite já foi utilizado. Solicite um novo convite.",
+        };
+      }
+    }
+
     // Criptografa a senha com PBKDF2/Bcrypt Hash
     const hashedPassword = data.password ? hashPassword(data.password) : null;
 
-    // Se é o primeiro usuário do sistema, atribui o papel MASTER
-    const countUsers = await prisma.user.count();
+    // Primeiro usuário é MASTER, os demais são MEMBRO
     const role = countUsers === 0 ? "MASTER" : "MEMBRO";
+
+    // Nome: usa o fornecido ou deriva do email (parte antes do @)
+    const finalName = cleanName && cleanName.length >= 2
+      ? cleanName
+      : cleanEmail.split("@")[0];
 
     const newUser = await prisma.user.create({
       data: {
-        name: cleanName,
+        name: finalName,
         email: cleanEmail,
         password: hashedPassword,
         phone: data.phone ? sanitizeInputString(data.phone) : null,
@@ -232,6 +259,14 @@ export async function registerAction(data: {
         tokenVersion: 1,
       },
     });
+
+    // Marca o convite como utilizado
+    if (countUsers > 0) {
+      await (prisma as any).allowedEmail.update({
+        where: { email: cleanEmail },
+        data: { used: true },
+      });
+    }
 
     // Cria automaticamente a carteira padrão inicial para o novo usuário
     await prisma.wallet.create({
@@ -252,7 +287,7 @@ export async function registerAction(data: {
     // Define a sessão de login imediatamente
     const sessionData: SessionUser = {
       id: newUser.id,
-      name: newUser.name || cleanName,
+      name: newUser.name || finalName,
       email: newUser.email || cleanEmail,
       role: newUser.role,
       tokenVersion: newUser.tokenVersion || 1,
