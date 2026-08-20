@@ -55,6 +55,7 @@ export default function UsuariosPage() {
     phone: "",
     status: "ATIVO",
     role: "MEMBRO",
+    newPassword: "",
   });
   const [formError, setFormError] = useState("");
 
@@ -105,6 +106,7 @@ export default function UsuariosPage() {
       phone: "",
       status: "ATIVO",
       role: "MEMBRO",
+      newPassword: "",
     });
     setFormError("");
     setIsModalOpen(true);
@@ -118,6 +120,7 @@ export default function UsuariosPage() {
       phone: user.phone,
       status: user.status,
       role: user.role,
+      newPassword: "", // sempre limpo ao abrir edição
     });
     setFormError("");
     setIsModalOpen(true);
@@ -451,6 +454,27 @@ export default function UsuariosPage() {
                     <option value="MASTER">MASTER</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Campo Nova Senha */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  {editingUser ? "Nova Senha" : "Senha"}
+                  {editingUser && <span className="text-slate-400 font-normal normal-case ml-1">(deixe em branco para não alterar)</span>}
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    placeholder={editingUser ? "••••••  (opcional)" : "Mínimo 6 caracteres"}
+                    value={formData.newPassword || ""}
+                    onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+                    minLength={formData.newPassword ? 6 : undefined}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                {editingUser && (
+                  <p className="text-[10px] text-slate-400 mt-1">⚠️ Redefinir a senha desconectará o usuário da sessão atual.</p>
+                )}
               </div>
 
               {/* Botões do Modal */}

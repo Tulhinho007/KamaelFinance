@@ -3,8 +3,14 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
+import crypto from "crypto";
 import { sanitizeInputString, validateEmailHygiene } from "@/lib/security-hygiene";
 import { recordAuditLog } from "@/lib/auth-brute-force";
+
+function hashPassword(password: string): string {
+  const salt = process.env.AUTH_SALT || "kamael_finance_salt_2026";
+  return crypto.pbkdf2Sync(password, salt, 10000, 64, "sha512").toString("hex");
+}
 
 export interface UserFilterInput {
   search?: string;
@@ -17,6 +23,7 @@ export interface UserInput {
   phone?: string;
   status?: string;
   role?: "MASTER" | "MEMBRO";
+  newPassword?: string;
 }
 
 export async function getUsers(filters?: UserFilterInput) {
@@ -76,6 +83,11 @@ export async function createUserAction(data: UserInput) {
 
     const userRole = data.role === "MASTER" ? "MASTER" : "MEMBRO";
 
+    // Hasha a senha se fornecida pelo administrador
+    const hashedPassword = data.newPassword && data.newPassword.length >= 6
+      ? hashPassword(data.newPassword)
+      : null;
+
     const user = await prisma.user.create({
       data: {
         name: cleanName,
@@ -83,15 +95,27 @@ export async function createUserAction(data: UserInput) {
         phone: cleanPhone,
         status: data.status || "ATIVO",
         role: userRole,
+        password: hashedPassword,
         tokenVersion: 1,
       },
     });
 
-    // 2. Audit Logging
+    // Cria a carteira padrão para o usuário criado pelo MASTER
+    await prisma.wallet.create({
+      data: {
+        userId: user.id,
+        title: "Conta Principal",
+        walletType: "CONTA_CORRENTE",
+        initialBalance: 0,
+      },
+    });
+
     await recordAuditLog({
       userId: user.id,
       action: "USER_CREATED",
-      details: `Novo usuário criado via painel executivo (${userRole}) por administrador.`,
+      details: `Novo usuário criado via painel executivo (${userRole}) por administrador.${
+        hashedPassword ? " Senha definida pelo administrador." : " Sem senha inicial."
+      }`,
     });
 
     revalidatePath("/usuarios");
@@ -148,6 +172,15 @@ export async function updateUserAction(id: string, data: Partial<UserInput>) {
       tokenNeedsBump = true;
     }
 
+    // Redefinição de senha pelo administrador
+    if (data.newPassword) {
+      if (data.newPassword.length < 6) {
+        return { success: false, error: "A nova senha deve ter no mínimo 6 caracteres." };
+      }
+      updateData.password = hashPassword(data.newPassword);
+      tokenNeedsBump = true; // Invalida sessões existentes por segurança
+    }
+
     if (tokenNeedsBump) {
       updateData.tokenVersion = { increment: 1 };
     }
@@ -161,7 +194,9 @@ export async function updateUserAction(id: string, data: Partial<UserInput>) {
     await recordAuditLog({
       userId: user.id,
       action: "USER_UPDATED",
-      details: `Usuário atualizado. Status: ${user.status}, Função: ${user.role}`,
+      details: `Usuário atualizado. Status: ${user.status}, Função: ${user.role}${
+        data.newPassword ? ". Senha redefinida pelo administrador." : ""
+      }`,
     });
 
     revalidatePath("/usuarios");
