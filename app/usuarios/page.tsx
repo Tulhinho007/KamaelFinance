@@ -284,7 +284,7 @@ export default function UsuariosPage() {
                           <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
                             {user.name}
                           </p>
-                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tight truncate">
+                          <p className="text-[10px] font-medium text-slate-400 lowercase tracking-tight truncate">
                             {user.email}
                           </p>
                         </div>
