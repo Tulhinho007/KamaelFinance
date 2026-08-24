@@ -480,32 +480,36 @@ export default function CartaoDetailPage() {
         // ── VISÃO PARA CARTÃO DE CRÉDITO ─────────────────────────────────────
         <div className="flex flex-col gap-8">
           
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-stretch">
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
-              <div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Total</span>
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 items-stretch w-full">
+            {/* Card 1 — LIMITE TOTAL */}
+            <div className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-40 w-full">
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Limite Total</span>
               </div>
-              <div>
-                <p className="text-2xl font-black text-slate-800 tracking-tight">{brl(cardData.creditLimit)}</p>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className="text-lg xl:text-xl 2xl:text-2xl font-black text-slate-800 tracking-tight truncate font-tnum tabular-nums" title={brl(cardData.creditLimit)}>
+                  {brl(cardData.creditLimit)}
+                </p>
               </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+              <div className="min-h-[24px] flex items-center">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full truncate">
                   Definido no sistema
                 </span>
               </div>
             </div>
 
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
-              <div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Disponível</span>
+            {/* Card 2 — LIMITE DISPONÍVEL */}
+            <div className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-40 w-full">
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Limite Disponível</span>
               </div>
-              <div>
-                <p className={`text-2xl font-black tracking-tight ${limitAvailable < 0 ? "text-rose-500" : "text-emerald-500"}`}>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className={`text-lg xl:text-xl 2xl:text-2xl font-black tracking-tight truncate font-tnum tabular-nums ${limitAvailable < 0 ? "text-rose-500" : "text-emerald-500"}`} title={brl(limitAvailable)}>
                   {brl(limitAvailable)}
                 </p>
               </div>
-              <div className="w-full">
-                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div className="min-h-[24px] flex items-center w-full">
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all duration-500 ${usagePct >= 90 ? "bg-rose-500" : usagePct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
                     style={{ width: `${usagePct}%` }}
@@ -514,72 +518,84 @@ export default function CartaoDetailPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
-              <div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Fatura do Mês</span>
+            {/* Card 3 — FATURA DO MÊS */}
+            <div className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-40 w-full">
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Fatura do Mês</span>
               </div>
-              <div>
-                <p className="text-2xl font-black text-rose-500 tracking-tight">{brl(impactoMes)}</p>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className="text-lg xl:text-xl 2xl:text-2xl font-black text-rose-500 tracking-tight truncate font-tnum tabular-nums" title={brl(impactoMes)}>
+                  {brl(impactoMes)}
+                </p>
               </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
+              <div className="min-h-[24px] flex items-center">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded-full border border-slate-200/60 truncate">
                   Mês Selecionado
                 </span>
               </div>
             </div>
 
+            {/* Card 4 — DATA DE FECHAMENTO */}
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-indigo-200 transition-all flex flex-col justify-between h-36"
+              className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-indigo-200 transition-all flex flex-col justify-between h-40 w-full"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Data Fechamento</span>
-                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-indigo-600 transition-colors shrink-0" />
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-tight">Data Fechamento</span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-600 transition-colors shrink-0 mt-0.5" />
               </div>
-              <div>
-                <p className="text-2xl font-black text-indigo-600 tracking-tight">Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}</p>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className="text-xl xl:text-2xl font-black text-indigo-600 tracking-tight truncate">
+                  Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}
+                </p>
               </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+              <div className="min-h-[24px] flex items-center">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full truncate">
                   Encerramento da fatura
                 </span>
               </div>
             </div>
 
+            {/* Card 5 — DIA DE VENCIMENTO */}
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-amber-200 transition-all flex flex-col justify-between h-36"
+              className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-amber-200 transition-all flex flex-col justify-between h-40 w-full"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Dia Vencimento</span>
-                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-amber-600 transition-colors shrink-0" />
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-tight">Dia Vencimento</span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 transition-colors shrink-0 mt-0.5" />
               </div>
-              <div>
-                <p className="text-2xl font-black text-amber-600 tracking-tight">Dia {String(cardData.vencimento || 10).padStart(2, "0")}</p>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className="text-xl xl:text-2xl font-black text-amber-600 tracking-tight truncate">
+                  Dia {String(cardData.vencimento || 10).padStart(2, "0")}
+                </p>
               </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+              <div className="min-h-[24px] flex items-center">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full truncate">
                   Limite de pagamento
                 </span>
               </div>
             </div>
 
+            {/* Card 6 — MELHOR DIA COMPRA */}
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-emerald-200 transition-all flex flex-col justify-between h-36"
+              className="bg-white rounded-[24px] border border-white/80 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-emerald-200 transition-all flex flex-col justify-between h-40 w-full"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Melhor Dia Compra</span>
-                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+              <div className="min-h-[32px] flex items-start justify-between">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-tight">Melhor Dia Compra</span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0 mt-0.5" />
               </div>
-              <div>
-                <p className="text-2xl font-black text-emerald-600 tracking-tight">Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}</p>
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
+                <p className="text-xl xl:text-2xl font-black text-emerald-600 tracking-tight truncate">
+                  Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}
+                </p>
               </div>
-              <div>
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <div className="min-h-[24px] flex items-center">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full truncate">
                   Próxima fatura (+30d)
                 </span>
               </div>
