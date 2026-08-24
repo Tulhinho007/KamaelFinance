@@ -50,8 +50,11 @@ export function middleware(request: NextRequest) {
     });
   }
 
-  // 2. Rate Limiting por IP
-  if (!applyRateLimit(ip, 120, 60 * 1000)) {
+  // 2. Rate Limiting por IP (ignorado em ambiente de desenvolvimento local para evitar bloqueios no Next.js/Turbopack)
+  const isDev = process.env.NODE_ENV === "development";
+  const isLocalIp = ip === "127.0.0.1" || ip === "::1" || ip === "localhost";
+
+  if (!isDev && !isLocalIp && !applyRateLimit(ip, 300, 60 * 1000)) {
     return new NextResponse("Muitas requisições. Aguarde um momento.", {
       status: 429,
       headers: { "Content-Type": "text/plain; charset=utf-8" },
@@ -91,9 +94,9 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Intercepta todas as rotas do app exceto arquivos estáticos,
+     * Intercepta todas as rotas do app exceto arquivos estáticos, imagens, fontes,
      * requisições internas do Next.js e ícone favicon.
      */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)",
   ],
 };

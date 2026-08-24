@@ -792,6 +792,19 @@ export async function saveCardLimit(walletId: string, limit: number) {
   revalidatePath("/despesas");
 }
 
+export async function saveCardDates(walletId: string, diaFechamento: number, diaVencimento: number) {
+  await prisma.wallet.update({
+    where: { id: walletId },
+    data: {
+      diaFechamento: Number(diaFechamento) || 1,
+      vencimento: Number(diaVencimento) || 10,
+    } as any,
+  });
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath(`/cartoes/${walletId}`);
+}
+
 function parseInputDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   if (dateStr.includes("-")) {

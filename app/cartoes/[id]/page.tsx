@@ -4,12 +4,12 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  getCardDataById, saveCardLimit, updateCardPurchase, deleteCardPurchase,
+  getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
   addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -76,12 +76,14 @@ export default function CartaoDetailPage() {
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loading, setLoading]   = useState(true);
 
-  // Modais de edição/exclusão/carga
-  const [modalType, setModalType]               = useState<"limit" | "edit" | "delete" | "carga" | "cargaRemove" | "cargaSet" | null>(null);
+  // Modais de edição/exclusão/carga/datas
+  const [modalType, setModalType]               = useState<"limit" | "edit" | "delete" | "carga" | "cargaRemove" | "cargaSet" | "dates" | null>(null);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
+  const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
+  const [formVencimento, setFormVencimento]       = useState<number>(10);
   const [formCarga, setFormCarga] = useState<number | "">("");
   const [formCargaOrigin, setFormCargaOrigin] = useState<"SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER">("SALARIO");
   const [formCargaMonth, setFormCargaMonth] = useState<number>(selectedMonth);
@@ -215,6 +217,32 @@ export default function CartaoDetailPage() {
     } catch (err) {
       console.error(err);
       alert("Erro ao redefinir saldo total.");
+    }
+  };
+
+  const openDatesModal = () => {
+    if (!cardData) return;
+    setFormDiaFechamento(cardData.diaFechamento || 1);
+    setFormVencimento(cardData.vencimento || 10);
+    setModalType("dates");
+  };
+
+  const handleDatesSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cardData) return;
+    const fech = Number(formDiaFechamento);
+    const venc = Number(formVencimento);
+    if (fech < 1 || fech > 31 || venc < 1 || venc > 31) {
+      alert("Por favor insira dias válidos entre 1 e 31.");
+      return;
+    }
+    try {
+      await saveCardDates(cardData.walletId, fech, venc);
+      await loadData();
+      setModalType(null);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar datas do cartão.");
     }
   };
   
@@ -403,10 +431,18 @@ export default function CartaoDetailPage() {
 
             <button
               onClick={() => { setFormLimit(""); setModalType("limit"); }}
-              className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02]"
+              className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
             >
               <Settings className="w-4 h-4 text-slate-500" />
               Ajustar Limite
+            </button>
+
+            <button
+              onClick={openDatesModal}
+              className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
+            >
+              <Calendar className="w-4 h-4 text-indigo-500" />
+              Ajustar Datas
             </button>
           </>
         ) : (
@@ -444,50 +480,109 @@ export default function CartaoDetailPage() {
         // ── VISÃO PARA CARTÃO DE CRÉDITO ─────────────────────────────────────
         <div className="flex flex-col gap-8">
           
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Total</span>
-              <p className="text-2xl font-black text-slate-800 tracking-tight mt-1">{brl(cardData.creditLimit)}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-                Definido no sistema
-              </span>
-            </div>
-
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Disponível</span>
-              <p className={`text-2xl font-black tracking-tight mt-1 ${limitAvailable < 0 ? "text-rose-500" : "text-emerald-500"}`}>
-                {brl(limitAvailable)}
-              </p>
-              <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ${usagePct >= 90 ? "bg-rose-500" : usagePct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
-                  style={{ width: `${usagePct}%` }}
-                />
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-stretch">
+            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Total</span>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-slate-800 tracking-tight">{brl(cardData.creditLimit)}</p>
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                  Definido no sistema
+                </span>
               </div>
             </div>
 
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Fatura do Mês</span>
-              <p className="text-2xl font-black text-rose-500 tracking-tight mt-1">{brl(impactoMes)}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">
-                Mês Selecionado
-              </span>
+            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Disponível</span>
+              </div>
+              <div>
+                <p className={`text-2xl font-black tracking-tight ${limitAvailable < 0 ? "text-rose-500" : "text-emerald-500"}`}>
+                  {brl(limitAvailable)}
+                </p>
+              </div>
+              <div className="w-full">
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${usagePct >= 90 ? "bg-rose-500" : usagePct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+                    style={{ width: `${usagePct}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Data de Fechamento</span>
-              <p className="text-2xl font-black text-indigo-600 tracking-tight mt-1">Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
-                Vencimento: Dia {String(cardData.vencimento || 10).padStart(2, "0")}
-              </span>
+            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden flex flex-col justify-between h-36">
+              <div>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Fatura do Mês</span>
+              </div>
+              <div>
+                <p className="text-2xl font-black text-rose-500 tracking-tight">{brl(impactoMes)}</p>
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
+                  Mês Selecionado
+                </span>
+              </div>
             </div>
 
-            <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Melhor Dia Compra</span>
-              <p className="text-2xl font-black text-emerald-600 tracking-tight mt-1">Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}</p>
-              <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-                Próxima fatura (+30d)
-              </span>
+            <div
+              onClick={openDatesModal}
+              title="Clique para alterar as datas do cartão"
+              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-indigo-200 transition-all flex flex-col justify-between h-36"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Data Fechamento</span>
+                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-indigo-600 transition-colors shrink-0" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-indigo-600 tracking-tight">Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}</p>
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+                  Encerramento da fatura
+                </span>
+              </div>
+            </div>
+
+            <div
+              onClick={openDatesModal}
+              title="Clique para alterar as datas do cartão"
+              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-amber-200 transition-all flex flex-col justify-between h-36"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Dia Vencimento</span>
+                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-amber-600 transition-colors shrink-0" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-amber-600 tracking-tight">Dia {String(cardData.vencimento || 10).padStart(2, "0")}</p>
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+                  Limite de pagamento
+                </span>
+              </div>
+            </div>
+
+            <div
+              onClick={openDatesModal}
+              title="Clique para alterar as datas do cartão"
+              className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden cursor-pointer group hover:border-emerald-200 transition-all flex flex-col justify-between h-36"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Melhor Dia Compra</span>
+                <Edit2 className="w-3 h-3 text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+              </div>
+              <div>
+                <p className="text-2xl font-black text-emerald-600 tracking-tight">Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}</p>
+              </div>
+              <div>
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  Próxima fatura (+30d)
+                </span>
+              </div>
             </div>
           </section>
 
@@ -1039,6 +1134,81 @@ export default function CartaoDetailPage() {
               <div className="flex gap-2">
                 <button type="button" onClick={() => setModalType(null)} className="flex-1 py-2.5 text-xs font-bold text-slate-500 bg-slate-100 rounded-xl">Cancelar</button>
                 <button type="submit" className="flex-1 py-2.5 text-xs font-bold text-white bg-indigo-600 rounded-xl">Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajustar Datas do Cartão */}
+      {modalType === "dates" && (
+        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-7 w-full max-w-md flex flex-col gap-5 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-800">Ajustar Datas do Cartão</h3>
+                <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Defina o dia de fechamento e o dia de vencimento da fatura.</p>
+              </div>
+              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleDatesSave} className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Dia de Fechamento *
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={formDiaFechamento}
+                    onChange={e => setFormDiaFechamento(Number(e.target.value))}
+                    placeholder="1"
+                    className="w-full rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs font-bold text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                  />
+                  <span className="text-[9px] text-slate-400 font-semibold">Dia em que a fatura é fechada</span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Dia de Vencimento *
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={formVencimento}
+                    onChange={e => setFormVencimento(Number(e.target.value))}
+                    placeholder="10"
+                    className="w-full rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs font-bold text-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                  />
+                  <span className="text-[9px] text-slate-400 font-semibold">Dia limite do pagamento</span>
+                </div>
+              </div>
+
+              {/* Preview do Melhor Dia de Compra */}
+              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-3.5 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[9px] font-black text-emerald-700 uppercase tracking-wider block">Melhor Dia para Compra (Calculado)</span>
+                  <span className="text-[10px] font-semibold text-emerald-800">Dia subsequente ao fechamento</span>
+                </div>
+                <span className="text-base font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-xl">
+                  Dia {String((Number(formDiaFechamento) % 31) + 1).padStart(2, "0")}
+                </span>
+              </div>
+
+              <div className="flex gap-2 mt-2">
+                <button type="button" onClick={() => setModalType(null)} className="flex-1 py-3 text-xs font-extrabold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl cursor-pointer">
+                  CANCELAR
+                </button>
+                <button type="submit" className="flex-1 py-3 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-lg shadow-indigo-600/25 cursor-pointer">
+                  SALVAR ALTERAÇÕES
+                </button>
               </div>
             </form>
           </div>
