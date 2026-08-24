@@ -1158,14 +1158,14 @@ export default function CartaoDetailPage() {
 
       {/* Modal Ajustar Datas do Cartão */}
       {modalType === "dates" && (
-        <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-[32px] p-7 w-full max-w-md flex flex-col gap-5 shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+        <div className="fixed inset-0 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-7 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800/80 pb-3">
               <div>
-                <h3 className="text-sm font-black text-slate-800">Ajustar Datas do Cartão</h3>
-                <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Defina o dia de fechamento e o dia de vencimento da fatura.</p>
+                <h3 className="text-sm font-black text-slate-800 dark:text-white">Ajustar Datas do Cartão</h3>
+                <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-400 mt-0.5">Defina o dia de fechamento e o dia de vencimento da fatura.</p>
               </div>
-              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1173,7 +1173,7 @@ export default function CartaoDetailPage() {
             <form onSubmit={handleDatesSave} className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Dia de Fechamento *
                   </label>
                   <input
@@ -1184,13 +1184,13 @@ export default function CartaoDetailPage() {
                     value={formDiaFechamento}
                     onChange={e => setFormDiaFechamento(Number(e.target.value))}
                     placeholder="1"
-                    className="w-full rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs font-bold text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-black text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
-                  <span className="text-[9px] text-slate-400 font-semibold">Dia em que a fatura é fechada</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Dia em que a fatura é fechada</span>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  <label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider">
                     Dia de Vencimento *
                   </label>
                   <input
@@ -1201,28 +1201,28 @@ export default function CartaoDetailPage() {
                     value={formVencimento}
                     onChange={e => setFormVencimento(Number(e.target.value))}
                     placeholder="10"
-                    className="w-full rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 text-xs font-bold text-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-3 text-sm font-black text-amber-600 dark:text-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                   />
-                  <span className="text-[9px] text-slate-400 font-semibold">Dia limite do pagamento</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Dia limite do pagamento</span>
                 </div>
               </div>
 
               {/* Preview do Melhor Dia de Compra */}
-              <div className="bg-emerald-50/60 border border-emerald-200/60 rounded-2xl p-3.5 flex items-center justify-between text-xs">
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 rounded-2xl p-4 flex items-center justify-between text-xs">
                 <div>
-                  <span className="text-[9px] font-black text-emerald-700 uppercase tracking-wider block">Melhor Dia para Compra (Calculado)</span>
-                  <span className="text-[10px] font-semibold text-emerald-800">Dia subsequente ao fechamento</span>
+                  <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">Melhor Dia para Compra (Calculado)</span>
+                  <span className="text-[10px] font-medium text-emerald-700/80 dark:text-emerald-400">Dia subsequente ao fechamento</span>
                 </div>
-                <span className="text-base font-black text-emerald-700 bg-emerald-100 px-3 py-1 rounded-xl">
+                <span className="text-base font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-700/50 px-3.5 py-1 rounded-xl shadow-xs">
                   Dia {String((Number(formDiaFechamento) % 31) + 1).padStart(2, "0")}
                 </span>
               </div>
 
               <div className="flex gap-2 mt-2">
-                <button type="button" onClick={() => setModalType(null)} className="flex-1 py-3 text-xs font-extrabold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl cursor-pointer">
+                <button type="button" onClick={() => setModalType(null)} className="flex-1 py-3 text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-2xl cursor-pointer transition-colors">
                   CANCELAR
                 </button>
-                <button type="submit" className="flex-1 py-3 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-lg shadow-indigo-600/25 cursor-pointer">
+                <button type="submit" className="flex-1 py-3 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-lg shadow-indigo-600/25 cursor-pointer transition-colors">
                   SALVAR ALTERAÇÕES
                 </button>
               </div>
