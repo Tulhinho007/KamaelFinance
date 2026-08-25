@@ -39,6 +39,54 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ══════════════════════════════════════════════
+   CLASSES UTILITÁRIAS DE DESIGN SYSTEM (GLOW & CONTRASTE)
+   ══════════════════════════════════════════════ */
+
+/* .card-glow — Fundo escuro Glassmorphism com brilho neon suave e hover dinâmico */
+.card-glow {
+  background-color: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15);
+  border-radius: 28px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-glow:hover {
+  border-color: rgba(168, 85, 247, 0.5);
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.25);
+  transform: scale(1.005);
+}
+
+/* .text-secondary-light — Texto de suporte/rótulo em alto contraste sobre fundo escuro */
+.text-secondary-light {
+  color: #CBD5E1 !important;
+  font-weight: 600;
+}
+
+/* .btn-primary-glow — Botão CTA principal com gradiente roxo/azul e glow em foco */
+.btn-primary-glow {
+  background-image: linear-gradient(to right, #4f46e5, #9333ea, #6366f1);
+  color: #ffffff !important;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.3);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  display: inline-flex;
+  items-center: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary-glow:hover {
+  background-image: linear-gradient(to right, #6366f1, #a855f7, #4f46e5);
+  box-shadow: 0 15px 30px -5px rgba(168, 85, 247, 0.45);
+  transform: scale(1.02);
+}
+
 /* ─── Tabular numbers (valores monetários) ─── */
 .tabular-nums, .font-tnum {
   font-feature-settings: 'tnum' 1, 'lnum' 1;
@@ -189,8 +237,6 @@ html.dark .text-amber-600    { color: #F59E0B !important; }
 html.dark .text-violet-600   { color: #A78BFA !important; }
 
 /* ─── Variantes com opacidade — legibilidade em dark ─── */
-/* Tailwind gera .text-emerald-600\/70 como cor com opacity: 0.7,
-   o que em dark fica quase invisível. Forçamos a cor sólida legível. */
 html.dark [class*="text-emerald-"][class*="\/"] { color: #34D399 !important; }
 html.dark [class*="text-rose-"][class*="\/"]    { color: #FDA4AF !important; }
 html.dark [class*="text-indigo-"][class*="\/"]  { color: #818CF8 !important; }
@@ -241,11 +287,6 @@ html.dark .bg-slate-50\/80 {
 
 html.dark .bg-slate-50\/40 {
   background-color: rgba(15, 23, 42, 0.4) !important;
-}
-
-/* ─── Gradientes em cards de conta/cartão ─── */
-html.dark .bg-gradient-to-br {
-  /* mantém gradientes — são decorativos e já têm contraste */
 }
 
 /* ─── Scrollbar discreta ─── */
