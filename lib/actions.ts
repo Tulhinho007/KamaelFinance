@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { z } from "zod";
 import type { Goal, GoalHistory, Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
+import { getInvoiceDueDateInfo } from "./invoice-utils";
 
 // ---------- Validação de entrada (DTOs) ----------
 
@@ -1114,6 +1115,7 @@ export async function getAllCardsOverview(month: number, year: number) {
           date:     { gte: from, lte: to },
           deletedAt: null,
         },
+        orderBy: { date: "asc" },
       });
 
       const faturaAtual = transactions.reduce((s, t) => s + Number(t.amount), 0);
@@ -1133,6 +1135,25 @@ export async function getAllCardsOverview(month: number, year: number) {
 
       const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
+
+      const latestTxDate = transactions.length > 0 ? transactions[transactions.length - 1].date : null;
+      const dueDateInfo = getInvoiceDueDateInfo(
+        (w as any).diaFechamento ?? 1,
+        w.vencimento ?? 10,
+        month,
+        year,
+        latestTxDate
+      );
+
+      const paidRecord = await (prisma as any).invoicePayment.findFirst({
+        where: {
+          walletId: w.id,
+          OR: [
+            { month, year },
+            { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
+          ]
+        }
+      });
 
       return {
         id:               w.id,
@@ -1155,11 +1176,175 @@ export async function getAllCardsOverview(month: number, year: number) {
         diaFechamento:    (w as any).diaFechamento ?? 1,
         melhorDiaCompra:  (w as any).diaFechamento ? (((w as any).diaFechamento % 31) + 1) : 2,
         color:            "from-indigo-600 via-purple-600 to-violet-600",
+        vencimentoStr:    dueDateInfo.dateStr,
+        isPast:           dueDateInfo.isPast,
+        billingMonth:     dueDateInfo.billingMonth,
+        billingYear:      dueDateInfo.billingYear,
+        isPaid:           !!paidRecord,
+        paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
+        paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
       };
     })
   );
 
   return result;
+}
+
+// ---------- Actions de Pagamento de Faturas ----------
+
+export async function payCardInvoiceAction(
+  cardWalletId: string,
+  month: number,
+  year: number,
+  amount: number,
+  paymentWalletId?: string
+) {
+  const userId = await getActiveUserId();
+
+  const card = await prisma.wallet.findUnique({
+    where: { id: cardWalletId, userId },
+  });
+  if (!card) throw new Error("Cartão não encontrado.");
+
+  let paymentTransactionId: string | null = null;
+
+  if (paymentWalletId && paymentWalletId !== "NONE") {
+    const paymentWallet = await prisma.wallet.findUnique({
+      where: { id: paymentWalletId, userId },
+    });
+
+    if (paymentWallet) {
+      const now = new Date();
+      const tx = await prisma.transaction.create({
+        data: {
+          walletId: paymentWallet.id,
+          description: `Pagamento Fatura ${card.title} (${String(month).padStart(2, "0")}/${year})`,
+          type: "EXPENSE",
+          amount: amount,
+          date: now,
+          source: "MANUAL",
+        },
+      });
+      paymentTransactionId = tx.id;
+    }
+  }
+
+  await (prisma as any).invoicePayment.upsert({
+    where: {
+      walletId_month_year: {
+        walletId: cardWalletId,
+        month,
+        year,
+      },
+    },
+    create: {
+      walletId: cardWalletId,
+      month,
+      year,
+      amount: amount,
+      paymentWalletId: (paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
+      paymentTransactionId,
+    },
+    update: {
+      amount: amount,
+      paymentWalletId: (paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
+      paymentTransactionId,
+      paidAt: new Date(),
+    },
+  });
+
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function undoCardInvoicePaymentAction(
+  cardWalletId: string,
+  month: number,
+  year: number
+) {
+  const userId = await getActiveUserId();
+
+  const existing = await (prisma as any).invoicePayment.findFirst({
+    where: {
+      walletId: cardWalletId,
+      OR: [
+        { month, year },
+        { wallet: { userId } }
+      ]
+    },
+  });
+
+  const specificPayment = await (prisma as any).invoicePayment.findUnique({
+    where: {
+      walletId_month_year: {
+        walletId: cardWalletId,
+        month,
+        year,
+      },
+    },
+  }) || existing;
+
+  if (!specificPayment) return { success: true };
+
+  if (specificPayment.paymentTransactionId) {
+    await prisma.transaction.updateMany({
+      where: { id: specificPayment.paymentTransactionId },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  await (prisma as any).invoicePayment.delete({
+    where: { id: specificPayment.id },
+  });
+
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function getPaidInvoicesAction(month: number, year: number) {
+  const userId = await getActiveUserId();
+
+  const paidInvoices = await (prisma as any).invoicePayment.findMany({
+    where: {
+      wallet: { userId },
+      month,
+      year,
+    },
+    include: {
+      wallet: true,
+    },
+    orderBy: { paidAt: "desc" },
+  });
+
+  return Promise.all(
+    paidInvoices.map(async (p: any) => {
+      let paymentWalletTitle = "Sem Débito em Conta";
+      if (p.paymentWalletId) {
+        const sourceWallet = await prisma.wallet.findUnique({
+          where: { id: p.paymentWalletId },
+          select: { title: true },
+        });
+        if (sourceWallet) paymentWalletTitle = sourceWallet.title;
+      }
+
+      return {
+        id: p.id,
+        walletId: p.walletId,
+        cardTitle: p.wallet.title,
+        bankName: p.wallet.bankName || p.wallet.title,
+        month: p.month,
+        year: p.year,
+        amount: Number(p.amount),
+        paidAt: p.paidAt.toISOString(),
+        paymentWalletId: p.paymentWalletId,
+        paymentWalletTitle,
+      };
+    })
+  );
 }
 
 export async function createNewCard(input: {

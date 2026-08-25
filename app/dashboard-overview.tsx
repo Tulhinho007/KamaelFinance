@@ -185,16 +185,14 @@ export function DashboardOverview() {
   const today = new Date();
 
   const upcomingBills = data.cards
-    .filter((c: any) => c.walletType === "CREDIT_CARD" && c.faturaAtual > 0)
+    .filter((c: any) => c.walletType === "CREDIT_CARD" && c.faturaAtual > 0 && !c.isPaid)
     .map((c: any) => {
-      const vencDate = new Date(selectedYear, selectedMonth - 1, c.vencimento);
-      const isPast = vencDate < today;
       return {
         id: c.id,
         title: c.title,
         valor: c.faturaAtual,
-        vencimento: `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
-        isPast,
+        vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
+        isPast: !!c.isPast,
       };
     });
 

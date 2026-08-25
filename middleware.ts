@@ -70,12 +70,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Se o usuário JÁ estiver logado e tentar acessar /login ou /cadastro -> redireciona para / (Dashboard)
-  if (sessionCookie && isPublicRoute) {
-    const dashboardUrl = new URL("/", request.url);
-    return NextResponse.redirect(dashboardUrl);
-  }
-
   const response = NextResponse.next();
 
   // 3. Security Hardening Headers

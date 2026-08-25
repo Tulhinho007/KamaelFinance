@@ -43,6 +43,7 @@ model Wallet {
   creditLimit    Decimal?      // Limite total para cartões de crédito
   transactions   Transaction[]
   goals          Goal[]
+  invoicePayments InvoicePayment[]
 }
 
 model Category {
@@ -239,3 +240,18 @@ model AllowedEmail {
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+model InvoicePayment {
+  id                   String   @id @default(uuid())
+  walletId             String
+  wallet               Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  month                Int
+  year                 Int
+  amount               Decimal
+  paidAt               DateTime @default(now())
+  paymentWalletId      String?
+  paymentTransactionId String?
+
+  @@unique([walletId, month, year])
+}
+

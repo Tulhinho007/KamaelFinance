@@ -39,12 +39,18 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
     const sessionCookie = cookieStore.get(COOKIE_NAME)?.value;
     if (!sessionCookie) return null;
 
-    const parsed = JSON.parse(sessionCookie) as SessionUser;
+    let parsed: SessionUser;
+    try {
+      parsed = JSON.parse(sessionCookie) as SessionUser;
+    } catch {
+      try { cookieStore.delete(COOKIE_NAME); } catch {}
+      return null;
+    }
     if (!parsed?.id) return null;
 
     const isValidToken = await verifyTokenVersion(parsed.id, parsed.tokenVersion || 1);
     if (!isValidToken) {
-      cookieStore.delete(COOKIE_NAME);
+      try { cookieStore.delete(COOKIE_NAME); } catch {}
       return null;
     }
 
@@ -53,7 +59,10 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
       select: { id: true, name: true, email: true, role: true, status: true, tokenVersion: true },
     });
 
-    if (!user || user.status === "INATIVO") return null;
+    if (!user || user.status === "INATIVO") {
+      try { cookieStore.delete(COOKIE_NAME); } catch {}
+      return null;
+    }
 
     return {
       id: user.id,
