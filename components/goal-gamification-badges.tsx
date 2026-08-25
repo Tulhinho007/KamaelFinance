@@ -15,32 +15,32 @@ export function GoalGamificationBadges({ pct, compact = false }: GoalGamificatio
       title: "Primeiro Passo",
       badge: "25%",
       icon: Award,
-      unlockedBg: "bg-gradient-to-br from-amber-700 to-amber-900 text-amber-100 border-amber-500/40 shadow-amber-900/20",
-      colorText: "text-amber-500",
+      unlockedBg: "bg-amber-500/20 text-amber-300 border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.25)]",
+      colorText: "text-amber-300",
     },
     {
       pctRequired: 50,
       title: "Meio Caminho",
       badge: "50%",
       icon: Medal,
-      unlockedBg: "bg-gradient-to-br from-slate-300 via-slate-400 to-slate-500 text-white border-slate-300/40 shadow-slate-500/20",
-      colorText: "text-slate-400",
+      unlockedBg: "bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]",
+      colorText: "text-cyan-300",
     },
     {
       pctRequired: 75,
       title: "Quase Lá",
       badge: "75%",
       icon: Trophy,
-      unlockedBg: "bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 text-yellow-950 border-yellow-300/40 shadow-yellow-500/20",
-      colorText: "text-yellow-500",
+      unlockedBg: "bg-purple-500/20 text-purple-300 border-purple-400/50 shadow-[0_0_12px_rgba(168,85,247,0.25)]",
+      colorText: "text-purple-300",
     },
     {
       pctRequired: 100,
       title: "Meta Concluída",
       badge: "100%",
       icon: Crown,
-      unlockedBg: "bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white border-white/30 shadow-indigo-500/30",
-      colorText: "text-indigo-400",
+      unlockedBg: "bg-emerald-500/25 text-emerald-300 border-emerald-400/60 shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse",
+      colorText: "text-emerald-300",
     },
   ];
 
@@ -49,7 +49,7 @@ export function GoalGamificationBadges({ pct, compact = false }: GoalGamificatio
     if (!highestUnlocked) return null;
     const IconComp = highestUnlocked.icon;
     return (
-      <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-full border shadow-xs ${highestUnlocked.unlockedBg}`}>
+      <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2.5 py-0.5 rounded-full border ${highestUnlocked.unlockedBg}`}>
         <IconComp className="w-3 h-3" />
         <span>{highestUnlocked.title} ({highestUnlocked.badge})</span>
       </span>
@@ -65,10 +65,10 @@ export function GoalGamificationBadges({ pct, compact = false }: GoalGamificatio
         return (
           <div
             key={m.pctRequired}
-            className={`relative flex items-center justify-center gap-1 px-1 py-1 rounded-xl border text-[9px] font-extrabold w-full transition-all duration-300 text-center ${
+            className={`relative flex items-center justify-center gap-1 px-1.5 py-1 rounded-xl border text-[9px] font-black w-full transition-all duration-300 text-center ${
               isUnlocked
-                ? `${m.unlockedBg} shadow-xs scale-100`
-                : "bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-200/60 dark:border-slate-800 opacity-60"
+                ? `${m.unlockedBg} scale-100`
+                : "bg-slate-800/40 text-slate-400 border-slate-700/60 opacity-70"
             }`}
             title={isUnlocked ? `Conquista desbloqueada: ${m.title} (${m.badge})` : `Bloqueado: Requer ${m.badge} da meta`}
           >
