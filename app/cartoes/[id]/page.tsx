@@ -644,7 +644,7 @@ export default function CartaoDetailPage() {
                           <td className="py-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
                           <td className="py-3 font-extrabold text-slate-800">{p.description}</td>
                           <td className="py-3">
-                            <span className="bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold">
+                            <span className="bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-2.5 py-0.5 rounded-md text-[10px] font-semibold uppercase">
                               {p.category}
                             </span>
                           </td>
