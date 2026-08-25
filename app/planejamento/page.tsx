@@ -20,7 +20,10 @@ import {
   Loader2,
   ChevronDown,
   Clock,
-  X
+  X,
+  ListTodo,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import {
   getEventProjects,
@@ -56,41 +59,82 @@ interface EventProject {
   items: EventItem[];
 }
 
+interface ChecklistTask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 export default function PlanningPage() {
   const [projects, setProjects] = useState<EventProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   // Estados de edição do projeto
-  const [editTitle, setEditTitle] = useState("");
+  const [editTitle, setEditTitle]         = useState("");
   const [editStartDate, setEditStartDate] = useState<string>("");
-  const [editEndDate, setEditEndDate] = useState<string>("");
-  const [editStatus, setEditStatus] = useState("Em Planejamento");
-  const [editNotes, setEditNotes] = useState("");
-  const [notesSaving, setNotesSaving] = useState(false);
+  const [editEndDate, setEditEndDate]     = useState<string>("");
+  const [editStatus, setEditStatus]       = useState("Em Planejamento");
+  const [editNotes, setEditNotes]         = useState("");
+  const [notesSaving, setNotesSaving]     = useState(false);
   const [notesSavedSuccess, setNotesSavedSuccess] = useState(false);
+
+  // Estado do Checklist Interativo
+  const [checklistTasks, setChecklistTasks] = useState<ChecklistTask[]>([]);
+  const [newChecklistText, setNewChecklistText] = useState("");
 
   // Modal de Novo Projeto
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
-  const [newProjectTitle, setNewProjectTitle] = useState("");
-  const [newProjectStartDate, setNewProjectStartDate] = useState("");
-  const [newProjectEndDate, setNewProjectEndDate] = useState("");
-  const [newProjectStatus, setNewProjectStatus] = useState("Em Planejamento");
+  const [newProjectTitle, setNewProjectTitle]             = useState("");
+  const [newProjectStartDate, setNewProjectStartDate]     = useState("");
+  const [newProjectEndDate, setNewProjectEndDate]         = useState("");
+  const [newProjectStatus, setNewProjectStatus]           = useState("Em Planejamento");
 
   // Novo Item Form State
-  const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemMin, setNewItemMin] = useState<number | "">("");
-  const [newItemMax, setNewItemMax] = useState<number | "">("");
+  const [newItemDesc, setNewItemDesc]   = useState("");
+  const [newItemMin, setNewItemMin]     = useState<number | "">("");
+  const [newItemMax, setNewItemMax]     = useState<number | "">("");
   const [newItemNotes, setNewItemNotes] = useState("");
   const [isAddingItem, setIsAddingItem] = useState(false);
 
   // Edição de Item Inline (para Descrição e Notas)
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
-  const [editItemDesc, setEditItemDesc] = useState("");
+  const [editItemDesc, setEditItemDesc]   = useState("");
   const [editItemNotes, setEditItemNotes] = useState("");
 
   // Modal de Conversão em Despesa
   const [convertModalItem, setConvertModalItem] = useState<EventItem | null>(null);
+
+  // Extrai tarefas do checklist salvas nas notas (formato [x] ou [ ])
+  const parseNotesAndChecklist = (rawNotes: string) => {
+    const lines = rawNotes.split("\n");
+    const tasks: ChecklistTask[] = [];
+    const textLines: string[] = [];
+
+    lines.forEach((line, idx) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith("[x] ") || trimmed.startsWith("[X] ")) {
+        tasks.push({ id: `task-${idx}-${Date.now()}`, text: trimmed.slice(4), done: true });
+      } else if (trimmed.startsWith("[ ] ")) {
+        tasks.push({ id: `task-${idx}-${Date.now()}`, text: trimmed.slice(4), done: false });
+      } else {
+        textLines.push(line);
+      }
+    });
+
+    setChecklistTasks(tasks);
+    setEditNotes(textLines.join("\n").trim());
+  };
+
+  // Codifica o checklist de volta junto com as anotações
+  const serializeNotesAndChecklist = (textNotes: string, tasks: ChecklistTask[]) => {
+    const checklistStr = tasks
+      .map(t => `${t.done ? "[x]" : "[ ]"} ${t.text}`)
+      .join("\n");
+    if (!checklistStr) return textNotes;
+    if (!textNotes) return checklistStr;
+    return `${checklistStr}\n\n${textNotes}`;
+  };
 
   // Carrega projetos
   const loadData = async () => {
@@ -105,7 +149,7 @@ export default function PlanningPage() {
         setEditStartDate(current.startDate || "");
         setEditEndDate(current.endDate || "");
         setEditStatus(current.status);
-        setEditNotes(current.notes);
+        parseNotesAndChecklist(current.notes || "");
       }
     } catch (error) {
       console.error("Erro ao carregar projetos de planejamento:", error);
@@ -142,7 +186,7 @@ export default function PlanningPage() {
       setEditStartDate(proj.startDate || "");
       setEditEndDate(proj.endDate || "");
       setEditStatus(proj.status);
-      setEditNotes(proj.notes);
+      parseNotesAndChecklist(proj.notes || "");
     }
   };
 
@@ -221,7 +265,7 @@ export default function PlanningPage() {
     }
   };
 
-  // Adicionar Item
+  // Adicionar Item ao Orçamento
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeProject || !newItemDesc.trim() || !newItemMax) return;
@@ -248,11 +292,9 @@ export default function PlanningPage() {
     }
   };
 
-  // Alternar Status de Pago (Checkbox)
-  // Nota: ao desmarcar, o paidAmount é PRESERVADO (não zerado).
+  // Alternar Status de Pago
   const handleTogglePaid = async (item: EventItem) => {
     const newIsPaid = !item.isPaid;
-    // Atualização otimista local: só altera isPaid, preserva paidAmount
     setProjects(prev =>
       prev.map((p: EventProject) => {
         if (p.id !== activeProject?.id) return p;
@@ -268,14 +310,11 @@ export default function PlanningPage() {
       await updateEventItemAction(item.id, { isPaid: newIsPaid });
     } catch (err) {
       console.error(err);
-      // Reverte em caso de erro
       await loadData();
     }
   };
 
-  // ATUALIZAÇÃO DIRETA DOS INPUTS DE VALOR NA TABELA
-  // Nota: alterar o paidAmount NÃO altera isPaid automaticamente.
-  // O checkbox de "Pago" é controlado separadamente pelo handleTogglePaid.
+  // Atualização direta de valores numéricos na tabela
   const handleItemValueChange = async (
     itemId: string,
     field: "minAmount" | "maxAmount" | "paidAmount",
@@ -283,7 +322,6 @@ export default function PlanningPage() {
   ) => {
     const numericVal = valueStr === "" ? 0 : Number(valueStr);
 
-    // Atualização otimista no estado local (sem alterar isPaid)
     setProjects(prev =>
       prev.map((p: EventProject) => {
         if (p.id !== activeProject?.id) return p;
@@ -297,7 +335,6 @@ export default function PlanningPage() {
       })
     );
 
-    // Persistência no banco (sem alterar isPaid)
     try {
       await updateEventItemAction(itemId, {
         [field]: field === "minAmount" && valueStr === "" ? null : numericVal,
@@ -340,17 +377,55 @@ export default function PlanningPage() {
     }
   };
 
-  // Salvar Bloco de Notas Integrado
+  // Handlers para Checklist Interativo
+  const handleAddChecklistTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChecklistText.trim()) return;
+    const newTask: ChecklistTask = {
+      id: `task-${Date.now()}`,
+      text: newChecklistText.trim(),
+      done: false,
+    };
+    const updatedTasks = [...checklistTasks, newTask];
+    setChecklistTasks(updatedTasks);
+    setNewChecklistText("");
+    saveNotesWithTasks(editNotes, updatedTasks);
+  };
+
+  const handleToggleChecklistTask = (taskId: string) => {
+    const updatedTasks = checklistTasks.map(t =>
+      t.id === taskId ? { ...t, done: !t.done } : t
+    );
+    setChecklistTasks(updatedTasks);
+    saveNotesWithTasks(editNotes, updatedTasks);
+  };
+
+  const handleDeleteChecklistTask = (taskId: string) => {
+    const updatedTasks = checklistTasks.filter(t => t.id !== taskId);
+    setChecklistTasks(updatedTasks);
+    saveNotesWithTasks(editNotes, updatedTasks);
+  };
+
+  const saveNotesWithTasks = async (textNotes: string, tasks: ChecklistTask[]) => {
+    if (!activeProject) return;
+    const fullSerialized = serializeNotesAndChecklist(textNotes, tasks);
+    try {
+      await updateEventProjectAction(activeProject.id, { notes: fullSerialized });
+      setProjects(prev =>
+        prev.map(p => (p.id === activeProject.id ? { ...p, notes: fullSerialized } : p))
+      );
+    } catch (err) {
+      console.error("Erro ao salvar bloco de notas:", err);
+    }
+  };
+
   const handleSaveNotes = async () => {
     if (!activeProject) return;
     setNotesSaving(true);
     try {
-      await updateEventProjectAction(activeProject.id, { notes: editNotes });
+      await saveNotesWithTasks(editNotes, checklistTasks);
       setNotesSavedSuccess(true);
       setTimeout(() => setNotesSavedSuccess(false), 2500);
-      setProjects(prev =>
-        prev.map(p => (p.id === activeProject.id ? { ...p, notes: editNotes } : p))
-      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -361,21 +436,17 @@ export default function PlanningPage() {
   // --- REAJUSTE DE REGRAS DE NEGÓCIO E CÁLCULOS AUTOMÁTICOS ---
   const items = activeProject?.items || [];
   
-  // Cenário Otimista (Total Mínimo): Soma dos menores valores dos itens
   const totalMinimoOtimista = items.reduce(
     (sum, i) => sum + (i.minAmount !== null && i.minAmount > 0 ? i.minAmount : i.maxAmount),
     0
   );
 
-  // Cenário Realista / Pessimista (Total Máximo): Soma dos maiores valores estimados de TODOS os itens
   const totalMaximoRealista = items.reduce((sum, i) => sum + i.maxAmount, 0);
 
-  // CARD 1: "TOTAL JÁ PAGO" (Azul/Índigo) - Soma da coluna Valor a Pagar / Pago dos itens pagos
   const totalJaPagoReal = items
     .filter((i: EventItem) => i.isPaid)
     .reduce((sum, i) => sum + (i.paidAmount > 0 ? i.paidAmount : i.maxAmount), 0);
 
-  // CARD 2: "RESTANTE A PAGAR" (Vermelho/Rose) - Soma dos itens PENDENTES com prioridade (Valor a Pagar ou Valor Máximo de contingência)
   const restanteAPagarEstimado = items
     .filter((i: EventItem) => !i.isPaid)
     .reduce((sum, i) => {
@@ -385,34 +456,34 @@ export default function PlanningPage() {
 
   if (loading && projects.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
-          <p className="text-xs font-semibold text-slate-500">Carregando planejamento de viagens...</p>
+          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+          <p className="text-xs font-bold text-slate-300">Carregando planejamento de viagens...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 select-none">
       
-      {/* HEADER DA PÁGINA */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+      {/* ── 1. HEADER DA PÁGINA ──────────────────────────────────────────────── */}
+      <div className="card-glow p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.2)]">
             <Plane className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              <h1 className="text-xl font-black tracking-tight text-white">
                 Planejamento de Viagens & Eventos
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/60 rounded-full">
+              <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full shadow-2xs">
                 Orçamentos Futuros
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-xs text-secondary-light mt-0.5">
               Simule cenários de custos, organize itens da viagem e converta em despesas reais.
             </p>
           </div>
@@ -420,14 +491,14 @@ export default function PlanningPage() {
 
         {/* Seleção de Projetos e Novo Projeto */}
         <div className="flex items-center gap-3">
-          <div className="relative min-w-[200px]">
+          <div className="relative min-w-[220px]">
             <select
               value={selectedProjectId}
               onChange={e => handleSelectProject(e.target.value)}
-              className="w-full appearance-none rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 pr-8 text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+              className="w-full appearance-none rounded-xl bg-slate-900 border border-slate-700 px-4 py-2.5 pr-8 text-xs font-bold text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
             >
               {projects.map(p => (
-                <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+                <option key={p.id} value={p.id} className="bg-slate-900 text-slate-100">
                   {p.title} ({p.status})
                 </option>
               ))}
@@ -437,206 +508,209 @@ export default function PlanningPage() {
 
           <button
             onClick={() => setIsNewProjectModalOpen(true)}
-            className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 flex-shrink-0 cursor-pointer"
+            className="btn-primary-glow py-2.5 px-4 text-xs"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-white" />
             <span>Novo Projeto</span>
           </button>
         </div>
       </div>
 
-      {/* DADOS DO PROJETO ATIVO */}
+      {/* ── 2. DADOS DO PROJETO ATIVO ────────────────────────────────────────── */}
       {activeProject && (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-6 shadow-sm">
+        <div className="space-y-6">
           
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 border-b border-slate-100 dark:border-slate-800">
+          {/* Header do Projeto Selecionado */}
+          <div className="card-glow p-6 space-y-4">
             
-            {/* Título & Status */}
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  onBlur={e => handleUpdateProjectHeader("title", e.target.value)}
-                  placeholder="Nome do Projeto / Viagem"
-                  className="text-lg sm:text-xl font-black bg-transparent text-slate-900 dark:text-slate-100 border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5 rounded"
-                />
-
-                {/* Badge de Status */}
-                <select
-                  value={editStatus}
-                  onChange={e => {
-                    setEditStatus(e.target.value);
-                    handleUpdateProjectHeader("status", e.target.value);
-                  }}
-                  className={`text-xs font-extrabold px-3 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
-                    editStatus === "Confirmado"
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
-                      : editStatus === "Concluído"
-                      ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30"
-                      : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/30"
-                  }`}
-                >
-                  <option value="Em Planejamento" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Em Planejamento</option>
-                  <option value="Confirmado" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Confirmado</option>
-                  <option value="Concluído" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">Concluído</option>
-                </select>
-              </div>
-
-              {/* SELETOR DE PERÍODO (DATE RANGE PICKER) E DURAÇÃO */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                  <Calendar className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                  <span className="font-bold">Início:</span>
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+              
+              {/* Título & Status */}
+              <div className="flex-1 space-y-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input
-                    type="date"
-                    value={editStartDate}
-                    onChange={e => {
-                      setEditStartDate(e.target.value);
-                      handleUpdateProjectHeader("startDate", e.target.value);
-                    }}
-                    className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
+                    type="text"
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    onBlur={e => handleUpdateProjectHeader("title", e.target.value)}
+                    placeholder="Nome do Projeto / Viagem"
+                    className="text-lg sm:text-xl font-black bg-transparent text-white border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5 rounded"
                   />
-                  <span className="font-bold mx-1">até</span>
-                  <span className="font-bold">Fim:</span>
-                  <input
-                    type="date"
-                    value={editEndDate}
+
+                  {/* Badge de Status */}
+                  <select
+                    value={editStatus}
                     onChange={e => {
-                      setEditEndDate(e.target.value);
-                      handleUpdateProjectHeader("endDate", e.target.value);
+                      setEditStatus(e.target.value);
+                      handleUpdateProjectHeader("status", e.target.value);
                     }}
-                    className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none [color-scheme:light] dark:[color-scheme:dark]"
-                  />
+                    className={`text-xs font-black px-3 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
+                      editStatus === "Confirmado"
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                        : editStatus === "Concluído"
+                        ? "bg-purple-500/20 text-purple-300 border-purple-400/40 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+                        : "bg-indigo-500/20 text-indigo-300 border-indigo-400/40 shadow-[0_0_10px_rgba(99,102,241,0.2)]"
+                    }`}
+                  >
+                    <option value="Em Planejamento" className="bg-slate-900 text-slate-100">Em Planejamento</option>
+                    <option value="Confirmado" className="bg-slate-900 text-slate-100">Confirmado</option>
+                    <option value="Concluído" className="bg-slate-900 text-slate-100">Concluído</option>
+                  </select>
                 </div>
 
-                {/* Exibição da Duração Calculada */}
-                {tripDays !== null && tripDays > 0 && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-extrabold">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Duração: {tripDays} {tripDays === 1 ? "dia" : "dias"}</span>
+                {/* Date Range & Duração */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-secondary-light bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <Calendar className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                    <span className="font-bold">Início:</span>
+                    <input
+                      type="date"
+                      value={editStartDate}
+                      onChange={e => {
+                        setEditStartDate(e.target.value);
+                        handleUpdateProjectHeader("startDate", e.target.value);
+                      }}
+                      className="bg-transparent border-none text-xs font-bold text-white focus:outline-none [color-scheme:dark]"
+                    />
+                    <span className="font-bold mx-1 text-slate-400">até</span>
+                    <span className="font-bold">Fim:</span>
+                    <input
+                      type="date"
+                      value={editEndDate}
+                      onChange={e => {
+                        setEditEndDate(e.target.value);
+                        handleUpdateProjectHeader("endDate", e.target.value);
+                      }}
+                      className="bg-transparent border-none text-xs font-bold text-white focus:outline-none [color-scheme:dark]"
+                    />
                   </div>
-                )}
+
+                  {tripDays !== null && tripDays > 0 && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-xl text-xs font-extrabold shadow-2xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Duração: {tripDays} {tripDays === 1 ? "dia" : "dias"}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Ações do Projeto */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDeleteProject}
+                  className="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                  title="Excluir Projeto"
+                >
+                  <Trash2 className="w-4.5 h-4.5" />
+                </button>
               </div>
             </div>
 
-            {/* Ações do Projeto */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDeleteProject}
-                className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
-                title="Excluir Projeto"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            {/* ── 3. CARDS KPIS PADRONIZADOS EM .CARD-GLOW (4 COLUNAS) ─────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              
+              {/* Card 1: Cenário Otimista (Total Mínimo) */}
+              <div className="card-glow p-4 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                    Cenário Otimista
+                  </span>
+                  <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-emerald-400 tracking-tight font-tnum">
+                    {totalMinimoOtimista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos menores valores</p>
+                </div>
+              </div>
+
+              {/* Card 2: Cenário Realista (Total Máximo) */}
+              <div className="card-glow p-4 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                    Cenário Realista (Máx)
+                  </span>
+                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-amber-400 tracking-tight font-tnum">
+                    {totalMaximoRealista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos maiores valores</p>
+                </div>
+              </div>
+
+              {/* Card 3: TOTAL JÁ PAGO (Azul/Índigo - Card-glow) */}
+              <div className="card-glow p-4 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                    Total Já Pago (Real)
+                  </span>
+                  <div className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-indigo-400 tracking-tight font-tnum">
+                    {totalJaPagoReal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos itens liquidados</p>
+                </div>
+              </div>
+
+              {/* Card 4: RESTANTE A PAGAR (Rosa/Vermelho - Card-glow) */}
+              <div className="card-glow p-4 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.15)] flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                    Restante a Pagar
+                  </span>
+                  <div className="w-7 h-7 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xl font-black text-rose-400 tracking-tight font-tnum">
+                    {restanteAPagarEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </p>
+                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma estimada dos pendentes</p>
+                </div>
+              </div>
+
             </div>
           </div>
 
-          {/* CARDS PRINCIPAIS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Cenário Otimista (Total Mínimo) */}
-            <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Cenário Otimista
-                </span>
-                <div className="w-7 h-7 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  {totalMinimoOtimista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Soma dos menores valores</p>
-              </div>
-            </div>
-
-            {/* Cenário Realista / Pessimista (Total Máximo) */}
-            <div className="bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Cenário Realista (Máx)
-                </span>
-                <div className="w-7 h-7 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-                  {totalMaximoRealista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-                <p className="text-[10px] text-slate-400 font-medium mt-0.5">Soma dos maiores valores</p>
-              </div>
-            </div>
-
-            {/* TOTAL JÁ PAGO (Azul) */}
-            <div className="bg-indigo-50/50 dark:bg-indigo-950/30 p-4 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                  Total Já Pago (Real)
-                </span>
-                <div className="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm">
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">
-                  {totalJaPagoReal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-                <p className="text-[10px] text-indigo-500/80 dark:text-indigo-400/80 font-medium mt-0.5">Soma da coluna Valor a Pagar / Pago</p>
-              </div>
-            </div>
-
-            {/* RESTANTE A PAGAR (Vermelho) */}
-            <div className="bg-rose-50/50 dark:bg-rose-950/30 p-4 rounded-2xl border border-rose-200/60 dark:border-rose-900/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-                  Restante a Pagar (Pendentes)
-                </span>
-                <div className="w-7 h-7 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-sm">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <div>
-                <p className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
-                  {restanteAPagarEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </p>
-                <p className="text-[10px] text-rose-500/80 dark:text-rose-400/80 font-medium mt-0.5">Soma estimada dos itens pendentes</p>
-              </div>
-            </div>
-
-          </div>
-
-          {/* TABELA DINÂMICA DE ITENS DO PLANEJAMENTO */}
-          <div className="space-y-4 pt-4">
+          {/* ── 4. FORMULÁRIO DE INSERÇÃO RÁPIDA DE ITENS ─────────────────────── */}
+          <div className="card-glow p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                Orçamento Detalhado por Item
+              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <Plus className="w-4 h-4 text-purple-400" />
+                Adicionar Novo Item ao Orçamento
               </h2>
-              <span className="text-xs font-semibold text-slate-400">
+              <span className="text-[10px] font-semibold text-slate-300">
                 {items.length} {items.length === 1 ? "item cadastrado" : "itens cadastrados"}
               </span>
             </div>
 
-            {/* Formulário Rápido de Adição de Item */}
-            <form onSubmit={handleAddItem} className="bg-slate-50 dark:bg-slate-950/80 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
               <div className="lg:col-span-4 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Item / Descrição *</label>
+                <label className="text-[10px] font-black text-slate-300 uppercase">Item / Descrição *</label>
                 <input
                   type="text"
                   required
                   value={newItemDesc}
                   onChange={e => setNewItemDesc(e.target.value)}
-                  placeholder="Ex: Hotel, Ingresso, Passagem..."
-                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Ex: Hotel, Passagem aérea, Ingresso..."
+                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
               <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Valor Mínimo (R$)</label>
+                <label className="text-[10px] font-black text-slate-300 uppercase">Valor Mínimo (R$)</label>
                 <input
                   type="number"
                   min="0"
@@ -644,12 +718,12 @@ export default function PlanningPage() {
                   value={newItemMin}
                   onChange={e => setNewItemMin(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0.00 (Opcional)"
-                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
               <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Valor Máximo/Estimado *</label>
+                <label className="text-[10px] font-black text-slate-300 uppercase">Valor Máximo *</label>
                 <input
                   type="number"
                   required
@@ -658,52 +732,64 @@ export default function PlanningPage() {
                   value={newItemMax}
                   onChange={e => setNewItemMax(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0.00"
-                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
-              <div className="lg:col-span-3 flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Anotações / Links</label>
+              <div className="lg:col-span-2 flex flex-col gap-1">
+                <label className="text-[10px] font-black text-slate-300 uppercase">Anotações / Links</label>
                 <input
                   type="text"
                   value={newItemNotes}
                   onChange={e => setNewItemNotes(e.target.value)}
-                  placeholder="Observações ou link de reserva"
-                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Link ou observação"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-2">
                 <button
                   type="submit"
                   disabled={isAddingItem}
-                  className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center cursor-pointer h-[38px] disabled:opacity-60"
-                  title="Adicionar Item ao Planejamento"
+                  className="btn-primary-glow w-full py-2.5 text-xs font-black h-[40px] disabled:opacity-60"
                 >
-                  {isAddingItem ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  {isAddingItem ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-white" />
+                      <span>+ Adicionar Item</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
+          </div>
 
-            {/* TABELA DE ITENS COM CAMPOS DE VALOR DIRETO COMO INPUT E SEM SETINHAS */}
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          {/* ── 5. TABELA DE ORÇAMENTO DETALHADO POR ITEM ───────────────────────── */}
+          <div className="card-glow p-6 space-y-4">
+            <h2 className="text-xs font-black text-white uppercase tracking-wider">
+              Orçamento Detalhado por Item
+            </h2>
+
+            <div className="overflow-x-auto rounded-2xl border border-slate-800">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-100/70 dark:bg-slate-950/80 text-slate-500 dark:text-slate-400 uppercase font-black tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3.5 px-3 w-10 text-center">Pago</th>
+                  <tr className="bg-slate-900 text-slate-300 uppercase font-black tracking-wider text-[10px] border-b border-slate-800">
+                    <th className="py-3.5 px-3 w-14 text-center">Status</th>
                     <th className="py-3.5 px-4">Item / Descrição</th>
-                    <th className="py-3.5 px-4 text-center w-32">Valor Mínimo</th>
-                    <th className="py-3.5 px-4 text-center w-32">Valor Máximo</th>
-                    <th className="py-3.5 px-4 text-center w-36 text-indigo-600 dark:text-indigo-400">Valor a Pagar / Pago</th>
+                    <th className="py-3.5 px-4 text-right w-36">Valor Mínimo</th>
+                    <th className="py-3.5 px-4 text-right w-36">Valor Máximo</th>
+                    <th className="py-3.5 px-4 text-right w-36 text-indigo-300">Valor Pago</th>
                     <th className="py-3.5 px-4">Anotações / Links</th>
-                    <th className="py-3.5 px-4 text-center w-32">Ações</th>
+                    <th className="py-3.5 px-4 text-center w-28">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
+                <tbody className="divide-y divide-slate-800/80 font-medium">
                   {items.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
-                        Nenhum item cadastrado neste planejamento. Adicione itens acima!
+                      <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
+                        Nenhum item cadastrado neste planejamento. Utilize o formulário acima para adicionar!
                       </td>
                     </tr>
                   ) : (
@@ -713,23 +799,23 @@ export default function PlanningPage() {
                       return (
                         <tr
                           key={item.id}
-                          className={`hover:bg-slate-50/80 dark:hover:bg-slate-900/50 transition-colors ${
-                            item.isPaid ? "bg-emerald-500/5 dark:bg-emerald-500/5" : ""
+                          className={`transition-colors hover:bg-slate-800/40 ${
+                            item.isPaid ? "bg-emerald-500/5" : ""
                           }`}
                         >
-                          {/* Status de Pagamento (Checkbox) */}
+                          {/* Status de Pagamento (Switch Neon) */}
                           <td className="py-3 px-3 text-center">
                             <button
                               type="button"
                               onClick={() => handleTogglePaid(item)}
-                              className="cursor-pointer text-slate-400 hover:text-emerald-500 transition-colors"
-                              title={item.isPaid ? "Marcado como Pago" : "Marcar como Pago"}
+                              className={`inline-flex items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
+                                item.isPaid
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
+                                  : "bg-slate-800/60 text-slate-400 border-slate-700 hover:text-emerald-400"
+                              }`}
+                              title={item.isPaid ? "Desmarcar Pago" : "Marcar como Pago"}
                             >
-                              {item.isPaid ? (
-                                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                              ) : (
-                                <Circle className="w-5 h-5 text-slate-300 dark:text-slate-600" />
-                              )}
+                              <CheckCircle2 className={`w-4 h-4 ${item.isPaid ? "text-emerald-300" : "text-slate-400"}`} />
                             </button>
                           </td>
 
@@ -740,62 +826,55 @@ export default function PlanningPage() {
                                 type="text"
                                 value={editItemDesc}
                                 onChange={e => setEditItemDesc(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-slate-100 font-bold"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold"
                               />
                             ) : (
                               <div>
-                                <span className={`font-bold ${item.isPaid ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-slate-100"}`}>
+                                <span className={`font-bold ${item.isPaid ? "line-through text-slate-400" : "text-white"}`}>
                                   {item.description}
                                 </span>
                                 {item.transactionId && (
-                                  <span className="ml-2 text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                                    Lançado nas Despesas
+                                  <span className="ml-2 text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-400/30">
+                                    Lançado no Extrato
                                   </span>
                                 )}
                               </div>
                             )}
                           </td>
 
-                          {/* INPUT DIRETO: VALOR MÍNIMO */}
-                          <td className="py-2.5 px-3 text-center">
+                          {/* VALOR MÍNIMO */}
+                          <td className="py-3 px-4 text-right font-black font-tnum text-emerald-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.minAmount !== null && item.minAmount !== undefined ? item.minAmount : ""}
                               onChange={e => handleItemValueChange(item.id, "minAmount", e.target.value)}
                               placeholder="0.00"
-                              className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-center font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              title="Digite o Valor Mínimo"
+                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                             />
                           </td>
 
-                          {/* INPUT DIRETO: VALOR MÁXIMO / ESTIMADO */}
-                          <td className="py-2.5 px-3 text-center">
+                          {/* VALOR MÁXIMO */}
+                          <td className="py-3 px-4 text-right font-black font-tnum text-amber-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.maxAmount || ""}
                               onChange={e => handleItemValueChange(item.id, "maxAmount", e.target.value)}
                               placeholder="0.00"
-                              className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-center font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              title="Digite o Valor Máximo Estimado"
+                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
                             />
                           </td>
 
-                          {/* INPUT DIRETO: VALOR REAL PAGO */}
-                          <td className="py-2.5 px-3 text-center">
+                          {/* VALOR PAGO */}
+                          <td className="py-3 px-4 text-right font-black font-tnum text-indigo-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.paidAmount || ""}
                               onChange={e => handleItemValueChange(item.id, "paidAmount", e.target.value)}
                               placeholder={item.isPaid ? "0.00" : "Pendente"}
-                              className={`w-28 bg-white dark:bg-slate-950 border rounded-xl px-2.5 py-1.5 text-xs text-center font-extrabold focus:outline-none focus:ring-2 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
-                                item.isPaid || item.paidAmount > 0
-                                  ? "border-indigo-400 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 focus:ring-indigo-500"
-                                  : "border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 focus:ring-indigo-500"
-                              }`}
-                              title="Digite o Valor Real Pago"
+                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                           </td>
 
@@ -806,30 +885,30 @@ export default function PlanningPage() {
                                 type="text"
                                 value={editItemNotes}
                                 onChange={e => setEditItemNotes(e.target.value)}
-                                className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white"
                               />
                             ) : item.notes ? (
-                              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                                <span>{item.notes}</span>
+                              <div className="flex items-center gap-1.5 text-slate-300 max-w-xs truncate">
+                                <span className="truncate">{item.notes}</span>
                                 {item.notes.startsWith("http") && (
                                   <a
                                     href={item.notes}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-indigo-500 hover:text-indigo-400 transition-colors"
-                                    title="Abrir Link de Reserva"
+                                    className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                                    title="Abrir Link"
                                   >
-                                    <ExternalLink className="w-3.5 h-3.5" />
+                                    <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                                   </a>
                                 )}
                               </div>
                             ) : (
-                              <span className="text-slate-300 dark:text-slate-600 font-normal">-</span>
+                              <span className="text-slate-600 font-normal">-</span>
                             )}
                           </td>
 
                           {/* Ações por Linha */}
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-4 text-center whitespace-nowrap">
                             {isEditing ? (
                               <div className="flex items-center justify-center gap-1">
                                 <button
@@ -841,7 +920,7 @@ export default function PlanningPage() {
                                 </button>
                                 <button
                                   onClick={() => setEditingItemId(null)}
-                                  className="p-1.5 bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 transition-colors"
+                                  className="p-1.5 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
                                   title="Cancelar"
                                 >
                                   <X className="w-3.5 h-3.5" />
@@ -849,32 +928,29 @@ export default function PlanningPage() {
                               </div>
                             ) : (
                               <div className="flex items-center justify-center gap-1.5">
-                                {/* Botão Converter em Despesa */}
                                 {!item.transactionId && (
                                   <button
                                     onClick={() => setConvertModalItem(item)}
-                                    className="px-2 py-1 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-600 hover:text-white dark:bg-indigo-500/20 dark:hover:bg-indigo-500 dark:text-indigo-400 dark:hover:text-white rounded-lg transition-all text-[10px] font-bold flex items-center gap-1 cursor-pointer"
-                                    title="Converter em Despesa no Extrato Principal"
+                                    className="px-2 py-1 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500 hover:text-white border border-indigo-400/30 rounded-lg transition-all text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                                    title="Converter em Despesa"
                                   >
                                     <ArrowUpRight className="w-3.5 h-3.5" />
                                     <span>Lançar</span>
                                   </button>
                                 )}
 
-                                {/* Editar */}
                                 <button
                                   onClick={() => startEditingItem(item)}
-                                  className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                  title="Editar Descrição e Notas"
+                                  className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                  title="Editar"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
 
-                                {/* Excluir */}
                                 <button
                                   onClick={() => handleDeleteItem(item.id)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                                  title="Excluir Item"
+                                  className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                                  title="Excluir"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
@@ -887,23 +963,22 @@ export default function PlanningPage() {
                   )}
                 </tbody>
 
-                {/* RODAPÉ DA TABELA EXIBINDO OS TOTAIS */}
                 {items.length > 0 && (
                   <tfoot>
-                    <tr className="bg-slate-100/90 dark:bg-slate-950 font-extrabold text-slate-900 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-800">
-                      <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-500 dark:text-slate-400">
+                    <tr className="bg-slate-900 font-extrabold text-white border-t-2 border-slate-800">
+                      <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-400">
                         Totais do Orçamento ({items.length} itens)
                       </td>
-                      <td className="py-3.5 px-3 text-center text-emerald-600 dark:text-emerald-400 font-black">
+                      <td className="py-3.5 px-4 text-right text-emerald-400 font-black font-tnum">
                         {totalMinimoOtimista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td className="py-3.5 px-3 text-center text-amber-600 dark:text-amber-400 font-black">
+                      <td className="py-3.5 px-4 text-right text-amber-400 font-black font-tnum">
                         {totalMaximoRealista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td className="py-3.5 px-3 text-center text-indigo-600 dark:text-indigo-400 font-black">
+                      <td className="py-3.5 px-4 text-right text-indigo-400 font-black font-tnum">
                         {totalJaPagoReal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td colSpan={2} className="py-3.5 px-4 text-right text-xs text-rose-600 dark:text-rose-400 font-bold">
+                      <td colSpan={2} className="py-3.5 px-4 text-right text-xs text-rose-400 font-black">
                         Restante a Pagar: {restanteAPagarEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
                     </tr>
@@ -913,62 +988,143 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          {/* BLOCO DE NOTAS INTEGRADO / ROTEIRO */}
-          <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
+          {/* ── 6. CHECKLIST INTERATIVO & BLOCO DE NOTAS DO ROTEIRO ─────────────── */}
+          <div className="card-glow p-6 space-y-6">
+            
+            {/* Cabeçalho da Seção de Notas */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-indigo-500" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">
-                  Bloco de Notas Integrado & Checklist da Viagem
-                </h3>
+                <ListTodo className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                    Checklist & Roteiro da Viagem
+                  </h3>
+                  <p className="text-[10px] text-slate-300 font-semibold">Organize mala, documentos e lembretes importantes</p>
+                </div>
               </div>
+
               <button
                 onClick={handleSaveNotes}
                 disabled={notesSaving}
-                className="py-1.5 px-3 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-slate-100 dark:text-slate-900 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                className="btn-primary-glow px-4 py-2 text-xs font-black disabled:opacity-60"
               >
                 {notesSaving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
                 ) : notesSavedSuccess ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                    <span className="text-emerald-500">Salvo!</span>
+                    <Check className="w-4 h-4 text-emerald-300" />
+                    <span>Salvo com Sucesso!</span>
                   </>
                 ) : (
                   <>
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Salvar Anotações</span>
+                    <Save className="w-4 h-4 text-white" />
+                    <span>Salvar Alterações</span>
                   </>
                 )}
               </button>
             </div>
 
-            <textarea
-              rows={5}
-              value={editNotes}
-              onChange={e => setEditNotes(e.target.value)}
-              placeholder="Digite aqui anotações gerais sobre o roteiro da viagem, checklist de documentos, bagagens, vouchers de hotel, passeios programados ou lembretes importantes..."
-              className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-medium text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all leading-relaxed"
-            />
+            {/* Checklist Interativo */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-indigo-400" />
+                Checklist Interativo da Viagem ({checklistTasks.filter(t => t.done).length}/{checklistTasks.length})
+              </h4>
+
+              {/* Form Adicionar Item ao Checklist */}
+              <form onSubmit={handleAddChecklistTask} className="flex gap-2">
+                <input
+                  type="text"
+                  value={newChecklistText}
+                  onChange={e => setNewChecklistText(e.target.value)}
+                  placeholder="Adicionar tarefa (ex: Passaporte, Adaptador de tomada, Check-in)..."
+                  className="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Adicionar</span>
+                </button>
+              </form>
+
+              {/* Lista do Checklist */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {checklistTasks.map(task => (
+                  <div
+                    key={task.id}
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                      task.done
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-slate-400"
+                        : "bg-slate-900 border-slate-800 text-white"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => handleToggleChecklistTask(task.id)}
+                      className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
+                    >
+                      {task.done ? (
+                        <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Square className="w-4 h-4 text-slate-400 shrink-0" />
+                      )}
+                      <span className={`text-xs font-semibold truncate ${task.done ? "line-through text-slate-400" : "text-white"}`}>
+                        {task.text}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteChecklistTask(task.id)}
+                      className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                      title="Excluir item"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Linha Divisória */}
+            <div className="border-t border-slate-800" />
+
+            {/* Área de Roteiro e Observações Gerais */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-indigo-400" />
+                Observações do Roteiro & Vouchers
+              </label>
+              <textarea
+                rows={5}
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                placeholder="Digite aqui observações do roteiro, horários de voo, códigos de reserva, dicas de passeios ou lembretes importantes..."
+                className="w-full rounded-2xl bg-slate-950 border border-slate-800 p-4 text-xs font-medium text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all leading-relaxed"
+              />
+            </div>
+
           </div>
 
         </div>
       )}
 
-      {/* MODAL NOVO PROJETO */}
+      {/* ── 7. MODAL NOVO PROJETO ────────────────────────────────────────────── */}
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-slate-100">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-base font-bold">Novo Projeto de Viagem / Evento</h3>
-              <button onClick={() => setIsNewProjectModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+          <div className="bg-slate-900 rounded-[28px] border border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-white">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-800">
+              <h3 className="text-base font-black">Novo Projeto de Viagem / Evento</h3>
+              <button onClick={() => setIsNewProjectModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-300 mb-1">
                   Nome do Projeto / Viagem *
                 </label>
                 <input
@@ -976,45 +1132,44 @@ export default function PlanningPage() {
                   required
                   value={newProjectTitle}
                   onChange={e => setNewProjectTitle(e.target.value)}
-                  placeholder="Ex: Viagem Imaginelegend, Aniversário 30 Anos"
-                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  placeholder="Ex: Viagem Japão, Aniversário 30 Anos"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
-              {/* Data Início & Fim no Novo Projeto */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-300 mb-1">
                     Data de Início
                   </label>
                   <input
                     type="date"
                     value={newProjectStartDate}
                     onChange={e => setNewProjectStartDate(e.target.value)}
-                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold [color-scheme:light] dark:[color-scheme:dark]"
+                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white [color-scheme:dark]"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-300 mb-1">
                     Data de Fim
                   </label>
                   <input
                     type="date"
                     value={newProjectEndDate}
                     onChange={e => setNewProjectEndDate(e.target.value)}
-                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold [color-scheme:light] dark:[color-scheme:dark]"
+                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white [color-scheme:dark]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-300 mb-1">
                   Status Inicial
                 </label>
                 <select
                   value={newProjectStatus}
                   onChange={e => setNewProjectStatus(e.target.value)}
-                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold"
+                  className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white cursor-pointer"
                 >
                   <option value="Em Planejamento">Em Planejamento</option>
                   <option value="Confirmado">Confirmado</option>
@@ -1024,7 +1179,7 @@ export default function PlanningPage() {
 
               <button
                 type="submit"
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+                className="btn-primary-glow w-full py-3 text-xs font-extrabold"
               >
                 Criar Projeto
               </button>
@@ -1033,7 +1188,7 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* MODAL DE CONVERSÃO EM DESPESA */}
+      {/* ── 8. MODAL DE CONVERSÃO EM DESPESA ─────────────────────────────────── */}
       <ConvertToExpenseModal
         isOpen={!!convertModalItem}
         onClose={() => setConvertModalItem(null)}
