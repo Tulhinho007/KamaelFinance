@@ -632,60 +632,60 @@ export default function DespesasPage() {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
         {/* KPI 0 — Saldo Total em Conta */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(16,185,129,0.08)] transition-all duration-300">
-          <Building2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-100/70 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Saldo Total em Conta</span>
-          <span className="text-[9px] font-bold text-slate-400 block mb-2">Consolidado · Contas & Débito</span>
-          <p className="text-2xl font-black text-emerald-600 tracking-tight">{brl(saldoTotalConta)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
-            <TrendingUp className="w-3 h-3" /> +8.5% vs mês anterior
+        <div className="card-glow p-5 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative overflow-hidden group flex flex-col justify-between">
+          <Building2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Saldo Total em Conta</span>
+          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Consolidado · Contas & Débito</span>
+          <p className="text-2xl font-black text-emerald-400 tracking-tight font-tnum">{brl(saldoTotalConta)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-1 rounded-full border border-emerald-400/30 shadow-2xs w-fit">
+            <TrendingUp className="w-3 h-3 text-emerald-400" /> +8.5% vs mês anterior
           </span>
         </div>
 
         {/* KPI 1 — Total em Faturas */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(244,63,94,0.08)] transition-all duration-300">
-          <TrendingDown className="absolute -right-3 -bottom-3 w-20 h-20 text-rose-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total em Faturas</span>
-          <span className="text-[9px] font-bold text-slate-400 block mb-2">Mês Atual · Cartões de Crédito</span>
-          <p className="text-2xl font-black text-rose-500 tracking-tight">{brl(totalFaturas)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full border border-rose-100">
-            <TrendingDown className="w-3 h-3" /> -3.2% vs mês anterior
+        <div className="card-glow p-5 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.15)] relative overflow-hidden group flex flex-col justify-between">
+          <TrendingDown className="absolute -right-3 -bottom-3 w-20 h-20 text-rose-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Total em Faturas</span>
+          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Mês Atual · Cartões de Crédito</span>
+          <p className="text-2xl font-black text-rose-400 tracking-tight font-tnum">{brl(totalFaturas)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-rose-300 bg-rose-500/20 px-2 py-1 rounded-full border border-rose-400/30 shadow-2xs w-fit">
+            <TrendingDown className="w-3 h-3 text-rose-400" /> -3.2% vs mês anterior
           </span>
         </div>
 
         {/* KPI 2 — Limite Consolidado */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
-          <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Consolidado</span>
-          <span className="text-[9px] font-bold text-slate-400 block mb-2">Disponível em Crédito</span>
-          <p className="text-2xl font-black text-indigo-600 tracking-tight">{brl(limiteConsolidado)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
-            <CheckCircle2 className="w-3 h-3 text-indigo-500" /> Limite seguro
+        <div className="card-glow p-5 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] relative overflow-hidden group flex flex-col justify-between">
+          <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Limite Consolidado</span>
+          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Disponível em Crédito</span>
+          <p className="text-2xl font-black text-indigo-400 tracking-tight font-tnum">{brl(limiteConsolidado)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded-full border border-indigo-400/30 shadow-2xs w-fit">
+            <CheckCircle2 className="w-3 h-3 text-indigo-400" /> Limite seguro
           </span>
         </div>
 
         {/* KPI 3 — Próximos Vencimentos */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
-          <Calendar className={`absolute -right-3 -bottom-3 w-20 h-20 ${kpi3.iconColor} pointer-events-none group-hover:scale-110 transition-transform duration-300`} />
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Próximos Vencimentos</span>
-          <span className="text-[9px] font-bold text-slate-400 block mb-2">{kpi3.subtitle}</span>
-          <p className={`text-2xl font-black ${kpi3.amountColor} tracking-tight`}>{brl(proximosVencimentos)}</p>
-          <span className={`mt-2 inline-flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full border ${kpi3.badgeClass}`}>
-            <Clock className="w-3.5 h-3.5" /> {kpi3.badgeText}
+        <div className="card-glow p-5 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] relative overflow-hidden group flex flex-col justify-between">
+          <Calendar className="absolute -right-3 -bottom-3 w-20 h-20 text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Próximos Vencimentos</span>
+          <span className="text-[9px] font-semibold text-secondary-light block mb-2">{kpi3.subtitle}</span>
+          <p className="text-2xl font-black text-amber-400 tracking-tight font-tnum">{brl(proximosVencimentos)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-amber-300 bg-amber-500/20 px-2 py-1 rounded-full border border-amber-400/30 shadow-2xs w-fit">
+            <Clock className="w-3.5 h-3.5 text-amber-400" /> {kpi3.badgeText}
           </span>
         </div>
       </section>
 
       {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
-      <section className="bg-white rounded-[28px] border border-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <section className="card-glow p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+            <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl border border-indigo-400/30">
               <PieChart className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-slate-800">Distribuição dos Gastos por Cartão</h3>
-              <p className="text-[10px] font-semibold text-slate-400">Visão consolidada das faturas ativas no mês</p>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
+              <p className="text-[10px] font-semibold text-secondary-light">Visão consolidada das faturas ativas no mês</p>
             </div>
           </div>
         </div>
