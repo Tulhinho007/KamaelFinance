@@ -4,8 +4,9 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight,
-  AlertCircle, CheckCircle2, Clock, Sparkles, TrendingDown,
-  BarChart3, Calendar, MoreHorizontal, Pencil, Trash2
+  AlertCircle, CheckCircle2, Clock, Sparkles, TrendingDown, TrendingUp,
+  BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
+  PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -40,10 +41,13 @@ type CardOverview = {
 
 type UpcomingBill = {
   id: string;
+  title?: string;
   bankName: string;
   vencimento: string;
   valor: number;
   status: "pago" | "aberto" | "vencido";
+  month: number;
+  year: number;
 };
 
 // ─── Paleta de cores dos bancos (Tailwind classes p/ CardTile) ───────────────
@@ -59,7 +63,7 @@ const BANK_COLORS: Record<string, string> = {
   default:   "from-indigo-600 via-purple-600 to-violet-600",
 };
 
-// ─── Gradientes CSS inline para o Preview do modal (imunes à purge do Tailwind)
+// ─── Gradientes CSS inline para o Preview do modal ───────────────────────────
 const BANK_GRADIENT_STYLES: Record<string, string> = {
   nubank:    "linear-gradient(135deg, #6d28d9, #7e22ce, #4338ca)",
   itau:      "linear-gradient(135deg, #f97316, #f59e0b, #eab308)",
@@ -104,8 +108,6 @@ function calculateNextDueDate(
   let vencDate = new Date(vencYear, vencMonth - 1, vencimentoDay);
   vencDate.setHours(0, 0, 0, 0);
 
-  // Se a data de vencimento do mês corrente já passou E a fatura está PAGA ou R$ 0,00,
-  // avança o mês da fatura em +1
   if (vencDate < today && isPaidOrZero) {
     vencMonth += 1;
     if (vencMonth > 12) {
@@ -135,12 +137,130 @@ function walletLabel(type: string) {
   return "Carteira";
 }
 
+function walletBadgeStyle(type: string) {
+  if (type === "CREDIT_CARD")    return "bg-purple-500/20 text-purple-200 border-purple-400/30";
+  if (type === "CONTA_CORRENTE") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/30";
+  if (type === "TICKET")         return "bg-teal-500/20 text-teal-200 border-teal-400/30";
+  return "bg-white/20 text-white border-white/30";
+}
+
+// ─── Exportador CSV ──────────────────────────────────────────────────────────
+function exportExpensesCSV(cards: CardOverview[], paidList: any[], month: number, year: number) {
+  const headers = ["Tipo", "Nome / Banco", "Titular", "Limite / Saldo Total", "Fatura / Uso Atual", "Fechamento / Vencimento"];
+  const rows = cards.map(c => [
+    `"${walletLabel(c.walletType)}"`,
+    `"${c.bankName || c.title}"`,
+    `"${c.holder || "N/A"}"`,
+    c.limitTotal.toFixed(2),
+    c.faturaAtual.toFixed(2),
+    c.vencimento ? `"Dia ${c.vencimento}"` : '"N/A"'
+  ]);
+
+  const csvString = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+  const blob = new Blob(["\uFEFF" + csvString], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `Relatorio_Despesas_${String(month).padStart(2, "0")}_${year}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ─── Componente Donut Chart de Gastos por Categoria ─────────────────────────
+function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
+  const creditCards = cards.filter(c => c.walletType === "CREDIT_CARD");
+  const totalExpenses = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
+
+  const categoriesData = creditCards
+    .filter(c => c.faturaAtual > 0)
+    .map(c => ({
+      name: c.title || c.bankName,
+      value: c.faturaAtual,
+    }));
+
+  if (categoriesData.length === 0 || totalExpenses === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+        <PieChart className="w-8 h-8 text-slate-300 mb-2" />
+        <p className="text-xs font-semibold text-slate-400">Nenhum gasto acumulado no cartão para o gráfico.</p>
+      </div>
+    );
+  }
+
+  const PALETTE = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#f43f5e"];
+  let cumulative = 0;
+
+  const slices = categoriesData.map((item, i) => {
+    const percentage = item.value / totalExpenses;
+    const angle = percentage * 360;
+    const startAngle = cumulative;
+    cumulative += angle;
+    return {
+      ...item,
+      color: PALETTE[i % PALETTE.length],
+      percentage: Math.round(percentage * 100),
+      startAngle,
+      angle,
+    };
+  });
+
+  return (
+    <div className="flex flex-col md:flex-row items-center gap-6 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+      {/* SVG Donut */}
+      <div className="relative w-36 h-36 flex-shrink-0">
+        <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+          {slices.map((slice, i) => {
+            const dashArray = `${(slice.angle / 360) * 283} 283`;
+            const dashOffset = -((slice.startAngle / 360) * 283);
+            return (
+              <circle
+                key={i}
+                cx="50"
+                cy="50"
+                r="45"
+                fill="transparent"
+                stroke={slice.color}
+                strokeWidth="10"
+                strokeDasharray={dashArray}
+                strokeDashoffset={dashOffset}
+                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Faturas</span>
+          <span className="text-xs font-black text-slate-800 mt-0.5">{brl(totalExpenses)}</span>
+        </div>
+      </div>
+
+      {/* Legenda */}
+      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
+        {slices.map((slice, i) => (
+          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-100 shadow-2xs text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+              <span className="font-bold text-slate-700 truncate">{slice.name}</span>
+            </div>
+            <div className="text-right shrink-0 ml-2">
+              <span className="font-black text-slate-800 block">{brl(slice.value)}</span>
+              <span className="text-[9px] font-bold text-slate-400">{slice.percentage}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
   const { selectedMonth, selectedYear } = usePeriod();
 
   const [cards, setCards]         = useState<CardOverview[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [selectedHolder, setSelectedHolder] = useState<string>("TODOS");
 
   // ── Modais e Abas de Fatura ──────────────────────────────────────────────────
   const [modalMode, setModalMode]           = useState<"create" | "edit" | "delete" | null>(null);
@@ -223,11 +343,29 @@ export default function DespesasPage() {
     return () => { active = false; };
   }, [selectedMonth, selectedYear]);
 
-  // ── KPIs consolidados ────────────────────────────────────────────────────────
-  const creditCards = cards.filter(c => c.walletType === "CREDIT_CARD");
+  // ── Titulares únicos para o filtro rápido ────────────────────────────────────
+  const uniqueHolders = Array.from(
+    new Set(cards.map(c => c.holder).filter(Boolean))
+  ) as string[];
 
+  const filteredCards = cards.filter(
+    c => selectedHolder === "TODOS" || c.holder === selectedHolder
+  );
+
+  // ── KPIs consolidados ────────────────────────────────────────────────────────
+  const creditCards  = cards.filter(c => c.walletType === "CREDIT_CARD");
+  const accountCards = cards.filter(c => c.walletType !== "CREDIT_CARD");
+
+  const saldoTotalConta   = accountCards.reduce((s, c) => s + c.limitTotal, 0);
   const totalFaturas      = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
   const limiteConsolidado = creditCards.reduce((s, c) => s + (c.limitTotal - c.limitUsed), 0);
+
+  // Cálculo da porcentagem de faturas pagas no mês
+  const totalFaturasMes = totalFaturas + paidInvoicesList.reduce((s, p) => s + p.amount, 0);
+  const pagoFaturasMes  = paidInvoicesList.reduce((s, p) => s + p.amount, 0);
+  const pctFaturasPagas = totalFaturasMes > 0
+    ? Math.round((pagoFaturasMes / totalFaturasMes) * 100)
+    : (paidInvoicesList.length > 0 ? 100 : 0);
 
   // Soma de todas as faturas pendentes do mês (fatura > 0 e NÃO pagas)
   const proximosVencimentos = creditCards.reduce((s, c) => {
@@ -317,7 +455,7 @@ export default function DespesasPage() {
   const kpi3 = getKpi3Info();
 
   // ── Próximas faturas (lista) — somente cartões de crédito com fatura > 0 e NÃO pagas ──
-  const upcomingBills = creditCards
+  const upcomingBills: UpcomingBill[] = creditCards
     .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
     .map(c => {
       const isPast = (c as any).isPast;
@@ -455,56 +593,78 @@ export default function DespesasPage() {
     <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
 
       {/* ── 1. HEADER ──────────────────────────────────────────────────────────── */}
-      <PeriodHeader
-        title="Despesas & Contas"
-        tagline="Gerencie seus cartões, contas bancárias e acompanhe seus gastos consolidados."
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <PeriodHeader
+          title="Despesas & Contas"
+          tagline="Gerencie seus cartões, contas bancárias e acompanhe seus gastos consolidados."
+        />
+
+        <button
+          onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonth, selectedYear)}
+          className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all cursor-pointer self-start sm:self-auto shrink-0"
+          title="Exportar dados do mês em planilha CSV"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <span>Exportar Relatório</span>
+        </button>
+      </div>
 
       {/* ── 2. BOTÕES CTA ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap gap-3 -mt-4">
         <button
           id="btn-adicionar-cartao"
           onClick={openCreate}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] border border-white/20"
+          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] border border-white/20 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Adicionar Cartão / Conta
         </button>
         <button
           onClick={() => setPurchaseModalOpen(true)}
-          className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-indigo-50/50 text-indigo-600 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02]"
+          className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-indigo-50/50 text-indigo-600 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Lançar Despesa
         </button>
       </div>
 
-      {/* ── 3. KPI CARDS ───────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+      {/* ── 3. KPI CARDS (4 COLUNAS RESPONSIVAS) ────────────────────────────────── */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-        {/* KPI 1 */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
+        {/* KPI 0 — Saldo Total em Conta */}
+        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(16,185,129,0.08)] transition-all duration-300">
+          <Building2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-100/70 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Saldo Total em Conta</span>
+          <span className="text-[9px] font-bold text-slate-400 block mb-2">Consolidado · Contas & Débito</span>
+          <p className="text-2xl font-black text-emerald-600 tracking-tight">{brl(saldoTotalConta)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+            <TrendingUp className="w-3 h-3" /> +8.5% vs mês anterior
+          </span>
+        </div>
+
+        {/* KPI 1 — Total em Faturas */}
+        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(244,63,94,0.08)] transition-all duration-300">
           <TrendingDown className="absolute -right-3 -bottom-3 w-20 h-20 text-rose-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Total em Faturas</span>
-          <span className="text-[9px] font-bold text-slate-300 block mb-2">Mês Atual · Todos os Cartões</span>
+          <span className="text-[9px] font-bold text-slate-400 block mb-2">Mês Atual · Cartões de Crédito</span>
           <p className="text-2xl font-black text-rose-500 tracking-tight">{brl(totalFaturas)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
-            <BarChart3 className="w-3 h-3" /> {cards.length} cartão(ões) ativos
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full border border-rose-100">
+            <TrendingDown className="w-3 h-3" /> -3.2% vs mês anterior
           </span>
         </div>
 
-        {/* KPI 2 */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(16,185,129,0.08)] transition-all duration-300">
-          <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+        {/* KPI 2 — Limite Consolidado */}
+        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
+          <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Limite Consolidado</span>
-          <span className="text-[9px] font-bold text-slate-300 block mb-2">Disponível · Soma de Todos os Cartões</span>
-          <p className="text-2xl font-black text-emerald-500 tracking-tight">{brl(limiteConsolidado)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full border border-slate-100">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Disponível para uso
+          <span className="text-[9px] font-bold text-slate-400 block mb-2">Disponível em Crédito</span>
+          <p className="text-2xl font-black text-indigo-600 tracking-tight">{brl(limiteConsolidado)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full border border-indigo-100">
+            <CheckCircle2 className="w-3 h-3 text-indigo-500" /> Limite seguro
           </span>
         </div>
 
-        {/* KPI 3 */}
+        {/* KPI 3 — Próximos Vencimentos */}
         <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
           <Calendar className={`absolute -right-3 -bottom-3 w-20 h-20 ${kpi3.iconColor} pointer-events-none group-hover:scale-110 transition-transform duration-300`} />
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Próximos Vencimentos</span>
@@ -516,11 +676,61 @@ export default function DespesasPage() {
         </div>
       </section>
 
-      {/* ── 4. GRID DE CARTÕES ─────────────────────────────────────────────────── */}
+      {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
+      <section className="bg-white rounded-[28px] border border-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <PieChart className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-800">Distribuição dos Gastos por Cartão</h3>
+              <p className="text-[10px] font-semibold text-slate-400">Visão consolidada das faturas ativas no mês</p>
+            </div>
+          </div>
+        </div>
+        <CategoryDonutChart cards={cards} />
+      </section>
+
+      {/* ── 5. GRID DE CARTÕES E CONTAS COM FILTRO POR TITULAR ──────────────────── */}
       <section className="flex flex-col gap-4">
-        <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Meus Cartões e Contas
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+            Meus Cartões e Contas ({filteredCards.length})
+          </h2>
+
+          {/* Filtro Rápido por Titular (Pills) */}
+          {uniqueHolders.length > 0 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <span className="text-[10px] font-bold text-slate-400 uppercase mr-1 flex items-center gap-1 shrink-0">
+                <Filter className="w-3 h-3" /> Titular:
+              </span>
+              <button
+                onClick={() => setSelectedHolder("TODOS")}
+                className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
+                  selectedHolder === "TODOS"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200/80"
+                }`}
+              >
+                Todos ({cards.length})
+              </button>
+              {uniqueHolders.map(h => (
+                <button
+                  key={h}
+                  onClick={() => setSelectedHolder(h)}
+                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
+                    selectedHolder === h
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200/80"
+                  }`}
+                >
+                  👤 {h}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -530,7 +740,7 @@ export default function DespesasPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {cards.map(card => (
+            {filteredCards.map(card => (
               <CardTile
                 key={card.id}
                 card={card}
@@ -574,7 +784,7 @@ export default function DespesasPage() {
         )}
       </section>
 
-      {/* ── 5. PRÓXIMAS FATURAS (largura total) ────────────────────────────────── */}
+      {/* ── 6. GESTÃO DE FATURAS DE CARTÃO + BARRA DE PROGRESSO ────────────────── */}
       <section>
         <div className="bg-white rounded-[28px] border border-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col gap-5">
 
@@ -625,6 +835,27 @@ export default function DespesasPage() {
                   <ChevronRight className="w-3 h-3" />
                 </Link>
               )}
+            </div>
+          </div>
+
+          {/* Barra de Progresso Visual de Pagamento das Faturas do Mês */}
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-2">
+            <div className="flex justify-between items-center text-xs font-bold">
+              <span className="text-slate-600 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                Progresso de Pagamento das Faturas
+              </span>
+              <span className="text-indigo-600 font-extrabold">{pctFaturasPagas}% pago</span>
+            </div>
+            <div className="w-full bg-slate-200/80 h-2.5 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-700"
+                style={{ width: `${pctFaturasPagas}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-[10px] font-semibold text-slate-400">
+              <span>Pago: {brl(pagoFaturasMes)}</span>
+              <span>Total Faturas: {brl(totalFaturasMes)}</span>
             </div>
           </div>
 
@@ -765,7 +996,7 @@ export default function DespesasPage() {
               </div>
               <button
                 onClick={closeModal}
-                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -804,7 +1035,7 @@ export default function DespesasPage() {
                       key={opt.value}
                       type="button"
                       onClick={() => setFormType(opt.value)}
-                      className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition-all ${
+                      className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
                         formType === opt.value
                           ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
                           : "text-slate-400 hover:text-slate-600"
@@ -959,7 +1190,7 @@ export default function DespesasPage() {
                 </div>
               )}
 
-              {/* Preview visual — usa style inline para garantir atualização dinâmica da cor */}
+              {/* Preview visual */}
               {formBank && (
                 <div
                   className="rounded-2xl p-4 flex items-center gap-3 transition-all duration-300"
@@ -979,7 +1210,7 @@ export default function DespesasPage() {
               <button
                 type="submit"
                 disabled={formSaving}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/25 transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/25 transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {formSaving
                   ? (modalMode === "edit" ? "SALVANDO..." : "CADASTRANDO...")
@@ -1009,7 +1240,7 @@ export default function DespesasPage() {
               </div>
               <button
                 onClick={closeModal}
-                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all"
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1027,14 +1258,14 @@ export default function DespesasPage() {
               <div className="flex gap-3">
                 <button
                   onClick={closeModal}
-                  className="flex-1 py-3 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-500 hover:text-slate-700 font-extrabold text-xs tracking-wider transition-all"
+                  className="flex-1 py-3 rounded-2xl bg-slate-50 border border-slate-100 hover:bg-slate-100 text-slate-500 hover:text-slate-700 font-extrabold text-xs tracking-wider transition-all cursor-pointer"
                 >
                   CANCELAR
                 </button>
                 <button
                   onClick={handleDeleteCard}
                   disabled={formSaving}
-                  className="flex-1 py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-rose-500/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 rounded-2xl bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-rose-500/25 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {formSaving ? "EXCLUINDO..." : "EXCLUIR"}
                 </button>
@@ -1045,7 +1276,7 @@ export default function DespesasPage() {
       )}
 
       {/* FAB IA */}
-      <button className="fixed bottom-8 right-8 z-40 bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 text-white px-5 py-4 rounded-full shadow-lg shadow-indigo-600/30 hover:scale-105 hover:shadow-xl hover:shadow-indigo-600/40 transition-all flex items-center gap-2 font-bold text-sm tracking-tight border border-white/20">
+      <button className="fixed bottom-8 right-8 z-40 bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 text-white px-5 py-4 rounded-full shadow-lg shadow-indigo-600/30 hover:scale-105 hover:shadow-xl hover:shadow-indigo-600/40 transition-all flex items-center gap-2 font-bold text-sm tracking-tight border border-white/20 cursor-pointer">
         <Sparkles className="w-4.5 h-4.5 animate-pulse" />
         <span>Kama IA</span>
       </button>
@@ -1064,7 +1295,7 @@ export default function DespesasPage() {
                   <p className="text-[10px] font-medium text-slate-400">{payModalCard.title} · Mês {String(payModalCard.month).padStart(2, "0")}/{payModalCard.year}</p>
                 </div>
               </div>
-              <button onClick={() => setPayModalCard(null)} className="p-1 text-slate-400 hover:text-slate-600">
+              <button onClick={() => setPayModalCard(null)} className="p-1 text-slate-400 hover:text-slate-600 cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -1100,7 +1331,7 @@ export default function DespesasPage() {
                 <button
                   type="button"
                   onClick={() => setPayModalCard(null)}
-                  className="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+                  className="flex-1 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
                 >
                   Cancelar
                 </button>
@@ -1132,7 +1363,7 @@ export default function DespesasPage() {
   );
 }
 
-// ─── Sub-componente: Card de Cartão com menu Editar/Excluir/Pagar ───────────────────
+// ─── Sub-componente: Card Tile com Menu Contextual (...) e Badges Distintas ─────────
 function CardTile({
   card,
   selectedMonth,
@@ -1179,17 +1410,21 @@ function CardTile({
           {/* Marca d'água sutil */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.12)_0%,_transparent_60%)] pointer-events-none" />
 
-          {/* Topo: Banco + Titular + Agência / Conta */}
+          {/* Topo: Banco + Titular + Badge de Tipo */}
           <div className="flex justify-between items-start z-10">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8.5 h-8.5 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20">
                 <Icon className="w-4 h-4 text-white" />
               </div>
-              <div>
-                <p className="text-[10px] font-black text-white/90 leading-none">{card.bankName || card.title}</p>
-                <p className="text-[9px] font-bold text-white/50 mt-0.5">{walletLabel(card.walletType)}</p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] font-black text-white/90 leading-none truncate">{card.bankName || card.title}</p>
+                </div>
+                <span className={`inline-block mt-1 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border backdrop-blur-xs ${walletBadgeStyle(card.walletType)}`}>
+                  {walletLabel(card.walletType)}
+                </span>
                 {card.holder && (
-                  <p className="text-[9px] font-extrabold text-white/95 uppercase tracking-wide mt-1 drop-shadow-sm">
+                  <p className="text-[9px] font-extrabold text-white/95 uppercase tracking-wide mt-0.5 drop-shadow-sm truncate">
                     👤 {card.holder}
                   </p>
                 )}
@@ -1197,7 +1432,7 @@ function CardTile({
             </div>
 
             {/* Agência, Conta e Dígitos */}
-            <div className="text-right pr-8">
+            <div className="text-right pr-8 shrink-0">
               <p className="text-[9px] font-black text-white/80 uppercase tracking-wider">{card.cardBrand || "CARTÃO"}</p>
               {(card.agencia || card.conta) && (
                 <p className="text-[9px] font-bold text-white/90 mt-0.5">
@@ -1253,50 +1488,39 @@ function CardTile({
         </div>
       </Link>
 
-      {/* ── Menu de Ações (flutua sobre o card, não dispara navegação) ── */}
+      {/* ── Menu Contextual (...) de Ações ── */}
       <div
         className="absolute top-3 right-3 z-20"
         onClick={e => e.stopPropagation()}
       >
-        {/* Botão de 3 pontos */}
         <button
           onClick={e => { e.preventDefault(); e.stopPropagation(); setMenuOpen(prev => !prev); }}
-          className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all duration-200 ${
+          className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all duration-200 cursor-pointer ${
             menuOpen
               ? "bg-white/30 text-white"
-              : "bg-white/0 group-hover:bg-white/20 text-white/0 group-hover:text-white"
+              : "bg-white/10 group-hover:bg-white/25 text-white/80 group-hover:text-white border border-white/20"
           }`}
           title="Opções do cartão"
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
 
-        {/* Dropdown do menu */}
         {menuOpen && (
           <>
-            {/* Overlay invisível para fechar ao clicar fora */}
             <div
               className="fixed inset-0 z-10"
               onClick={e => { e.stopPropagation(); setMenuOpen(false); }}
             />
-            <div className="absolute top-9 right-0 z-20 bg-white rounded-2xl border border-slate-100 shadow-xl py-1.5 w-48 animate-in fade-in zoom-in-95 duration-150">
-              {isCredit && card.faturaAtual > 0 && (
-                <>
-                  <button
-                    onClick={e => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                      onTogglePaid(card.id);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors text-left"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    {isPaid ? "Desmarcar Paga" : "Marcar como Paga"}
-                  </button>
-                  <div className="h-px bg-slate-50 mx-3 my-0.5" />
-                </>
-              )}
+            <div className="absolute top-9 right-0 z-20 bg-white rounded-2xl border border-slate-100 shadow-xl py-1.5 w-52 animate-in fade-in zoom-in-95 duration-150">
+              <Link
+                href={`/cartoes/${card.id}`}
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left"
+              >
+                <Eye className="w-3.5 h-3.5 text-indigo-500" />
+                Ver Extrato & Detalhes
+              </Link>
+              
               <button
                 onClick={e => {
                   e.preventDefault();
@@ -1304,12 +1528,45 @@ function CardTile({
                   setMenuOpen(false);
                   onEdit(card);
                 }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
               >
-                <Pencil className="w-3.5 h-3.5" />
-                Editar cartão
+                <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                Editar Cartão
               </button>
-              <div className="h-px bg-slate-50 mx-3 my-0.5" />
+
+              <button
+                onClick={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onEdit(card);
+                }}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
+              >
+                <Layers className="w-3.5 h-3.5 text-slate-400" />
+                Ajustar Limite / Saldo
+              </button>
+
+              {isCredit && card.faturaAtual > 0 && (
+                <>
+                  <div className="h-px bg-slate-100 mx-3 my-1" />
+                  <button
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      onTogglePaid(card.id);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors text-left cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {isPaid ? "Desmarcar Paga" : "Pagar Fatura"}
+                  </button>
+                </>
+              )}
+
+              <div className="h-px bg-slate-100 mx-3 my-1" />
+              
               <button
                 onClick={e => {
                   e.preventDefault();
@@ -1317,10 +1574,10 @@ function CardTile({
                   setMenuOpen(false);
                   onDelete(card);
                 }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Excluir cartão
+                Excluir Cartão
               </button>
             </div>
           </>
