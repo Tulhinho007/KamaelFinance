@@ -235,6 +235,87 @@ export default function DespesasPage() {
     return s;
   }, 0);
 
+  // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
+  const openCreditCards = creditCards
+    .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
+    .map(c => {
+      let daysDiff: number | null = null;
+      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
+      const parts = dateStr.split("/");
+      if (parts.length === 3) {
+        const todayZero = new Date();
+        todayZero.setHours(0, 0, 0, 0);
+        const dueZero = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        dueZero.setHours(0, 0, 0, 0);
+        const diffTime = dueZero.getTime() - todayZero.getTime();
+        daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+      return { ...c, dateStr, daysDiff };
+    });
+
+  const urgentInvoice = openCreditCards.length > 0
+    ? [...openCreditCards].sort((a, b) => {
+        if (a.daysDiff === null) return 1;
+        if (b.daysDiff === null) return -1;
+        return a.daysDiff - b.daysDiff;
+      })[0]
+    : null;
+
+  const getKpi3Info = () => {
+    if (!urgentInvoice) {
+      return {
+        subtitle: "Todas as faturas do mês estão pagas",
+        badgeText: "✓ Faturas em dia",
+        badgeClass: "text-emerald-600 bg-emerald-50 border-emerald-100",
+        amountColor: "text-emerald-500",
+        iconColor: "text-emerald-100",
+      };
+    }
+
+    const { daysDiff, dateStr } = urgentInvoice;
+
+    if (daysDiff !== null && daysDiff < 0) {
+      const absDays = Math.abs(daysDiff);
+      return {
+        subtitle: `Fatura vencida há ${absDays} dia${absDays > 1 ? "s" : ""} (${dateStr})`,
+        badgeText: `🚨 Vencida em ${dateStr}`,
+        badgeClass: "text-rose-600 bg-rose-50 border-rose-100",
+        amountColor: "text-rose-500",
+        iconColor: "text-rose-100",
+      };
+    }
+
+    if (daysDiff === 0) {
+      return {
+        subtitle: `Fatura vence HOJE (${dateStr})`,
+        badgeText: "⚠️ Vence Hoje!",
+        badgeClass: "text-amber-600 bg-amber-50 border-amber-100",
+        amountColor: "text-amber-500",
+        iconColor: "text-amber-100",
+      };
+    }
+
+    if (daysDiff !== null && daysDiff <= 7) {
+      return {
+        subtitle: `Fatura vence em ${daysDiff} dia${daysDiff > 1 ? "s" : ""} (${dateStr})`,
+        badgeText: "⚠️ Atenção ao prazo!",
+        badgeClass: "text-amber-600 bg-amber-50 border-amber-100",
+        amountColor: "text-amber-500",
+        iconColor: "text-amber-100",
+      };
+    }
+
+    return {
+      subtitle: `Vencimento em ${daysDiff} dias (${dateStr})`,
+      badgeText: `✓ Em dia (Falta ${daysDiff} dias)`,
+      badgeClass: "text-indigo-600 bg-indigo-50 border-indigo-100",
+      amountColor: "text-indigo-600",
+      iconColor: "text-indigo-100",
+    };
+  };
+
+  const kpi3 = getKpi3Info();
+
   // ── Próximas faturas (lista) — somente cartões de crédito com fatura > 0 e NÃO pagas ──
   const upcomingBills = creditCards
     .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
@@ -424,13 +505,13 @@ export default function DespesasPage() {
         </div>
 
         {/* KPI 3 */}
-        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(245,158,11,0.08)] transition-all duration-300">
-          <Calendar className="absolute -right-3 -bottom-3 w-20 h-20 text-amber-100 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+        <div className="bg-white rounded-[28px] border border-white/80 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.03)] relative overflow-hidden group hover:shadow-[0_15px_40px_rgba(99,102,241,0.08)] transition-all duration-300">
+          <Calendar className={`absolute -right-3 -bottom-3 w-20 h-20 ${kpi3.iconColor} pointer-events-none group-hover:scale-110 transition-transform duration-300`} />
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Próximos Vencimentos</span>
-          <span className="text-[9px] font-bold text-slate-300 block mb-2">Faturas a vencer em 7 dias</span>
-          <p className="text-2xl font-black text-amber-500 tracking-tight">{brl(proximosVencimentos)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-100">
-            <Clock className="w-3 h-3" /> Atenção ao prazo!
+          <span className="text-[9px] font-bold text-slate-400 block mb-2">{kpi3.subtitle}</span>
+          <p className={`text-2xl font-black ${kpi3.amountColor} tracking-tight`}>{brl(proximosVencimentos)}</p>
+          <span className={`mt-2 inline-flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-full border ${kpi3.badgeClass}`}>
+            <Clock className="w-3.5 h-3.5" /> {kpi3.badgeText}
           </span>
         </div>
       </section>
