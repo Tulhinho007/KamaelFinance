@@ -18,6 +18,15 @@ import { CATEGORIES, getMonthName } from "@/lib/constants";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const formatDateBR = (dateStr: string) => {
+  if (!dateStr) return "";
+  const parts = dateStr.split("T")[0].split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateStr;
+};
+
 type Purchase = {
   id: string;
   type: "vista" | "parcelado";
@@ -632,7 +641,7 @@ export default function CartaoDetailPage() {
                     <tbody className="divide-y divide-slate-50 font-semibold text-slate-700">
                       {vistaPurchases.map(p => (
                         <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3 text-[10px] font-bold text-slate-400">{p.date}</td>
+                          <td className="py-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
                           <td className="py-3 font-extrabold text-slate-800">{p.description}</td>
                           <td className="py-3">
                             <span className="bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold">
@@ -687,7 +696,7 @@ export default function CartaoDetailPage() {
                     <tbody className="divide-y divide-slate-50 font-semibold text-slate-700">
                       {parceladoPurchasesProcessed.map(p => (
                         <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="py-3 text-[10px] font-bold text-slate-400">{p.date}</td>
+                          <td className="py-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
                           <td className="py-3 font-extrabold text-slate-800">{p.description}</td>
                           <td className="py-3">
                             <span className="bg-amber-50 text-amber-600 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold">
