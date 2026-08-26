@@ -918,6 +918,16 @@ export async function deleteCardPurchase(id: string) {
   revalidatePath("/despesas");
 }
 
+export async function deleteBatchPurchasesAction(ids: string[]) {
+  if (!ids || ids.length === 0) return;
+  await prisma.transaction.updateMany({
+    where: { id: { in: ids } },
+    data: { deletedAt: new Date() }
+  });
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+}
+
 // ---------- Actions de Ticket Alimentação ----------
 
 export async function getTicketData(month: number, year: number) {

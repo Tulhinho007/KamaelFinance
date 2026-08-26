@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
-  addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
+  deleteBatchPurchasesAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
@@ -86,6 +86,11 @@ export default function CartaoDetailPage() {
 
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loading, setLoading]   = useState(true);
+
+  // Múltipla Seleção (Exclusão em Lote)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
 
   // Modais de edição/exclusão/carga/datas
   const [modalType, setModalType]               = useState<"limit" | "edit" | "delete" | "carga" | "cargaRemove" | "cargaSet" | "dates" | null>(null);
@@ -392,6 +397,41 @@ export default function CartaoDetailPage() {
     }
   };
 
+  // Cálculo da soma total das despesas selecionadas
+  const selectedTotalAmount = React.useMemo(() => {
+    if (!cardData || selectedIds.length === 0) return 0;
+    let sum = 0;
+    const purchaseMap = new Map((cardData.purchases || []).map(p => [p.id, p.amount]));
+    const txMap = new Map((cardData.allTransactions || []).map(t => [t.id, t.amount]));
+
+    for (const id of selectedIds) {
+      if (txMap.has(id)) {
+        sum += txMap.get(id)!;
+      } else if (purchaseMap.has(id)) {
+        sum += purchaseMap.get(id)!;
+      }
+    }
+    return sum;
+  }, [cardData, selectedIds]);
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setDeletingBatch(true);
+    try {
+      const count = selectedIds.length;
+      await deleteBatchPurchasesAction(selectedIds);
+      await loadData();
+      setSelectedIds([]);
+      setBatchDeleteModalOpen(false);
+      showAlert(`${count} ${count === 1 ? "despesa excluída" : "despesas excluídas"} com sucesso!`, { variant: "success" });
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro ao excluir despesas selecionadas.", { variant: "error" });
+    } finally {
+      setDeletingBatch(false);
+    }
+  };
+
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
       
@@ -633,6 +673,23 @@ export default function CartaoDetailPage() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        <th className="p-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={vistaPurchases.length > 0 && vistaPurchases.every(p => selectedIds.includes(p.id))}
+                            onChange={() => {
+                              const allSelected = vistaPurchases.every(p => selectedIds.includes(p.id));
+                              if (allSelected) {
+                                setSelectedIds(prev => prev.filter(id => !vistaPurchases.some(p => p.id === id)));
+                              } else {
+                                const newIds = Array.from(new Set([...selectedIds, ...vistaPurchases.map(p => p.id)]));
+                                setSelectedIds(newIds);
+                              }
+                            }}
+                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            title="Selecionar Todos"
+                          />
+                        </th>
                         <th className="p-3">Data</th>
                         <th className="p-3">Descrição</th>
                         <th className="p-3">Categoria</th>
@@ -642,7 +699,19 @@ export default function CartaoDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
                       {vistaPurchases.map(p => (
-                        <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={p.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(p.id) ? "bg-indigo-500/10" : ""}`}>
+                          <td className="p-3 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(p.id)}
+                              onChange={() => {
+                                setSelectedIds(prev =>
+                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="p-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
                           <td className="p-3 font-extrabold text-white">{p.description}</td>
                           <td className="p-3">
@@ -687,6 +756,23 @@ export default function CartaoDetailPage() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        <th className="p-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={parceladoPurchasesProcessed.length > 0 && parceladoPurchasesProcessed.every(p => selectedIds.includes(p.id))}
+                            onChange={() => {
+                              const allSelected = parceladoPurchasesProcessed.every(p => selectedIds.includes(p.id));
+                              if (allSelected) {
+                                setSelectedIds(prev => prev.filter(id => !parceladoPurchasesProcessed.some(p => p.id === id)));
+                              } else {
+                                const newIds = Array.from(new Set([...selectedIds, ...parceladoPurchasesProcessed.map(p => p.id)]));
+                                setSelectedIds(newIds);
+                              }
+                            }}
+                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            title="Selecionar Todos"
+                          />
+                        </th>
                         <th className="p-3">Data</th>
                         <th className="p-3">Descrição</th>
                         <th className="p-3">Parcela</th>
@@ -697,7 +783,19 @@ export default function CartaoDetailPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
                       {parceladoPurchasesProcessed.map(p => (
-                        <tr key={p.id} className="hover:bg-slate-800/40 transition-colors">
+                        <tr key={p.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(p.id) ? "bg-indigo-500/10" : ""}`}>
+                          <td className="p-3 w-10 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(p.id)}
+                              onChange={() => {
+                                setSelectedIds(prev =>
+                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="p-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
                           <td className="p-3 font-extrabold text-white">{p.description}</td>
                           <td className="p-3">
@@ -826,7 +924,24 @@ export default function CartaoDetailPage() {
                 <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                        <th className="p-4 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={monthTransactions.length > 0 && monthTransactions.every(t => selectedIds.includes(t.id))}
+                            onChange={() => {
+                              const allSelected = monthTransactions.every(t => selectedIds.includes(t.id));
+                              if (allSelected) {
+                                setSelectedIds(prev => prev.filter(id => !monthTransactions.some(t => t.id === id)));
+                              } else {
+                                const newIds = Array.from(new Set([...selectedIds, ...monthTransactions.map(t => t.id)]));
+                                setSelectedIds(newIds);
+                              }
+                            }}
+                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            title="Selecionar Todos"
+                          />
+                        </th>
                         <th className="p-4">Data</th>
                         <th className="p-4">Descrição</th>
                         <th className="p-4">Categoria</th>
@@ -839,7 +954,19 @@ export default function CartaoDetailPage() {
                       {monthTransactions.map((t) => {
                         const isPaid = t.status !== "PENDING";
                         return (
-                          <tr key={t.id} className="hover:bg-slate-800/40 transition-colors">
+                          <tr key={t.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(t.id) ? "bg-indigo-500/10" : ""}`}>
+                            <td className="p-4 w-10 text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(t.id)}
+                                onChange={() => {
+                                  setSelectedIds(prev =>
+                                    prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                  );
+                                }}
+                                className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </td>
                             <td className="p-4 text-xs font-bold text-slate-400">{t.date.split("-").reverse().join("/")}</td>
                             <td className="p-4 font-black text-white text-sm">{t.description}</td>
                             <td className="p-4">
@@ -1268,7 +1395,7 @@ export default function CartaoDetailPage() {
         </div>
       )}
 
-      {/* Modal Excluir Lançamento */}
+      {/* Modal Excluir Lançamento Individual */}
       {modalType === "delete" && selectedPurchase && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
@@ -1282,7 +1409,72 @@ export default function CartaoDetailPage() {
         </div>
       )}
 
+      {/* ── BARRA DE AÇÕES EM LOTE (FLOATING ACTION BAR) ───────────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl px-6 py-3.5 flex items-center gap-6 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-black text-xs">
+              {selectedIds.length}
+            </div>
+            <div>
+              <p className="text-xs font-black text-white">
+                {selectedIds.length} {selectedIds.length === 1 ? "despesa selecionada" : "despesas selecionadas"}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold">
+                Soma Total: <strong className="text-white">{brl(selectedTotalAmount)}</strong>
+              </p>
+            </div>
+          </div>
 
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setBatchDeleteModalOpen(true)}
+              className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              Excluir Selecionadas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE EXCLUSÃO EM LOTE ────────────── */}
+      {batchDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">Excluir {selectedIds.length} {selectedIds.length === 1 ? "despesa" : "despesas"}?</h3>
+              <p className="text-xs text-slate-400 mt-1.5 font-medium leading-relaxed">
+                Tem certeza que deseja excluir <strong className="text-white font-black">{selectedIds.length} despesas</strong> no valor total de <strong className="text-rose-400 font-black">{brl(selectedTotalAmount)}</strong>?
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                onClick={() => setBatchDeleteModalOpen(false)}
+                className="flex-1 py-2.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={deletingBatch}
+                className="flex-1 py-2.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl cursor-pointer shadow-lg shadow-rose-600/30"
+              >
+                {deletingBatch ? "Excluindo..." : "Confirmar Exclusão"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

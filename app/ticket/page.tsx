@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
-import { getTicketData, saveTicketCarga, addTicketCarga, removeTicketCarga, createTicketExpense, updateTicketExpense, deleteTicketExpense } from "@/lib/actions";
+import { getTicketData, saveTicketCarga, addTicketCarga, removeTicketCarga, createTicketExpense, updateTicketExpense, deleteTicketExpense, deleteBatchPurchasesAction } from "@/lib/actions";
 
 import { CATEGORIES } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -33,6 +33,11 @@ export default function TicketAlimentacaoPage() {
   // Lista de lançamentos do Ticket
   const [expenses, setExpenses] = useState<TicketExpense[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Múltipla Seleção (Exclusão em Lote)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+  const [deletingBatch, setDeletingBatch] = useState(false);
 
   // Estados dos Modais
   const [modalType, setModalType] = useState<"carga" | "cargaRemove" | "cargaSet" | "expense" | "edit" | "delete" | null>(null);
@@ -182,6 +187,29 @@ export default function TicketAlimentacaoPage() {
     } catch (err) {
       console.error(err);
       showAlert("Erro ao excluir gasto.", { variant: "error" });
+    }
+  };
+
+  const selectedTotalAmount = React.useMemo(() => {
+    if (selectedIds.length === 0) return 0;
+    return expenses.filter(e => selectedIds.includes(e.id)).reduce((acc, e) => acc + e.amount, 0);
+  }, [expenses, selectedIds]);
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setDeletingBatch(true);
+    try {
+      const count = selectedIds.length;
+      await deleteBatchPurchasesAction(selectedIds);
+      await loadData();
+      setSelectedIds([]);
+      setBatchDeleteModalOpen(false);
+      showAlert(`${count} ${count === 1 ? "despesa excluída" : "despesas excluídas"} com sucesso!`, { variant: "success" });
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro ao excluir despesas selecionadas.", { variant: "error" });
+    } finally {
+      setDeletingBatch(false);
     }
   };
 
@@ -358,6 +386,23 @@ export default function TicketAlimentacaoPage() {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="text-[9px] font-black text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <th className="pb-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={filteredExpenses.length > 0 && filteredExpenses.every(exp => selectedIds.includes(exp.id))}
+                        onChange={() => {
+                          const allSelected = filteredExpenses.every(exp => selectedIds.includes(exp.id));
+                          if (allSelected) {
+                            setSelectedIds(prev => prev.filter(id => !filteredExpenses.some(exp => exp.id === id)));
+                          } else {
+                            const newIds = Array.from(new Set([...selectedIds, ...filteredExpenses.map(exp => exp.id)]));
+                            setSelectedIds(newIds);
+                          }
+                        }}
+                        className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        title="Selecionar Todos"
+                      />
+                    </th>
                     <th className="pb-3">Data</th>
                     <th className="pb-3">Descrição</th>
                     <th className="pb-3">Categoria</th>
@@ -367,7 +412,19 @@ export default function TicketAlimentacaoPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-50 font-semibold text-slate-700">
                   {filteredExpenses.map((exp) => (
-                    <tr key={exp.id} className="hover:bg-slate-50/60 transition-colors">
+                    <tr key={exp.id} className={`hover:bg-slate-50/60 transition-colors ${selectedIds.includes(exp.id) ? "bg-emerald-50/40" : ""}`}>
+                      <td className="py-3.5 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(exp.id)}
+                          onChange={() => {
+                            setSelectedIds(prev =>
+                              prev.includes(exp.id) ? prev.filter(id => id !== exp.id) : [...prev, exp.id]
+                            );
+                          }}
+                          className="w-4 h-4 rounded bg-slate-100 border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </td>
                       <td className="py-3.5 text-[10px] font-bold text-slate-400">
                         {formatDateDisplay(exp.date)}
                       </td>
@@ -405,7 +462,7 @@ export default function TicketAlimentacaoPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-slate-100">
-                    <td colSpan={3} className="pt-4 font-black text-slate-800 text-xs uppercase tracking-wider">
+                    <td colSpan={4} className="pt-4 font-black text-slate-800 text-xs uppercase tracking-wider">
                       TOTAL UTILIZADO
                     </td>
                     <td className="pt-4 text-right font-black text-slate-800 text-sm">
@@ -634,6 +691,73 @@ export default function TicketAlimentacaoPage() {
             <div className="flex gap-2 mt-2">
               <button onClick={() => setModalType(null)} className="flex-1 py-3 text-xs font-extrabold text-slate-500 bg-slate-100 rounded-2xl">CANCELAR</button>
               <button onClick={handleDelete} className="flex-1 py-3 text-xs font-extrabold text-white bg-rose-500 hover:bg-rose-600 rounded-2xl shadow-lg shadow-rose-500/25">EXCLUIR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── BARRA DE AÇÕES EM LOTE (FLOATING ACTION BAR) ───────────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl px-6 py-3.5 flex items-center gap-6 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-black text-xs">
+              {selectedIds.length}
+            </div>
+            <div>
+              <p className="text-xs font-black text-white">
+                {selectedIds.length} {selectedIds.length === 1 ? "despesa selecionada" : "despesas selecionadas"}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold">
+                Soma Total: <strong className="text-white">{brl(selectedTotalAmount)}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => setBatchDeleteModalOpen(true)}
+              className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              Excluir Selecionadas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE EXCLUSÃO EM LOTE ────────────── */}
+      {batchDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black text-white">Excluir {selectedIds.length} {selectedIds.length === 1 ? "despesa" : "despesas"}?</h3>
+              <p className="text-xs text-slate-400 mt-1.5 font-medium leading-relaxed">
+                Tem certeza que deseja excluir <strong className="text-white font-black">{selectedIds.length} despesas</strong> no valor total de <strong className="text-rose-400 font-black">{brl(selectedTotalAmount)}</strong>?
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <button
+                onClick={() => setBatchDeleteModalOpen(false)}
+                className="flex-1 py-2.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={deletingBatch}
+                className="flex-1 py-2.5 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl cursor-pointer shadow-lg shadow-rose-600/30"
+              >
+                {deletingBatch ? "Excluindo..." : "Confirmar Exclusão"}
+              </button>
             </div>
           </div>
         </div>
