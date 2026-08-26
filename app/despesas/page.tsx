@@ -425,11 +425,11 @@ export default function DespesasPage() {
   const previsaoGeralGastos = creditoMesTotal + debitoMesTotal + assinaturasMesTotal;
 
   const creditoPago = pagoFaturasMes;
-  const debitoPago = debitoMesTotal; // Débitos e saídas em conta ocorrem em tempo real
+  const debitoPago = accountCards.reduce((s, c) => s + ((c as any).faturaPaga || 0), 0);
   const previsaoPagoGeral = creditoPago + debitoPago + assinaturasPagas;
 
   const creditoPendente = proximosVencimentos;
-  const debitoPendente = 0;
+  const debitoPendente = accountCards.reduce((s, c) => s + ((c as any).faturaPendente || 0), 0);
   const previsaoPendenteGeral = creditoPendente + debitoPendente + assinaturasPendentes;
 
   const pctPrevisaoQuitada = previsaoGeralGastos > 0

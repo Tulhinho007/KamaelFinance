@@ -1185,6 +1185,12 @@ export async function getAllCardsOverview(month: number, year: number) {
       });
 
       const faturaAtual = transactions.reduce((s, t) => s + Number(t.amount), 0);
+      const faturaPaga = transactions
+        .filter(t => (t as any).status === "COMPLETED" || (t as any).status === "pago" || (t as any).status === "confirmado")
+        .reduce((s, t) => s + Number(t.amount), 0);
+      const faturaPendente = transactions
+        .filter(t => (t as any).status === "PENDING" || ((t as any).status !== "COMPLETED" && (t as any).status !== "pago" && (t as any).status !== "confirmado"))
+        .reduce((s, t) => s + Number(t.amount), 0);
 
       // Para cartão de crédito: limitTotal é o limite de crédito.
       // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO no mês M/Y.
@@ -1234,6 +1240,8 @@ export async function getAllCardsOverview(month: number, year: number) {
         limitTotal,
         limitUsed:        isCredit ? Math.min(limitUsed, limitTotal) : limitUsed,
         faturaAtual,
+        faturaPaga,
+        faturaPendente,
         carryoverBalance: balanceInfo.carryoverBalance,
         monthIncome:      balanceInfo.monthIncome,
         monthExpense:     balanceInfo.monthExpense,
