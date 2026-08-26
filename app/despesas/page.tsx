@@ -603,10 +603,10 @@ export default function DespesasPage() {
 
         <button
           onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonth, selectedYear)}
-          className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-2xs hover:shadow-xs transition-all cursor-pointer self-start sm:self-auto shrink-0"
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-md transition-all cursor-pointer self-start sm:self-auto shrink-0"
           title="Exportar dados do mês em planilha CSV"
         >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
           <span>Exportar Relatório</span>
         </button>
       </div>
@@ -616,14 +616,14 @@ export default function DespesasPage() {
         <button
           id="btn-adicionar-cartao"
           onClick={openCreate}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-500/30 transition-all hover:scale-[1.02] border border-white/20 cursor-pointer"
+          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] border border-white/10 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Adicionar Cartão / Conta
         </button>
         <button
           onClick={() => setPurchaseModalOpen(true)}
-          className="flex items-center gap-2 bg-white border border-slate-200 hover:bg-indigo-50/50 text-indigo-600 px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.02] cursor-pointer"
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Lançar Despesa
@@ -712,7 +712,7 @@ export default function DespesasPage() {
                 className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
                   selectedHolder === "TODOS"
                     ? "bg-indigo-600 text-white shadow-xs"
-                    : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200/80"
+                    : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
                 }`}
               >
                 Todos ({cards.length})
@@ -724,7 +724,7 @@ export default function DespesasPage() {
                   className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
                     selectedHolder === h
                       ? "bg-indigo-600 text-white shadow-xs"
-                      : "bg-white text-slate-500 hover:bg-slate-100 border border-slate-200/80"
+                      : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
                   }`}
                 >
                   👤 {h}
