@@ -699,88 +699,97 @@ function safeIsoDate(d: any): string {
 }
 
 export async function getCardDataById(id: string, month?: number, year?: number) {
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  let wallet = await prisma.wallet.findFirst({
-    where: { id, userId }
-  });
-
-  if (!wallet) {
-    wallet = await prisma.wallet.findUnique({
-      where: { id }
+    let wallet = await prisma.wallet.findFirst({
+      where: { id, userId }
     });
-  }
 
-  if (!wallet) {
+    if (!wallet) {
+      wallet = await prisma.wallet.findUnique({
+        where: { id }
+      });
+    }
+
+    if (!wallet) {
+      return null;
+    }
+
+    const allTransactions = await prisma.transaction.findMany({
+      where: {
+        walletId: wallet.id,
+        deletedAt: null
+      },
+      include: { category: true },
+      orderBy: { date: "asc" }
+    });
+
+    const purchases = allTransactions.filter(t => t.type === "EXPENSE");
+    const injections = allTransactions.filter(t => t.type === "INCOME");
+
+    let balanceInfo = null;
+    try {
+      if (month && year) {
+        balanceInfo = await calculateAccountBalance(wallet.id, month, year);
+      } else {
+        const now = new Date();
+        balanceInfo = await calculateAccountBalance(wallet.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+      }
+    } catch (calcErr) {
+      console.error("Erro ao calcular saldo em getCardDataById:", calcErr);
+    }
+
+    return {
+      walletId: wallet.id,
+      title: wallet.title || "Conta sem nome",
+      bankName: wallet.bankName || wallet.title || "Banco",
+      walletType: wallet.walletType || "CONTA_CORRENTE",
+      holder: (wallet as any).holder || "",
+      agencia: wallet.agencia || "",
+      conta: wallet.conta || "",
+      vencimento: wallet.vencimento ?? 10,
+      diaFechamento: (wallet as any).diaFechamento ?? 1,
+      melhorDiaCompra: (wallet as any).diaFechamento ? ((wallet as any).diaFechamento % 31) + 1 : 2,
+      initialBalance: Number(wallet.initialBalance || 0),
+      creditLimit: Number(wallet.creditLimit || 0),
+      balanceInfo,
+      purchases: purchases.map(p => ({
+        id: p.id,
+        type: p.installmentsCount ? ("parcelado" as const) : ("vista" as const),
+        description: p.description || "Lançamento",
+        category: p.category?.name || "Outros",
+        amount: Number(p.amount || 0),
+        installmentsCount: p.installmentsCount || undefined,
+        tags: (p as any).tags || undefined,
+        date: safeIsoDate(p.date)
+      })),
+      injections: injections.map(i => ({
+        id: i.id,
+        description: i.description || "Injeção",
+        category: i.category?.name || "Injeção de Capital",
+        amount: Number(i.amount || 0),
+        date: safeIsoDate(i.date),
+        source: i.source,
+        tags: (i as any).tags || undefined,
+      })),
+      allTransactions: allTransactions.map(t => ({
+        id: t.id,
+        type: t.type,
+        description: t.description || "Transação",
+        category: t.category?.name || (t.type === "INCOME" ? "Injeção de Capital" : "Outros"),
+        amount: Number(t.amount || 0),
+        status: t.status || "COMPLETED",
+        installmentsCount: t.installmentsCount || undefined,
+        tags: (t as any).tags || undefined,
+        date: safeIsoDate(t.date),
+        source: t.source,
+      })),
+    };
+  } catch (err) {
+    console.error("Erro interno em getCardDataById:", err);
     return null;
   }
-
-  const allTransactions = await prisma.transaction.findMany({
-    where: {
-      walletId: wallet.id,
-      deletedAt: null
-    },
-    include: { category: true },
-    orderBy: { date: "asc" }
-  });
-
-  const purchases = allTransactions.filter(t => t.type === "EXPENSE");
-  const injections = allTransactions.filter(t => t.type === "INCOME");
-
-  let balanceInfo = null;
-  if (month && year) {
-    balanceInfo = await calculateAccountBalance(wallet.id, month, year);
-  } else {
-    const now = new Date();
-    balanceInfo = await calculateAccountBalance(wallet.id, now.getUTCMonth() + 1, now.getUTCFullYear());
-  }
-
-  return {
-    walletId: wallet.id,
-    title: wallet.title,
-    bankName: wallet.bankName || wallet.title,
-    walletType: wallet.walletType,
-    holder: (wallet as any).holder || "",
-    agencia: wallet.agencia || "",
-    conta: wallet.conta || "",
-    vencimento: wallet.vencimento ?? 10,
-    diaFechamento: (wallet as any).diaFechamento ?? 1,
-    melhorDiaCompra: (wallet as any).diaFechamento ? ((wallet as any).diaFechamento % 31) + 1 : 2,
-    initialBalance: Number(wallet.initialBalance || 0),
-    creditLimit: Number(wallet.creditLimit || 0),
-    balanceInfo,
-    purchases: purchases.map(p => ({
-      id: p.id,
-      type: p.installmentsCount ? ("parcelado" as const) : ("vista" as const),
-      description: p.description,
-      category: p.category?.name || "Outros",
-      amount: Number(p.amount),
-      installmentsCount: p.installmentsCount || undefined,
-      tags: (p as any).tags || undefined,
-      date: safeIsoDate(p.date)
-    })),
-    injections: injections.map(i => ({
-      id: i.id,
-      description: i.description,
-      category: i.category?.name || "Injeção de Capital",
-      amount: Number(i.amount),
-      date: safeIsoDate(i.date),
-      source: i.source,
-      tags: (i as any).tags || undefined,
-    })),
-    allTransactions: allTransactions.map(t => ({
-      id: t.id,
-      type: t.type,
-      description: t.description,
-      category: t.category?.name || (t.type === "INCOME" ? "Injeção de Capital" : "Outros"),
-      amount: Number(t.amount),
-      status: t.status || "COMPLETED",
-      installmentsCount: t.installmentsCount || undefined,
-      tags: (t as any).tags || undefined,
-      date: safeIsoDate(t.date),
-      source: t.source,
-    })),
-  };
 }
 
 export async function getAllWalletsSimple() {

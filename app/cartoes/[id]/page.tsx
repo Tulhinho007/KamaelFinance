@@ -164,8 +164,9 @@ export default function CartaoDetailPage() {
   const isTicket = cardData.walletType === "TICKET";
 
   // Cálculos do Ticket
-  const totalUtilizadoTicket = cardData.purchases.reduce((acc, p) => acc + p.amount, 0);
-  const saldoDisponivelTicket = cardData.initialBalance;
+  const purchasesList = cardData.purchases || [];
+  const totalUtilizadoTicket = purchasesList.reduce((acc, p) => acc + (p?.amount || 0), 0);
+  const saldoDisponivelTicket = cardData.initialBalance || 0;
   const saldoAtualTicket      = saldoDisponivelTicket - totalUtilizadoTicket;
 
   const usagePctTicket = saldoDisponivelTicket > 0 ? Math.min(100, Math.round((totalUtilizadoTicket / saldoDisponivelTicket) * 100)) : 0;
@@ -271,8 +272,8 @@ export default function CartaoDetailPage() {
   };
 
   // 1. Compras À Vista (filtradas pelo mês/ano selecionado)
-  const vistaPurchases = cardData.purchases.filter((p) => {
-    if (p.type !== "vista") return false;
+  const vistaPurchases = purchasesList.filter((p) => {
+    if (!p || p.type !== "vista") return false;
     const { year, month } = getYearMonth(p.date);
     return year === selectedYear && month === selectedMonth;
   });
@@ -280,8 +281,8 @@ export default function CartaoDetailPage() {
   // 2. Lançamentos Parcelados (apenas se for cartão de crédito)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
-  const parceladoPurchasesProcessed = cardData.purchases
-    .filter((p) => p.type === "parcelado")
+  const parceladoPurchasesProcessed = purchasesList
+    .filter((p) => p && p.type === "parcelado")
     .reduce((acc, p) => {
       const { year, month } = getYearMonth(p.date);
       const purchaseAbsolute = year * 12 + (month - 1);
@@ -295,34 +296,36 @@ export default function CartaoDetailPage() {
         acc.push({
           ...p,
           currentInstallment,
-          remainingDebt: remainingCount * p.amount
+          remainingDebt: remainingCount * (p.amount || 0)
         } as Purchase & { currentInstallment: number; remainingDebt: number });
       }
       return acc;
     }, [] as (Purchase & { currentInstallment: number; remainingDebt: number })[]);
 
   // Cálculos financeiros
-  const saldoVista = vistaPurchases.reduce((sum, p) => sum + p.amount, 0);
-  const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + p.remainingDebt, 0);
+  const saldoVista = vistaPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
 
   // Para Cartão de Crédito
-  const impactoMes = saldoVista + parceladoPurchasesProcessed.reduce((sum, p) => sum + p.amount, 0);
+  const impactoMes = saldoVista + parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
   const limitCompromised = saldoVista + dividaParcelada;
-  const limitAvailable = cardData.creditLimit - limitCompromised;
-  const usagePct = cardData.creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / cardData.creditLimit) * 100)) : 0;
+  const creditLimit = cardData.creditLimit || 0;
+  const limitAvailable = creditLimit - limitCompromised;
+  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / creditLimit) * 100)) : 0;
 
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
-  const filteredMonthExpenses = cardData.purchases.filter(p => {
+  const filteredMonthExpenses = purchasesList.filter(p => {
+    if (!p) return false;
     const { year, month } = getYearMonth(p.date);
     return year === selectedYear && month === selectedMonth;
   });
 
   // carryoverBalance = apenas transações de meses anteriores (0 no primeiro mês de uso)
   const carryoverBalance = cardData.balanceInfo != null ? cardData.balanceInfo.carryoverBalance : 0;
-  const openingBalance   = cardData.balanceInfo?.initialBalance ?? cardData.initialBalance;
+  const openingBalance   = cardData.balanceInfo?.initialBalance ?? (cardData.initialBalance || 0);
   const previousBalance  = cardData.balanceInfo?.previousBalance ?? (openingBalance + carryoverBalance);
   const monthIncome      = cardData.balanceInfo?.monthIncome ?? 0;
-  const totalGastosMes   = cardData.balanceInfo?.monthExpense ?? filteredMonthExpenses.reduce((sum, p) => sum + p.amount, 0);
+  const totalGastosMes   = cardData.balanceInfo?.monthExpense ?? filteredMonthExpenses.reduce((sum, p) => sum + (p.amount || 0), 0);
 
   // Total disponível = Saldo acumulado anterior + Receitas do mês atual
   const totalAvailable   = cardData.balanceInfo?.totalAvailable ?? (previousBalance + monthIncome);
@@ -340,17 +343,17 @@ export default function CartaoDetailPage() {
 
   // Cálculo de Total Pago e Total Não Pago (despesas do mês pelo status)
   const monthExpenseTransactions = (cardData.allTransactions || [])
-    .filter(t => t.type === "EXPENSE")
+    .filter(t => t && t.type === "EXPENSE")
     .filter(t => {
-      const parts = t.date.split("-");
-      return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+      if (!t || !t.date) return false;
+      const { year, month } = getYearMonth(t.date);
+      return year === selectedYear && month === selectedMonth;
     });
-  const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + t.amount, 0);
-  const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + t.amount, 0);
-
+  const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
+  const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
 
   const openEditModal = (p: Purchase) => {
-    const original = cardData.purchases.find(item => item.id === p.id);
+    const original = purchasesList.find(item => item.id === p.id);
     if (!original) return;
 
     setSelectedPurchase(original);
