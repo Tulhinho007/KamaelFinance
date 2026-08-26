@@ -618,15 +618,26 @@ export default function InvestimentosPage() {
     }
   };
 
-  const handleDeleteBet = async () => {
-    if (!selectedBet) return;
+  const handleDeleteBetPlatform = async (b: BettingAccountItem) => {
+    const confirmed = await showConfirm(
+      `Tem certeza que deseja excluir a plataforma "${b.nomePlataforma}" e todo o seu histórico de movimentações?`,
+      {
+        title: "Excluir Plataforma",
+        variant: "danger",
+        confirmText: "Excluir Plataforma",
+        cancelText: "Cancelar",
+      }
+    );
+    if (!confirmed) return;
+
     setSaving(true);
     try {
-      await deleteBettingAccountAction(selectedBet.id);
+      await deleteBettingAccountAction(b.id);
       await loadAllData();
       setActiveModal(null);
     } catch (err) {
       console.error(err);
+      showAlert("Erro ao excluir plataforma.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -1678,17 +1689,17 @@ export default function InvestimentosPage() {
                             </td>
                             <td className="p-4 text-center whitespace-nowrap min-w-[160px]" onClick={e => e.stopPropagation()}>
                               <div className="flex items-center justify-center gap-[10px] flex-nowrap whitespace-nowrap">
-                                <button onClick={() => toggleBetExpand(b.id)} title="Ver Histórico" className={`p-1.5 rounded-lg flex items-center gap-1 ${isExpanded ? "bg-purple-100 text-purple-700 font-bold" : "text-slate-400 hover:text-purple-600"}`}>
-                                  <History className="w-4 h-4" /><span className="text-[10px] font-extrabold">{b.movimentacoes.length}</span>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); toggleBetExpand(b.id); }} title="Ver Histórico" className={`p-1.5 rounded-lg flex items-center gap-1 transition-colors cursor-pointer relative z-10 ${isExpanded ? "bg-purple-100 text-purple-700 font-bold" : "text-slate-400 hover:text-purple-600"}`}>
+                                  <History className="w-4 h-4 pointer-events-none" /><span className="text-[10px] font-extrabold pointer-events-none">{b.movimentacoes.length}</span>
                                 </button>
-                                <button onClick={() => { setSelectedBet(b); setBetTxTipo("DEPOSITO"); setBetTxValor(""); setBetTxData(new Date().toISOString().split("T")[0]); setBetTxAtualizarSaldo(true); setActiveModal("bet-tx"); }} title="Lançar Depósito ou Saque" className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors">
-                                  <ArrowRightLeft className="w-4 h-4" />
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedBet(b); setBetTxTipo("DEPOSITO"); setBetTxValor(""); setBetTxData(new Date().toISOString().split("T")[0]); setBetTxAtualizarSaldo(true); setActiveModal("bet-tx"); }} title="Lançar Depósito ou Saque" className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer relative z-10">
+                                  <ArrowRightLeft className="w-4 h-4 pointer-events-none" />
                                 </button>
-                                <button onClick={() => { setSelectedBet(b); setBetSaldoBruto(b.saldoAtualBruto); setActiveModal("bet-edit"); }} title="Atualizar Saldo" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
-                                  <Pencil className="w-4 h-4" />
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedBet(b); setBetSaldoBruto(b.saldoAtualBruto); setActiveModal("bet-edit"); }} title="Atualizar Saldo" className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer relative z-10">
+                                  <Pencil className="w-4 h-4 pointer-events-none" />
                                 </button>
-                                <button onClick={() => { setSelectedBet(b); setActiveModal("bet-delete"); }} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
-                                  <Trash2 className="w-4 h-4" />
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteBetPlatform(b); }} title="Excluir Plataforma" className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer relative z-10">
+                                  <Trash2 className="w-4 h-4 pointer-events-none" />
                                 </button>
                               </div>
                             </td>
