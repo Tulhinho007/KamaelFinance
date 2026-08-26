@@ -401,7 +401,7 @@ export default function DespesasPage() {
     return s;
   }, 0);
 
-  // ── Cálculo Unificado (Despesas + Assinaturas) ──────────────────────────────
+  // ── 1. Cálculo do Card 1 (Compromisso Total do Mês: Despesas vs Assinaturas) ──
   const despesasMesTotal = totalFaturasMes;
   const assinaturasMesTotal = subscriptionsSummary.totalMonthlyAmount;
   const compromissoTotalMes = despesasMesTotal + assinaturasMesTotal;
@@ -416,6 +416,24 @@ export default function DespesasPage() {
 
   const pctPagoGeral = compromissoTotalMes > 0
     ? Math.min(100, Math.round((totalPagoGeral / compromissoTotalMes) * 100))
+    : 0;
+
+  // ── 2. Cálculo do Card 2 (Planejamento Detalhado de Saídas: Crédito + Débito/PIX + Assinaturas) ──
+  const creditoMesTotal = totalFaturasMes;
+  const debitoMesTotal = accountCards.reduce((s, c) => s + (c.faturaAtual || 0), 0);
+
+  const previsaoGeralGastos = creditoMesTotal + debitoMesTotal + assinaturasMesTotal;
+
+  const creditoPago = pagoFaturasMes;
+  const debitoPago = debitoMesTotal; // Débitos e saídas em conta ocorrem em tempo real
+  const previsaoPagoGeral = creditoPago + debitoPago + assinaturasPagas;
+
+  const creditoPendente = proximosVencimentos;
+  const debitoPendente = 0;
+  const previsaoPendenteGeral = creditoPendente + debitoPendente + assinaturasPendentes;
+
+  const pctPrevisaoQuitada = previsaoGeralGastos > 0
+    ? Math.min(100, Math.round((previsaoPagoGeral / previsaoGeralGastos) * 100))
     : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
@@ -743,6 +761,86 @@ export default function DespesasPage() {
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-center">
                   <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">Pendente</span>
                   <span className="text-xs font-black text-amber-400 font-tnum">{brl(totalPendenteGeral)}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* CARD 2: BANNER INFERIOR - PLANEJAMENTO DETALHADO DE SAÍDAS (CRÉDITO + DÉBITO/PIX + ASSINATURAS) */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-4 card-glow p-6 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950 to-indigo-950/80 border border-slate-800/90 shadow-[0_0_25px_rgba(30,41,59,0.3)] relative overflow-hidden group flex flex-col justify-between">
+          <BarChart3 className="absolute -right-4 -bottom-4 w-36 h-36 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            
+            {/* LADO ESQUERDO: Título, Previsão Geral e Badges de 3 Fontes */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest bg-emerald-500/20 px-3 py-1 rounded-full border border-emerald-400/30 shadow-xs flex items-center gap-1.5">
+                  <BarChart3 className="w-3.5 h-3.5 text-emerald-400" /> Planejamento Detalhado de Saídas
+                </span>
+                <span className="text-[10px] font-extrabold text-slate-400">
+                  Previsão Geral de Gastos · {getMonthName(selectedMonth)}/{selectedYear}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-baseline gap-3">
+                <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight font-tnum">
+                  {brl(previsaoGeralGastos)}
+                </h3>
+                <span className="text-xs font-bold text-slate-400">
+                  ({pctPrevisaoQuitada}% liquidado)
+                </span>
+              </div>
+
+              {/* Subtítulo / Badges em Pílula Horizontais Lado a Lado (3 Fontes de Gastos) */}
+              <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                <div className="flex items-center gap-2 bg-slate-950/90 px-3.5 py-2 rounded-xl border border-purple-500/30 shadow-inner">
+                  <span className="text-xs">💳</span>
+                  <span className="text-xs font-semibold text-slate-300">Crédito:</span>
+                  <span className="text-xs font-black text-purple-400 font-tnum">{brl(creditoMesTotal)}</span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-950/90 px-3.5 py-2 rounded-xl border border-sky-500/30 shadow-inner">
+                  <span className="text-xs">🏦</span>
+                  <span className="text-xs font-semibold text-slate-300">Débito / PIX:</span>
+                  <span className="text-xs font-black text-sky-400 font-tnum">{brl(debitoMesTotal)}</span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-950/90 px-3.5 py-2 rounded-xl border border-amber-500/30 shadow-inner">
+                  <span className="text-xs">🔄</span>
+                  <span className="text-xs font-semibold text-slate-300">Assinaturas:</span>
+                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(assinaturasMesTotal)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* LADO DIREITO (QUITAÇÃO CONSOLIDADA DAS 3 CATEGORIAS) */}
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 min-w-[280px] lg:max-w-xs space-y-3 shadow-xl">
+              <div className="flex items-center justify-between text-xs font-extrabold">
+                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Liquidado Geral</span>
+                <span className="text-emerald-400 font-black font-tnum">{pctPrevisaoQuitada}%</span>
+              </div>
+
+              {/* Barra de Progresso */}
+              <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-indigo-500 transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                  style={{ width: `${pctPrevisaoQuitada}%` }}
+                />
+              </div>
+
+              {/* Detalhamento Pago vs Pendente */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-center">
+                  <span className="text-[9px] font-black text-emerald-400 uppercase block tracking-wider">Já Pago</span>
+                  <span className="text-xs font-black text-emerald-400 font-tnum">{brl(previsaoPagoGeral)}</span>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-center">
+                  <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">Pendente</span>
+                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(previsaoPendenteGeral)}</span>
                 </div>
               </div>
             </div>
