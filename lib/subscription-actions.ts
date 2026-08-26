@@ -224,12 +224,18 @@ export async function deleteSubscriptionAction(id: string) {
   return { success: true };
 }
 
-// 5. Pagar assinatura no mês selecionado
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+// 5. Pagar assinatura com Mês de Referência e Data Real de Pagamento
 export async function paySubscriptionAction(
   subscriptionId: string,
-  month: number,
-  year: number,
-  walletId: string
+  refMonth: number,
+  refYear: number,
+  walletId: string,
+  paidAtDateStr?: string
 ) {
   const sub = await db.subscription.findUnique({
     where: { id: subscriptionId }
@@ -251,9 +257,11 @@ export async function paySubscriptionAction(
   const walletName = wallet.bankName || wallet.title;
   const amt = Number(sub.amount);
 
-  // Data do pagamento
-  const dueDay = Math.min(28, sub.dueDay);
-  const txDate = new Date(year, month - 1, dueDay);
+  // Data real do pagamento (Fluxo de Caixa)
+  const actualPaidAt = paidAtDateStr ? new Date(paidAtDateStr) : new Date();
+
+  // Mês de referência por extenso
+  const refMonthName = MONTH_NAMES[Math.min(11, Math.max(0, refMonth - 1))];
 
   // Buscar ou criar categoria "Assinaturas" se necessário
   let cat = await prisma.category.findFirst({
@@ -269,44 +277,44 @@ export async function paySubscriptionAction(
     });
   }
 
-  // 1. Criar transação de débito no histórico da conta
+  // 1. Criar transação de débito no histórico da conta com a data REAL do pagamento e a referência na descrição
   const transaction = await prisma.transaction.create({
     data: {
       walletId,
       categoryId: cat.id,
-      description: `Assinatura ${sub.name} (Pago via ${walletName})`,
+      description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${refYear} (Pago via ${walletName})`,
       type: "EXPENSE",
       amount: amt,
-      date: txDate,
+      date: actualPaidAt,
       source: "SUBSCRIPTION",
       status: "COMPLETED",
       tags: `#assinatura,#${sub.category.toLowerCase().replace(/\s+/g, "")}`,
     }
   });
 
-  // 2. Criar registro de pagamento em SubscriptionPayment
+  // 2. Criar ou atualizar o registro de pagamento vinculado à REFERÊNCIA (refMonth, refYear)
   const payment = await db.subscriptionPayment.upsert({
     where: {
       subscriptionId_month_year: {
         subscriptionId,
-        month,
-        year
+        month: refMonth,
+        year: refYear
       }
     },
     create: {
       subscriptionId,
-      month,
-      year,
+      month: refMonth,
+      year: refYear,
       amount: amt,
       paymentWalletId: walletId,
       paymentTransactionId: transaction.id,
-      paidAt: new Date()
+      paidAt: actualPaidAt
     },
     update: {
       amount: amt,
       paymentWalletId: walletId,
       paymentTransactionId: transaction.id,
-      paidAt: new Date()
+      paidAt: actualPaidAt
     }
   });
 

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Repeat, Plus, CheckCircle2, Clock, Pencil, Trash2, CreditCard,
-  DollarSign, Calendar, Tag, AlertCircle, X, Sparkles, Wallet, RefreshCw, ChevronRight
+  DollarSign, Calendar, Tag, AlertCircle, X, Sparkles, Wallet, RefreshCw, ChevronRight, Info
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -20,6 +20,13 @@ import {
 import { getWalletsAction } from "@/lib/actions";
 
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
+const YEARS_LIST = Array.from({ length: 11 }, (_, i) => 2020 + i);
 
 const CATEGORIES = [
   "Streaming",
@@ -61,6 +68,9 @@ export default function AssinaturasPage() {
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [subToPay, setSubToPay] = useState<SubscriptionWithStatus | null>(null);
   const [selectedWalletId, setSelectedWalletId] = useState("");
+  const [payRefMonth, setPayRefMonth] = useState<number>(selectedMonth);
+  const [payRefYear, setPayRefYear] = useState<number>(selectedYear);
+  const [payDate, setPayDate] = useState<string>("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -175,15 +185,24 @@ export default function AssinaturasPage() {
   // Handler: Abrir Modal Customizado de Pagamento
   const openPayModal = (sub: SubscriptionWithStatus) => {
     setSubToPay(sub);
-    // Pré-seleciona a conta padrão da assinatura ou a primeira conta disponível
     const defaultId = sub.defaultWalletId && wallets.some(w => w.id === sub.defaultWalletId)
       ? sub.defaultWalletId
       : (wallets.length > 0 ? wallets[0].id : "");
     setSelectedWalletId(defaultId);
+    setPayRefMonth(selectedMonth);
+    setPayRefYear(selectedYear);
+
+    // Data de hoje no formato YYYY-MM-DD
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    setPayDate(`${yyyy}-${mm}-${dd}`);
+
     setPayModalOpen(true);
   };
 
-  // Handler: Confirmar Pagamento com Desconto na Conta
+  // Handler: Confirmar Pagamento com Desconto na Conta & Mês de Referência
   const handleConfirmPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subToPay) return;
@@ -194,19 +213,22 @@ export default function AssinaturasPage() {
 
     const selectedWallet = wallets.find(w => w.id === selectedWalletId);
     const walletTitle = selectedWallet ? (selectedWallet.bankName || selectedWallet.title) : "Conta";
+    const refMonthName = MONTH_NAMES[payRefMonth - 1];
+    const paidFormatted = payDate ? new Date(payDate + "T12:00:00").toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR");
 
     setSaving(true);
     try {
       await paySubscriptionAction(
         subToPay.id,
-        selectedMonth,
-        selectedYear,
-        selectedWalletId
+        payRefMonth,
+        payRefYear,
+        selectedWalletId,
+        payDate
       );
 
       setPayModalOpen(false);
       showAlert(
-        `Pagamento da assinatura "${subToPay.name}" (${brl(subToPay.amount)}) realizado com sucesso via ${walletTitle}! O valor foi abatido do saldo da conta.`,
+        `Pagamento da assinatura "${subToPay.name}" (${brl(subToPay.amount)}) realizado com sucesso!\n\n• Referência: ${refMonthName}/${payRefYear}\n• Pago em: ${paidFormatted}\n• Conta: ${walletTitle}`,
         { variant: "success", title: "Pagamento Confirmado" }
       );
       await loadData();
@@ -221,7 +243,7 @@ export default function AssinaturasPage() {
   // Handler: Desfazer Pagamento
   const handleUndoPay = async (sub: SubscriptionWithStatus) => {
     const confirmed = await showConfirm(
-      `Deseja desfazer o pagamento da assinatura "${sub.name}" no mês atual? O registro do pagamento e o débito na conta serão estornados.`,
+      `Deseja desfazer o pagamento da assinatura "${sub.name}" referente a ${MONTH_NAMES[selectedMonth - 1]}/${selectedYear}? O registro do pagamento e o débito na conta serão estornados.`,
       {
         title: "Desfazer Pagamento",
         variant: "warning",
@@ -249,7 +271,7 @@ export default function AssinaturasPage() {
       {/* Top Header com Seletor de Período */}
       <PeriodHeader
         title="Gerenciamento de Assinaturas 🔄"
-        tagline="Controle suas assinaturas recorrentes (Netflix, Spotify, Internet), acompanhe pagamentos mensais e abata os valores diretamente da sua conta."
+        tagline="Controle suas assinaturas recorrentes (Netflix, Spotify, Internet), acompanhe pagamentos com vínculo de Mês de Referência e abata os valores da conta desejada."
       />
 
       {/* Cards Metrias do Mês */}
@@ -278,7 +300,7 @@ export default function AssinaturasPage() {
           </div>
           <div className="mt-4">
             <h3 className="text-2xl font-black text-white">{brl(summary.totalMonthlyAmount)}</h3>
-            <p className="text-[10px] text-slate-500 mt-1 font-medium">Total previsto para o mês selecionado</p>
+            <p className="text-[10px] text-slate-500 mt-1 font-medium">Previsto para {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}</p>
           </div>
         </div>
 
@@ -317,10 +339,10 @@ export default function AssinaturasPage() {
           <div>
             <h2 className="text-lg font-black text-white flex items-center gap-2">
               <Repeat className="w-5 h-5 text-indigo-400" />
-              Assinaturas & Recorrências
+              Assinaturas em {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Gerencie seus serviços mensais e registre os pagamentos na conta desejada.
+              Gerencie seus serviços mensais, vincule o mês de referência e controle as datas de pagamento.
             </p>
           </div>
 
@@ -342,7 +364,7 @@ export default function AssinaturasPage() {
                 <th className="p-4 text-center">Vencimento</th>
                 <th className="p-4 text-right">Valor Mensal</th>
                 <th className="p-4">Conta Padrão</th>
-                <th className="p-4 text-center">Status no Mês</th>
+                <th className="p-4 text-center">Status / Detalhes de Pagamento</th>
                 <th className="p-4 text-center">Ações</th>
               </tr>
             </thead>
@@ -369,7 +391,7 @@ export default function AssinaturasPage() {
               ) : (
                 subscriptions.map((sub) => (
                   <tr key={sub.id} className="hover:bg-slate-800/40 transition-colors">
-                    {/* Nome */}
+                    {/* Nome & Vínculo */}
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
@@ -377,9 +399,13 @@ export default function AssinaturasPage() {
                         </div>
                         <div>
                           <p className="font-black text-white text-sm">{sub.name}</p>
-                          {sub.paidInfo?.paidAt && (
-                            <span className="text-[10px] text-emerald-400 font-semibold">
-                              Pago em {new Date(sub.paidInfo.paidAt).toLocaleDateString("pt-BR")}
+                          {sub.isPaid && sub.paidInfo ? (
+                            <span className="text-[10px] text-emerald-400 font-semibold block">
+                              Ref: {MONTH_NAMES[selectedMonth - 1]}/{selectedYear} — Pago em {new Date(sub.paidInfo.paidAt).toLocaleDateString("pt-BR")}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-semibold block">
+                              Vencimento: Dia {sub.dueDay}/{selectedMonth.toString().padStart(2, "0")}
                             </span>
                           )}
                         </div>
@@ -415,13 +441,18 @@ export default function AssinaturasPage() {
                       </span>
                     </td>
 
-                    {/* Status no Mês */}
+                    {/* Status no Mês com Detalhamento de Referência e Data */}
                     <td className="p-4 text-center">
                       {sub.isPaid ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-black">
-                          <CheckCircle2 className="w-4 h-4" />
-                          Pago {sub.paidInfo?.paymentWalletTitle ? `(${sub.paidInfo.paymentWalletTitle})` : ""}
-                        </span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-black">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Pago {sub.paidInfo?.paymentWalletTitle ? `(${sub.paidInfo.paymentWalletTitle})` : ""}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            Ref: {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}
+                          </span>
+                        </div>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-black">
                           <Clock className="w-4 h-4 animate-pulse" />
@@ -447,7 +478,7 @@ export default function AssinaturasPage() {
                             onClick={() => openPayModal(sub)}
                             disabled={saving}
                             className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-extrabold transition-all shadow-md shadow-emerald-600/30 cursor-pointer flex items-center gap-1"
-                            title="Marcar como Pago e Abater do Saldo"
+                            title="Marcar como Pago e Definir Referência"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> Pagar
                           </button>
@@ -512,7 +543,7 @@ export default function AssinaturasPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Ex: Netflix, Spotify, Internet Fibra, ChatGPT"
+                  placeholder="Ex: Netflix, Spotify, Internet Fibra, Futevôlei"
                   value={subName}
                   onChange={(e) => setSubName(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
@@ -542,7 +573,7 @@ export default function AssinaturasPage() {
                     min="1"
                     max="31"
                     required
-                    placeholder="10"
+                    placeholder="05"
                     value={subDueDay}
                     onChange={(e) => setSubDueDay(e.target.value === "" ? "" : Number(e.target.value))}
                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
@@ -596,7 +627,7 @@ export default function AssinaturasPage() {
                   disabled={saving}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-indigo-600/30 transition-all cursor-pointer"
                 >
-                  {saving ? "Salving..." : editingSub ? "Atualizar" : "Salvar Assinatura"}
+                  {saving ? "Salvando..." : editingSub ? "Atualizar" : "Salvar Assinatura"}
                 </button>
               </div>
             </form>
@@ -618,7 +649,7 @@ export default function AssinaturasPage() {
                 <div>
                   <h3 className="text-base font-black text-white">Confirmar Pagamento</h3>
                   <p className="text-[11px] text-slate-400 font-medium">
-                    Selecione a conta para abater o valor da assinatura.
+                    Defina o Mês de Referência, a Conta e a Data Real do Pagamento.
                   </p>
                 </div>
               </div>
@@ -640,17 +671,11 @@ export default function AssinaturasPage() {
                 <span className="text-slate-400 font-medium">Valor a Pagar:</span>
                 <span className="font-black text-emerald-400 text-sm">{brl(subToPay.amount)}</span>
               </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 font-medium">Mês/Ano:</span>
-                <span className="font-extrabold text-slate-300">
-                  {selectedMonth.toString().padStart(2, "0")}/{selectedYear}
-                </span>
-              </div>
             </div>
 
-            <form onSubmit={handleConfirmPay} className="space-y-5">
+            <form onSubmit={handleConfirmPay} className="space-y-4">
               {/* Seleção de Conta / Banco */}
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-xs font-black text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
                   <Wallet className="w-4 h-4 text-indigo-400" />
                   Com qual conta deseja pagar?
@@ -659,7 +684,7 @@ export default function AssinaturasPage() {
                   required
                   value={selectedWalletId}
                   onChange={(e) => setSelectedWalletId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-3 text-xs text-white font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-2.5 text-xs text-white font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                 >
                   <option value="" disabled>
                     Selecione uma conta ou cartão...
@@ -670,12 +695,70 @@ export default function AssinaturasPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Ao confirmar, R$ {subToPay.amount.toFixed(2)} será debitado do saldo da conta selecionada.
+              </div>
+
+              {/* Mês de Referência (Competência) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Calendar className="w-4 h-4 text-purple-400" />
+                  Mês de Referência (Competência)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={payRefMonth}
+                    onChange={(e) => setPayRefMonth(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  >
+                    {MONTH_NAMES.map((m, idx) => (
+                      <option key={m} value={idx + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={payRefYear}
+                    onChange={(e) => setPayRefYear(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  >
+                    {YEARS_LIST.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Data Real do Pagamento (Fluxo de Caixa) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Clock className="w-4 h-4 text-emerald-400" />
+                  Data Real do Pagamento (Fluxo de Caixa)
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={payDate}
+                  onChange={(e) => setPayDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-4 py-2 text-xs text-white font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                />
+              </div>
+
+              {/* Banner / Alerta Explicativo de Exemplo da Regra */}
+              <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[11px] text-indigo-300 font-medium space-y-1">
+                <p className="flex items-center gap-1.5 font-bold text-indigo-200">
+                  <Info className="w-4 h-4 shrink-0 text-indigo-400" /> Regra de Lançamento:
+                </p>
+                <p>
+                  • <strong>Extrato Financeiro</strong>: O débito de {brl(subToPay.amount)} será gravado na data <strong>{payDate ? new Date(payDate + "T12:00:00").toLocaleDateString("pt-BR") : "hoje"}</strong>.
+                </p>
+                <p>
+                  • <strong>Painel de Controle</strong>: Dará baixa e marcará como PAGO na referência de <strong>{MONTH_NAMES[payRefMonth - 1]}/{payRefYear}</strong>.
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button
                   type="button"
                   onClick={() => setPayModalOpen(false)}
