@@ -16,6 +16,7 @@ import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
   getFutureBalanceProjection, getAllTags
@@ -52,6 +53,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export function DashboardOverview() {
   const { selectedMonth, selectedYear, setPeriod, goToCurrentMonth } = usePeriod();
+  const { showAlert } = useModal();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
@@ -143,7 +145,7 @@ export function DashboardOverview() {
       setRevAmount("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao lançar receita.");
+      showAlert("Erro ao lançar receita.", { variant: "error" });
     } finally {
       setSavingRev(false);
     }
@@ -161,7 +163,7 @@ export function DashboardOverview() {
       setAporteAmount("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao realizar aporte.");
+      showAlert("Erro ao realizar aporte.", { variant: "error" });
     } finally {
       setSavingAporte(false);
     }

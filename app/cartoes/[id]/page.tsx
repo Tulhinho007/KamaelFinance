@@ -15,6 +15,7 @@ import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -81,6 +82,7 @@ export default function CartaoDetailPage() {
   const cardId = params?.id as string;
 
   const { selectedMonth, selectedYear } = usePeriod();
+  const { showAlert } = useModal();
 
   const [cardData, setCardData] = useState<CardData | null>(null);
   const [loading, setLoading]   = useState(true);
@@ -177,7 +179,7 @@ export default function CartaoDetailPage() {
       setFormLimit("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar limite do cartão.");
+      showAlert("Erro ao salvar limite do cartão.", { variant: "error" });
     }
   };
 
@@ -193,7 +195,7 @@ export default function CartaoDetailPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao adicionar carga.");
+      showAlert("Erro ao adicionar carga.", { variant: "error" });
     }
   };
 
@@ -209,7 +211,7 @@ export default function CartaoDetailPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao remover carga.");
+      showAlert("Erro ao remover carga.", { variant: "error" });
     }
   };
 
@@ -225,7 +227,7 @@ export default function CartaoDetailPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao redefinir saldo total.");
+      showAlert("Erro ao redefinir saldo total.", { variant: "error" });
     }
   };
 
@@ -242,7 +244,7 @@ export default function CartaoDetailPage() {
     const fech = Number(formDiaFechamento);
     const venc = Number(formVencimento);
     if (fech < 1 || fech > 31 || venc < 1 || venc > 31) {
-      alert("Por favor insira dias válidos entre 1 e 31.");
+      showAlert("Por favor insira dias válidos entre 1 e 31.", { variant: "warning" });
       return;
     }
     try {
@@ -251,7 +253,7 @@ export default function CartaoDetailPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar datas do cartão.");
+      showAlert("Erro ao salvar datas do cartão.", { variant: "error" });
     }
   };
   
@@ -374,7 +376,7 @@ export default function CartaoDetailPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar lançamento.");
+      showAlert("Erro ao atualizar lançamento.", { variant: "error" });
     }
   };
 
@@ -386,7 +388,7 @@ export default function CartaoDetailPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir lançamento.");
+      showAlert("Erro ao excluir lançamento.", { variant: "error" });
     }
   };
 

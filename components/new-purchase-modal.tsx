@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, DollarSign, Tag } from "lucide-react";
 import { CATEGORIES } from "@/lib/constants";
 import { getAllWalletsSimple, createCardPurchase } from "@/lib/actions";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 type SimpleWallet = {
   id: string;
@@ -24,6 +25,7 @@ export function NewPurchaseModal({
   onSuccess,
   defaultWalletId = "",
 }: NewPurchaseModalProps) {
+  const { showAlert } = useModal();
   const [wallets, setWallets]             = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState(defaultWalletId);
   const [formType, setFormType]           = useState<"vista" | "parcelado">("vista");
@@ -59,17 +61,17 @@ export function NewPurchaseModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWalletId) {
-      alert("Por favor, selecione um cartão ou conta.");
+      showAlert("Por favor, selecione um cartão ou conta.", { variant: "warning" });
       return;
     }
     if (!formDescription || !formDate) {
-      alert("Preencha a descrição e a data da compra.");
+      showAlert("Preencha a descrição e a data da compra.", { variant: "warning" });
       return;
     }
 
     const calculatedAmount = formType === "vista" ? Number(formAmount || 0) : Number(formInstallmentAmount || 0);
     if (calculatedAmount <= 0) {
-      alert("Informe um valor válido maior que zero.");
+      showAlert("Informe um valor válido maior que zero.", { variant: "warning" });
       return;
     }
 
@@ -95,7 +97,7 @@ export function NewPurchaseModal({
       setFormInstallmentAmount("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar a despesa. Tente novamente.");
+      showAlert("Erro ao salvar a despesa. Tente novamente.", { variant: "error" });
     } finally {
       setSaving(false);
     }

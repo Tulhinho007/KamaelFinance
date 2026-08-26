@@ -9,6 +9,7 @@ import { PeriodHeader } from "@/components/period-header";
 import { getTicketData, saveTicketCarga, addTicketCarga, removeTicketCarga, createTicketExpense, updateTicketExpense, deleteTicketExpense } from "@/lib/actions";
 
 import { CATEGORIES } from "@/lib/constants";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -22,6 +23,7 @@ type TicketExpense = {
 
 export default function TicketAlimentacaoPage() {
   const { selectedMonth, selectedYear } = usePeriod();
+  const { showAlert } = useModal();
 
   // Dados do Ticket
   const [walletId, setWalletId] = useState<string | null>(null);
@@ -87,7 +89,7 @@ export default function TicketAlimentacaoPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao adicionar carga.");
+      showAlert("Erro ao adicionar carga.", { variant: "error" });
     }
   };
 
@@ -103,7 +105,7 @@ export default function TicketAlimentacaoPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao remover carga.");
+      showAlert("Erro ao remover carga.", { variant: "error" });
     }
   };
 
@@ -119,7 +121,7 @@ export default function TicketAlimentacaoPage() {
       setFormCarga("");
     } catch (err) {
       console.error(err);
-      alert("Erro ao redefinir saldo total.");
+      showAlert("Erro ao redefinir saldo total.", { variant: "error" });
     }
   };
 
@@ -143,7 +145,7 @@ export default function TicketAlimentacaoPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao lançar gasto.");
+      showAlert("Erro ao lançar gasto.", { variant: "error" });
     }
   };
 
@@ -167,7 +169,7 @@ export default function TicketAlimentacaoPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao editar gasto.");
+      showAlert("Erro ao editar gasto.", { variant: "error" });
     }
   };
 
@@ -179,7 +181,7 @@ export default function TicketAlimentacaoPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir gasto.");
+      showAlert("Erro ao excluir gasto.", { variant: "error" });
     }
   };
 

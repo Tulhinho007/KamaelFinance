@@ -36,6 +36,7 @@ import {
   toggleItemPaidAction
 } from "@/lib/planning-actions";
 import { ConvertToExpenseModal } from "@/components/convert-to-expense-modal";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 interface EventItem {
   id: string;
@@ -66,6 +67,7 @@ interface ChecklistTask {
 }
 
 export default function PlanningPage() {
+  const { showAlert, showConfirm } = useModal();
   const [projects, setProjects] = useState<EventProject[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -219,7 +221,7 @@ export default function PlanningPage() {
       setSelectedProjectId(created.id);
     } catch (err) {
       console.error(err);
-      alert("Erro ao criar projeto.");
+      showAlert("Erro ao criar projeto.", { variant: "error" });
     }
   };
 
@@ -253,7 +255,12 @@ export default function PlanningPage() {
   // Excluir Projeto
   const handleDeleteProject = async () => {
     if (!activeProject) return;
-    if (!confirm(`Tem certeza que deseja excluir o projeto "${activeProject.title}"?`)) return;
+    const confirmed = await showConfirm(`Tem certeza que deseja excluir o projeto "${activeProject.title}"?`, {
+      title: "Excluir Projeto",
+      variant: "danger",
+      confirmText: "Excluir",
+    });
+    if (!confirmed) return;
 
     try {
       await deleteEventProjectAction(activeProject.id);
@@ -261,7 +268,7 @@ export default function PlanningPage() {
       await loadData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir projeto.");
+      showAlert("Erro ao excluir projeto.", { variant: "error" });
     }
   };
 
@@ -286,7 +293,7 @@ export default function PlanningPage() {
       await loadData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao adicionar item.");
+      showAlert("Erro ao adicionar item.", { variant: "error" });
     } finally {
       setIsAddingItem(false);
     }
@@ -362,13 +369,18 @@ export default function PlanningPage() {
       await loadData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar alterações no item.");
+      showAlert("Erro ao salvar alterações no item.", { variant: "error" });
     }
   };
 
   // Excluir Item
   const handleDeleteItem = async (itemId: string) => {
-    if (!confirm("Deseja remover este item do planejamento?")) return;
+    const confirmed = await showConfirm("Deseja remover este item do planejamento?", {
+      title: "Remover Item",
+      variant: "danger",
+      confirmText: "Remover",
+    });
+    if (!confirmed) return;
     try {
       await deleteEventItemAction(itemId);
       await loadData();

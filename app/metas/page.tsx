@@ -6,6 +6,7 @@ import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
 import { GoalCelebrationModal } from "@/components/goal-celebration-modal";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight
 } from "lucide-react";
@@ -118,6 +119,7 @@ function getDaysRemainingBadge(dataFimStr: string, pct: number) {
 }
 
 export default function MetasPage() {
+  const { showAlert } = useModal();
   const [metas, setMetas] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,7 +206,7 @@ export default function MetasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao criar meta no banco de dados.");
+      showAlert("Erro ao criar meta no banco de dados.", { variant: "error" });
     }
   };
 
@@ -229,7 +231,7 @@ export default function MetasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao editar meta no banco de dados.");
+      showAlert("Erro ao editar meta no banco de dados.", { variant: "error" });
     }
   };
 
@@ -264,7 +266,7 @@ export default function MetasPage() {
       }
     } catch (err) {
       console.error(err);
-      alert("Erro ao registrar aporte no banco de dados.");
+      showAlert("Erro ao registrar aporte no banco de dados.", { variant: "error" });
     }
   };
 
@@ -286,7 +288,7 @@ export default function MetasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir meta do banco de dados.");
+      showAlert("Erro ao excluir meta do banco de dados.", { variant: "error" });
     }
   };
 

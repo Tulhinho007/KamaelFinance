@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { CompoundInterestSimulator } from "@/components/compound-interest-simulator";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -37,6 +38,7 @@ const formatCryptoQty = (v: number): string => {
 };
 
 export default function InvestimentosPage() {
+  const { showAlert, showConfirm } = useModal();
   const [currentTab, setCurrentTab] = useState<"visao-geral" | "renda-fixa" | "renda-variavel" | "cripto" | "apostas" | "outros">("visao-geral");
 
   // Loaders & Data States
@@ -253,7 +255,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar Renda Fixa.");
+      showAlert("Erro ao salvar Renda Fixa.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -278,7 +280,7 @@ export default function InvestimentosPage() {
     e.preventDefault();
     if (!rvTitulo || rvCotacaoAtual === "") return;
     if (rvQtdInicial === "" || Number(rvQtdInicial) <= 0 || rvPrecoInicial === "" || Number(rvPrecoInicial) <= 0) {
-      alert("Por favor, informe a quantidade e o preço pago por cota do lote inicial.");
+      showAlert("Por favor, informe a quantidade e o preço pago por cota do lote inicial.", { variant: "warning" });
       return;
     }
 
@@ -311,7 +313,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar operação.");
+      showAlert("Erro ao salvar operação.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -333,7 +335,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar ciclo.");
+      showAlert("Erro ao atualizar ciclo.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -345,7 +347,7 @@ export default function InvestimentosPage() {
 
     const qtdNum = Number(rvTxQtd);
     if (rvTxTipo === "VENDA" && qtdNum > selectedRv.quantidadeCotas) {
-      alert(`Atenção: Você está tentando vender ${qtdNum} cotas, mas o ciclo selecionado (${selectedRv.titulo}) possui apenas ${selectedRv.quantidadeCotas} cotas disponíveis.`);
+      showAlert(`Atenção: Você está tentando vender ${qtdNum} cotas, mas o ciclo selecionado (${selectedRv.titulo}) possui apenas ${selectedRv.quantidadeCotas} cotas disponíveis.`, { variant: "warning" });
       return;
     }
 
@@ -369,26 +371,31 @@ export default function InvestimentosPage() {
       await loadAllData();
 
       if (rvTxTipo === "VENDA" && qtdNum >= selectedRv.quantidadeCotas) {
-        alert(`Venda registrada com sucesso! Como a quantidade vendida (${qtdNum}) zerou a posição do ciclo ${selectedRv.titulo}, o ciclo foi automaticamente ENCERRADO.`);
+        showAlert(`Venda registrada com sucesso! Como a quantidade vendida (${qtdNum}) zerou a posição do ciclo ${selectedRv.titulo}, o ciclo foi automaticamente ENCERRADO.`, { variant: "success", title: "Ciclo Encerrado" });
       }
 
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar ordem.");
+      showAlert("Erro ao salvar ordem.", { variant: "error" });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteRvTx = async (txId: string) => {
-    if (!confirm("Tem certeza que deseja apagar esta ordem do histórico?")) return;
+    const confirmed = await showConfirm("Tem certeza que deseja apagar esta ordem do histórico?", {
+      title: "Apagar Ordem",
+      variant: "danger",
+      confirmText: "Apagar",
+    });
+    if (!confirmed) return;
     try {
       await deleteVariableTransactionAction(txId);
       await loadAllData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao apagar ordem.");
+      showAlert("Erro ao apagar ordem.", { variant: "error" });
     }
   };
 
@@ -420,7 +427,7 @@ export default function InvestimentosPage() {
     e.preventDefault();
     if (!cryptoToken || !cryptoNome || cryptoCotacao === "") return;
     if (cryptoQtdInicial === "" || Number(cryptoQtdInicial) <= 0 || cryptoPrecoInicial === "" || Number(cryptoPrecoInicial) <= 0) {
-      alert("Por favor, informe a quantidade de moedas e o preço unitário pago no aporte inicial.");
+      showAlert("Por favor, informe a quantidade de moedas e o preço unitário pago no aporte inicial.", { variant: "warning" });
       return;
     }
 
@@ -453,7 +460,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar operação cripto.");
+      showAlert("Erro ao salvar operação cripto.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -476,7 +483,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar ciclo cripto.");
+      showAlert("Erro ao atualizar ciclo cripto.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -488,7 +495,7 @@ export default function InvestimentosPage() {
 
     const qtdNum = Number(cryptoTxQtd);
     if (cryptoTxTipo === "VENDA" && qtdNum > selectedCrypto.quantidadeMoedas) {
-      alert(`Atenção: Você está tentando vender ${qtdNum} moedas, mas o ciclo selecionado possui apenas ${selectedCrypto.quantidadeMoedas} moedas disponíveis.`);
+      showAlert(`Atenção: Você está tentando vender ${qtdNum} moedas, mas o ciclo selecionado possui apenas ${selectedCrypto.quantidadeMoedas} moedas disponíveis.`, { variant: "warning" });
       return;
     }
 
@@ -512,26 +519,31 @@ export default function InvestimentosPage() {
       await loadAllData();
 
       if (cryptoTxTipo === "VENDA" && qtdNum >= selectedCrypto.quantidadeMoedas) {
-        alert(`Venda registrada com sucesso! Como a quantidade zerou a posição do ciclo ${selectedCrypto.token}, o ciclo foi automaticamente ENCERRADO.`);
+        showAlert(`Venda registrada com sucesso! Como a quantidade zerou a posição do ciclo ${selectedCrypto.token}, o ciclo foi automaticamente ENCERRADO.`, { variant: "success", title: "Ciclo Encerrado" });
       }
 
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar ordem de cripto.");
+      showAlert("Erro ao salvar ordem de cripto.", { variant: "error" });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteCryptoTx = async (txId: string) => {
-    if (!confirm("Tem certeza que deseja apagar esta ordem cripto do histórico?")) return;
+    const confirmed = await showConfirm("Tem certeza que deseja apagar esta ordem cripto do histórico?", {
+      title: "Apagar Ordem Cripto",
+      variant: "danger",
+      confirmText: "Apagar",
+    });
+    if (!confirmed) return;
     try {
       await deleteCryptoTransactionAction(txId);
       await loadAllData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao apagar ordem.");
+      showAlert("Erro ao apagar ordem.", { variant: "error" });
     }
   };
 
@@ -564,7 +576,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao criar plataforma.");
+      showAlert("Erro ao criar plataforma.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -585,7 +597,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao registrar movimentação.");
+      showAlert("Erro ao registrar movimentação.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -621,13 +633,18 @@ export default function InvestimentosPage() {
   };
 
   const handleDeleteBetTx = async (txId: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta movimentação?")) return;
+    const confirmed = await showConfirm("Tem certeza que deseja excluir esta movimentação?", {
+      title: "Excluir Movimentação",
+      variant: "danger",
+      confirmText: "Excluir",
+    });
+    if (!confirmed) return;
     try {
       await deleteBettingTransactionAction(txId);
       await loadAllData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir movimentação.");
+      showAlert("Erro ao excluir movimentação.", { variant: "error" });
     }
   };
 
@@ -645,7 +662,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar movimentação.");
+      showAlert("Erro ao atualizar movimentação.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -693,7 +710,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar investimento.");
+      showAlert("Erro ao salvar investimento.", { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -708,7 +725,7 @@ export default function InvestimentosPage() {
       setActiveModal(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir investimento.");
+      showAlert("Erro ao excluir investimento.", { variant: "error" });
     } finally {
       setSaving(false);
     }

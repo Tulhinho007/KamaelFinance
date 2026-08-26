@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction
@@ -257,6 +258,7 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
   const { selectedMonth, selectedYear } = usePeriod();
+  const { showAlert } = useModal();
 
   const [cards, setCards]         = useState<CardOverview[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -300,7 +302,7 @@ export default function DespesasPage() {
       setPayModalCard(null);
     } catch (e) {
       console.error(e);
-      alert("Erro ao registrar pagamento da fatura.");
+      showAlert("Erro ao registrar pagamento da fatura.", { variant: "error" });
     } finally {
       setIsPayingInvoice(false);
     }
@@ -314,7 +316,7 @@ export default function DespesasPage() {
       await loadPaidInvoices();
     } catch (e) {
       console.error(e);
-      alert("Erro ao desfazer pagamento da fatura.");
+      showAlert("Erro ao desfazer pagamento da fatura.", { variant: "error" });
     }
   };
 
@@ -538,7 +540,7 @@ export default function DespesasPage() {
       closeModal();
     } catch (err) {
       console.error(err);
-      alert("Erro ao cadastrar cartão. Tente novamente.");
+      showAlert("Erro ao cadastrar cartão. Tente novamente.", { variant: "error" });
     } finally {
       setFormSaving(false);
     }
@@ -566,7 +568,7 @@ export default function DespesasPage() {
       closeModal();
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar cartão. Tente novamente.");
+      showAlert("Erro ao atualizar cartão. Tente novamente.", { variant: "error" });
     } finally {
       setFormSaving(false);
     }
@@ -582,7 +584,7 @@ export default function DespesasPage() {
       closeModal();
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir cartão. Tente novamente.");
+      showAlert("Erro ao excluir cartão. Tente novamente.", { variant: "error" });
     } finally {
       setFormSaving(false);
     }

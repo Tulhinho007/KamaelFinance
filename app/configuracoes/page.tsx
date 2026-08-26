@@ -24,6 +24,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCategoriesAction,
   createCategoryAction,
@@ -42,6 +43,7 @@ type CategoryItem = {
 
 export default function ConfiguracoesPage() {
   const { theme, toggleTheme } = useTheme();
+  const { showAlert, showConfirm } = useModal();
   const [activeTab, setActiveTab] = useState<"profile" | "preferences" | "categories" | "export">("profile");
 
   // ── ABA 1: Perfil & Conta State ──
@@ -105,7 +107,7 @@ export default function ConfiguracoesPage() {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword && newPassword !== confirmPassword) {
-      alert("A nova senha e a confirmação não conferem.");
+      showAlert("A nova senha e a confirmação não conferem.", { variant: "warning" });
       return;
     }
     setProfileSaving(true);
@@ -120,7 +122,7 @@ export default function ConfiguracoesPage() {
       setTimeout(() => setProfileSuccess(false), 3000);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "Erro ao salvar perfil.");
+      showAlert(err.message || "Erro ao salvar perfil.", { variant: "error" });
     } finally {
       setProfileSaving(false);
     }
@@ -168,20 +170,25 @@ export default function ConfiguracoesPage() {
       setCatModalOpen(false);
     } catch (err) {
       console.error(err);
-      alert("Erro ao salvar categoria.");
+      showAlert("Erro ao salvar categoria.", { variant: "error" });
     } finally {
       setCatSaving(false);
     }
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta categoria?")) return;
+    const confirmed = await showConfirm("Tem certeza que deseja excluir esta categoria?", {
+      title: "Excluir Categoria",
+      variant: "danger",
+      confirmText: "Excluir",
+    });
+    if (!confirmed) return;
     try {
       await deleteCategoryAction(id);
       await loadCategories();
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir categoria.");
+      showAlert("Erro ao excluir categoria.", { variant: "error" });
     }
   };
 
@@ -199,7 +206,7 @@ export default function ConfiguracoesPage() {
       document.body.removeChild(link);
     } catch (err) {
       console.error(err);
-      alert("Erro ao exportar arquivo CSV.");
+      showAlert("Erro ao exportar arquivo CSV.", { variant: "error" });
     } finally {
       setExportingCSV(false);
     }

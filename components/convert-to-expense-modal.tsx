@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, ArrowUpRight, Wallet, Calendar, Tag, Check, Loader2, DollarSign } from "lucide-react";
 import { getAllWalletsSimple } from "@/lib/actions";
 import { convertItemToExpenseAction } from "@/lib/planning-actions";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 type SimpleWallet = {
   id: string;
@@ -30,6 +31,7 @@ export function ConvertToExpenseModal({
   onSuccess,
   item,
 }: ConvertToExpenseModalProps) {
+  const { showAlert } = useModal();
   const [wallets, setWallets] = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState("");
   const [category, setCategory] = useState("Lazer");
@@ -60,13 +62,13 @@ export function ConvertToExpenseModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWalletId) {
-      alert("Por favor, selecione a conta ou cartão para o lançamento.");
+      showAlert("Por favor, selecione a conta ou cartão para o lançamento.", { variant: "warning" });
       return;
     }
 
     const finalAmount = Number(actualPaidAmount || item.maxAmount);
     if (finalAmount <= 0) {
-      alert("Informe um valor real pago válido.");
+      showAlert("Informe um valor real pago válido.", { variant: "warning" });
       return;
     }
 
@@ -77,7 +79,7 @@ export function ConvertToExpenseModal({
       onClose();
     } catch (err: any) {
       console.error(err);
-      alert("Erro ao converter item em despesa. Tente novamente.");
+      showAlert("Erro ao converter item em despesa. Tente novamente.", { variant: "error" });
     } finally {
       setLoading(false);
     }

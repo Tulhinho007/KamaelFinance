@@ -9,6 +9,7 @@ import {
   createTransactionFromOFX, OFXItem
 } from "@/lib/actions";
 import { CATEGORIES } from "@/lib/constants";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -31,6 +32,7 @@ export function OFXReconciliationModal({
   onSuccess,
   defaultWalletId = "",
 }: OFXModalProps) {
+  const { showAlert } = useModal();
   const [wallets, setWallets] = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState(defaultWalletId);
 
@@ -48,35 +50,31 @@ export function OFXReconciliationModal({
 
   useEffect(() => {
     if (isOpen) {
-      getAllWalletsSimple()
-        .then(wList => {
-          setWallets(wList);
-          if (defaultWalletId) {
-            setSelectedWalletId(defaultWalletId);
-          } else if (wList.length > 0 && !selectedWalletId) {
-            setSelectedWalletId(wList[0].id);
-          }
-        })
-        .catch(console.error);
+      getAllWalletsSimple().then((res) => {
+        setWallets(res);
+        if (!selectedWalletId && res.length > 0) {
+          setSelectedWalletId(res[0].id);
+        }
+      });
     }
-  }, [isOpen, defaultWalletId]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setFileName(file.name);
+
     const reader = new FileReader();
     reader.onload = async (evt) => {
       const text = evt.target?.result as string;
       setFileContent(text);
       if (selectedWalletId) {
-        runProcessOFX(selectedWalletId, text);
+        await runProcessOFX(selectedWalletId, text);
       }
     };
-    reader.readAsText(file, "ISO-8859-1"); // Padrão brasileiro de encoding para OFX
+    reader.readAsText(file);
   };
 
   const runProcessOFX = async (wId: string, content: string) => {
@@ -91,7 +89,7 @@ export function OFXReconciliationModal({
       setSelectedIds(matchedSet);
     } catch (err) {
       console.error(err);
-      alert("Erro ao processar o arquivo OFX.");
+      showAlert("Erro ao processar o arquivo OFX.", { variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -116,14 +114,14 @@ export function OFXReconciliationModal({
     setLoading(true);
     try {
       await bulkClearTransactions(Array.from(selectedIds));
-      alert(`${selectedIds.size} lançamento(s) baixado(s) com sucesso!`);
+      showAlert(`${selectedIds.size} lançamento(s) baixado(s) com sucesso!`, { variant: "success", title: "Conciliação Concluída" });
       if (fileContent && selectedWalletId) {
         await runProcessOFX(selectedWalletId, fileContent);
       }
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error(err);
-      alert("Erro ao dar baixa nas transações.");
+      showAlert("Erro ao dar baixa nas transações.", { variant: "error" });
     } finally {
       setLoading(false);
     }
@@ -155,7 +153,7 @@ export function OFXReconciliationModal({
       if (onSuccess) onSuccess();
     } catch (err) {
       console.error(err);
-      alert("Erro ao importar transação do OFX.");
+      showAlert("Erro ao importar transação do OFX.", { variant: "error" });
     } finally {
       setCreating(false);
     }

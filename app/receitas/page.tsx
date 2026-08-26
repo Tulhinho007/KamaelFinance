@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
+import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction
 } from "@/lib/actions";
@@ -195,6 +196,7 @@ function RevenueDonutChart({ list }: { list: Revenue[] }) {
 
 export default function ReceitasPage() {
   const { selectedMonth, selectedYear } = usePeriod();
+  const { showAlert, showConfirm } = useModal();
   const [revenues, setRevenues] = useState<Revenue[]>([]);
   const [loading, setLoading]   = useState(true);
 
@@ -279,19 +281,24 @@ export default function ReceitasPage() {
       setSelectedIds([]);
     } catch (err) {
       console.error(err);
-      alert("Erro ao atualizar status em lote.");
+      showAlert("Erro ao atualizar status em lote.", { variant: "error" });
     }
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`Deseja realmente excluir ${selectedIds.length} receita(s) selecionada(s)?`)) return;
+    const confirmed = await showConfirm(`Deseja realmente excluir ${selectedIds.length} receita(s) selecionada(s)?`, {
+      title: "Excluir Receitas",
+      variant: "danger",
+      confirmText: "Excluir",
+    });
+    if (!confirmed) return;
     try {
       await Promise.all(selectedIds.map(id => deleteRevenueAction(id)));
       await loadData();
       setSelectedIds([]);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir receitas em lote.");
+      showAlert("Erro ao excluir receitas em lote.", { variant: "error" });
     }
   };
 
@@ -301,7 +308,7 @@ export default function ReceitasPage() {
       await loadData();
     } catch (err) {
       console.error(err);
-      alert("Erro ao alterar status da receita.");
+      showAlert("Erro ao alterar status da receita.", { variant: "error" });
     }
   };
 
@@ -322,7 +329,7 @@ export default function ReceitasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao cadastrar receita no banco de dados.");
+      showAlert("Erro ao cadastrar receita no banco de dados.", { variant: "error" });
     }
   };
 
@@ -343,7 +350,7 @@ export default function ReceitasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao editar receita no banco de dados.");
+      showAlert("Erro ao editar receita no banco de dados.", { variant: "error" });
     }
   };
 
@@ -360,7 +367,7 @@ export default function ReceitasPage() {
       setModalType(null);
     } catch (err) {
       console.error(err);
-      alert("Erro ao excluir receita do banco de dados.");
+      showAlert("Erro ao excluir receita do banco de dados.", { variant: "error" });
     }
   };
 
