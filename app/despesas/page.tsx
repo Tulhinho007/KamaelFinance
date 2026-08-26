@@ -15,6 +15,8 @@ import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction
 } from "@/lib/actions";
+import { getSubscriptionsWithMonthlyStatusAction } from "@/lib/subscription-actions";
+import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 
@@ -276,6 +278,17 @@ export default function DespesasPage() {
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
 
+  // Resumo Unificado de Assinaturas
+  const [subscriptionsSummary, setSubscriptionsSummary] = useState<{
+    totalMonthlyAmount: number;
+    totalPaidAmount: number;
+    totalPendingAmount: number;
+  }>({
+    totalMonthlyAmount: 0,
+    totalPaidAmount: 0,
+    totalPendingAmount: 0,
+  });
+
   const loadPaidInvoices = async () => {
     try {
       const list = await getPaidInvoicesAction(selectedMonth, selectedYear);
@@ -342,6 +355,19 @@ export default function DespesasPage() {
       .then(data => { if (active) { setCards(data); setLoading(false); } })
       .catch(err  => { console.error(err); if (active) setLoading(false); });
     loadPaidInvoices();
+
+    getSubscriptionsWithMonthlyStatusAction(selectedMonth, selectedYear)
+      .then(res => {
+        if (active && res?.summary) {
+          setSubscriptionsSummary({
+            totalMonthlyAmount: res.summary.totalMonthlyAmount || 0,
+            totalPaidAmount: res.summary.totalPaidAmount || 0,
+            totalPendingAmount: res.summary.totalPendingAmount || 0,
+          });
+        }
+      })
+      .catch(err => console.error("Erro ao carregar assinaturas para despesas:", err));
+
     return () => { active = false; };
   }, [selectedMonth, selectedYear]);
 
@@ -374,6 +400,23 @@ export default function DespesasPage() {
     if (c.faturaAtual > 0 && !(c as any).isPaid) return s + c.faturaAtual;
     return s;
   }, 0);
+
+  // ── Cálculo Unificado (Despesas + Assinaturas) ──────────────────────────────
+  const despesasMesTotal = totalFaturasMes;
+  const assinaturasMesTotal = subscriptionsSummary.totalMonthlyAmount;
+  const compromissoTotalMes = despesasMesTotal + assinaturasMesTotal;
+
+  const despesasPagas = pagoFaturasMes;
+  const assinaturasPagas = subscriptionsSummary.totalPaidAmount;
+  const totalPagoGeral = despesasPagas + assinaturasPagas;
+
+  const despesasPendentes = proximosVencimentos;
+  const assinaturasPendentes = subscriptionsSummary.totalPendingAmount;
+  const totalPendenteGeral = despesasPendentes + assinaturasPendentes;
+
+  const pctPagoGeral = compromissoTotalMes > 0
+    ? Math.min(100, Math.round((totalPagoGeral / compromissoTotalMes) * 100))
+    : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
   const openCreditCards = creditCards
@@ -630,8 +673,82 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 3. KPI CARDS (4 COLUNAS RESPONSIVAS) ────────────────────────────────── */}
+      {/* ── 3. KPI CARDS (4 COLUNAS RESPONSIVAS + HERO UNIFICADO) ───────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        {/* CARD HERO DE TOTAL UNIFICADO (DESPESAS + ASSINATURAS) */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-4 card-glow p-6 rounded-2xl bg-gradient-to-br from-indigo-950/90 via-slate-900/90 to-slate-950 border border-indigo-500/40 shadow-[0_0_30px_rgba(99,102,241,0.22)] relative overflow-hidden group flex flex-col justify-between">
+          <Layers className="absolute -right-4 -bottom-4 w-36 h-36 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+            
+            {/* LADO ESQUERDO: Título, Valor Consolidado e Detalhamento de Origem */}
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30 shadow-xs flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-400" /> Compromisso Total do Mês
+                </span>
+                <span className="text-[10px] font-extrabold text-slate-400">
+                  Unificado · {getMonthName(selectedMonth)}/{selectedYear}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-baseline gap-3">
+                <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight font-tnum">
+                  {brl(compromissoTotalMes)}
+                </h3>
+                <span className="text-xs font-bold text-slate-400">
+                  ({pctPagoGeral}% quitado até o momento)
+                </span>
+              </div>
+
+              {/* Detalhamento Visual de Origem */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800 shadow-inner">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-300">📄 Despesas do Mês:</span>
+                  <span className="text-xs font-black text-rose-400 font-tnum">{brl(despesasMesTotal)}</span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800 shadow-inner">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0 animate-pulse" />
+                  <span className="text-xs font-semibold text-slate-300">🔄 Assinaturas do Mês:</span>
+                  <span className="text-xs font-black text-purple-400 font-tnum">{brl(assinaturasMesTotal)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* LADO DIREITO: Progresso do Mês (Pago vs Pendente) */}
+            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 min-w-[280px] lg:max-w-xs space-y-3 shadow-xl">
+              <div className="flex items-center justify-between text-xs font-extrabold">
+                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Quitação do Mês</span>
+                <span className="text-indigo-400 font-black font-tnum">{pctPagoGeral}%</span>
+              </div>
+
+              {/* Barra de Progresso */}
+              <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
+                  style={{ width: `${pctPagoGeral}%` }}
+                />
+              </div>
+
+              {/* Detalhamento Pago vs Pendente */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-center">
+                  <span className="text-[9px] font-black text-emerald-400 uppercase block tracking-wider">Já Pago</span>
+                  <span className="text-xs font-black text-emerald-400 font-tnum">{brl(totalPagoGeral)}</span>
+                </div>
+
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-center">
+                  <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">Pendente</span>
+                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(totalPendenteGeral)}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
 
         {/* KPI 0 — Saldo Total em Conta */}
         <div className="card-glow p-5 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative overflow-hidden group flex flex-col justify-between">
