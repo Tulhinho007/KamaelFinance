@@ -151,6 +151,7 @@ export async function getRevenues(month: number, year: number) {
       },
       deletedAt: null
     },
+    include: { wallet: true },
     orderBy: { date: "asc" }
   });
 
@@ -159,7 +160,10 @@ export async function getRevenues(month: number, year: number) {
     description: t.description,
     amount: Number(t.amount),
     status: t.status || "COMPLETED",
-    date: t.date.toISOString().split("T")[0]
+    date: t.date.toISOString().split("T")[0],
+    walletId: t.walletId,
+    account: (t.wallet as any)?.bankName || (t.wallet as any)?.title || "",
+    walletType: (t.wallet as any)?.walletType
   }));
 }
 
@@ -188,7 +192,13 @@ export async function toggleTransactionStatusAction(id: string) {
   return { id: updated.id, status: updated.status };
 }
 
-export async function createRevenueAction(description: string, amount: number, dateStr: string, walletId?: string) {
+export async function createRevenueAction(
+  description: string,
+  amount: number,
+  dateStr: string,
+  walletId?: string,
+  status: string = "COMPLETED"
+) {
   const userId = await getActiveUserId();
   
   let wallet = null;
@@ -211,7 +221,7 @@ export async function createRevenueAction(description: string, amount: number, d
     wallet = await prisma.wallet.create({
       data: {
         userId,
-        title: "Conta Principal",
+        title: "Conta Corrente",
         walletType: "CONTA_CORRENTE",
         initialBalance: 0
       }
@@ -227,6 +237,7 @@ export async function createRevenueAction(description: string, amount: number, d
       description,
       type: "INCOME",
       amount: amount,
+      status: status || "COMPLETED",
       date,
       source: "MANUAL"
     }
@@ -241,22 +252,39 @@ export async function createRevenueAction(description: string, amount: number, d
     id: transaction.id,
     description: transaction.description,
     amount: Number(transaction.amount),
-    date: transaction.date.toISOString().split("T")[0]
+    date: transaction.date.toISOString().split("T")[0],
+    walletId: transaction.walletId
   };
 }
 
-export async function updateRevenueAction(id: string, description: string, amount: number, dateStr: string) {
+export async function updateRevenueAction(
+  id: string,
+  description: string,
+  amount: number,
+  dateStr: string,
+  walletId?: string
+) {
   const parts = dateStr.split("-");
   const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
 
+  const dataToUpdate: any = {
+    description,
+    amount: amount,
+    date
+  };
+  if (walletId) {
+    dataToUpdate.walletId = walletId;
+  }
+
   const transaction = await prisma.transaction.update({
     where: { id },
-    data: {
-      description,
-      amount: amount,
-      date
-    }
+    data: dataToUpdate
   });
+
+  revalidatePath("/receitas");
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
 
   revalidatePath("/receitas");
   return {

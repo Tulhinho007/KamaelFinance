@@ -10,10 +10,27 @@ import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
-  getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction
+  getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction
 } from "@/lib/actions";
 
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+function formatWalletDropdownLabel(w: any) {
+  const name = w.bankName || w.title;
+  let typeStr = "";
+  if (w.walletType === "CREDIT_CARD") {
+    typeStr = "Cartão de Crédito";
+  } else if (w.walletType === "CONTA_CORRENTE") {
+    typeStr = "Conta Corrente/Débito";
+  } else if (w.walletType === "TICKET") {
+    typeStr = "VA / VR / Benefício";
+  } else {
+    typeStr = w.walletType || "Conta";
+  }
+
+  const balanceText = w.currentTotal !== undefined ? ` (Saldo: ${brl(w.currentTotal)})` : "";
+  return `${name} - ${typeStr}${balanceText}`;
+}
 
 type Revenue = {
   id: string;
@@ -23,6 +40,7 @@ type Revenue = {
   date: string; // YYYY-MM-DD
   category?: string;
   account?: string;
+  walletId?: string;
 };
 
 // Categorias padrão para receitas
@@ -198,6 +216,7 @@ export default function ReceitasPage() {
   const { selectedMonth, selectedYear } = usePeriod();
   const { showAlert, showConfirm } = useModal();
   const [revenues, setRevenues] = useState<Revenue[]>([]);
+  const [wallets, setWallets]   = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
 
   const [searchQuery, setSearchQuery]       = useState("");
@@ -211,15 +230,21 @@ export default function ReceitasPage() {
   const [selectedRevenue, setSelectedRevenue] = useState<Revenue | null>(null);
   const [modalType, setModalType]             = useState<"create" | "edit" | "delete" | null>(null);
 
-  const [formDescription, setFormDescription] = useState("");
-  const [formAmount, setFormAmount]           = useState(0);
-  const [formDate, setFormDate]               = useState("");
+  const [formDescription, setFormDescription]     = useState("");
+  const [formAmount, setFormAmount]               = useState(0);
+  const [formDate, setFormDate]                   = useState("");
+  const [formWalletId, setFormWalletId]           = useState("");
+  const [formSkipDeduction, setFormSkipDeduction] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getRevenues(selectedMonth, selectedYear);
+      const [data, walletList] = await Promise.all([
+        getRevenues(selectedMonth, selectedYear),
+        getWalletsAction(),
+      ]);
       setRevenues(data);
+      setWallets(walletList || []);
     } catch (err) {
       console.error("Erro ao obter receitas do banco:", err);
     } finally {
@@ -317,6 +342,8 @@ export default function ReceitasPage() {
     setFormAmount(0);
     const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
     setFormDate(defaultDate);
+    setFormWalletId(wallets.length > 0 ? wallets[0].id : "");
+    setFormSkipDeduction(false);
     setModalType("create");
   };
 
@@ -324,7 +351,7 @@ export default function ReceitasPage() {
     e.preventDefault();
     if (!formDescription || formAmount <= 0 || !formDate) return;
     try {
-      await createRevenueAction(formDescription, formAmount, formDate);
+      await createRevenueAction(formDescription, formAmount, formDate, formWalletId || undefined);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -338,6 +365,8 @@ export default function ReceitasPage() {
     setFormDescription(rev.description);
     setFormAmount(rev.amount);
     setFormDate(rev.date);
+    setFormWalletId(rev.walletId || (wallets.length > 0 ? wallets[0].id : ""));
+    setFormSkipDeduction(false);
     setModalType("edit");
   };
 
@@ -345,7 +374,7 @@ export default function ReceitasPage() {
     e.preventDefault();
     if (!selectedRevenue || !formDescription || formAmount <= 0 || !formDate) return;
     try {
-      await updateRevenueAction(selectedRevenue.id, formDescription, formAmount, formDate);
+      await updateRevenueAction(selectedRevenue.id, formDescription, formAmount, formDate, formWalletId || undefined);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -591,8 +620,8 @@ export default function ReceitasPage() {
                       </td>
 
                       <td className="px-4 py-3.5 text-slate-300 font-semibold flex items-center gap-1.5 mt-1">
-                        <Wallet className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span>{rev.account || "Conta Principal"}</span>
+                        <Wallet className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
                       </td>
 
                       <td className="px-4 py-3.5 text-right font-medium text-slate-300">
@@ -748,6 +777,44 @@ export default function ReceitasPage() {
                     onChange={(e) => setFormDate(e.target.value)}
                     className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white [color-scheme:dark]"
                   />
+                </div>
+
+                {/* Conta de Destino */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-400" />
+                    Conta de Destino *
+                  </label>
+                  <select
+                    required
+                    value={formWalletId}
+                    onChange={(e) => setFormWalletId(e.target.value)}
+                    className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white cursor-pointer"
+                  >
+                    <option value="" disabled>
+                      Selecione a conta de destino...
+                    </option>
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {formatWalletDropdownLabel(w)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Checkbox Opção 'Saldo já considerado' */}
+                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="formSkipDeduction"
+                    checked={formSkipDeduction}
+                    onChange={(e) => setFormSkipDeduction(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/30 cursor-pointer"
+                  />
+                  <label htmlFor="formSkipDeduction" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
+                    <strong className="block text-white font-bold">Saldo já considerado (não alterar saldo)</strong>
+                    Registra a receita como recebida apenas no histórico do mês sem somar novamente ao saldo da conta.
+                  </label>
                 </div>
 
                 <button
