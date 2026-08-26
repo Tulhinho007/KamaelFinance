@@ -264,8 +264,10 @@ export default function CartaoDetailPage() {
   
   // Helper para obter Ano e Mês de AAAA-MM-DD
   const getYearMonth = (dateStr: string) => {
-    const parts = dateStr.split("-");
-    return { year: Number(parts[0]), month: Number(parts[1]) };
+    if (!dateStr) return { year: 0, month: 0 };
+    const clean = dateStr.split("T")[0];
+    const parts = clean.split("-");
+    return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
   // 1. Compras À Vista (filtradas pelo mês/ano selecionado)

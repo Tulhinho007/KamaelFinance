@@ -687,12 +687,29 @@ export async function addCapitalInjectionAction(input: {
   return transaction;
 }
 
+function safeIsoDate(d: any): string {
+  if (!d) return new Date().toISOString().split("T")[0];
+  try {
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return new Date().toISOString().split("T")[0];
+    return dt.toISOString().split("T")[0];
+  } catch (e) {
+    return new Date().toISOString().split("T")[0];
+  }
+}
+
 export async function getCardDataById(id: string, month?: number, year?: number) {
   const userId = await getActiveUserId();
 
   let wallet = await prisma.wallet.findFirst({
     where: { id, userId }
   });
+
+  if (!wallet) {
+    wallet = await prisma.wallet.findUnique({
+      where: { id }
+    });
+  }
 
   if (!wallet) {
     return null;
@@ -740,14 +757,14 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       amount: Number(p.amount),
       installmentsCount: p.installmentsCount || undefined,
       tags: (p as any).tags || undefined,
-      date: p.date.toISOString().split("T")[0]
+      date: safeIsoDate(p.date)
     })),
     injections: injections.map(i => ({
       id: i.id,
       description: i.description,
       category: i.category?.name || "Injeção de Capital",
       amount: Number(i.amount),
-      date: i.date.toISOString().split("T")[0],
+      date: safeIsoDate(i.date),
       source: i.source,
       tags: (i as any).tags || undefined,
     })),
@@ -760,7 +777,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       status: t.status || "COMPLETED",
       installmentsCount: t.installmentsCount || undefined,
       tags: (t as any).tags || undefined,
-      date: t.date.toISOString().split("T")[0],
+      date: safeIsoDate(t.date),
       source: t.source,
     })),
   };
