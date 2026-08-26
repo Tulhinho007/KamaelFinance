@@ -381,3 +381,121 @@ export async function undoSubscriptionPaymentAction(
 
   return { success: true };
 }
+
+// 7. Marcar Meses em Lote (Preenchimento Retroativo de Intervalo)
+export async function batchPaySubscriptionsAction(data: {
+  subscriptionId: string;
+  startMonth: number;
+  startYear: number;
+  endMonth: number;
+  endYear: number;
+  walletId?: string;
+  skipBalanceDeduction?: boolean;
+}) {
+  const sub = await db.subscription.findUnique({
+    where: { id: data.subscriptionId }
+  });
+
+  if (!sub) {
+    throw new Error("Assinatura não encontrada.");
+  }
+
+  const amt = Number(sub.amount);
+  const walletId = data.walletId || sub.defaultWalletId || null;
+  const skipDeduction = data.skipBalanceDeduction ?? true;
+
+  // Gerar lista de pares (mês, ano) do intervalo
+  const monthsToProcess: Array<{ month: number; year: number }> = [];
+  let curY = data.startYear;
+  let curM = data.startMonth;
+
+  while (curY < data.endYear || (curY === data.endYear && curM <= data.endMonth)) {
+    monthsToProcess.push({ month: curM, year: curY });
+    curM++;
+    if (curM > 12) {
+      curM = 1;
+      curY++;
+    }
+  }
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  let totalProcessed = 0;
+
+  for (const item of monthsToProcess) {
+    const dueDay = Math.min(28, sub.dueDay || 10);
+    const paidAt = new Date(Date.UTC(item.year, item.month - 1, dueDay, 12, 0, 0));
+    const paidStr = paidAt.toISOString().split("T")[0];
+    const isRetroactive = paidStr < todayStr;
+
+    const shouldDeduct = !isRetroactive && !skipDeduction && !!walletId;
+    let transactionId: string | null = null;
+
+    if (shouldDeduct && walletId) {
+      const wallet = await prisma.wallet.findUnique({
+        where: { id: walletId },
+        select: { title: true, bankName: true }
+      });
+      const walletName = wallet ? (wallet.bankName || wallet.title) : "Conta";
+      const refMonthName = MONTH_NAMES[item.month - 1];
+
+      let cat = await prisma.category.findFirst({
+        where: { name: { equals: "Assinaturas", mode: "insensitive" } }
+      });
+
+      if (!cat) {
+        cat = await prisma.category.create({
+          data: { name: "Assinaturas", color: "#6366F1" }
+        });
+      }
+
+      const tx = await prisma.transaction.create({
+        data: {
+          walletId,
+          categoryId: cat.id,
+          description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${item.year} (Pago via ${walletName})`,
+          type: "EXPENSE",
+          amount: amt,
+          date: paidAt,
+          source: "SUBSCRIPTION",
+          status: "COMPLETED",
+          tags: `#assinatura,#${sub.category.toLowerCase().replace(/\s+/g, "")}`,
+        }
+      });
+      transactionId = tx.id;
+    }
+
+    await db.subscriptionPayment.upsert({
+      where: {
+        subscriptionId_month_year: {
+          subscriptionId: sub.id,
+          month: item.month,
+          year: item.year
+        }
+      },
+      create: {
+        subscriptionId: sub.id,
+        month: item.month,
+        year: item.year,
+        amount: amt,
+        paymentWalletId: walletId,
+        paymentTransactionId: transactionId,
+        paidAt
+      },
+      update: {
+        amount: amt,
+        paymentWalletId: walletId,
+        paymentTransactionId: transactionId,
+        paidAt
+      }
+    });
+
+    totalProcessed++;
+  }
+
+  revalidatePath("/assinaturas");
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+
+  return { success: true, count: totalProcessed };
+}

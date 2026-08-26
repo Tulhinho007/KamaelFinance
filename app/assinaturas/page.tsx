@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Repeat, Plus, CheckCircle2, Clock, Pencil, Trash2, CreditCard,
-  DollarSign, Calendar, Tag, AlertCircle, X, Sparkles, Wallet, RefreshCw, ChevronRight, Info
+  DollarSign, Calendar, Tag, AlertCircle, X, Sparkles, Wallet, RefreshCw, ChevronRight, Info, Layers
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -15,6 +15,7 @@ import {
   deleteSubscriptionAction,
   paySubscriptionAction,
   undoSubscriptionPaymentAction,
+  batchPaySubscriptionsAction,
   SubscriptionWithStatus
 } from "@/lib/subscription-actions";
 import { getWalletsAction } from "@/lib/actions";
@@ -64,7 +65,7 @@ export default function AssinaturasPage() {
   const [subCategory, setSubCategory] = useState("Streaming");
   const [subDefaultWalletId, setSubDefaultWalletId] = useState("");
 
-  // Modal Customizado de Pagamento State (Dark Mode Glassmorphism)
+  // Modal Customizado de Pagamento Único State
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [subToPay, setSubToPay] = useState<SubscriptionWithStatus | null>(null);
   const [selectedWalletId, setSelectedWalletId] = useState("");
@@ -72,6 +73,16 @@ export default function AssinaturasPage() {
   const [payRefYear, setPayRefYear] = useState<number>(selectedYear);
   const [payDate, setPayDate] = useState<string>("");
   const [skipDeduction, setSkipDeduction] = useState(false);
+
+  // Modal Customizado de Preenchimento em Lote State
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [batchSubId, setBatchSubId] = useState<string>("ALL");
+  const [batchStartMonth, setBatchStartMonth] = useState<number>(1); // Janeiro
+  const [batchStartYear, setBatchStartYear] = useState<number>(2026);
+  const [batchEndMonth, setBatchEndMonth] = useState<number>(7); // Julho
+  const [batchEndYear, setBatchEndYear] = useState<number>(2026);
+  const [batchWalletId, setBatchWalletId] = useState<string>("");
+  const [batchSkipDeduction, setBatchSkipDeduction] = useState<boolean>(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -183,7 +194,7 @@ export default function AssinaturasPage() {
     }
   };
 
-  // Handler: Abrir Modal Customizado de Pagamento
+  // Handler: Abrir Modal Customizado de Pagamento Único
   const openPayModal = (sub: SubscriptionWithStatus) => {
     setSubToPay(sub);
     const defaultId = sub.defaultWalletId && wallets.some(w => w.id === sub.defaultWalletId)
@@ -193,7 +204,6 @@ export default function AssinaturasPage() {
     setPayRefMonth(selectedMonth);
     setPayRefYear(selectedYear);
 
-    // Data de hoje no formato YYYY-MM-DD
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, "0");
@@ -204,7 +214,19 @@ export default function AssinaturasPage() {
     setPayModalOpen(true);
   };
 
-  // Handler: Confirmar Pagamento com Desconto na Conta & Mês de Referência & Trava de Saldo
+  // Handler: Abrir Modal de Pagamento em Lote
+  const openBatchModal = (sub?: SubscriptionWithStatus) => {
+    setBatchSubId(sub ? sub.id : "ALL");
+    setBatchStartMonth(1); // Janeiro
+    setBatchStartYear(2026);
+    setBatchEndMonth(7); // Julho
+    setBatchEndYear(2026);
+    setBatchWalletId(sub?.defaultWalletId || (wallets.length > 0 ? wallets[0].id : ""));
+    setBatchSkipDeduction(true);
+    setBatchModalOpen(true);
+  };
+
+  // Handler: Confirmar Pagamento Único
   const handleConfirmPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subToPay) return;
@@ -252,6 +274,54 @@ export default function AssinaturasPage() {
     }
   };
 
+  // Handler: Confirmar Pagamento em Lote
+  const handleConfirmBatchPay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      let totalCount = 0;
+
+      const targetSubs = batchSubId === "ALL"
+        ? subscriptions
+        : subscriptions.filter(s => s.id === batchSubId);
+
+      if (targetSubs.length === 0) {
+        showAlert("Nenhuma assinatura selecionada.", { variant: "warning" });
+        setSaving(false);
+        return;
+      }
+
+      for (const subItem of targetSubs) {
+        const res = await batchPaySubscriptionsAction({
+          subscriptionId: subItem.id,
+          startMonth: batchStartMonth,
+          startYear: batchStartYear,
+          endMonth: batchEndMonth,
+          endYear: batchEndYear,
+          walletId: batchWalletId || undefined,
+          skipBalanceDeduction: batchSkipDeduction
+        });
+        totalCount += res.count;
+      }
+
+      setBatchModalOpen(false);
+      const startMonthName = MONTH_NAMES[batchStartMonth - 1];
+      const endMonthName = MONTH_NAMES[batchEndMonth - 1];
+
+      showAlert(
+        `Preenchimento em lote concluído com sucesso!\n\n• Total de lançamentos efetuados: ${totalCount}\n• Intervalo: ${startMonthName}/${batchStartYear} até ${endMonthName}/${batchEndYear}\n• Impacto no saldo: ${batchSkipDeduction ? "Nenhum (Histórico informativo preservado)" : "Débitos efetuados nas contas"}`,
+        { variant: "success", title: "Lançamento em Lote Concluído" }
+      );
+
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro ao processar o preenchimento em lote.", { variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Handler: Desfazer Pagamento
   const handleUndoPay = async (sub: SubscriptionWithStatus) => {
     const confirmed = await showConfirm(
@@ -283,7 +353,7 @@ export default function AssinaturasPage() {
       {/* Top Header com Seletor de Período */}
       <PeriodHeader
         title="Gerenciamento de Assinaturas 🔄"
-        tagline="Controle suas assinaturas recorrentes (Netflix, Spotify, Internet), acompanhe pagamentos com vínculo de Mês de Referência e abata os valores da conta desejada."
+        tagline="Controle suas assinaturas recorrentes (Netflix, Spotify, Internet), acompanhe pagamentos com vínculo de Mês de Referência e preencha histórico em lote."
       />
 
       {/* Cards Metrias do Mês */}
@@ -358,12 +428,22 @@ export default function AssinaturasPage() {
             </p>
           </div>
 
-          <button
-            onClick={openCreateModal}
-            className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" /> Nova Assinatura
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => openBatchModal()}
+              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              title="Preencher histórico de múltiplos meses em lote"
+            >
+              <Layers className="w-4 h-4 text-purple-400" /> Marcar Meses em Lote
+            </button>
+
+            <button
+              onClick={openCreateModal}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" /> Nova Assinatura
+            </button>
+          </div>
         </div>
 
         {/* Tabela de Assinaturas */}
@@ -496,6 +576,13 @@ export default function AssinaturasPage() {
                           </button>
                         )}
 
+                        <button
+                          onClick={() => openBatchModal(sub)}
+                          className="p-1.5 text-slate-400 hover:text-purple-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                          title="Preencher Histórico em Lote"
+                        >
+                          <Layers className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => openEditModal(sub)}
                           className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
@@ -835,6 +922,192 @@ export default function AssinaturasPage() {
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" /> Confirmar Pagamento
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 3: PREENCHIMENTO EM LOTE (BATCH PAY MODAL) */}
+      {/* ========================================================================= */}
+      {batchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Layers className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white">Marcar Meses em Lote</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Preencha o histórico de pagamentos de múltiplos meses de uma só vez.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBatchModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmBatchPay} className="space-y-4">
+              {/* Assinatura Alvo */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                  <CreditCard className="w-4 h-4 text-indigo-400" />
+                  Assinatura a Processar
+                </label>
+                <select
+                  value={batchSubId}
+                  onChange={(e) => setBatchSubId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white font-bold focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="ALL">Todas as Assinaturas ({subscriptions.length})</option>
+                  {subscriptions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({brl(s.amount)}/mês)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Intervalo Inicial e Final */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Inicial */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400" /> Mês Inicial
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={batchStartMonth}
+                      onChange={(e) => setBatchStartMonth(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                    >
+                      {MONTH_NAMES.map((m, idx) => (
+                        <option key={m} value={idx + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={batchStartYear}
+                      onChange={(e) => setBatchStartYear(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                    >
+                      {YEARS_LIST.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Final */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-purple-400" /> Mês Final
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={batchEndMonth}
+                      onChange={(e) => setBatchEndMonth(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                    >
+                      {MONTH_NAMES.map((m, idx) => (
+                        <option key={m} value={idx + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={batchEndYear}
+                      onChange={(e) => setBatchEndYear(Number(e.target.value))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white font-bold"
+                    >
+                      {YEARS_LIST.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conta Padrão */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5 text-indigo-400" /> Conta / Banco de Origem (Opcional)
+                </label>
+                <select
+                  value={batchWalletId}
+                  onChange={(e) => setBatchWalletId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white font-bold focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="">Selecione a conta de origem...</option>
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.bankName || w.title} ({brl(w.currentTotal)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Checkbox Opção 'Histórico passado (não afetar saldo das contas)' */}
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-950 border border-slate-800">
+                <input
+                  type="checkbox"
+                  id="batchSkipDeduction"
+                  checked={batchSkipDeduction}
+                  onChange={(e) => setBatchSkipDeduction(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/30 cursor-pointer"
+                />
+                <label htmlFor="batchSkipDeduction" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
+                  <strong className="block text-white font-bold">Histórico passado (não afetar saldo das contas)</strong>
+                  Marca todos os meses do intervalo como PAGO sem subtrair nenhum valor dos saldos atuais cadastrados.
+                </label>
+              </div>
+
+              <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-2xl text-[11px] text-purple-300 font-medium space-y-1">
+                <p className="flex items-center gap-1.5 font-extrabold text-purple-200">
+                  <Sparkles className="w-4 h-4 shrink-0 text-purple-400" /> Resumo da Ação em Lote:
+                </p>
+                <p>
+                  Será gerado o histórico de pagamento de <strong>{MONTH_NAMES[batchStartMonth - 1]}/{batchStartYear}</strong> até <strong>{MONTH_NAMES[batchEndMonth - 1]}/{batchEndYear}</strong> para {batchSubId === "ALL" ? "todas as assinaturas" : "a assinatura selecionada"}.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setBatchModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-extrabold rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 cursor-pointer"
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Processando...
+                    </>
+                  ) : (
+                    <>
+                      <Layers className="w-4 h-4" /> Confirmar Lançamentos em Lote
                     </>
                   )}
                 </button>
