@@ -71,6 +71,7 @@ export default function AssinaturasPage() {
   const [payRefMonth, setPayRefMonth] = useState<number>(selectedMonth);
   const [payRefYear, setPayRefYear] = useState<number>(selectedYear);
   const [payDate, setPayDate] = useState<string>("");
+  const [skipDeduction, setSkipDeduction] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -198,11 +199,12 @@ export default function AssinaturasPage() {
     const mm = String(today.getMonth() + 1).padStart(2, "0");
     const dd = String(today.getDate()).padStart(2, "0");
     setPayDate(`${yyyy}-${mm}-${dd}`);
+    setSkipDeduction(false);
 
     setPayModalOpen(true);
   };
 
-  // Handler: Confirmar Pagamento com Desconto na Conta & Mês de Referência
+  // Handler: Confirmar Pagamento com Desconto na Conta & Mês de Referência & Trava de Saldo
   const handleConfirmPay = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subToPay) return;
@@ -218,19 +220,29 @@ export default function AssinaturasPage() {
 
     setSaving(true);
     try {
-      await paySubscriptionAction(
+      const res = await paySubscriptionAction(
         subToPay.id,
         payRefMonth,
         payRefYear,
         selectedWalletId,
-        payDate
+        payDate,
+        skipDeduction
       );
 
       setPayModalOpen(false);
-      showAlert(
-        `Pagamento da assinatura "${subToPay.name}" (${brl(subToPay.amount)}) realizado com sucesso!\n\n• Referência: ${refMonthName}/${payRefYear}\n• Pago em: ${paidFormatted}\n• Conta: ${walletTitle}`,
-        { variant: "success", title: "Pagamento Confirmado" }
-      );
+
+      if (res.deductedBalance) {
+        showAlert(
+          `Pagamento da assinatura "${subToPay.name}" (${brl(subToPay.amount)}) realizado com sucesso!\n\n• Referência: ${refMonthName}/${payRefYear}\n• Pago em: ${paidFormatted}\n• Conta: ${walletTitle}\n• Débito: Saldo reduzido em R$ ${subToPay.amount.toFixed(2)}`,
+          { variant: "success", title: "Pagamento Confirmado (Saldo Abatido)" }
+        );
+      } else {
+        showAlert(
+          `Pagamento da assinatura "${subToPay.name}" (${brl(subToPay.amount)}) sinalizado como PAGO no histórico!\n\n• Referência: ${refMonthName}/${payRefYear}\n• Data: ${paidFormatted}\n• Impacto: Registrado apenas como histórico informativo (Saldo mantido intacto).`,
+          { variant: "info", title: "Pagamento Registrado (Sem Débito)" }
+        );
+      }
+
       await loadData();
     } catch (err) {
       console.error(err);
@@ -745,18 +757,63 @@ export default function AssinaturasPage() {
                 />
               </div>
 
-              {/* Banner / Alerta Explicativo de Exemplo da Regra */}
-              <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-[11px] text-indigo-300 font-medium space-y-1">
-                <p className="flex items-center gap-1.5 font-bold text-indigo-200">
-                  <Info className="w-4 h-4 shrink-0 text-indigo-400" /> Regra de Lançamento:
-                </p>
-                <p>
-                  • <strong>Extrato Financeiro</strong>: O débito de {brl(subToPay.amount)} será gravado na data <strong>{payDate ? new Date(payDate + "T12:00:00").toLocaleDateString("pt-BR") : "hoje"}</strong>.
-                </p>
-                <p>
-                  • <strong>Painel de Controle</strong>: Dará baixa e marcará como PAGO na referência de <strong>{MONTH_NAMES[payRefMonth - 1]}/{payRefYear}</strong>.
-                </p>
+              {/* Opção 'Registrar sem Afetar Saldo' (Checkbox) */}
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <input
+                  type="checkbox"
+                  id="skipDeduction"
+                  checked={skipDeduction}
+                  onChange={(e) => setSkipDeduction(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/30 cursor-pointer"
+                />
+                <label htmlFor="skipDeduction" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
+                  <strong className="block text-white font-bold">Saldo já considerado (não descontar da conta)</strong>
+                  Sinaliza a assinatura como Paga apenas no histórico informativo, sem subtrair nenhum valor do saldo atual da conta.
+                </label>
               </div>
+
+              {/* Banner / Alerta Explicativo Dinâmico de Trava de Segurança */}
+              {(() => {
+                const todayStr = new Date().toISOString().split("T")[0];
+                const isRetroactive = payDate && payDate < todayStr;
+
+                if (isRetroactive) {
+                  return (
+                    <div className="p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-[11px] text-amber-300 font-medium space-y-1">
+                      <p className="flex items-center gap-1.5 font-extrabold text-amber-200">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-400" /> Trava de Impacto no Saldo (Data Retroativa):
+                      </p>
+                      <p>
+                        A data de pagamento ({payDate ? new Date(payDate + "T12:00:00").toLocaleDateString("pt-BR") : ""}) é anterior a hoje. O lançamento será registrado apenas como <strong>histórico informativo</strong> na referência de <strong>{MONTH_NAMES[payRefMonth - 1]}/{payRefYear}</strong>, <strong>sem descontar nada da conta</strong> para manter o saldo atual intacto.
+                      </p>
+                    </div>
+                  );
+                }
+
+                if (skipDeduction) {
+                  return (
+                    <div className="p-3.5 bg-indigo-500/10 border border-indigo-500/30 rounded-2xl text-[11px] text-indigo-300 font-medium space-y-1">
+                      <p className="flex items-center gap-1.5 font-extrabold text-indigo-200">
+                        <Info className="w-4 h-4 shrink-0 text-indigo-400" /> Registro sem Débito no Saldo:
+                      </p>
+                      <p>
+                        Você marcou a opção de saldo já considerado. A assinatura ficará <strong>Paga</strong> na referência de <strong>{MONTH_NAMES[payRefMonth - 1]}/{payRefYear}</strong> sem subtrair nenhum valor das contas.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-[11px] text-emerald-300 font-medium space-y-1">
+                    <p className="flex items-center gap-1.5 font-extrabold text-emerald-200">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" /> Débito em Tempo Real:
+                    </p>
+                    <p>
+                      O valor de <strong>{brl(subToPay.amount)}</strong> será debitado diretamente do saldo da conta na data <strong>{payDate ? new Date(payDate + "T12:00:00").toLocaleDateString("pt-BR") : "hoje"}</strong> e dará baixa na referência de <strong>{MONTH_NAMES[payRefMonth - 1]}/{payRefYear}</strong>.
+                    </p>
+                  </div>
+                );
+              })()}
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
                 <button

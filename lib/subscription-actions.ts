@@ -229,13 +229,14 @@ const MONTH_NAMES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-// 5. Pagar assinatura com Mês de Referência e Data Real de Pagamento
+// 5. Pagar assinatura com Mês de Referência, Data Real e Trava de Saldo
 export async function paySubscriptionAction(
   subscriptionId: string,
   refMonth: number,
   refYear: number,
   walletId: string,
-  paidAtDateStr?: string
+  paidAtDateStr?: string,
+  skipBalanceDeduction?: boolean
 ) {
   const sub = await db.subscription.findUnique({
     where: { id: subscriptionId }
@@ -258,39 +259,54 @@ export async function paySubscriptionAction(
   const amt = Number(sub.amount);
 
   // Data real do pagamento (Fluxo de Caixa)
-  const actualPaidAt = paidAtDateStr ? new Date(paidAtDateStr) : new Date();
+  const actualPaidAt = paidAtDateStr ? new Date(paidAtDateStr + "T12:00:00") : new Date();
+
+  // Data de hoje em YYYY-MM-DD
+  const todayStr = new Date().toISOString().split("T")[0];
+  const paidStr = paidAtDateStr || todayStr;
+
+  // Trava de Segurança: Pagamento retroativo (anterior a hoje) NÃO abate do saldo da conta
+  const isRetroactive = paidStr < todayStr;
+
+  // O desconto automático no saldo da conta só ocorre se NÃO for retroativo E o checkbox NÃO foi marcado
+  const shouldDeductBalance = !isRetroactive && !skipBalanceDeduction;
 
   // Mês de referência por extenso
   const refMonthName = MONTH_NAMES[Math.min(11, Math.max(0, refMonth - 1))];
 
-  // Buscar ou criar categoria "Assinaturas" se necessário
-  let cat = await prisma.category.findFirst({
-    where: { name: { equals: "Assinaturas", mode: "insensitive" } }
-  });
+  let transactionId: string | null = null;
 
-  if (!cat) {
-    cat = await prisma.category.create({
+  if (shouldDeductBalance) {
+    // Buscar ou criar categoria "Assinaturas" se necessário
+    let cat = await prisma.category.findFirst({
+      where: { name: { equals: "Assinaturas", mode: "insensitive" } }
+    });
+
+    if (!cat) {
+      cat = await prisma.category.create({
+        data: {
+          name: "Assinaturas",
+          color: "#6366F1"
+        }
+      });
+    }
+
+    // 1. Criar transação de débito no histórico da conta com a data REAL do pagamento e a referência na descrição
+    const transaction = await prisma.transaction.create({
       data: {
-        name: "Assinaturas",
-        color: "#6366F1"
+        walletId,
+        categoryId: cat.id,
+        description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${refYear} (Pago via ${walletName})`,
+        type: "EXPENSE",
+        amount: amt,
+        date: actualPaidAt,
+        source: "SUBSCRIPTION",
+        status: "COMPLETED",
+        tags: `#assinatura,#${sub.category.toLowerCase().replace(/\s+/g, "")}`,
       }
     });
+    transactionId = transaction.id;
   }
-
-  // 1. Criar transação de débito no histórico da conta com a data REAL do pagamento e a referência na descrição
-  const transaction = await prisma.transaction.create({
-    data: {
-      walletId,
-      categoryId: cat.id,
-      description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${refYear} (Pago via ${walletName})`,
-      type: "EXPENSE",
-      amount: amt,
-      date: actualPaidAt,
-      source: "SUBSCRIPTION",
-      status: "COMPLETED",
-      tags: `#assinatura,#${sub.category.toLowerCase().replace(/\s+/g, "")}`,
-    }
-  });
 
   // 2. Criar ou atualizar o registro de pagamento vinculado à REFERÊNCIA (refMonth, refYear)
   const payment = await db.subscriptionPayment.upsert({
@@ -307,13 +323,13 @@ export async function paySubscriptionAction(
       year: refYear,
       amount: amt,
       paymentWalletId: walletId,
-      paymentTransactionId: transaction.id,
+      paymentTransactionId: transactionId,
       paidAt: actualPaidAt
     },
     update: {
       amount: amt,
       paymentWalletId: walletId,
-      paymentTransactionId: transaction.id,
+      paymentTransactionId: transactionId,
       paidAt: actualPaidAt
     }
   });
@@ -323,7 +339,7 @@ export async function paySubscriptionAction(
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
 
-  return { success: true, payment, transaction };
+  return { success: true, payment, deductedBalance: shouldDeductBalance };
 }
 
 // 6. Desfazer pagamento de assinatura
