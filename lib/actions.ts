@@ -451,6 +451,7 @@ export async function getWalletsAction() {
       return {
         id: w.id,
         title: w.title,
+        bankName: w.bankName || w.title,
         walletType: w.walletType,
         currentTotal,
       };
@@ -806,6 +807,7 @@ export async function getAllWalletsSimple() {
   return wallets.map(w => ({
     id: w.id,
     title: w.title,
+    bankName: w.bankName || w.title,
     walletType: w.walletType
   }));
 }

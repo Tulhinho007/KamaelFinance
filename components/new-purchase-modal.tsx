@@ -9,6 +9,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 type SimpleWallet = {
   id: string;
   title: string;
+  bankName?: string;
   walletType: string;
 };
 
@@ -150,7 +151,7 @@ export function NewPurchaseModal({
               </option>
               {wallets.map(w => (
                 <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                  {w.title} ({w.walletType === "CREDIT_CARD" ? "Cartão de Crédito" : w.walletType === "TICKET" ? "VA/VR" : "Conta Corrente"})
+                  {(w.bankName || w.title)} - {w.walletType === "CREDIT_CARD" ? "Cartão de Crédito" : w.walletType === "TICKET" ? "VA / VR / Benefício" : "Conta Corrente/Débito"}
                 </option>
               ))}
             </select>

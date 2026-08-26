@@ -22,6 +22,23 @@ import { getWalletsAction } from "@/lib/actions";
 
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+function formatWalletDropdownLabel(w: any) {
+  const name = w.bankName || w.title;
+  let typeStr = "";
+  if (w.walletType === "CREDIT_CARD") {
+    typeStr = "Cartão de Crédito";
+  } else if (w.walletType === "CONTA_CORRENTE") {
+    typeStr = "Conta Corrente/Débito";
+  } else if (w.walletType === "TICKET") {
+    typeStr = "VA / VR / Benefício";
+  } else {
+    typeStr = w.walletType || "Conta";
+  }
+
+  const balanceText = w.currentTotal !== undefined ? ` (Saldo: ${brl(w.currentTotal)})` : "";
+  return `${name} - ${typeStr}${balanceText}`;
+}
+
 const MONTH_NAMES = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -707,7 +724,7 @@ export default function AssinaturasPage() {
                   <option value="">Selecione uma conta padrão (Opcional)</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.bankName || w.title} ({brl(w.currentTotal)})
+                      {formatWalletDropdownLabel(w)}
                     </option>
                   ))}
                 </select>
@@ -790,7 +807,7 @@ export default function AssinaturasPage() {
                   </option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.bankName || w.title} — Saldo: {brl(w.currentTotal)}
+                      {formatWalletDropdownLabel(w)}
                     </option>
                   ))}
                 </select>
@@ -1058,7 +1075,7 @@ export default function AssinaturasPage() {
                   <option value="">Selecione a conta de origem...</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.id}>
-                      {w.bankName || w.title} ({brl(w.currentTotal)})
+                      {formatWalletDropdownLabel(w)}
                     </option>
                   ))}
                 </select>
