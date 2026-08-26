@@ -112,6 +112,23 @@ export default function CartaoDetailPage() {
   const [formInstallmentsCount, setFormInstallmentsCount] = useState(2);
   const [formDate, setFormDate] = useState("");
 
+  // Cálculo da soma total das despesas selecionadas (Hook posicionado no topo, ANTES de retornos condicionais)
+  const selectedTotalAmount = React.useMemo(() => {
+    if (!cardData || selectedIds.length === 0) return 0;
+    let sum = 0;
+    const purchaseMap = new Map((cardData.purchases || []).map(p => [p.id, p.amount]));
+    const txMap = new Map((cardData.allTransactions || []).map(t => [t.id, t.amount]));
+
+    for (const id of selectedIds) {
+      if (txMap.has(id)) {
+        sum += txMap.get(id)!;
+      } else if (purchaseMap.has(id)) {
+        sum += purchaseMap.get(id)!;
+      }
+    }
+    return sum;
+  }, [cardData, selectedIds]);
+
   const loadData = async () => {
     if (!cardId) return;
     setLoading(true);
@@ -401,23 +418,6 @@ export default function CartaoDetailPage() {
       showAlert("Erro ao excluir lançamento.", { variant: "error" });
     }
   };
-
-  // Cálculo da soma total das despesas selecionadas
-  const selectedTotalAmount = React.useMemo(() => {
-    if (!cardData || selectedIds.length === 0) return 0;
-    let sum = 0;
-    const purchaseMap = new Map((cardData.purchases || []).map(p => [p.id, p.amount]));
-    const txMap = new Map((cardData.allTransactions || []).map(t => [t.id, t.amount]));
-
-    for (const id of selectedIds) {
-      if (txMap.has(id)) {
-        sum += txMap.get(id)!;
-      } else if (purchaseMap.has(id)) {
-        sum += purchaseMap.get(id)!;
-      }
-    }
-    return sum;
-  }, [cardData, selectedIds]);
 
   const handleBatchDelete = async () => {
     if (selectedIds.length === 0) return;
