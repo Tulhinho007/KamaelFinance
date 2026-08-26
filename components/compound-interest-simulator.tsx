@@ -7,11 +7,11 @@ import { Calculator, Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw, Tabl
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function CompoundInterestSimulator() {
-  const [initialAmount, setInitialAmount] = useState<number | "">(1000);
-  const [monthlyAmount, setMonthlyAmount] = useState<number | "">(200);
-  const [rate, setRate]                   = useState<number | "">(12);
+  const [initialAmount, setInitialAmount] = useState<number | "">("");
+  const [monthlyAmount, setMonthlyAmount] = useState<number | "">("");
+  const [rate, setRate]                   = useState<number | "">("");
   const [rateType, setRateType]           = useState<"ANNUAL" | "MONTHLY">("ANNUAL");
-  const [period, setPeriod]               = useState<number | "">(5);
+  const [period, setPeriod]               = useState<number | "">("");
   const [periodType, setPeriodType]       = useState<"YEARS" | "MONTHS">("YEARS");
   const [showTable, setShowTable]         = useState(false);
 
@@ -80,11 +80,11 @@ export function CompoundInterestSimulator() {
   }, [initialAmount, monthlyAmount, rate, rateType, period, periodType]);
 
   const resetForm = () => {
-    setInitialAmount(1000);
-    setMonthlyAmount(200);
-    setRate(12);
+    setInitialAmount("");
+    setMonthlyAmount("");
+    setRate("");
     setRateType("ANNUAL");
-    setPeriod(5);
+    setPeriod("");
     setPeriodType("YEARS");
   };
 

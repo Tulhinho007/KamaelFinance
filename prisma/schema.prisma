@@ -44,6 +44,7 @@ model Wallet {
   transactions   Transaction[]
   goals          Goal[]
   invoicePayments InvoicePayment[]
+  subscriptions  Subscription[]
 }
 
 model Category {
@@ -253,5 +254,33 @@ model InvoicePayment {
   paymentTransactionId String?
 
   @@unique([walletId, month, year])
+}
+
+model Subscription {
+  id              String                @id @default(uuid())
+  userId          String?
+  name            String
+  amount          Decimal
+  dueDay          Int
+  category        String                @default("Streaming")
+  defaultWalletId String?
+  defaultWallet   Wallet?               @relation(fields: [defaultWalletId], references: [id], onDelete: SetNull)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt @default(now())
+  payments        SubscriptionPayment[]
+}
+
+model SubscriptionPayment {
+  id                   String       @id @default(uuid())
+  subscriptionId       String
+  subscription         Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  month                Int
+  year                 Int
+  amount               Decimal
+  paidAt               DateTime     @default(now())
+  paymentWalletId      String?
+  paymentTransactionId String?
+
+  @@unique([subscriptionId, month, year])
 }
 
