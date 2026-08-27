@@ -30,7 +30,7 @@ const createWalletSchema = z.object({
 
 // ---------- Helper: Identificação de Lançamentos de Pagamento de Fatura ----------
 
-export function isInvoicePaymentTransaction(t: {
+function isInvoicePaymentTransaction(t: {
   categoryId?: string | null;
   category?: { name?: string | null } | null;
   description?: string | null;
