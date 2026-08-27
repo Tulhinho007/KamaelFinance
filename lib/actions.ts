@@ -485,6 +485,7 @@ export async function getGoals() {
         paceStatus,
         history: g.history.map((h: any) => ({
           id: h.id,
+          rawDate: new Date(h.date).toISOString().split("T")[0],
           date: new Date(h.date).toLocaleDateString("pt-BR"),
           amount: Number(h.amount)
         }))
@@ -626,6 +627,86 @@ export async function addAporteAction(goalId: string, amount: number) {
       data: {
         acumulado: Math.min(Number(goal.objetivo), newAcumulado),
         ...(isNowCompleted ? { status: "COMPLETED", completedAt: new Date() } : {})
+      }
+    });
+  }
+
+  revalidatePath("/metas");
+}
+
+export async function updateAporteAction(historyId: string, amount: number, dateStr?: string) {
+  const existingHistory = await prisma.goalHistory.findUnique({
+    where: { id: historyId },
+    select: { goalId: true }
+  });
+
+  if (!existingHistory) return;
+
+  const updateData: any = { amount };
+  if (dateStr) {
+    updateData.date = new Date(dateStr);
+  }
+
+  await prisma.goalHistory.update({
+    where: { id: historyId },
+    data: updateData
+  });
+
+  const goalId = existingHistory.goalId;
+
+  // Recalcula o acumulado total com base em todo o histórico restante da meta
+  const allHistory = await prisma.goalHistory.findMany({
+    where: { goalId }
+  });
+
+  const goal = await prisma.goal.findUnique({ where: { id: goalId } });
+  if (goal) {
+    const totalAportado = allHistory.reduce((s, h) => s + Number(h.amount), 0);
+    const isCompleted = totalAportado >= Number(goal.objetivo) && Number(goal.objetivo) > 0;
+
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: {
+        acumulado: totalAportado,
+        status: isCompleted ? "COMPLETED" : "ACTIVE",
+        completedAt: isCompleted ? (goal.completedAt || new Date()) : null
+      }
+    });
+  }
+
+  revalidatePath("/metas");
+}
+
+export async function deleteAporteAction(historyId: string) {
+  const existingHistory = await prisma.goalHistory.findUnique({
+    where: { id: historyId },
+    select: { goalId: true }
+  });
+
+  if (!existingHistory) return;
+
+  const goalId = existingHistory.goalId;
+
+  await prisma.goalHistory.delete({
+    where: { id: historyId }
+  });
+
+  // Recalcula o acumulado total com base no histórico restante da meta
+  const allHistory = await prisma.goalHistory.findMany({
+    where: { goalId }
+  });
+
+  const goal = await prisma.goal.findUnique({ where: { id: goalId } });
+  if (goal) {
+    const totalAportado = allHistory.reduce((s, h) => s + Number(h.amount), 0);
+    const isCompleted = totalAportado >= Number(goal.objetivo) && Number(goal.objetivo) > 0;
+
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: {
+        acumulado: totalAportado,
+        status: isCompleted ? "COMPLETED" : "ACTIVE",
+        completedAt: isCompleted ? (goal.completedAt || new Date()) : null
       }
     });
   }

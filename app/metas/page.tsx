@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getGoals, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, getWalletsAction, toggleGoalStatusAction } from "@/lib/actions";
+import { getGoals, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, updateAporteAction, deleteAporteAction, getWalletsAction, toggleGoalStatusAction } from "@/lib/actions";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
@@ -123,7 +123,7 @@ function getDaysRemainingBadge(dataFimStr: string, pct: number) {
 }
 
 export default function MetasPage() {
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
   const [metas, setMetas] = useState<Goal[]>([]);
   const [wallets, setWallets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,6 +138,11 @@ export default function MetasPage() {
   // Controle de Modais
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [modalType, setModalType] = useState<"create" | "edit" | "aporte" | "history" | "delete" | null>(null);
+
+  // Edição Inline de Aporte no Modal de Histórico
+  const [editingAporteId, setEditingAporteId] = useState<string | null>(null);
+  const [editAporteVal, setEditAporteVal] = useState<string | number>("");
+  const [editAporteDate, setEditAporteDate] = useState("");
 
   // Form Fields State
   const [formTitle, setFormTitle] = useState("");
@@ -159,6 +164,14 @@ export default function MetasPage() {
       const [goalsData, walletsData] = await Promise.all([getGoals(), getWalletsAction()]);
       setMetas(goalsData);
       setWallets(walletsData);
+
+      // Atualiza selectedGoal em tempo real se o modal de histórico estiver aberto
+      if (selectedGoal) {
+        const updated = goalsData.find((g: any) => g.id.toString() === selectedGoal.id.toString());
+        if (updated) {
+          setSelectedGoal(updated as any);
+        }
+      }
     } catch (err) {
       console.error("Erro ao obter dados do banco:", err);
     } finally {
@@ -274,7 +287,8 @@ export default function MetasPage() {
     const newAcumulado = selectedGoal.acumulado + aporteNum;
     const newPct = selectedGoal.objetivo > 0 ? Math.min(100, Math.round((newAcumulado / selectedGoal.objetivo) * 100)) : 0;
 
-    const milestones = [25, 50, 75, 100];
+    // Marcos avaliados em ordem decrescente (100% -> 75% -> 50% -> 25%) para capturar o maior marco alcançado
+    const milestones = [100, 75, 50, 25];
     const crossedMilestone = milestones.find(m => oldPct < m && newPct >= m);
 
     try {
@@ -297,7 +311,42 @@ export default function MetasPage() {
 
   const openHistoryModal = (goal: Goal) => {
     setSelectedGoal(goal);
+    setEditingAporteId(null);
     setModalType("history");
+  };
+
+  const handleUpdateAporte = async (historyId: string) => {
+    const amountNum = parseCurrencyInput(editAporteVal);
+    if (amountNum <= 0) {
+      showAlert("O valor do aporte deve ser maior que zero.", { variant: "warning" });
+      return;
+    }
+    try {
+      await updateAporteAction(historyId, amountNum, editAporteDate);
+      setEditingAporteId(null);
+      await loadAllData();
+      showAlert("Aporte atualizado com sucesso!", { variant: "success" });
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro ao atualizar aporte.", { variant: "error" });
+    }
+  };
+
+  const handleDeleteAporte = async (historyId: string) => {
+    const confirmed = await showConfirm(
+      "Tem certeza de que deseja excluir este aporte? O total poupado e o progresso da meta serão recalculados automaticamente.",
+      { title: "Excluir Aporte", variant: "warning" }
+    );
+    if (confirmed) {
+      try {
+        await deleteAporteAction(historyId);
+        await loadAllData();
+        showAlert("Aporte removido com sucesso!", { variant: "success" });
+      } catch (err) {
+        console.error(err);
+        showAlert("Erro ao excluir aporte.", { variant: "error" });
+      }
+    }
   };
 
   const openDeleteModal = (goal: Goal) => {
@@ -866,23 +915,108 @@ export default function MetasPage() {
             {/* Modal de Histórico */}
             {modalType === "history" && selectedGoal && (
               <div className="flex flex-col gap-4">
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  Histórico de aportes para <strong className="text-slate-900 dark:text-white font-bold">{selectedGoal.title}</strong>:
-                </p>
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Histórico de aportes para <strong className="text-slate-900 dark:text-white font-black">{selectedGoal.title}</strong>
+                    </p>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                      Total Poupado: <span className="font-bold text-emerald-600 dark:text-emerald-400">{brl(selectedGoal.acumulado)}</span> / Objetivo: {brl(selectedGoal.objetivo)}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-black px-2.5 py-1 rounded-full border ${selectedGoal.pct >= 100 ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" : "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800"}`}>
+                    {selectedGoal.pct}%
+                  </span>
+                </div>
 
-                <div className="max-h-52 overflow-y-auto pr-1 flex flex-col gap-2.5">
-                  {selectedGoal.history.map((h) => (
-                    <div 
-                      key={h.id} 
-                      className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 flex justify-between items-center"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{h.date}</span>
+                <div className="max-h-64 overflow-y-auto pr-1 flex flex-col gap-2.5">
+                  {selectedGoal.history.map((h) => {
+                    const isEditing = editingAporteId === h.id;
+
+                    if (isEditing) {
+                      return (
+                        <div key={h.id} className="bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 rounded-2xl p-3.5 flex flex-col gap-3 shadow-xs">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">Data</label>
+                              <input
+                                type="date"
+                                value={editAporteDate}
+                                onChange={(e) => setEditAporteDate(e.target.value)}
+                                className="w-full text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">Valor (R$)</label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={editAporteVal}
+                                onChange={(e) => setEditAporteVal(e.target.value)}
+                                className="w-full text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                            <button
+                              type="button"
+                              onClick={() => setEditingAporteId(null)}
+                              className="px-3 py-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateAporte(h.id)}
+                              className="px-3.5 py-1.5 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-xs transition-colors cursor-pointer"
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div 
+                        key={h.id} 
+                        className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 flex justify-between items-center group transition-colors hover:border-slate-300 dark:hover:border-slate-600"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{h.date}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-tnum">{brl(h.amount)}</span>
+                          
+                          {/* Ações por Linha: Editar & Excluir */}
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingAporteId(h.id);
+                                setEditAporteVal(h.amount.toString());
+                                setEditAporteDate((h as any).rawDate || "");
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
+                              title="Editar Aporte"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAporte(h.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              title="Excluir Aporte"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{brl(h.amount)}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {selectedGoal.history.length === 0 && (
                     <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-6 font-semibold">
                       Nenhum aporte registrado nesta meta.
