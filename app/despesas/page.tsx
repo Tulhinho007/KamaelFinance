@@ -457,13 +457,12 @@ export default function DespesasPage() {
     ? Math.min(100, Math.round((gastosConsumoPago / gastosConsumoTotal) * 100))
     : 0;
 
-  // ── 2. Card 2: Saídas da Conta (Fluxo de Caixa: Débito/PIX + Pagamento de Faturas) ─
+  // ── 2. Card 2: Saídas da Conta (Débitos e PIX do Mês - Exclusivo Débito/PIX) ───
   const debitoDiretoMesTotal = accountCards.reduce((s, c) => s + (c.faturaAtual || 0), 0);
-  const pagamentosFaturaMesTotal = pagoFaturasMes;
-  const saidasContaTotal = debitoDiretoMesTotal + pagamentosFaturaMesTotal;
+  const saidasContaTotal = debitoDiretoMesTotal;
 
   const debitoDiretoPago = accountCards.reduce((s, c) => s + ((c as any).faturaPaga || 0), 0);
-  const saidasContaPagas = debitoDiretoPago + pagamentosFaturaMesTotal;
+  const saidasContaPagas = debitoDiretoPago;
 
   const debitoDiretoPendente = accountCards.reduce((s, c) => s + ((c as any).faturaPendente || 0), 0);
   const saidasContaPendentes = debitoDiretoPendente;
@@ -787,20 +786,20 @@ export default function DespesasPage() {
           </div>
         </div>
 
-        {/* CARD 2: SAÍDAS DA CONTA (FLUXO DE CAIXA = DÉBITO/PIX + PAGAMENTO DE FATURAS) */}
+        {/* CARD 2: SAÍDAS DA CONTA (DÉBITO & PIX DIRETO) */}
         <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950 to-sky-950/90 border border-sky-500/40 shadow-[0_0_25px_rgba(14,165,233,0.2)] relative overflow-hidden group flex flex-col justify-between">
           <Building2 className="absolute -right-4 -bottom-4 w-32 h-32 text-sky-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
             
-            {/* Esquerda: Título, Valor e Origens (Débito/PIX + Pagamento de Faturas) */}
+            {/* Esquerda: Título, Valor e Origem Exclusiva (Débito / PIX Direto) */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black text-sky-300 uppercase tracking-widest bg-sky-500/20 px-3 py-1 rounded-full border border-sky-400/30 shadow-xs flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-sky-400" /> Saídas da Conta
                 </span>
                 <span className="text-[10px] font-extrabold text-slate-400">
-                  Fluxo de Caixa · {getMonthName(selectedMonth)}/{selectedYear}
+                  Débito & PIX · {getMonthName(selectedMonth)}/{selectedYear}
                 </span>
               </div>
 
@@ -813,18 +812,12 @@ export default function DespesasPage() {
                 </span>
               </div>
 
-              {/* Origens de Saídas de Conta (Débito Direto + Pagamentos de Faturas) */}
+              {/* Origem Exclusiva (Débito Direto) */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <div className="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-sky-500/30 shadow-inner">
                   <span className="text-xs">🏦</span>
                   <span className="text-xs font-semibold text-slate-300">Débito / PIX Direto:</span>
                   <span className="text-xs font-black text-sky-400 font-tnum">{brl(debitoDiretoMesTotal)}</span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-teal-500/30 shadow-inner">
-                  <span className="text-xs">📄</span>
-                  <span className="text-xs font-semibold text-slate-300">Pagamento Faturas:</span>
-                  <span className="text-xs font-black text-teal-400 font-tnum">{brl(pagamentosFaturaMesTotal)}</span>
                 </div>
               </div>
             </div>
