@@ -6,6 +6,7 @@ import {
   DollarSign, Calendar, Tag, AlertCircle, X, Sparkles, Wallet, RefreshCw, ChevronRight, Info, Layers
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
+import { parseCurrencyInput } from "@/lib/constants";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
@@ -77,7 +78,7 @@ export default function AssinaturasPage() {
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [editingSub, setEditingSub] = useState<SubscriptionWithStatus | null>(null);
   const [subName, setSubName] = useState("");
-  const [subAmount, setSubAmount] = useState<number | "">("");
+  const [subAmount, setSubAmount] = useState<string | number>("");
   const [subDueDay, setSubDueDay] = useState<number | "">(10);
   const [subCategory, setSubCategory] = useState("Streaming");
   const [subDefaultWalletId, setSubDefaultWalletId] = useState("");
@@ -152,16 +153,18 @@ export default function AssinaturasPage() {
       showAlert("Por favor, informe o nome da assinatura.", { variant: "warning" });
       return;
     }
-    if (subAmount === "" || Number(subAmount) <= 0) {
-      showAlert("Por favor, informe um valor válido.", { variant: "warning" });
-      return;
-    }
-
     setSaving(true);
     try {
+      const amountVal = parseCurrencyInput(subAmount);
+      if (amountVal <= 0) {
+        showAlert("Por favor, informe um valor válido maior que zero.", { variant: "warning" });
+        setSaving(false);
+        return;
+      }
+
       const payload = {
         name: subName,
-        amount: Number(subAmount),
+        amount: amountVal,
         dueDay: Number(subDueDay) || 10,
         category: subCategory,
         defaultWalletId: subDefaultWalletId || undefined,
@@ -671,13 +674,12 @@ export default function AssinaturasPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-300">Valor Mensal (R$)</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    placeholder="0,00"
+                    placeholder="Ex: 55,90 ou 39.90"
                     value={subAmount}
-                    onChange={(e) => setSubAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                    onChange={(e) => setSubAmount(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                   />
                 </div>

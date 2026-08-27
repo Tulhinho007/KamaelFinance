@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { X, DollarSign, Tag } from "lucide-react";
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORIES, parseCurrencyInput } from "@/lib/constants";
 import { getAllWalletsSimple, createCardPurchase } from "@/lib/actions";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
@@ -33,7 +33,7 @@ export function NewPurchaseModal({
   const [formDescription, setFormDescription] = useState("");
   const [formCategory, setFormCategory]   = useState("Alimentação");
   const [formTags, setFormTags]           = useState("");
-  const [formAmount, setFormAmount]       = useState<number | "">("");
+  const [formAmount, setFormAmount]       = useState<string | number>("");
   const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
   const [formDate, setFormDate]           = useState(new Date().toISOString().split("T")[0]);
@@ -70,7 +70,7 @@ export function NewPurchaseModal({
       return;
     }
 
-    const totalAmountVal = Number(formAmount || 0);
+    const totalAmountVal = parseCurrencyInput(formAmount);
     if (totalAmountVal <= 0) {
       showAlert("Informe um valor válido maior que zero.", { variant: "warning" });
       return;
@@ -246,12 +246,11 @@ export function NewPurchaseModal({
             </label>
             <input
               required
-              type="number"
-              min="0.01"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={formAmount}
-              onChange={e => setFormAmount(e.target.value === "" ? "" : Number(e.target.value))}
-              placeholder="0.00"
+              onChange={e => setFormAmount(e.target.value)}
+              placeholder="Ex: 249,90 ou 500"
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
             />
           </div>
@@ -276,15 +275,15 @@ export function NewPurchaseModal({
                 </select>
               </div>
 
-              {Number(formAmount) > 0 && (
+              {parseCurrencyInput(formAmount) > 0 && (
                 <div className="text-center pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
                   <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">
                     Cálculo da Parcela
                   </span>
                   <p className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 font-tnum mt-0.5">
-                    {Number(formAmount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em {formInstallmentsCount}x de{" "}
+                    {parseCurrencyInput(formAmount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em {formInstallmentsCount}x de{" "}
                     <span className="text-emerald-600 dark:text-emerald-400">
-                      {(Number(formAmount) / formInstallmentsCount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                      {(parseCurrencyInput(formAmount) / formInstallmentsCount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                     </span>
                   </p>
                 </div>

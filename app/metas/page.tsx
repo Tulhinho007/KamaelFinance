@@ -11,6 +11,8 @@ import {
   Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight
 } from "lucide-react";
 
+import { parseCurrencyInput } from "@/lib/constants";
+
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 // Formata a data ISO (AAAA-MM-DD) para exibição em formato brasileiro (DD/MM/AAAA)
@@ -139,11 +141,11 @@ export default function MetasPage() {
   const [formTitle, setFormTitle] = useState("");
   const [formDataInicio, setFormDataInicio] = useState("");
   const [formDataFim, setFormDataFim] = useState("");
-  const [formObjetivo, setFormObjetivo] = useState(0);
-  const [formAcumuladoInicial, setFormAcumuladoInicial] = useState(0);
+  const [formObjetivo, setFormObjetivo] = useState<string | number>("");
+  const [formAcumuladoInicial, setFormAcumuladoInicial] = useState<string | number>("");
   const [formIconName, setFormIconName] = useState<"Plane" | "Car" | "Home" | "Target">("Target");
   const [formWalletId, setFormWalletId] = useState("");
-  const [formAporteVal, setFormAporteVal] = useState(0);
+  const [formAporteVal, setFormAporteVal] = useState<string | number>("");
 
   // Busca de Metas
   const [searchQuery, setSearchQuery] = useState("");
@@ -189,8 +191,8 @@ export default function MetasPage() {
     const todayStr = new Date().toISOString().split("T")[0];
     setFormDataInicio(todayStr);
     setFormDataFim("");
-    setFormObjetivo(0);
-    setFormAcumuladoInicial(0);
+    setFormObjetivo("");
+    setFormAcumuladoInicial("");
     setFormIconName("Target");
     setFormWalletId("");
     setModalType("create");
@@ -198,10 +200,15 @@ export default function MetasPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formTitle || !formDataInicio || !formDataFim || formObjetivo <= 0) return;
+    const objNum = parseCurrencyInput(formObjetivo);
+    const acumNum = parseCurrencyInput(formAcumuladoInicial);
+    if (!formTitle || !formDataInicio || !formDataFim || objNum <= 0) {
+      showAlert("Por favor, informe um valor objetivo válido maior que zero.", { variant: "warning" });
+      return;
+    }
 
     try {
-      await createGoalAction(formTitle, formDataInicio, formDataFim, formObjetivo, formAcumuladoInicial, formIconName, formWalletId || undefined);
+      await createGoalAction(formTitle, formDataInicio, formDataFim, objNum, acumNum, formIconName, formWalletId || undefined);
       await loadAllData();
       setModalType(null);
     } catch (err) {
@@ -223,10 +230,14 @@ export default function MetasPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGoal || !formTitle || !formDataInicio || !formDataFim || formObjetivo <= 0) return;
+    const objNum = parseCurrencyInput(formObjetivo);
+    if (!selectedGoal || !formTitle || !formDataInicio || !formDataFim || objNum <= 0) {
+      showAlert("Por favor, informe um valor objetivo válido maior que zero.", { variant: "warning" });
+      return;
+    }
 
     try {
-      await updateGoalAction(selectedGoal.id.toString(), formTitle, formDataInicio, formDataFim, formObjetivo, formIconName, formWalletId || undefined);
+      await updateGoalAction(selectedGoal.id.toString(), formTitle, formDataInicio, formDataFim, objNum, formIconName, formWalletId || undefined);
       await loadAllData();
       setModalType(null);
     } catch (err) {
@@ -237,23 +248,27 @@ export default function MetasPage() {
 
   const openAporteModal = (goal: Goal) => {
     setSelectedGoal(goal);
-    setFormAporteVal(0);
+    setFormAporteVal("");
     setModalType("aporte");
   };
 
   const handleAporte = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedGoal || formAporteVal <= 0) return;
+    const aporteNum = parseCurrencyInput(formAporteVal);
+    if (!selectedGoal || aporteNum <= 0) {
+      showAlert("Por favor, informe um valor de aporte válido maior que zero.", { variant: "warning" });
+      return;
+    }
 
     const oldPct = selectedGoal.pct;
-    const newAcumulado = selectedGoal.acumulado + formAporteVal;
+    const newAcumulado = selectedGoal.acumulado + aporteNum;
     const newPct = selectedGoal.objetivo > 0 ? Math.min(100, Math.round((newAcumulado / selectedGoal.objetivo) * 100)) : 0;
 
     const milestones = [25, 50, 75, 100];
     const crossedMilestone = milestones.find(m => oldPct < m && newPct >= m);
 
     try {
-      await addAporteAction(selectedGoal.id.toString(), formAporteVal);
+      await addAporteAction(selectedGoal.id.toString(), aporteNum);
       await loadAllData();
       setModalType(null);
 
@@ -626,12 +641,12 @@ export default function MetasPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor Objetivo (R$) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="1"
-                    value={formObjetivo || ""}
-                    onChange={(e) => setFormObjetivo(Number(e.target.value))}
-                    placeholder="Ex: 15000"
+                    value={formObjetivo}
+                    onChange={(e) => setFormObjetivo(e.target.value)}
+                    placeholder="Ex: 15000 ou 15000,50"
                     className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
@@ -656,11 +671,11 @@ export default function MetasPage() {
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Aporte Inicial (R$)</label>
                     <input
-                      type="number"
-                      min="0"
-                      value={formAcumuladoInicial || ""}
-                      onChange={(e) => setFormAcumuladoInicial(Number(e.target.value))}
-                      placeholder="Ex: 1000 (Opcional)"
+                      type="text"
+                      inputMode="decimal"
+                      value={formAcumuladoInicial}
+                      onChange={(e) => setFormAcumuladoInicial(e.target.value)}
+                      placeholder="Ex: 1000 ou 1000,50 (Opcional)"
                       className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
@@ -715,13 +730,12 @@ export default function MetasPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="1"
-                    max={selectedGoal.objetivo - selectedGoal.acumulado}
-                    value={formAporteVal || ""}
-                    onChange={(e) => setFormAporteVal(Number(e.target.value))}
-                    placeholder="Ex: 500"
+                    value={formAporteVal}
+                    onChange={(e) => setFormAporteVal(e.target.value)}
+                    placeholder="Ex: 351,33 ou 500"
                     className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">

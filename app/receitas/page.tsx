@@ -12,6 +12,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction
 } from "@/lib/actions";
+import { parseCurrencyInput } from "@/lib/constants";
 
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -231,7 +232,7 @@ export default function ReceitasPage() {
   const [modalType, setModalType]             = useState<"create" | "edit" | "delete" | null>(null);
 
   const [formDescription, setFormDescription]     = useState("");
-  const [formAmount, setFormAmount]               = useState(0);
+  const [formAmount, setFormAmount]               = useState<string | number>("");
   const [formDate, setFormDate]                   = useState("");
   const [formWalletId, setFormWalletId]           = useState("");
   const [formSkipDeduction, setFormSkipDeduction] = useState(false);
@@ -339,7 +340,7 @@ export default function ReceitasPage() {
 
   const openCreateModal = () => {
     setFormDescription("");
-    setFormAmount(0);
+    setFormAmount("");
     const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
     setFormDate(defaultDate);
     setFormWalletId(wallets.length > 0 ? wallets[0].id : "");
@@ -349,9 +350,13 @@ export default function ReceitasPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formDescription || formAmount <= 0 || !formDate) return;
+    const amountNum = parseCurrencyInput(formAmount);
+    if (!formDescription || amountNum <= 0 || !formDate) {
+      showAlert("Por favor, informe um valor de receita válido maior que zero.", { variant: "warning" });
+      return;
+    }
     try {
-      await createRevenueAction(formDescription, formAmount, formDate, formWalletId || undefined);
+      await createRevenueAction(formDescription, amountNum, formDate, formWalletId || undefined);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -372,9 +377,13 @@ export default function ReceitasPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRevenue || !formDescription || formAmount <= 0 || !formDate) return;
+    const amountNum = parseCurrencyInput(formAmount);
+    if (!selectedRevenue || !formDescription || amountNum <= 0 || !formDate) {
+      showAlert("Por favor, informe um valor de receita válido maior que zero.", { variant: "warning" });
+      return;
+    }
     try {
-      await updateRevenueAction(selectedRevenue.id, formDescription, formAmount, formDate, formWalletId || undefined);
+      await updateRevenueAction(selectedRevenue.id, formDescription, amountNum, formDate, formWalletId || undefined);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -757,13 +766,12 @@ export default function ReceitasPage() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor (R$) *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="0.01"
-                    step="0.01"
-                    value={formAmount || ""}
-                    onChange={(e) => setFormAmount(Number(e.target.value))}
-                    placeholder="Ex: 1500"
+                    value={formAmount}
+                    onChange={(e) => setFormAmount(e.target.value)}
+                    placeholder="Ex: 1500 ou 1500,50"
                     className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                   />
                 </div>
