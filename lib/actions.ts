@@ -629,11 +629,13 @@ export async function getCardData() {
     creditLimit: Number(wallet.creditLimit || 5000),
     purchases: purchases.map(p => ({
       id: p.id,
-      type: p.installmentsCount ? ("parcelado" as const) : ("vista" as const),
+      type: (p.installmentsCount && p.installmentsCount > 1) ? ("parcelado" as const) : ("vista" as const),
       description: p.description,
       category: p.category?.name || "Outros",
       amount: Number(p.amount),
       installmentsCount: p.installmentsCount || undefined,
+      currentInstallment: (p as any).currentInstallment || undefined,
+      installmentGroupId: (p as any).installmentGroupId || undefined,
       date: p.date.toISOString().split("T")[0]
     }))
   };
@@ -885,11 +887,13 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       balanceInfo,
       purchases: purchases.map(p => ({
         id: p.id,
-        type: p.installmentsCount ? ("parcelado" as const) : ("vista" as const),
+        type: (p.installmentsCount && p.installmentsCount > 1) ? ("parcelado" as const) : ("vista" as const),
         description: p.description || "Lançamento",
         category: p.category?.name || "Outros",
         amount: Number(p.amount || 0),
         installmentsCount: p.installmentsCount || undefined,
+        currentInstallment: (p as any).currentInstallment || undefined,
+        installmentGroupId: (p as any).installmentGroupId || undefined,
         tags: (p as any).tags || undefined,
         date: safeIsoDate(p.date)
       })),

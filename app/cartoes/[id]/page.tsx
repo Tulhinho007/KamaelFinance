@@ -35,6 +35,9 @@ type Purchase = {
   category: string;
   amount: number;
   installmentsCount?: number;
+  currentInstallment?: number;
+  installmentGroupId?: string | null;
+  tags?: string;
   date: string;
 };
 
@@ -295,46 +298,68 @@ export default function CartaoDetailPage() {
     return year === selectedYear && month === selectedMonth;
   });
 
-  // 2. Lançamentos Parcelados (apenas se for cartão de crédito)
+  // 2. Lançamentos Parcelados (filtrados estritamente pelo mês/ano selecionado)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
   const parceladoPurchasesProcessed = purchasesList
-    .filter((p) => p && p.type === "parcelado")
-    .reduce((acc, p) => {
+    .filter((p) => {
+      if (!p || p.type !== "parcelado") return false;
       const { year, month } = getYearMonth(p.date);
-      const purchaseAbsolute = year * 12 + (month - 1);
-      const count = p.installmentsCount || 1;
+      // Filtra exclusivamente a parcela que vence no mês/ano selecionado no topo
+      return year === selectedYear && month === selectedMonth;
+    })
+    .map((p) => {
+      let currInst = p.currentInstallment;
+      const totalInst = p.installmentsCount || 1;
 
-      const isActive = selectedAbsolute >= purchaseAbsolute && selectedAbsolute < purchaseAbsolute + count;
-
-      if (isActive) {
-        const currentInstallment = selectedAbsolute - purchaseAbsolute + 1;
-        const remainingCount = count - (selectedAbsolute - purchaseAbsolute);
-        acc.push({
-          ...p,
-          currentInstallment,
-          remainingDebt: remainingCount * (p.amount || 0)
-        } as Purchase & { currentInstallment: number; remainingDebt: number });
+      if (!currInst || isNaN(currInst)) {
+        const match = p.description.match(/\((\d+)\/(\d+)\)/);
+        if (match) {
+          currInst = Number(match[1]);
+        } else {
+          currInst = 1;
+        }
       }
-      return acc;
-    }, [] as (Purchase & { currentInstallment: number; remainingDebt: number })[]);
+
+      // Cálculo da Dívida Restante (por parcela):
+      // Dívida Restante = (Total de Parcelas - currentInstallment + 1) * Valor da Parcela
+      // Parcela 1/3 (Agosto): (3 - 1 + 1) * 83,16 = 3 * 83,16 = R$ 249,48
+      // Parcela 2/3 (Setembro): (3 - 2 + 1) * 83,16 = 2 * 83,16 = R$ 166,32
+      // Parcela 3/3 (Outubro): (3 - 3 + 1) * 83,16 = 1 * 83,16 = R$ 83,16
+      const remainingCount = Math.max(1, totalInst - currInst + 1);
+      const remainingDebt = remainingCount * (p.amount || 0);
+
+      return {
+        ...p,
+        currentInstallment: currInst,
+        installmentsCount: totalInst,
+        remainingDebt,
+      };
+    });
 
   // Cálculos financeiros
   const saldoVista = vistaPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
   const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
 
-  // Para Cartão de Crédito
-  const impactoMes = saldoVista + parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Para Cartão de Crédito - Fatura do Mês (apenas à vista do mês + parcela única do mês)
+  const impactoMes = saldoVista + totalParceladoMes;
   
   // Recomposição de Limite Disponível:
-  // Se a fatura do mês atual foi paga, o gasto do mês é considerado liquidado (0 para comprometimento de limite)
+  // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
+  const futureParcelas = purchasesList.filter((p) => {
+    if (!p || p.type !== "parcelado") return false;
+    const { year, month } = getYearMonth(p.date);
+    const pAbs = year * 12 + (month - 1);
+    return pAbs > selectedAbsolute;
+  });
+  const totalParceladoFuturo = futureParcelas.reduce((sum, p) => sum + (p.amount || 0), 0);
+
   const isInvoicePaid = !!(cardData as any).isPaid;
   const paidInvoiceAmount = isInvoicePaid ? ((cardData as any).paidAmount || impactoMes) : 0;
   
   const gastosMesCompromissados = Math.max(0, impactoMes - paidInvoiceAmount);
-  const dividaParceladaFutura = parceladoPurchasesProcessed.reduce((sum, p) => sum + Math.max(0, (p.remainingDebt - (p.amount || 0))), 0);
-  
-  const limitCompromised = gastosMesCompromissados + dividaParceladaFutura;
+  const limitCompromised = gastosMesCompromissados + totalParceladoFuturo;
   const creditLimit = cardData.creditLimit || 0;
   const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - limitCompromised));
   const usagePct = creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / creditLimit) * 100)) : 0;
