@@ -184,9 +184,9 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 
   if (categoriesData.length === 0 || totalExpenses === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-        <PieChart className="w-8 h-8 text-slate-300 mb-2" />
-        <p className="text-xs font-semibold text-slate-400">Nenhum gasto acumulado no cartão para o gráfico.</p>
+      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+        <PieChart className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
+        <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">Nenhum gasto acumulado no cartão para o gráfico.</p>
       </div>
     );
   }
@@ -209,7 +209,7 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
   });
 
   return (
-    <div className="flex flex-col md:flex-row items-center gap-6 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+    <div className="flex flex-col md:flex-row items-center gap-6 p-4 bg-slate-50/50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800">
       {/* SVG Donut */}
       <div className="relative w-36 h-36 flex-shrink-0">
         <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
@@ -233,21 +233,21 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Faturas</span>
-          <span className="text-xs font-black text-slate-800 mt-0.5">{brl(totalExpenses)}</span>
+          <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Total Faturas</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5">{brl(totalExpenses)}</span>
         </div>
       </div>
 
       {/* Legenda */}
       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
         {slices.map((slice, i) => (
-          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-100 shadow-2xs text-xs">
+          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-2xs text-xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-              <span className="font-bold text-slate-700 truncate">{slice.name}</span>
+              <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{slice.name}</span>
             </div>
             <div className="text-right shrink-0 ml-2">
-              <span className="font-black text-slate-800 block">{brl(slice.value)}</span>
+              <span className="font-black text-slate-900 dark:text-white block">{brl(slice.value)}</span>
               <span className="text-[9px] font-bold text-slate-400">{slice.percentage}%</span>
             </div>
           </div>
@@ -502,9 +502,9 @@ export default function DespesasPage() {
       return {
         subtitle: "Todas as faturas do mês estão pagas",
         badgeText: "✓ Faturas em dia",
-        badgeClass: "text-emerald-600 bg-emerald-50 border-emerald-100",
-        amountColor: "text-emerald-500",
-        iconColor: "text-emerald-100",
+        badgeClass: "text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-400/30",
+        amountColor: "text-emerald-600 dark:text-emerald-400",
+        iconColor: "text-emerald-100 dark:text-emerald-900",
       };
     }
 
@@ -515,9 +515,9 @@ export default function DespesasPage() {
       return {
         subtitle: `Fatura vencida há ${absDays} dia${absDays > 1 ? "s" : ""} (${dateStr})`,
         badgeText: `🚨 Vencida em ${dateStr}`,
-        badgeClass: "text-rose-600 bg-rose-50 border-rose-100",
-        amountColor: "text-rose-500",
-        iconColor: "text-rose-100",
+        badgeClass: "text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-400/30",
+        amountColor: "text-rose-600 dark:text-rose-400",
+        iconColor: "text-rose-100 dark:text-rose-900",
       };
     }
 
@@ -525,9 +525,9 @@ export default function DespesasPage() {
       return {
         subtitle: `Fatura vence HOJE (${dateStr})`,
         badgeText: "⚠️ Vence Hoje!",
-        badgeClass: "text-amber-600 bg-amber-50 border-amber-100",
-        amountColor: "text-amber-500",
-        iconColor: "text-amber-100",
+        badgeClass: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-400/30",
+        amountColor: "text-amber-600 dark:text-amber-400",
+        iconColor: "text-amber-100 dark:text-amber-900",
       };
     }
 
@@ -535,18 +535,18 @@ export default function DespesasPage() {
       return {
         subtitle: `Fatura vence em ${daysDiff} dia${daysDiff > 1 ? "s" : ""} (${dateStr})`,
         badgeText: "⚠️ Atenção ao prazo!",
-        badgeClass: "text-amber-600 bg-amber-50 border-amber-100",
-        amountColor: "text-amber-500",
-        iconColor: "text-amber-100",
+        badgeClass: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-400/30",
+        amountColor: "text-amber-600 dark:text-amber-400",
+        iconColor: "text-amber-100 dark:text-amber-900",
       };
     }
 
     return {
       subtitle: `Vencimento em ${daysDiff} dias (${dateStr})`,
       badgeText: `✓ Em dia (Falta ${daysDiff} dias)`,
-      badgeClass: "text-indigo-600 bg-indigo-50 border-indigo-100",
-      amountColor: "text-indigo-600",
-      iconColor: "text-indigo-100",
+      badgeClass: "text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-400/30",
+      amountColor: "text-indigo-600 dark:text-indigo-400",
+      iconColor: "text-indigo-100 dark:text-indigo-900",
     };
   };
 
@@ -855,60 +855,60 @@ export default function DespesasPage() {
         </div>
 
         {/* KPI 0 — Saldo Total em Conta */}
-        <div className="card-glow p-5 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <Building2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Saldo Total em Conta</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Consolidado · Contas & Débito</span>
-          <p className="text-2xl font-black text-emerald-400 tracking-tight font-tnum">{brl(saldoTotalConta)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-1 rounded-full border border-emerald-400/30 shadow-2xs w-fit">
-            <TrendingUp className="w-3 h-3 text-emerald-400" /> +8.5% vs mês anterior
+          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">SALDO TOTAL EM CONTA</span>
+          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Consolidado · Contas & Débito</span>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum">{brl(saldoTotalConta)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
+            <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> +8.5% vs mês anterior
           </span>
         </div>
 
         {/* KPI 1 — Total em Faturas */}
-        <div className="card-glow p-5 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.15)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <TrendingDown className="absolute -right-3 -bottom-3 w-20 h-20 text-rose-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Total em Faturas</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Mês Atual · Cartões de Crédito</span>
-          <p className="text-2xl font-black text-rose-400 tracking-tight font-tnum">{brl(totalFaturas)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-rose-300 bg-rose-500/20 px-2 py-1 rounded-full border border-rose-400/30 shadow-2xs w-fit">
-            <TrendingDown className="w-3 h-3 text-rose-400" /> -3.2% vs mês anterior
+          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">TOTAL EM FATURAS</span>
+          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Mês Atual · Cartões de Crédito</span>
+          <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">{brl(totalFaturas)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20 px-2.5 py-1 rounded-full border border-rose-200 dark:border-rose-400/30 shadow-2xs w-fit">
+            <TrendingDown className="w-3 h-3 text-rose-600 dark:text-rose-400" /> -3.2% vs mês anterior
           </span>
         </div>
 
         {/* KPI 2 — Limite Consolidado */}
-        <div className="card-glow p-5 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Limite Consolidado</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Disponível em Crédito</span>
-          <p className="text-2xl font-black text-indigo-400 tracking-tight font-tnum">{brl(limiteConsolidado)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-indigo-300 bg-indigo-500/20 px-2 py-1 rounded-full border border-indigo-400/30 shadow-2xs w-fit">
-            <CheckCircle2 className="w-3 h-3 text-indigo-400" /> Limite seguro
+          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">LIMITE CONSOLIDADO</span>
+          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Disponível em Crédito</span>
+          <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">{brl(limiteConsolidado)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-200 dark:border-indigo-400/30 shadow-2xs w-fit">
+            <CheckCircle2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> Limite seguro
           </span>
         </div>
 
         {/* KPI 3 — Próximos Vencimentos */}
-        <div className="card-glow p-5 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <Calendar className="absolute -right-3 -bottom-3 w-20 h-20 text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Próximos Vencimentos</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">{kpi3.subtitle}</span>
-          <p className="text-2xl font-black text-amber-400 tracking-tight font-tnum">{brl(proximosVencimentos)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-amber-300 bg-amber-500/20 px-2 py-1 rounded-full border border-amber-400/30 shadow-2xs w-fit">
-            <Clock className="w-3.5 h-3.5 text-amber-400" /> {kpi3.badgeText}
+          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">PRÓXIMOS VENCIMENTOS</span>
+          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">{kpi3.subtitle}</span>
+          <p className={`text-2xl font-black tracking-tight font-tnum ${kpi3.amountColor}`}>{brl(proximosVencimentos)}</p>
+          <span className={`mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold px-2.5 py-1 rounded-full border shadow-2xs w-fit ${kpi3.badgeClass}`}>
+            <Clock className="w-3.5 h-3.5" /> {kpi3.badgeText}
           </span>
         </div>
       </section>
 
       {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
-      <section className="card-glow p-6 flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-500/20 text-indigo-300 rounded-xl border border-indigo-400/30">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-xl border border-indigo-200 dark:border-indigo-400/30">
               <PieChart className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
-              <p className="text-[10px] font-semibold text-secondary-light">Visão consolidada das faturas ativas no mês</p>
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
+              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Visão consolidada das faturas ativas no mês</p>
             </div>
           </div>
         </div>
