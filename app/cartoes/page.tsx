@@ -125,11 +125,28 @@ export default function CartoesPage() {
                   {/* Top Bar do Card */}
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-extrabold text-slate-900">{card.title}</h3>
                         <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase">
                           {card.bankName}
                         </span>
+                        {card.faturaAtual <= 0 ? (
+                          <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            Sem Fatura
+                          </span>
+                        ) : card.isPaid ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            ✓ Paga
+                          </span>
+                        ) : card.isPast ? (
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            🚨 Vencida
+                          </span>
+                        ) : (
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                            Aguardando
+                          </span>
+                        )}
                       </div>
                       {card.holder && (
                         <p className="text-xs font-semibold text-slate-400 mt-0.5">Titular: {card.holder}</p>
@@ -138,7 +155,7 @@ export default function CartoesPage() {
 
                     <Link
                       href={`/cartoes/${card.id}`}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1"
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1 shrink-0"
                     >
                       <span>Ver Fatura</span>
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -161,7 +178,7 @@ export default function CartoesPage() {
 
                     <div>
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Fatura Atual</span>
-                      <p className="font-extrabold text-rose-500 font-tnum tabular-nums mt-0.5">{brl(card.faturaAtual)}</p>
+                      <p className={`font-extrabold font-tnum tabular-nums mt-0.5 ${card.faturaAtual <= 0 ? "text-slate-900" : card.isPaid ? "text-emerald-600" : card.isPast ? "text-rose-500" : "text-amber-600"}`}>{brl(card.faturaAtual)}</p>
                     </div>
                   </div>
 

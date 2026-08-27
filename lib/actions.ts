@@ -839,13 +839,11 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     const targetMonth = month || (new Date().getMonth() + 1);
     const targetYear  = year || new Date().getFullYear();
 
-    const latestTxDate = purchases.length > 0 ? purchases[purchases.length - 1].date : null;
     const dueDateInfo = getInvoiceDueDateInfo(
       (wallet as any).diaFechamento ?? 1,
       wallet.vencimento ?? 10,
       targetMonth,
-      targetYear,
-      latestTxDate
+      targetYear
     );
 
     const paidRecord = await (prisma as any).invoicePayment.findFirst({
@@ -1362,13 +1360,11 @@ export async function getAllCardsOverview(month: number, year: number) {
       const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
 
-      const latestTxDate = transactions.length > 0 ? transactions[transactions.length - 1].date : null;
       const dueDateInfo = getInvoiceDueDateInfo(
         (w as any).diaFechamento ?? 1,
         w.vencimento ?? 10,
         month,
-        year,
-        latestTxDate
+        year
       );
 
       const paidRecord = await (prisma as any).invoicePayment.findFirst({

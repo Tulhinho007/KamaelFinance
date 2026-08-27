@@ -16,6 +16,7 @@ import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { getInvoiceStatusInfo } from "@/lib/invoice-utils";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -487,21 +488,41 @@ export default function CartaoDetailPage() {
           tagline={`Gerencie as movimentações e extrato de ${cardData.title}`}
         />
         <div className="flex flex-wrap items-center gap-2 mt-1">
-          {isCredit && (
-            (cardData as any).isPaid ? (
-              <span className="text-xs font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> ✓ Fatura Paga
-              </span>
-            ) : (cardData as any).isPast ? (
-              <span className="text-xs font-black text-rose-300 bg-rose-500/10 border border-rose-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-400" /> 🚨 Fatura Vencida
-              </span>
-            ) : (
+          {isCredit && (() => {
+            const statusInfo = getInvoiceStatusInfo(
+              impactoMes,
+              !!(cardData as any).isPaid,
+              !!(cardData as any).isPast,
+              (cardData as any).vencimentoStr
+            );
+
+            if (statusInfo.status === "zerada") {
+              return (
+                <span className="text-xs font-black text-slate-300 bg-slate-800/60 border border-slate-700 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" /> Sem Fatura Pendente
+                </span>
+              );
+            }
+            if (statusInfo.status === "paga") {
+              return (
+                <span className="text-xs font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> ✓ Fatura Paga
+                </span>
+              );
+            }
+            if (statusInfo.status === "vencida") {
+              return (
+                <span className="text-xs font-black text-rose-300 bg-rose-500/10 border border-rose-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-400" /> 🚨 Fatura Vencida
+                </span>
+              );
+            }
+            return (
               <span className="text-xs font-black text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-amber-400" /> Aguardando Pagamento
               </span>
-            )
-          )}
+            );
+          })()}
           {cardData.holder && (
             <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase">Titular:</span> {cardData.holder}
@@ -633,18 +654,26 @@ export default function CartaoDetailPage() {
                 </span>
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${(cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`} title={brl(impactoMes)}>
+                <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${impactoMes <= 0 ? "text-slate-900 dark:text-white" : (cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : (cardData as any).isPast ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
               <div className="h-7 flex items-center w-full">
-                {(cardData as any).isPaid ? (
+                {impactoMes <= 0 ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 truncate">
+                    Fatura Zerada
+                  </span>
+                ) : (cardData as any).isPaid ? (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
                     ✓ Ciclo liquidado no período
                   </span>
+                ) : (cardData as any).isPast ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-2.5 py-1 rounded-full truncate">
+                    🚨 Fatura Vencida
+                  </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 truncate">
-                    {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Mês Selecionado"}
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2.5 py-1 rounded-full truncate">
+                    {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Aguardando Pagamento"}
                   </span>
                 )}
               </div>
