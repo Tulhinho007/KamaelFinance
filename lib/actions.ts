@@ -170,7 +170,7 @@ export async function getRevenues(month: number, year: number) {
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const to = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  const transactions = await prisma.transaction.findMany({
+  let transactions = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       type: "INCOME",
@@ -184,6 +184,31 @@ export async function getRevenues(month: number, year: number) {
     orderBy: { date: "asc" }
   });
 
+  // Se não houver receitas cadastradas para o mês selecionado, projeta as receitas recorrentes (ex: Salário) de meses anteriores
+  if (transactions.length === 0) {
+    const fallbackIncomes = await prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        type: "INCOME",
+        deletedAt: null
+      },
+      include: { wallet: true },
+      orderBy: { date: "desc" },
+      take: 10
+    });
+
+    if (fallbackIncomes.length > 0) {
+      const uniqueMap = new Map<string, typeof fallbackIncomes[0]>();
+      fallbackIncomes.forEach(inc => {
+        const key = inc.description.trim().toLowerCase();
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, inc);
+        }
+      });
+      transactions = Array.from(uniqueMap.values());
+    }
+  }
+
   return transactions.map(t => ({
     id: t.id,
     description: t.description,
@@ -194,6 +219,36 @@ export async function getRevenues(month: number, year: number) {
     account: (t.wallet as any)?.bankName || (t.wallet as any)?.title || "",
     walletType: (t.wallet as any)?.walletType
   }));
+}
+
+export async function getSalaryCycleSummary(month: number, year: number) {
+  const userId = await getActiveUserId();
+
+  // 1. Busca contas bancárias/correntes do usuário
+  const bankWallets = await prisma.wallet.findMany({
+    where: {
+      userId,
+      walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "TICKET"] }
+    }
+  });
+
+  // 2. Calcula o saldo remanescente do mês anterior (M-1)
+  let totalSaldoAnterior = 0;
+  for (const w of bankWallets) {
+    const bInfo = await calculateAccountBalance(w.id, month, year);
+    totalSaldoAnterior += Number(bInfo.previousBalance || 0);
+  }
+
+  // 3. Receitas Previstas do mês (M)
+  const revenues = await getRevenues(month, year);
+  const totalReceitaPrevista = revenues.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+  return {
+    totalSaldoAnterior,
+    totalReceitaPrevista,
+    disponivelReal: totalSaldoAnterior + totalReceitaPrevista,
+    revenues
+  };
 }
 
 export async function toggleTransactionStatusAction(id: string) {

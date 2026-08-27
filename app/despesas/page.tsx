@@ -15,7 +15,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
-  getRevenues
+  getRevenues, getSalaryCycleSummary
 } from "@/lib/actions";
 import { getSubscriptionsWithMonthlyStatusAction } from "@/lib/subscription-actions";
 import { getMonthName } from "@/lib/constants";
@@ -308,6 +308,7 @@ export default function DespesasPage() {
 
   // Ciclo Salarial / Receitas
   const [totalReceitaMes, setTotalReceitaMes] = useState<number>(0);
+  const [totalSaldoAnterior, setTotalSaldoAnterior] = useState<number>(0);
   const [showSalaryCycleInfo, setShowSalaryCycleInfo] = useState<boolean>(false);
 
   const loadPaidInvoices = async () => {
@@ -416,14 +417,14 @@ export default function DespesasPage() {
       });
     }).catch(err => console.error("Erro ao carregar dados do mês seguinte:", err));
 
-    // Busca receitas cadastradas para o ciclo salarial
-    getRevenues(selectedMonth, selectedYear)
-      .then(revs => {
+    // Busca resumo do ciclo salarial (Saldo Anterior + Receitas do Mês)
+    getSalaryCycleSummary(selectedMonth, selectedYear)
+      .then(summary => {
         if (!active) return;
-        const total = (revs || []).reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
-        setTotalReceitaMes(total);
+        setTotalSaldoAnterior(summary.totalSaldoAnterior || 0);
+        setTotalReceitaMes(summary.totalReceitaPrevista || 0);
       })
-      .catch(err => console.error("Erro ao carregar receitas para despesas:", err));
+      .catch(err => console.error("Erro ao carregar receitas/ciclo salarial para despesas:", err));
 
     return () => { active = false; };
   }, [selectedMonth, selectedYear]);
@@ -529,10 +530,11 @@ export default function DespesasPage() {
     : 0;
 
   // ── 3. Ciclo Salarial / Sobra Prevista ──────────────────────────────────────────
+  const disponivelReal = totalSaldoAnterior + totalReceitaMes;
   const totalCompromissosSalario = gastosConsumoTotal + saidasContaTotal;
-  const sobraLiquidaSalario = totalReceitaMes - totalCompromissosSalario;
-  const pctComprometidoSalario = totalReceitaMes > 0
-    ? Math.min(100, Math.round((totalCompromissosSalario / totalReceitaMes) * 100))
+  const sobraLiquidaSalario = disponivelReal - totalCompromissosSalario;
+  const pctComprometidoSalario = disponivelReal > 0
+    ? Math.min(100, Math.round((totalCompromissosSalario / disponivelReal) * 100))
     : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
@@ -801,19 +803,19 @@ export default function DespesasPage() {
               </button>
             </div>
 
-            {/* Grid com Salário, Total Contas e Sobra Líquida */}
+            {/* Grid com Salário / Receita Prevista, Total Contas e Sobra Líquida */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
               
-              {/* Salário / Receita Base */}
+              {/* Salário / Receita Prevista (Soma do Disponível Real) */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                   Salário / Receita Prevista
                 </span>
                 <p className="text-xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
-                  {brl(totalReceitaMes)}
+                  {brl(disponivelReal)}
                 </p>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
-                  Entrada cadastrada para o mês
+                  Salário: {brl(totalReceitaMes)} + Saldo Anterior: {brl(totalSaldoAnterior)}
                 </span>
               </div>
 
@@ -831,14 +833,14 @@ export default function DespesasPage() {
               </div>
 
               {/* Sobra Líquida Estimada */}
-              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/50">
-                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">
+              <div className={`${sobraLiquidaSalario >= 0 ? "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50" : "bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50"} p-4 rounded-2xl border transition-colors`}>
+                <span className={`text-[10px] font-bold uppercase tracking-wider block ${sobraLiquidaSalario >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"}`}>
                   Sobra Líquida Estimada
                 </span>
-                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-tnum">
+                <p className={`text-2xl font-black mt-1 font-tnum ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   {brl(sobraLiquidaSalario)}
                 </p>
-                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium block mt-0.5">
+                <span className={`text-[10px] font-medium block mt-0.5 ${sobraLiquidaSalario >= 0 ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-rose-700/80 dark:text-rose-400/80"}`}>
                   Saldo livre estimado pós-liquidação
                 </span>
               </div>
@@ -903,40 +905,33 @@ export default function DespesasPage() {
             <div className="bg-slate-50 dark:bg-slate-900/90 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-xs space-y-2.5 font-mono">
               <div className="flex items-center justify-between text-slate-800 dark:text-slate-200">
                 <span className="font-sans font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  (+) Salário / Receita Prevista:
+                  (+) Salário / Receita Prevista do Mês:
                 </span>
                 <span className="font-black">{brl(totalReceitaMes)}</span>
               </div>
 
-              <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
+              <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
                 <span className="font-sans font-semibold flex items-center gap-1">
-                  (-) Fatura do Cartão (Vencimento no mês):
+                  (+) Saldo Remanescente Anterior ({getMonthName(selectedMonth === 1 ? 12 : selectedMonth - 1)}):
                 </span>
-                <span className="font-black">{brl(creditoMesTotal)}</span>
+                <span className="font-black">{brl(totalSaldoAnterior)}</span>
               </div>
 
-              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+              <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-slate-900 dark:text-white font-bold">
+                <span className="font-sans font-extrabold">(=) Disponível Real Total:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400">{brl(disponivelReal)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-rose-600 dark:text-rose-400 pt-1">
                 <span className="font-sans font-semibold flex items-center gap-1">
-                  (-) Assinaturas Recorrentes:
+                  (-) Total de Contas a Pagar:
                 </span>
-                <span className="font-black">{brl(assinaturasMesTotal)}</span>
+                <span className="font-black">{brl(totalCompromissosSalario)}</span>
               </div>
 
-              <div className="flex items-center justify-between text-sky-600 dark:text-sky-400">
-                <span className="font-sans font-semibold flex items-center gap-1">
-                  (-) Saídas da Conta (Contas Fixas / Débito / PIX):
-                </span>
-                <span className="font-black">{brl(saidasContaTotal)}</span>
-              </div>
-
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex items-center justify-between text-slate-900 dark:text-white font-sans font-extrabold">
-                <span>(=) Total de Compromissos a Pagar:</span>
-                <span className="text-rose-600 dark:text-rose-400">{brl(totalCompromissosSalario)}</span>
-              </div>
-
-              <div className="bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between text-emerald-800 dark:text-emerald-300 font-sans font-black text-sm">
-                <span>(=) Sobra Líquida Estimada:</span>
-                <span>{brl(sobraLiquidaSalario)}</span>
+              <div className={`pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between font-bold text-sm ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                <span className="font-sans font-black">(=) Sobra Líquida Estimada:</span>
+                <span className="font-black">{brl(sobraLiquidaSalario)}</span>
               </div>
             </div>
 
