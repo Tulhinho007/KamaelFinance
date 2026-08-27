@@ -433,14 +433,14 @@ export default function AssinaturasPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+      <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <Repeat className="w-5 h-5 text-indigo-400" />
+            <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+              <Repeat className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               Assinaturas em {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Gerencie seus serviços mensais, vincule o mês de referência e controle as datas de pagamento.
             </p>
           </div>
@@ -448,10 +448,10 @@ export default function AssinaturasPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => openBatchModal()}
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="px-3.5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               title="Preencher histórico de múltiplos meses em lote"
             >
-              <Layers className="w-4 h-4 text-purple-400" /> Marcar Meses em Lote
+              <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" /> Marcar Meses em Lote
             </button>
 
             <button
@@ -464,10 +464,10 @@ export default function AssinaturasPage() {
         </div>
 
         {/* Tabela de Assinaturas */}
-        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-900/90 border-b border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+              <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                 <th className="p-4">Assinatura / Serviço</th>
                 <th className="p-4">Categoria</th>
                 <th className="p-4 text-center">Vencimento</th>
@@ -477,7 +477,7 @@ export default function AssinaturasPage() {
                 <th className="p-4 text-center">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-800 dark:text-slate-300">
               {loading ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-500">
@@ -499,17 +499,17 @@ export default function AssinaturasPage() {
                 </tr>
               ) : (
                 subscriptions.map((sub) => (
-                  <tr key={sub.id} className="hover:bg-slate-800/40 transition-colors">
+                  <tr key={sub.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     {/* Nome & Vínculo */}
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
                           <CreditCard className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="font-black text-white text-sm">{sub.name}</p>
+                          <p className="font-black text-slate-900 dark:text-white text-sm">{sub.name}</p>
                           {sub.isPaid && sub.paidInfo ? (
-                            <span className="text-[10px] text-emerald-400 font-semibold block">
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold block">
                               Ref: {MONTH_NAMES[selectedMonth - 1]}/{selectedYear} — Pago em {new Date(sub.paidInfo.paidAt).toLocaleDateString("pt-BR")}
                             </span>
                           ) : (
@@ -523,29 +523,29 @@ export default function AssinaturasPage() {
 
                     {/* Categoria */}
                     <td className="p-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold">
-                        <Tag className="w-3 h-3 text-indigo-400" />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-bold">
+                        <Tag className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                         {sub.category}
                       </span>
                     </td>
 
                     {/* Vencimento */}
                     <td className="p-4 text-center">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 font-extrabold text-slate-200 text-xs">
-                        <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-extrabold text-slate-800 dark:text-slate-200 text-xs">
+                        <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                         Dia {sub.dueDay}
                       </span>
                     </td>
 
                     {/* Valor */}
                     <td className="p-4 text-right">
-                      <span className="font-black text-white text-sm">{brl(sub.amount)}</span>
+                      <span className="font-black text-slate-900 dark:text-white text-sm">{brl(sub.amount)}</span>
                     </td>
 
                     {/* Conta Padrão */}
                     <td className="p-4">
-                      <span className="text-slate-400 font-semibold text-xs flex items-center gap-1.5">
-                        <Wallet className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span className="text-slate-600 dark:text-slate-400 font-semibold text-xs flex items-center gap-1.5">
+                        <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         {sub.defaultWalletTitle || "Não especificada"}
                       </span>
                     </td>
@@ -554,16 +554,16 @@ export default function AssinaturasPage() {
                     <td className="p-4 text-center">
                       {sub.isPaid ? (
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-black">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 text-xs font-black">
                             <CheckCircle2 className="w-4 h-4" />
                             Pago {sub.paidInfo?.paymentWalletTitle ? `(${sub.paidInfo.paymentWalletTitle})` : ""}
                           </span>
-                          <span className="text-[10px] text-slate-400 font-semibold">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
                             Ref: {MONTH_NAMES[selectedMonth - 1]}/{selectedYear}
                           </span>
                         </div>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-black">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30 text-xs font-black">
                           <Clock className="w-4 h-4 animate-pulse" />
                           Pendente
                         </span>
@@ -577,7 +577,7 @@ export default function AssinaturasPage() {
                           <button
                             onClick={() => handleUndoPay(sub)}
                             disabled={saving}
-                            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-extrabold transition-colors cursor-pointer border border-slate-700"
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-extrabold transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                             title="Desfazer Pagamento"
                           >
                             Desfazer

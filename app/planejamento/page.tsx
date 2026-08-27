@@ -507,10 +507,10 @@ export default function PlanningPage() {
             <select
               value={selectedProjectId}
               onChange={e => handleSelectProject(e.target.value)}
-              className="w-full appearance-none rounded-xl bg-slate-900 border border-slate-700 px-4 py-2.5 pr-8 text-xs font-bold text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+              className="w-full appearance-none rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-2.5 pr-8 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
             >
               {projects.map(p => (
-                <option key={p.id} value={p.id} className="bg-slate-900 text-slate-100">
+                <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
                   {p.title} ({p.status})
                 </option>
               ))}
@@ -546,7 +546,7 @@ export default function PlanningPage() {
                     onChange={e => setEditTitle(e.target.value)}
                     onBlur={e => handleUpdateProjectHeader("title", e.target.value)}
                     placeholder="Nome do Projeto / Viagem"
-                    className="text-lg sm:text-xl font-black bg-transparent text-white border-b border-transparent hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5 rounded"
+                    className="text-lg sm:text-xl font-black bg-transparent text-slate-900 dark:text-white border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5 rounded"
                   />
 
                   {/* Badge de Status */}
@@ -558,15 +558,15 @@ export default function PlanningPage() {
                     }}
                     className={`text-xs font-black px-3 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
                       editStatus === "Confirmado"
-                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                        ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/40"
                         : editStatus === "Concluído"
-                        ? "bg-purple-500/20 text-purple-300 border-purple-400/40 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
-                        : "bg-indigo-500/20 text-indigo-300 border-indigo-400/40 shadow-[0_0_10px_rgba(99,102,241,0.2)]"
+                        ? "bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-400/40"
+                        : "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-400/40"
                     }`}
                   >
-                    <option value="Em Planejamento" className="bg-slate-900 text-slate-100">Em Planejamento</option>
-                    <option value="Confirmado" className="bg-slate-900 text-slate-100">Confirmado</option>
-                    <option value="Concluído" className="bg-slate-900 text-slate-100">Concluído</option>
+                    <option value="Em Planejamento" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Em Planejamento</option>
+                    <option value="Confirmado" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Confirmado</option>
+                    <option value="Concluído" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Concluído</option>
                   </select>
                 </div>
 
@@ -784,20 +784,20 @@ export default function PlanningPage() {
               Orçamento Detalhado por Item
             </h2>
 
-            <div className="overflow-x-auto rounded-2xl border border-slate-800">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-900 text-slate-300 uppercase font-black tracking-wider text-[10px] border-b border-slate-800">
+                  <tr className="bg-slate-100/80 dark:bg-slate-900 text-slate-600 dark:text-slate-300 uppercase font-black tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
                     <th className="py-3.5 px-3 w-14 text-center">Status</th>
                     <th className="py-3.5 px-4">Item / Descrição</th>
                     <th className="py-3.5 px-4 text-right w-36">Valor Mínimo</th>
                     <th className="py-3.5 px-4 text-right w-36">Valor Máximo</th>
-                    <th className="py-3.5 px-4 text-right w-36 text-indigo-300">Valor Pago</th>
+                    <th className="py-3.5 px-4 text-right w-36 text-indigo-600 dark:text-indigo-300">Valor Pago</th>
                     <th className="py-3.5 px-4">Anotações / Links</th>
                     <th className="py-3.5 px-4 text-center w-28">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/80 font-medium">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
                   {items.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
@@ -977,20 +977,20 @@ export default function PlanningPage() {
 
                 {items.length > 0 && (
                   <tfoot>
-                    <tr className="bg-slate-900 font-extrabold text-white border-t-2 border-slate-800">
-                      <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-400">
+                    <tr className="bg-slate-100 dark:bg-slate-900 font-extrabold text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
+                      <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-500 dark:text-slate-400">
                         Totais do Orçamento ({items.length} itens)
                       </td>
-                      <td className="py-3.5 px-4 text-right text-emerald-400 font-black font-tnum">
+                      <td className="py-3.5 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black font-tnum">
                         {totalMinimoOtimista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td className="py-3.5 px-4 text-right text-amber-400 font-black font-tnum">
+                      <td className="py-3.5 px-4 text-right text-amber-600 dark:text-amber-400 font-black font-tnum">
                         {totalMaximoRealista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td className="py-3.5 px-4 text-right text-indigo-400 font-black font-tnum">
+                      <td className="py-3.5 px-4 text-right text-indigo-600 dark:text-indigo-400 font-black font-tnum">
                         {totalJaPagoReal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
-                      <td colSpan={2} className="py-3.5 px-4 text-right text-xs text-rose-400 font-black">
+                      <td colSpan={2} className="py-3.5 px-4 text-right text-xs text-rose-600 dark:text-rose-400 font-black">
                         Restante a Pagar: {restanteAPagarEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                       </td>
                     </tr>
@@ -1004,14 +1004,14 @@ export default function PlanningPage() {
           <div className="card-glow p-6 space-y-6">
             
             {/* Cabeçalho da Seção de Notas */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2">
-                <ListTodo className="w-5 h-5 text-purple-400" />
+                <ListTodo className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
                     Checklist & Roteiro da Viagem
                   </h3>
-                  <p className="text-[10px] text-slate-300 font-semibold">Organize mala, documentos e lembretes importantes</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">Organize mala, documentos e lembretes importantes</p>
                 </div>
               </div>
 
@@ -1038,8 +1038,8 @@ export default function PlanningPage() {
 
             {/* Checklist Interativo */}
             <div className="space-y-4">
-              <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                <CheckSquare className="w-4 h-4 text-indigo-400" />
+              <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 Checklist Interativo da Viagem ({checklistTasks.filter(t => t.done).length}/{checklistTasks.length})
               </h4>
 
@@ -1050,7 +1050,7 @@ export default function PlanningPage() {
                   value={newChecklistText}
                   onChange={e => setNewChecklistText(e.target.value)}
                   placeholder="Adicionar tarefa (ex: Passaporte, Adaptador de tomada, Check-in)..."
-                  className="flex-1 rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  className="flex-1 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
                 <button
                   type="submit"
@@ -1068,8 +1068,8 @@ export default function PlanningPage() {
                     key={task.id}
                     className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
                       task.done
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-slate-400"
-                        : "bg-slate-900 border-slate-800 text-white"
+                        ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-slate-400"
+                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
                     }`}
                   >
                     <button
@@ -1078,11 +1078,11 @@ export default function PlanningPage() {
                       className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
                     >
                       {task.done ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       ) : (
                         <Square className="w-4 h-4 text-slate-400 shrink-0" />
                       )}
-                      <span className={`text-xs font-semibold truncate ${task.done ? "line-through text-slate-400" : "text-white"}`}>
+                      <span className={`text-xs font-semibold truncate ${task.done ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
                         {task.text}
                       </span>
                     </button>
@@ -1090,7 +1090,7 @@ export default function PlanningPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteChecklistTask(task.id)}
-                      className="text-slate-500 hover:text-rose-400 p-1 transition-colors cursor-pointer"
+                      className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1 transition-colors cursor-pointer"
                       title="Excluir item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -1101,12 +1101,12 @@ export default function PlanningPage() {
             </div>
 
             {/* Linha Divisória */}
-            <div className="border-t border-slate-800" />
+            <div className="border-t border-slate-100 dark:border-slate-800" />
 
             {/* Área de Roteiro e Observações Gerais */}
             <div className="space-y-2">
-              <label className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-indigo-400" />
+              <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                 Observações do Roteiro & Vouchers
               </label>
               <textarea
@@ -1114,7 +1114,7 @@ export default function PlanningPage() {
                 value={editNotes}
                 onChange={e => setEditNotes(e.target.value)}
                 placeholder="Digite aqui observações do roteiro, horários de voo, códigos de reserva, dicas de passeios ou lembretes importantes..."
-                className="w-full rounded-2xl bg-slate-950 border border-slate-800 p-4 text-xs font-medium text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all leading-relaxed"
+                className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all leading-relaxed"
               />
             </div>
 
@@ -1126,7 +1126,7 @@ export default function PlanningPage() {
       {/* ── 7. MODAL NOVO PROJETO ────────────────────────────────────────────── */}
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-[28px] border border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-white">
+          <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-white">
             <div className="flex justify-between items-center pb-3 border-b border-slate-800">
               <h3 className="text-base font-black">Novo Projeto de Viagem / Evento</h3>
               <button onClick={() => setIsNewProjectModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">

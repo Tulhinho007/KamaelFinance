@@ -701,13 +701,13 @@ export default function CartaoDetailPage() {
 
           {/* Compras à Vista & Parceladas */}
           <div className="flex flex-col gap-8">
-            <section className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col gap-4">
+            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-extrabold text-white">Compras à Vista (Mês Atual)</h3>
-                  <p className="text-[10px] font-semibold text-slate-400">Lançamentos pontuais no cartão</p>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Compras à Vista (Mês Atual)</h3>
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Lançamentos pontuais no cartão</p>
                 </div>
-                <span className="text-xs font-black text-white bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
+                <span className="text-xs font-black text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-950 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
                   {brl(saldoVista)}
                 </span>
               </div>
@@ -715,10 +715,10 @@ export default function CartaoDetailPage() {
               {vistaPurchases.length === 0 ? (
                 <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhuma compra à vista neste mês.</p>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                         <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
@@ -784,13 +784,13 @@ export default function CartaoDetailPage() {
               )}
             </section>
 
-            <section className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col gap-4">
+            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="text-sm font-extrabold text-white">Lançamentos Parcelados</h3>
-                  <p className="text-[10px] font-semibold text-slate-400">Parcelas ativas cobradas no mês selecionado</p>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Lançamentos Parcelados</h3>
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Parcelas ativas cobradas no mês selecionado</p>
                 </div>
-                <span className="text-xs font-black text-white bg-slate-950 px-3 py-1 rounded-xl border border-slate-800">
+                <span className="text-xs font-black text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-950 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
                   Dívida Restante: {brl(dividaParcelada)}
                 </span>
               </div>
@@ -798,10 +798,10 @@ export default function CartaoDetailPage() {
               {parceladoPurchasesProcessed.length === 0 ? (
                 <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhum parcelamento ativo neste mês.</p>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                         <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
@@ -936,14 +936,14 @@ export default function CartaoDetailPage() {
           </section>
 
           {/* TABELA: EXTRATO DE DESPESAS DA CONTA SANTANDER (DARK THEME GLASSMORPHISM) */}
-          <div className="bg-slate-900/70 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-5">
+          <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-indigo-400" />
+                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   Extrato de Despesas ({getMonthName(selectedMonth)}/{selectedYear})
                 </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Acompanhe e confirme o pagamento de todas as saídas registradas nesta conta.
                 </p>
               </div>
@@ -959,18 +959,18 @@ export default function CartaoDetailPage() {
 
               if (monthTransactions.length === 0) {
                 return (
-                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-center border border-slate-800 rounded-2xl bg-slate-950/40">
+                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-center border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
-                    <p className="text-xs font-bold text-slate-400">Nenhuma despesa registrada para este mês.</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma despesa registrada para este mês.</p>
                   </div>
                 );
               }
 
               return (
-                <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
                         <th className="p-4 w-10 text-center">
                           <input
                             type="checkbox"
@@ -1068,7 +1068,7 @@ export default function CartaoDetailPage() {
                       })}
                     </tbody>
                     <tfoot>
-                      <tr className="bg-slate-900/90 border-t border-slate-800 font-black text-white">
+                      <tr className="bg-slate-100 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
                         <td colSpan={3} className="p-4 text-slate-400 uppercase tracking-wider text-xs">
                           TOTAL CONSUMIDO NO MÊS
                         </td>
@@ -1099,10 +1099,10 @@ export default function CartaoDetailPage() {
       {/* Modal Adicionar Saldo / Injeção de Capital Flexível */}
       {modalType === "carga" && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-black text-white">Injetar Saldo / Capital</h3>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white">Injetar Saldo / Capital</h3>
                 <p className="text-xs text-slate-400 font-medium mt-0.5">Informe o valor, a origem e o mês de aplicação.</p>
               </div>
               <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer">

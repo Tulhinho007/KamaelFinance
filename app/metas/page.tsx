@@ -313,7 +313,7 @@ export default function MetasPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar metas..."
-            className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-slate-900/80 border border-slate-800 rounded-2xl shadow-2xs text-slate-200 w-48 sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
+            className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs text-slate-800 dark:text-slate-200 w-48 sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
           />
         </div>
 
@@ -327,27 +327,27 @@ export default function MetasPage() {
       </div>
 
       {/* ── 3. BANNER PRINCIPAL COM GLOW & GLASSMORPHISM ("HORIZONTE DE CONQUISTAS") ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 rounded-[32px] border border-indigo-500/30 p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
+      <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 dark:from-slate-900 dark:via-indigo-950/60 dark:to-slate-900 rounded-[32px] border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 shadow-sm dark:shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
         
         {/* Efeito Glow no Fundo */}
         <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Gráfico Radial de Progresso Global */}
-        <div className="relative w-28 h-28 flex items-center justify-center bg-slate-900/90 rounded-2xl border border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
+        <div className="relative w-28 h-28 flex items-center justify-center bg-white dark:bg-slate-900/90 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 shadow-sm dark:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
           <svg className="w-22 h-22 transform -rotate-90">
             <circle
               cx="44"
               cy="44"
               r={radius}
-              className="stroke-slate-800 fill-none"
+              className="stroke-slate-200 dark:stroke-slate-800 fill-none"
               strokeWidth="7"
             />
             <circle
               cx="44"
               cy="44"
               r={radius}
-              className="stroke-indigo-400 fill-none transition-all duration-700"
+              className="stroke-indigo-500 dark:stroke-indigo-400 fill-none transition-all duration-700"
               strokeWidth="7"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
@@ -355,8 +355,8 @@ export default function MetasPage() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-lg font-black text-white leading-none drop-shadow-sm">{globalPct}%</span>
-            <span className="text-[8px] font-extrabold text-indigo-300 uppercase tracking-widest mt-1">Global</span>
+            <span className="text-lg font-black text-slate-900 dark:text-white leading-none drop-shadow-sm">{globalPct}%</span>
+            <span className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-300 uppercase tracking-widest mt-1">Global</span>
           </div>
         </div>
 
@@ -365,35 +365,35 @@ export default function MetasPage() {
           
           <div className="text-center sm:text-left w-full">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="rounded-full bg-indigo-500/20 border border-indigo-400/30 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-300 uppercase shadow-xs">
+              <span className="rounded-full bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-800 dark:text-indigo-300 uppercase shadow-xs">
                 Visão Consolidada
               </span>
-              <span className="text-[10px] font-black text-purple-300 bg-purple-500/20 border border-purple-400/30 px-3 py-1 rounded-full uppercase">
+              <span className="text-[10px] font-black text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 border border-purple-200 dark:border-purple-400/30 px-3 py-1 rounded-full uppercase">
                 {activeMetasCount} Metas Ativas
               </span>
             </div>
             
-            <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
+            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
 
             {/* 3 KPIs: Total Acumulado, Objetivo Final e Falta Aportar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-900/60 p-4 rounded-2xl border border-white/10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-100/80 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-white/10">
               
               {/* KPI 1 — Total Acumulado */}
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Total Acumulado</span>
-                <span className="text-base font-black text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
+                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Total Acumulado</span>
+                <span className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
               </div>
 
               {/* KPI 2 — Objetivo Final */}
-              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Objetivo Final</span>
-                <span className="text-base font-black text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
+              <div className="flex flex-col sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-4">
+                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Objetivo Final</span>
+                <span className="text-base font-black text-slate-900 dark:text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
               </div>
 
               {/* KPI 3 — Falta Aportar */}
-              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Falta Aportar</span>
-                <span className="text-base font-black text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
+              <div className="flex flex-col sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-4">
+                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Falta Aportar</span>
+                <span className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
               </div>
 
             </div>
@@ -415,11 +415,11 @@ export default function MetasPage() {
         {/* Lista de Metas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {loading ? (
-            <div className="col-span-1 md:col-span-3 text-center py-12 bg-slate-900/80 rounded-[28px] border border-slate-800 text-indigo-400 font-bold animate-pulse text-xs uppercase tracking-widest shadow-md">
+            <div className="col-span-1 md:col-span-3 text-center py-12 bg-white dark:bg-slate-900/80 rounded-[28px] border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-bold animate-pulse text-xs uppercase tracking-widest shadow-sm">
               Carregando metas do banco de dados...
             </div>
           ) : filteredMetas.length === 0 ? (
-            <div className="col-span-1 md:col-span-3 text-center py-12 bg-slate-900/80 rounded-[28px] border border-slate-800 text-slate-400 text-xs font-semibold uppercase tracking-wider shadow-md">
+            <div className="col-span-1 md:col-span-3 text-center py-12 bg-white dark:bg-slate-900/80 rounded-[28px] border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider shadow-sm">
               Nenhuma meta financeira cadastrada.
             </div>
           ) : (
@@ -431,7 +431,7 @@ export default function MetasPage() {
               return (
                 <div 
                   key={meta.id} 
-                  className="bg-slate-900/90 backdrop-blur-md rounded-[28px] border border-slate-800 p-6 shadow-md flex flex-col justify-between hover:shadow-xl hover:border-indigo-500/30 hover:scale-[1.01] transition-all duration-300 min-h-[340px]"
+                  className="bg-white dark:bg-slate-900/90 backdrop-blur-md rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-md flex flex-col justify-between hover:shadow-lg dark:hover:shadow-xl hover:border-indigo-400/40 dark:hover:border-indigo-500/30 hover:scale-[1.01] transition-all duration-300 min-h-[340px]"
                 >
                   
                   {/* Cabeçalho do Card */}
@@ -442,10 +442,10 @@ export default function MetasPage() {
                         <IconComponent className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="text-xs font-black text-slate-100 uppercase tracking-tight truncate max-w-[130px]" title={meta.title}>
+                        <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight truncate max-w-[130px]" title={meta.title}>
                           {meta.title}
                         </h3>
-                        <p className="text-[9px] font-extrabold text-slate-300 block mt-0.5">
+                        <p className="text-[9px] font-extrabold text-slate-500 dark:text-slate-300 block mt-0.5">
                           {formatDateDisplay(meta.dataInicio)} a {formatDateDisplay(meta.dataFim)}
                         </p>
                       </div>
@@ -455,19 +455,19 @@ export default function MetasPage() {
                     <div className="flex items-center gap-1 shrink-0">
                       <button 
                         onClick={() => openEditModal(meta)}
-                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
                         title="Editar Meta"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
                       <button 
                         onClick={() => openDeleteModal(meta)}
-                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
                         title="Excluir Meta"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-sm font-black text-indigo-400 pl-1">{meta.pct}%</span>
+                      <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 pl-1">{meta.pct}%</span>
                     </div>
 
                   </div>
@@ -479,7 +479,7 @@ export default function MetasPage() {
                     </span>
 
                     {meta.walletTitle && (
-                      <span className="flex items-center gap-1 text-[9px] font-extrabold text-indigo-300 bg-indigo-500/15 border border-indigo-400/30 px-2.5 py-1 rounded-full truncate max-w-[140px]">
+                      <span className="flex items-center gap-1 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-400/30 px-2.5 py-1 rounded-full truncate max-w-[140px]">
                         <WalletIcon className="w-3 h-3 shrink-0" />
                         <span className="truncate">{meta.walletTitle}</span>
                       </span>
@@ -494,19 +494,19 @@ export default function MetasPage() {
                   {/* Previsão Realista de Conclusão */}
                   <div className="mt-3 text-[10px] font-medium leading-tight">
                     {meta.paceStatus === "COMPLETED" ? (
-                      <span className="text-emerald-400 font-extrabold inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Meta 100% Concluída!
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Meta 100% Concluída!
                       </span>
                     ) : meta.paceStatus === "ADVANCED" ? (
-                      <span className="text-emerald-400 font-extrabold inline-flex items-center gap-1">
-                        <TrendingUp className="w-3.5 h-3.5 text-emerald-400" /> Adiantado! Conclusão em {meta.estimatedDateStr}.
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1">
+                        <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Adiantado! Conclusão em {meta.estimatedDateStr}.
                       </span>
                     ) : meta.paceStatus === "BEHIND" ? (
-                      <span className="text-amber-300 font-extrabold inline-flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-amber-300" /> Ritmo atual: Conclusão em {meta.estimatedDateStr}.
+                      <span className="text-amber-700 dark:text-amber-300 font-extrabold inline-flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300" /> Ritmo atual: Conclusão em {meta.estimatedDateStr}.
                       </span>
                     ) : (
-                      <span className="text-slate-300 font-semibold inline-flex items-center gap-1">
+                      <span className="text-slate-600 dark:text-slate-300 font-semibold inline-flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-slate-400" /> {meta.estimatedDateStr}
                       </span>
                     )}
@@ -514,7 +514,7 @@ export default function MetasPage() {
 
                   {/* Barra de Progresso Vibrante em Gradiente */}
                   <div className="mt-3">
-                    <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden border border-slate-700/80 p-0.5">
+                    <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700/80 p-0.5">
                       <div 
                         className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-700 shadow-[0_0_12px_rgba(99,102,241,0.4)]" 
                         style={{ width: `${meta.pct}%` }}
@@ -523,14 +523,14 @@ export default function MetasPage() {
                   </div>
 
                   {/* Acumulado / Objetivo com Tipografia Clara de Alto Contraste */}
-                  <div className="border-t border-slate-800 mt-3 pt-3 grid grid-cols-2 gap-4">
+                  <div className="border-t border-slate-100 dark:border-slate-800 mt-3 pt-3 grid grid-cols-2 gap-4">
                     <div>
-                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider block">Acumulado</span>
-                      <span className="text-xs font-black text-emerald-400 mt-0.5 block">{brl(meta.acumulado)}</span>
+                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Acumulado</span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">{brl(meta.acumulado)}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-black text-slate-300 uppercase tracking-wider block">Objetivo</span>
-                      <span className="text-xs font-black text-slate-200 mt-0.5 block">{brl(meta.objetivo)}</span>
+                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Objetivo</span>
+                      <span className="text-xs font-black text-slate-900 dark:text-slate-200 mt-0.5 block">{brl(meta.objetivo)}</span>
                     </div>
                   </div>
 
@@ -546,7 +546,7 @@ export default function MetasPage() {
                     
                     <button 
                       onClick={() => openHistoryModal(meta)}
-                      className="p-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 transition-colors rounded-xl cursor-pointer"
+                      className="p-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors rounded-xl cursor-pointer"
                       title="Histórico de Aportes"
                     >
                       <History className="w-4 h-4" />
@@ -565,10 +565,10 @@ export default function MetasPage() {
       {/* ── MODAIS INTERATIVOS ───────────────────────────────────────────────── */}
       {modalType && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200">
             
             {/* Header do Modal */}
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-sm font-black text-white uppercase tracking-widest">
                 {modalType === "create" && "Nova Meta Financeira"}
                 {modalType === "edit" && "Editar Meta"}

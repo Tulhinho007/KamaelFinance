@@ -34,15 +34,15 @@ function walletIcon(type: string) {
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-slate-900 text-white rounded-lg border border-slate-800 p-3 shadow-xl text-xs space-y-1">
-        {label && <p className="font-medium text-slate-400 border-b border-slate-800 pb-1 mb-1">{label}</p>}
+      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-800 p-3 shadow-md dark:shadow-xl text-xs space-y-1">
+        {label && <p className="font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-1 mb-1">{label}</p>}
         {payload.map((p: any, idx: number) => (
           <div key={idx} className="flex items-center justify-between gap-4 font-tnum tabular-nums">
-            <span className="flex items-center gap-1.5 text-slate-300">
+            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color || p.fill }} />
               {p.name}:
             </span>
-            <span className="font-semibold text-white">{brl(Number(p.value))}</span>
+            <span className="font-semibold text-slate-900 dark:text-white">{brl(Number(p.value))}</span>
           </div>
         ))}
       </div>
@@ -381,8 +381,8 @@ export function DashboardOverview() {
               {data.metasGlobaisPct}%
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-800">
-            <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
               <div 
                 className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500" 
                 style={{ width: `${Math.min(100, data.metasGlobaisPct)}%` }} 
@@ -394,51 +394,51 @@ export function DashboardOverview() {
       </section>
 
       {/* ── 2.1 PROJEÇÃO DE SALDO FUTURO (GRÁFICO DE LINHA TEMPORAL - 30/60 DIAS) ─ */}
-      <section className="bg-slate-900/70 rounded-3xl border border-slate-800 p-6 shadow-xl flex flex-col gap-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <section className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-400" />
-              <h3 className="text-base font-black text-white tracking-tight">
+              <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+              <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
                 Projeção de Saldo Futuro ({projectionDays} Dias)
               </h3>
             </div>
-            <p className="text-xs text-slate-400 font-medium mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               Tendência diária calculada a partir de contas a pagar, receber e faturas cadastradas.
             </p>
           </div>
 
           {/* Seletor de Período 30d / 60d */}
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 w-fit">
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-fit">
             <button
               onClick={() => setProjectionDays(30)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 projectionDays === 30
                   ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-400 hover:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              Próximos 30 Dias
+              30 Dias
             </button>
             <button
               onClick={() => setProjectionDays(60)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 projectionDays === 60
                   ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-400 hover:text-white"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
               }`}
             >
-              Próximos 60 Dias
+              60 Dias
             </button>
           </div>
         </div>
 
         {/* Métricas de resumo da projeção */}
         {projectionData && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/60 p-4 rounded-2xl border border-slate-800 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
             <div className="group relative">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Saldo Atual (Hoje)</span>
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saldo Atual (Hoje)</span>
                 <button
                   onClick={() => setActiveMetricModal("SALDO_ATUAL")}
                   className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
@@ -447,14 +447,14 @@ export function DashboardOverview() {
                   <HelpCircle className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className="text-sm font-black text-white font-tnum tabular-nums mt-0.5">
+              <p className="text-sm font-black text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                 {brl(projectionData.currentBalance)}
               </p>
             </div>
 
             <div className="group relative">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Saldo Projetado ({projectionDays}d)</span>
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saldo Projetado ({projectionDays}d)</span>
                 <button
                   onClick={() => setActiveMetricModal("SALDO_PROJETADO")}
                   className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
@@ -463,14 +463,14 @@ export function DashboardOverview() {
                   <HelpCircle className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className={`text-sm font-black font-tnum tabular-nums mt-0.5 ${projectionData.projectedFinalBalance >= 0 ? "text-[#00e676]" : "text-rose-400"}`}>
+              <p className={`text-sm font-black font-tnum tabular-nums mt-0.5 ${projectionData.projectedFinalBalance >= 0 ? "text-emerald-600 dark:text-[#00e676]" : "text-rose-600 dark:text-rose-400"}`}>
                 {brl(projectionData.projectedFinalBalance)}
               </p>
             </div>
 
             <div className="group relative">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Entradas Previstas</span>
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Entradas Previstas</span>
                 <button
                   onClick={() => setActiveMetricModal("ENTRADAS_PREVISTAS")}
                   className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
@@ -479,14 +479,14 @@ export function DashboardOverview() {
                   <HelpCircle className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className="text-sm font-black text-[#00e676] font-tnum tabular-nums mt-0.5">
+              <p className="text-sm font-black text-emerald-600 dark:text-[#00e676] font-tnum tabular-nums mt-0.5">
                 +{brl(projectionData.totalFutureIncome)}
               </p>
             </div>
 
             <div className="group relative">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Saídas Previstas</span>
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saídas Previstas</span>
                 <button
                   onClick={() => setActiveMetricModal("SAIDAS_PREVISTAS")}
                   className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
@@ -495,7 +495,7 @@ export function DashboardOverview() {
                   <HelpCircle className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <p className="text-sm font-black text-rose-400 font-tnum tabular-nums mt-0.5">
+              <p className="text-sm font-black text-rose-600 dark:text-rose-400 font-tnum tabular-nums mt-0.5">
                 -{brl(projectionData.totalFutureExpense)}
               </p>
             </div>
@@ -513,27 +513,27 @@ export function DashboardOverview() {
               <AreaChart data={projectionData.timeline} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
                 <defs>
                   <linearGradient id="colorSaldoProjetado" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
                     <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.4} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.4} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 10, fill: "#94a3b8", fontWeight: 700 }}
+                  tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }}
                   axisLine={false}
                   tickLine={false}
                   dy={4}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: "#94a3b8", fontWeight: 700 }}
+                  tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v}`}
                   dx={-4}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10, fontWeight: 700, color: "#cbd5e1" }} iconType="circle" />
+                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10, fontWeight: 700 }} iconType="circle" />
                 <Area
                   type="monotone"
                   dataKey="projectedBalance"
@@ -552,10 +552,10 @@ export function DashboardOverview() {
       {/* ── 3. MEUS CARTÕES & CONTAS ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <div className="flex justify-between items-center px-0.5">
-          <h2 className="text-lg font-black text-white tracking-tight">
+          <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
             Cartões & Contas Ativas
           </h2>
-          <Link href="/despesas" className="text-xs font-black text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
+          <Link href="/despesas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 transition-colors">
             Ver todas <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -570,27 +570,27 @@ export function DashboardOverview() {
               <Link
                 key={card.id}
                 href={`/cartoes/${card.id}`}
-                className="bg-slate-900/70 border border-slate-800 text-white rounded-2xl p-5 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between min-h-[140px] group"
+                className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between min-h-[140px] group"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-xs font-black tracking-tight text-white group-hover:text-indigo-400 transition-colors truncate max-w-[140px]">
+                    <p className="text-xs font-black tracking-tight text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[140px]">
                       {card.title}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
                       {isCredit ? "Cartão de Crédito" : card.walletType === "TICKET" ? "VA / VR Benefícios" : "Conta Corrente"}
                     </p>
                   </div>
-                  <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center text-indigo-400">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
                     <Icon className="w-4 h-4" />
                   </div>
                 </div>
 
                 <div className="mt-4">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     {isCredit ? "Limite Disponível" : "Saldo Atual"}
                   </span>
-                  <p className="text-xl font-black tracking-tight text-white font-tnum tabular-nums mt-0.5">
+                  <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                     {brl(saldoDisp)}
                   </p>
                 </div>
@@ -607,11 +607,11 @@ export function DashboardOverview() {
         <div className="lg:col-span-7 flex flex-col gap-6">
           
           {/* BLOCO 1: Linha de Tendência (Evolução Financeira) */}
-          <div className="bg-slate-900/70 rounded-3xl border border-slate-800 p-6 shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-white tracking-tight">Evolução Financeira</h3>
-                <p className="text-xs text-slate-400 font-medium">Comparativo de entradas vs. saídas nos últimos 7 meses</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Evolução Financeira</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Comparativo de entradas vs. saídas nos últimos 7 meses</p>
               </div>
             </div>
 
@@ -620,24 +620,24 @@ export function DashboardOverview() {
                 <AreaChart data={data.monthlyHistory} margin={{ top: 15, right: 25, left: 15, bottom: 15 }}>
                   <defs>
                     <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.35}/>
+                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
                       <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
                     </linearGradient>
                     <linearGradient id="colorGastos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.35}/>
+                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.2}/>
                       <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.4} vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.4} vertical={false} />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 700 }}
+                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     dy={6}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#94a3b8", fontWeight: 700 }}
+                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v}`}
@@ -645,7 +645,7 @@ export function DashboardOverview() {
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend
-                    wrapperStyle={{ fontSize: 12, paddingTop: 15, fontWeight: 700, color: "#cbd5e1" }}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 15, fontWeight: 700 }}
                     iconType="circle"
                   />
 
@@ -673,11 +673,11 @@ export function DashboardOverview() {
           </div>
 
           {/* BLOCO 2: DNA de Gastos por Categoria */}
-          <div className="bg-slate-900/70 rounded-3xl border border-slate-800 p-6 shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-white tracking-tight">Distribuição por Categoria</h3>
-                <p className="text-xs text-slate-400 font-medium">Divisão dos gastos consolidados do mês</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Distribuição por Categoria</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Divisão dos gastos consolidados do mês</p>
               </div>
             </div>
 
@@ -702,10 +702,10 @@ export function DashboardOverview() {
               </ResponsiveContainer>
 
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-base font-black text-white leading-none font-tnum tabular-nums">
+                <span className="text-base font-black text-slate-900 dark:text-white leading-none font-tnum tabular-nums">
                   {brl(data.totalGastosMes != null ? data.totalGastosMes : data.totalGastos)}
                 </span>
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
                   Total Mês
                 </span>
               </div>
@@ -720,7 +720,7 @@ export function DashboardOverview() {
                   return (
                     <div
                       key={c.name}
-                      className="flex items-center justify-between gap-2 text-xs font-bold text-slate-200 bg-slate-950/60 px-3.5 py-2 rounded-2xl border border-slate-800"
+                      className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950/60 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
@@ -728,7 +728,7 @@ export function DashboardOverview() {
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0 font-tnum tabular-nums">
                         <span>{brl(c.total)}</span>
-                        <span className="text-[10px] font-black text-slate-500">({pct}%)</span>
+                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-500">({pct}%)</span>
                       </div>
                     </div>
                   );
@@ -743,37 +743,37 @@ export function DashboardOverview() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* BLOCO 1: Próximos Vencimentos */}
-          <div className="bg-slate-900/70 rounded-3xl border border-slate-800 p-6 shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-white tracking-tight">Faturas a Vencer</h3>
-                <p className="text-xs text-slate-400 font-medium">Compromissos pendentes nos próximos dias</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Faturas a Vencer</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Compromissos pendentes nos próximos dias</p>
               </div>
             </div>
 
             {upcomingBills.length === 0 ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400/80" />
-                <p className="text-xs font-bold text-slate-400">Nenhuma fatura pendente para os próximos dias.</p>
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 dark:text-emerald-400/80" />
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma fatura pendente para os próximos dias.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
                 {upcomingBills.map((bill: any) => (
-                  <div key={bill.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
+                  <div key={bill.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
                     <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bill.isPast ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : "bg-slate-800 text-slate-300"}`}>
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bill.isPast ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
                         <Clock className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-black text-white">{bill.title}</p>
-                        <p className="text-[10px] text-slate-400 font-medium">Vencimento: {bill.vencimento}</p>
+                        <p className="text-xs font-black text-slate-900 dark:text-white">{bill.title}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Vencimento: {bill.vencimento}</p>
                       </div>
                     </div>
 
                     <div className="text-right">
-                      <p className="text-xs font-black text-white font-tnum tabular-nums">{brl(bill.valor)}</p>
+                      <p className="text-xs font-black text-slate-900 dark:text-white font-tnum tabular-nums">{brl(bill.valor)}</p>
                       <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 ${
-                        bill.isPast ? "bg-amber-500/10 text-amber-400 border border-amber-500/30" : "bg-slate-800 text-slate-300"
+                        bill.isPast ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
                       }`}>
                         {bill.isPast ? "Vencida" : "Pendente"}
                       </span>
@@ -785,40 +785,40 @@ export function DashboardOverview() {
           </div>
 
           {/* BLOCO 2: Resumo de Metas */}
-          <div className="bg-slate-900/70 rounded-3xl border border-slate-800 p-6 shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-white tracking-tight">Metas de Investimento</h3>
-                <p className="text-xs text-slate-400 font-medium">Acompanhamento dos objetivos financeiros</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Metas de Investimento</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acompanhamento dos objetivos financeiros</p>
               </div>
-              <Link href="/metas" className="text-xs font-black text-indigo-400 hover:text-indigo-300">
+              <Link href="/metas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300">
                 Ver todas
               </Link>
             </div>
 
             {data.goals.length === 0 ? (
-              <p className="py-6 text-xs font-medium text-slate-400 text-center">Nenhuma meta cadastrada.</p>
+              <p className="py-6 text-xs font-medium text-slate-500 dark:text-slate-400 text-center">Nenhuma meta cadastrada.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {data.goals.slice(0, 3).map((goal: any) => (
-                  <div key={goal.id} className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 flex flex-col gap-2">
+                  <div key={goal.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col gap-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-black text-white">{goal.title}</span>
-                      <span className="text-xs font-black text-indigo-400 font-tnum tabular-nums">{goal.pct}%</span>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">{goal.title}</span>
+                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-tnum tabular-nums">{goal.pct}%</span>
                     </div>
 
-                    <div className="w-full bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
+                    <div className="w-full bg-slate-100 dark:bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
                       <div 
                         className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
                         style={{ width: `${Math.min(100, goal.pct)}%` }} 
                       />
                     </div>
 
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 pt-0.5">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400 pt-0.5">
                       <span className="font-tnum tabular-nums">{brl(goal.acumulado)} acumulados</span>
                       <button
                         onClick={() => { setSelectedGoalId(goal.id); setAporteModalOpen(true); }}
-                        className="text-[10px] font-black text-[#00e676] bg-[#00e676]/10 hover:bg-[#00e676]/20 px-2.5 py-0.5 rounded-lg border border-[#00e676]/30 transition-colors cursor-pointer"
+                        className="text-[10px] font-black text-[#00a854] dark:text-[#00e676] bg-emerald-50 dark:bg-[#00e676]/10 hover:bg-emerald-100 dark:hover:bg-[#00e676]/20 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-[#00e676]/30 transition-colors cursor-pointer"
                       >
                         + Aporte
                       </button>
@@ -845,27 +845,27 @@ export function DashboardOverview() {
       {/* Modal 2: Nova Receita */}
       {revenueModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-800 animate-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white">Lançar Nova Receita</h3>
-              <button onClick={() => setRevenueModalOpen(false)} className="p-1 text-slate-400 hover:text-white cursor-pointer">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Lançar Nova Receita</h3>
+              <button onClick={() => setRevenueModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleRevenueSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Descrição *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Descrição *</label>
                 <input
                   required
                   type="text"
                   value={revDesc}
                   onChange={e => setRevDesc(e.target.value)}
                   placeholder="Ex: Salário, Freelance, Rendimentos..."
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Valor (R$) *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valor (R$) *</label>
                 <input
                   required
                   type="number"
@@ -874,21 +874,21 @@ export function DashboardOverview() {
                   value={revAmount}
                   onChange={e => setRevAmount(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0.00"
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Data *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Data *</label>
                 <input
                   required
                   type="date"
                   value={revDate}
                   onChange={e => setRevDate(e.target.value)}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setRevenueModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onClick={() => setRevenueModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
                 <button type="submit" disabled={savingRev} className="px-5 py-2 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/30 cursor-pointer">Salvar Receita</button>
               </div>
             </form>
@@ -899,16 +899,16 @@ export function DashboardOverview() {
       {/* Modal 3: Fazer Aporte em Meta */}
       {aporteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-5 shadow-2xl border border-slate-800 animate-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white">Efetuar Aporte em Meta</h3>
-              <button onClick={() => setAporteModalOpen(false)} className="p-1 text-slate-400 hover:text-white cursor-pointer">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Efetuar Aporte em Meta</h3>
+              <button onClick={() => setAporteModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <form onSubmit={handleAporteSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Valor do Aporte (R$)</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valor do Aporte (R$)</label>
                 <input
                   required
                   type="number"
@@ -917,11 +917,11 @@ export function DashboardOverview() {
                   value={aporteAmount}
                   onChange={e => setAporteAmount(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="Ex: 500.00"
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                 />
               </div>
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setAporteModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button type="button" onClick={() => setAporteModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
                 <button type="submit" disabled={savingAporte} className="px-5 py-2 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer">Confirmar Aporte</button>
               </div>
             </form>
@@ -932,25 +932,25 @@ export function DashboardOverview() {
       {/* Modal 4: Histórico Geral Consolidado */}
       {historyModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-slate-900 dark:text-white">
             {/* Header Modal */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-800">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   <History className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-white">
+                  <h2 className="text-base font-black text-slate-900 dark:text-white">
                     Histórico Geral Consolidado
                   </h2>
-                  <p className="text-xs font-medium text-slate-400">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                     Desempenho financeiro mês a mês de todas as transações cadastradas.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setHistoryModalOpen(false)}
-                className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -959,10 +959,10 @@ export function DashboardOverview() {
             {/* Body Modal — Tabela de Meses */}
             <div className="overflow-y-auto p-5 flex-1 space-y-4">
               {data.consolidatedHistory && data.consolidatedHistory.length > 0 ? (
-                <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/40">
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-xs text-left">
                     <thead>
-                      <tr className="bg-slate-900/90 border-b border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">
                         <th className="py-3 px-4">Mês / Ano</th>
                         <th className="py-3 px-4 text-right">Receitas</th>
                         <th className="py-3 px-4 text-right">Despesas</th>
@@ -970,7 +970,7 @@ export function DashboardOverview() {
                         <th className="py-3 px-4 text-center">Ação</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-medium">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-800 dark:text-slate-200">
                       {data.consolidatedHistory.map((item: any) => {
                         const isPositive = item.balanco >= 0;
                         const isCurrent = item.month === selectedMonth && item.year === selectedYear;

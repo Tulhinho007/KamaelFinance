@@ -167,7 +167,7 @@ export function PeriodHeader({ title, tagline, badge }: PeriodHeaderProps) {
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full border border-white dark:border-slate-900"></span>
         </button>
 
-        <span className="bg-slate-900 dark:bg-slate-800 text-white font-bold text-[10px] px-3 py-2 rounded-xl uppercase tracking-widest shadow-xs">
+        <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 font-bold text-[10px] px-3 py-2 rounded-xl uppercase tracking-widest shadow-xs">
           EXECUTIVE
         </span>
       </div>

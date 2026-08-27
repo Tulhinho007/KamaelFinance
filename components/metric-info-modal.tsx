@@ -243,11 +243,11 @@ export function MetricInfoModal({
         <div className="p-6 flex flex-col gap-5 max-h-[75vh] overflow-y-auto">
           
           {/* Caixa de Fórmula Matemática */}
-          <div className="bg-slate-900 text-white rounded-2xl p-4 border border-slate-800 shadow-inner">
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1.5">
+          <div className="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1.5">
               <Calculator className="w-3.5 h-3.5" /> Fórmula de Cálculo
             </div>
-            <p className="font-mono text-xs font-semibold text-slate-200 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+            <p className="font-mono text-xs font-semibold text-slate-800 dark:text-slate-200 leading-relaxed bg-white dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80">
               {content.formula}
             </p>
           </div>

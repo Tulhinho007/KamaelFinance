@@ -228,34 +228,34 @@ export function CompoundInterestSimulator() {
         </div>
 
         {/* Total Investido */}
-        <div className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-          <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Total Investido (Do Bolso)</span>
-          <p className="text-xl font-black text-slate-200 mt-1 font-tnum tabular-nums">{brl(simulation.finalInvested)}</p>
-          <span className="text-[10px] font-semibold text-slate-400 block mt-2">
+        <div className="bg-white dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Total Investido (Do Bolso)</span>
+          <p className="text-xl font-black text-slate-900 dark:text-slate-200 mt-1 font-tnum tabular-nums">{brl(simulation.finalInvested)}</p>
+          <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 block mt-2">
             Aportes diretos efetuados
           </span>
         </div>
 
         {/* Total Juros */}
-        <div className="bg-gradient-to-br from-emerald-900/40 via-slate-900 to-slate-900 p-4 rounded-2xl border border-emerald-500/30 shadow-md">
-          <span className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">Total em Juros Ganhos</span>
-          <p className="text-xl font-black text-emerald-400 mt-1 font-tnum tabular-nums">+{brl(simulation.finalInterest)}</p>
-          <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded-full inline-block mt-2">
+        <div className="bg-emerald-50/70 dark:bg-gradient-to-br dark:from-emerald-900/40 dark:via-slate-900 dark:to-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 shadow-xs dark:shadow-md">
+          <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">Total em Juros Ganhos</span>
+          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-tnum tabular-nums">+{brl(simulation.finalInterest)}</p>
+          <span className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full inline-block mt-2">
             Efeito Juros Compostos 🚀
           </span>
         </div>
       </div>
 
       {/* Visual Chart */}
-      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+      <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
         <div className="flex justify-between items-center">
-          <h4 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 text-emerald-400" /> Curva de Crescimento Patrimonial
+          <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+            <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Curva de Crescimento Patrimonial
           </h4>
           <button
             type="button"
             onClick={() => setShowTable((prev) => !prev)}
-            className="text-[10px] font-extrabold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-400/20 cursor-pointer"
+            className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-400/20 cursor-pointer"
           >
             <Table className="w-3 h-3" />
             {showTable ? "Ocultar Tabela" : "Ver Tabela Mês a Mês"}
@@ -275,10 +275,10 @@ export function CompoundInterestSimulator() {
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" strokeOpacity={0.3} vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.3} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
               <YAxis
-                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tick={{ fontSize: 10, fill: "#64748b" }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
@@ -294,9 +294,9 @@ export function CompoundInterestSimulator() {
 
       {/* Optional Table Breakdown */}
       {showTable && (
-        <div className="overflow-x-auto rounded-2xl border border-slate-800 max-h-60 overflow-y-auto">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 max-h-60 overflow-y-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-950 text-slate-300 font-black uppercase text-[9px] sticky top-0 border-b border-slate-800">
+            <thead className="bg-slate-100/80 dark:bg-slate-950 text-slate-600 dark:text-slate-300 font-black uppercase text-[9px] sticky top-0 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Período</th>
                 <th className="py-2.5 px-3 text-right">Total Investido</th>

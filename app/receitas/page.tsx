@@ -722,10 +722,10 @@ export default function ReceitasPage() {
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 border border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-200"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200"
           >
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">
                 {modalType === "create" && "Nova Receita"}
                 {modalType === "edit" && "Editar Receita"}
                 {modalType === "delete" && "Excluir Receita"}
