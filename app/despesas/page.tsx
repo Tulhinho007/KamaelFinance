@@ -289,6 +289,21 @@ export default function DespesasPage() {
     totalPendingAmount: 0,
   });
 
+  // Previsão do Mês Seguinte (Mês + 1)
+  const [nextMonthData, setNextMonthData] = useState<{
+    nextMonthName: string;
+    nextCreditTotal: number;
+    nextSubscriptionsTotal: number;
+    nextGastosConsumoTotal: number;
+    nextSaidasContaTotal: number;
+  }>({
+    nextMonthName: "",
+    nextCreditTotal: 0,
+    nextSubscriptionsTotal: 0,
+    nextGastosConsumoTotal: 0,
+    nextSaidasContaTotal: 0,
+  });
+
   const loadPaidInvoices = async () => {
     try {
       const list = await getPaidInvoicesAction(selectedMonth, selectedYear);
@@ -367,6 +382,33 @@ export default function DespesasPage() {
         }
       })
       .catch(err => console.error("Erro ao carregar assinaturas para despesas:", err));
+
+    // Busca previsões do próximo mês (Mês + 1) em paralelo
+    const nextM = selectedMonth === 12 ? 1 : selectedMonth + 1;
+    const nextY = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+    const nextName = getMonthName(nextM);
+
+    Promise.all([
+      getAllCardsOverview(nextM, nextY),
+      getSubscriptionsWithMonthlyStatusAction(nextM, nextY)
+    ]).then(([nextCardsRes, nextSubsRes]) => {
+      if (!active) return;
+      const nextCreditCards = (nextCardsRes || []).filter((c: any) => c.walletType === "CREDIT_CARD");
+      const nextAccountCards = (nextCardsRes || []).filter((c: any) => c.walletType !== "CREDIT_CARD");
+
+      const nextCreditTotal = nextCreditCards.reduce((s: number, c: any) => s + (c.faturaAtual || 0), 0);
+      const nextAccountTotal = nextAccountCards.reduce((s: number, c: any) => s + (c.faturaAtual || 0), 0);
+      const nextSubscriptionsTotal = nextSubsRes?.summary?.totalMonthlyAmount || 0;
+      const nextGastosConsumoTotal = nextCreditTotal + nextSubscriptionsTotal;
+
+      setNextMonthData({
+        nextMonthName: nextName,
+        nextCreditTotal,
+        nextSubscriptionsTotal,
+        nextGastosConsumoTotal,
+        nextSaidasContaTotal: nextAccountTotal,
+      });
+    }).catch(err => console.error("Erro ao carregar dados do mês seguinte:", err));
 
     return () => { active = false; };
   }, [selectedMonth, selectedYear]);
@@ -784,6 +826,23 @@ export default function DespesasPage() {
             </div>
 
           </div>
+
+          {/* Rodapé Informativo: Previsão Mês Seguinte */}
+          <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 relative z-10">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-slate-600 dark:text-slate-400">
+                Previsão Mês Seguinte ({nextMonthData.nextMonthName || "Próximo Mês"}):
+              </span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum">
+                {brl(nextMonthData.nextGastosConsumoTotal)}
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              (Crédito: <span className="font-semibold text-slate-700 dark:text-slate-200 font-tnum">{brl(nextMonthData.nextCreditTotal)}</span>
+              {" • "}
+              Assinaturas: <span className="font-semibold text-slate-700 dark:text-slate-200 font-tnum">{brl(nextMonthData.nextSubscriptionsTotal)}</span>)
+            </div>
+          </div>
         </div>
 
         {/* CARD 2: SAÍDAS DA CONTA (DÉBITO & PIX DIRETO) */}
@@ -851,6 +910,21 @@ export default function DespesasPage() {
               </div>
             </div>
 
+          </div>
+
+          {/* Rodapé Informativo: Previsão Mês Seguinte (Saídas da Conta) */}
+          <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 relative z-10">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-slate-600 dark:text-slate-400">
+                Previsão Mês Seguinte ({nextMonthData.nextMonthName || "Próximo Mês"}):
+              </span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum">
+                {brl(nextMonthData.nextSaidasContaTotal)}
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              (Agendados em Conta / PIX)
+            </div>
           </div>
         </div>
 
