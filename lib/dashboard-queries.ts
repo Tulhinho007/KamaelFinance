@@ -84,6 +84,11 @@ export async function getCategoryBreakdown(
       deletedAt: null,
       date: { gte: from, lte: to },
       wallet: { userId },
+      NOT: [
+        { category: { name: { contains: "Pagamento de Fatura", mode: "insensitive" } } },
+        { description: { contains: "Pagamento Fatura", mode: "insensitive" } },
+        { tags: { contains: "pagamentodefatura", mode: "insensitive" } },
+      ],
     },
     _sum: { amount: true },
   });
@@ -115,6 +120,11 @@ export async function getMonthlyHistory(userId: string, months = 6) {
       deletedAt: null,
       date: { gte: since },
       wallet: { userId },
+      NOT: [
+        { category: { name: { contains: "Pagamento de Fatura", mode: "insensitive" } } },
+        { description: { contains: "Pagamento Fatura", mode: "insensitive" } },
+        { tags: { contains: "pagamentodefatura", mode: "insensitive" } },
+      ],
     },
     select: { date: true, amount: true },
   });

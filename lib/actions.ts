@@ -28,7 +28,36 @@ const createWalletSchema = z.object({
   creditLimit: z.number().nonnegative().optional(),
 });
 
+// ---------- Helper: Identificação de Lançamentos de Pagamento de Fatura ----------
+
+export function isInvoicePaymentTransaction(t: {
+  categoryId?: string | null;
+  category?: { name?: string | null } | null;
+  description?: string | null;
+  tags?: string | null;
+}): boolean {
+  if (t.category?.name && t.category.name.toLowerCase().includes("pagamento de fatura")) {
+    return true;
+  }
+  if (t.tags && t.tags.toLowerCase().includes("pagamentodefatura")) {
+    return true;
+  }
+  if (t.description) {
+    const descLower = t.description.toLowerCase();
+    if (
+      descLower.includes("pagamento fatura") ||
+      descLower.includes("pagamento de fatura") ||
+      descLower.includes("quitação fatura") ||
+      descLower.includes("quitacao fatura")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------- Helper: resolve o ID real do usuário ativo no banco ----------
+
 
 /**
  * Resolve o ID do usuário ativo.
@@ -769,6 +798,33 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       console.error("Erro ao calcular saldo em getCardDataById:", calcErr);
     }
 
+    const targetMonth = month || (new Date().getMonth() + 1);
+    const targetYear  = year || new Date().getFullYear();
+
+    const latestTxDate = purchases.length > 0 ? purchases[purchases.length - 1].date : null;
+    const dueDateInfo = getInvoiceDueDateInfo(
+      (wallet as any).diaFechamento ?? 1,
+      wallet.vencimento ?? 10,
+      targetMonth,
+      targetYear,
+      latestTxDate
+    );
+
+    const paidRecord = await (prisma as any).invoicePayment.findFirst({
+      where: {
+        walletId: wallet.id,
+        OR: [
+          { month: targetMonth, year: targetYear },
+          { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
+        ]
+      }
+    });
+
+    const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
+      where: { walletId: wallet.id }
+    });
+    const totalPaidAmount = allPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
+
     return {
       walletId: wallet.id,
       title: wallet.title || "Conta sem nome",
@@ -782,6 +838,14 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       melhorDiaCompra: (wallet as any).diaFechamento ? ((wallet as any).diaFechamento % 31) + 1 : 2,
       initialBalance: Number(wallet.initialBalance || 0),
       creditLimit: Number(wallet.creditLimit || 0),
+      totalPaidAmount,
+      vencimentoStr:    dueDateInfo.dateStr,
+      isPast:           dueDateInfo.isPast,
+      billingMonth:     dueDateInfo.billingMonth,
+      billingYear:      dueDateInfo.billingYear,
+      isPaid:           !!paidRecord,
+      paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
+      paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
       balanceInfo,
       purchases: purchases.map(p => ({
         id: p.id,
@@ -1181,14 +1245,19 @@ export async function getAllCardsOverview(month: number, year: number) {
           date:     { gte: from, lte: to },
           deletedAt: null,
         },
+        include: { category: true },
         orderBy: { date: "asc" },
       });
 
-      const faturaAtual = transactions.reduce((s, t) => s + Number(t.amount), 0);
-      const faturaPaga = transactions
+      const filteredTransactions = isCredit
+        ? transactions
+        : transactions.filter(t => !isInvoicePaymentTransaction(t));
+
+      const faturaAtual = filteredTransactions.reduce((s, t) => s + Number(t.amount), 0);
+      const faturaPaga = filteredTransactions
         .filter(t => (t as any).status === "COMPLETED" || (t as any).status === "pago" || (t as any).status === "confirmado")
         .reduce((s, t) => s + Number(t.amount), 0);
-      const faturaPendente = transactions
+      const faturaPendente = filteredTransactions
         .filter(t => (t as any).status === "PENDING" || ((t as any).status !== "COMPLETED" && (t as any).status !== "pago" && (t as any).status !== "confirmado"))
         .reduce((s, t) => s + Number(t.amount), 0);
 
@@ -1201,9 +1270,18 @@ export async function getAllCardsOverview(month: number, year: number) {
       const allExpenses = await prisma.transaction.findMany({
         where: { walletId: w.id, type: "EXPENSE", deletedAt: null },
       });
-      const limitUsed = isCredit
-        ? allExpenses.reduce((s, t) => s + Number(t.amount), 0)
-        : balanceInfo.monthExpense;
+
+      let limitUsed = 0;
+      if (isCredit) {
+        const allExpensesSum = allExpenses.reduce((s, t) => s + Number(t.amount), 0);
+        const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
+          where: { walletId: w.id }
+        });
+        const totalPaymentsSum = allPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
+        limitUsed = Math.max(0, allExpensesSum - totalPaymentsSum);
+      } else {
+        limitUsed = balanceInfo.monthExpense;
+      }
 
       const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
@@ -1288,15 +1366,29 @@ export async function payCardInvoiceAction(
     });
 
     if (paymentWallet) {
+      let invoiceCat = await prisma.category.findFirst({
+        where: { name: { equals: "Pagamento de Fatura", mode: "insensitive" } },
+      });
+      if (!invoiceCat) {
+        invoiceCat = await prisma.category.create({
+          data: {
+            name: "Pagamento de Fatura",
+            color: "#6366F1",
+          },
+        });
+      }
+
       const now = new Date();
       const tx = await prisma.transaction.create({
         data: {
           walletId: paymentWallet.id,
+          categoryId: invoiceCat.id,
           description: `Pagamento Fatura ${card.title} (${String(month).padStart(2, "0")}/${year})`,
           type: "EXPENSE",
           amount: amount,
           date: now,
           source: "MANUAL",
+          tags: "#pagamentodefatura",
         },
       });
       paymentTransactionId = tx.id;
@@ -1385,8 +1477,6 @@ export async function getPaidInvoicesAction(month: number, year: number) {
   const paidInvoices = await (prisma as any).invoicePayment.findMany({
     where: {
       wallet: { userId },
-      month,
-      year,
     },
     include: {
       wallet: true,
@@ -1394,8 +1484,14 @@ export async function getPaidInvoicesAction(month: number, year: number) {
     orderBy: { paidAt: "desc" },
   });
 
+  const filtered = paidInvoices.filter((p: any) => {
+    if (p.month === month && p.year === year) return true;
+    const paidDate = new Date(p.paidAt);
+    return (paidDate.getUTCMonth() + 1 === month && paidDate.getUTCFullYear() === year);
+  });
+
   return Promise.all(
-    paidInvoices.map(async (p: any) => {
+    filtered.map(async (p: any) => {
       let paymentWalletTitle = "Sem Débito em Conta";
       if (p.paymentWalletId) {
         const sourceWallet = await prisma.wallet.findUnique({
@@ -1533,11 +1629,8 @@ export async function getDashboardOverviewData(month: number, year: number) {
       wallet: { userId },
       deletedAt: null,
     },
-    select: {
-      type: true,
-      amount: true,
-      date: true,
-      status: true,
+    include: {
+      category: true,
       wallet: { select: { walletType: true } }
     },
     orderBy: { date: "desc" }
@@ -1578,8 +1671,8 @@ export async function getDashboardOverviewData(month: number, year: number) {
         monthMap[key].receitas += amt;
       }
     } else if (t.type === "EXPENSE") {
-      // Total Gasto: Apenas saídas efetivamente pagas
-      if (t.wallet.walletType !== "TICKET" && isRealized) {
+      // Total Gasto: Apenas saídas efetivamente pagas, desconsiderando Pagamento de Fatura para evitar duplicidade
+      if (t.wallet.walletType !== "TICKET" && isRealized && !isInvoicePaymentTransaction(t)) {
         totalGastos += amt;
         monthMap[key].gastos += amt;
       }
@@ -1603,7 +1696,7 @@ export async function getDashboardOverviewData(month: number, year: number) {
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  const monthExpenses = await prisma.transaction.findMany({
+  const rawMonthExpenses = await prisma.transaction.findMany({
     where: {
       wallet: {
         userId,
@@ -1615,6 +1708,8 @@ export async function getDashboardOverviewData(month: number, year: number) {
     },
     include: { category: true }
   });
+
+  const monthExpenses = rawMonthExpenses.filter(e => !isInvoicePaymentTransaction(e));
 
   const revenuesMonth = await getRevenues(month, year);
   const totalReceitasMes = revenuesMonth.reduce((s, r) => s + r.amount, 0);
@@ -1672,7 +1767,12 @@ export async function getDashboardOverviewData(month: number, year: number) {
           },
           type: "EXPENSE",
           date: { gte: mFrom, lte: mTo },
-          deletedAt: null
+          deletedAt: null,
+          NOT: [
+            { category: { name: { contains: "Pagamento de Fatura", mode: "insensitive" } } },
+            { description: { contains: "Pagamento Fatura", mode: "insensitive" } },
+            { tags: { contains: "pagamentodefatura", mode: "insensitive" } },
+          ],
         },
         _sum: { amount: true }
       })

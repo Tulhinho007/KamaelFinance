@@ -325,9 +325,18 @@ export default function CartaoDetailPage() {
 
   // Para Cartão de Crédito
   const impactoMes = saldoVista + parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const limitCompromised = saldoVista + dividaParcelada;
+  
+  // Recomposição de Limite Disponível:
+  // Se a fatura do mês atual foi paga, o gasto do mês é considerado liquidado (0 para comprometimento de limite)
+  const isInvoicePaid = !!(cardData as any).isPaid;
+  const paidInvoiceAmount = isInvoicePaid ? ((cardData as any).paidAmount || impactoMes) : 0;
+  
+  const gastosMesCompromissados = Math.max(0, impactoMes - paidInvoiceAmount);
+  const dividaParceladaFutura = parceladoPurchasesProcessed.reduce((sum, p) => sum + Math.max(0, (p.remainingDebt - (p.amount || 0))), 0);
+  
+  const limitCompromised = gastosMesCompromissados + dividaParceladaFutura;
   const creditLimit = cardData.creditLimit || 0;
-  const limitAvailable = creditLimit - limitCompromised;
+  const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - limitCompromised));
   const usagePct = creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / creditLimit) * 100)) : 0;
 
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
@@ -452,25 +461,38 @@ export default function CartaoDetailPage() {
           title={cardData.title}
           tagline={`Gerencie as movimentações e extrato de ${cardData.title}`}
         />
-        {(cardData.holder || cardData.agencia || cardData.conta) && (
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-            {cardData.holder && (
-              <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Titular:</span> {cardData.holder}
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          {isCredit && (
+            (cardData as any).isPaid ? (
+              <span className="text-xs font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> ✓ Fatura Paga
               </span>
-            )}
-            {cardData.agencia && (
-              <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Agência:</span> {cardData.agencia}
+            ) : (cardData as any).isPast ? (
+              <span className="text-xs font-black text-rose-300 bg-rose-500/10 border border-rose-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400" /> 🚨 Fatura Vencida
               </span>
-            )}
-            {cardData.conta && (
-              <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Conta:</span> {cardData.conta}
+            ) : (
+              <span className="text-xs font-black text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5 text-amber-400" /> Aguardando Pagamento
               </span>
-            )}
-          </div>
-        )}
+            )
+          )}
+          {cardData.holder && (
+            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Titular:</span> {cardData.holder}
+            </span>
+          )}
+          {cardData.agencia && (
+            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Agência:</span> {cardData.agencia}
+            </span>
+          )}
+          {cardData.conta && (
+            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Conta:</span> {cardData.conta}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Ações no Topo ────────────────────────────────────────────────────── */}
@@ -576,18 +598,37 @@ export default function CartaoDetailPage() {
 
             {/* Card 3 — FATURA DO MÊS */}
             <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between h-40 w-full">
-              <div className="min-h-[32px] flex items-start justify-between">
+              <div className="min-h-[32px] flex items-start justify-between gap-1">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Fatura do Mês</span>
+                {(cardData as any).isPaid ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
+                    ✓ Fatura Paga
+                  </span>
+                ) : (cardData as any).isPast ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full shrink-0">
+                    🚨 Fatura Vencida
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
+                    Aguardando Pagamento
+                  </span>
+                )}
               </div>
               <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className="text-base sm:text-lg xl:text-base 2xl:text-lg font-black text-rose-400 tracking-tight whitespace-nowrap font-tnum tabular-nums" title={brl(impactoMes)}>
+                <p className={`text-base sm:text-lg xl:text-base 2xl:text-lg font-black tracking-tight whitespace-nowrap font-tnum tabular-nums ${(cardData as any).isPaid ? "text-emerald-400" : "text-rose-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
               <div className="min-h-[24px] flex items-center">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60 truncate">
-                  Mês Selecionado
-                </span>
+                {(cardData as any).isPaid ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full truncate">
+                    ✓ Ciclo liquidado no período
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60 truncate">
+                    {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Mês Selecionado"}
+                  </span>
+                )}
               </div>
             </div>
 

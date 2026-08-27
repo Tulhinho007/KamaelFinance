@@ -388,18 +388,57 @@ export default function DespesasPage() {
   const totalFaturas      = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
   const limiteConsolidado = creditCards.reduce((s, c) => s + (c.limitTotal - c.limitUsed), 0);
 
-  // Cálculo da porcentagem de faturas pagas no mês
-  const totalFaturasMes = totalFaturas + paidInvoicesList.reduce((s, p) => s + p.amount, 0);
-  const pagoFaturasMes  = paidInvoicesList.reduce((s, p) => s + p.amount, 0);
-  const pctFaturasPagas = totalFaturasMes > 0
-    ? Math.round((pagoFaturasMes / totalFaturasMes) * 100)
-    : (paidInvoicesList.length > 0 ? 100 : 0);
+  // Cartões com fatura paga e sincronização unificada
+  const paidCardIds = new Set(paidInvoicesList.map(p => p.walletId));
+  const paidCreditCards = creditCards.filter(c => (c as any).isPaid || paidCardIds.has(c.id));
 
-  // Soma de todas as faturas pendentes do mês (fatura > 0 e NÃO pagas)
-  const proximosVencimentos = creditCards.reduce((s, c) => {
-    if (c.faturaAtual > 0 && !(c as any).isPaid) return s + c.faturaAtual;
-    return s;
-  }, 0);
+  const unifiedPaidInvoices = [...paidInvoicesList];
+  paidCreditCards.forEach(c => {
+    if (!unifiedPaidInvoices.some(p => p.walletId === c.id)) {
+      unifiedPaidInvoices.push({
+        id: `paid-${c.id}`,
+        walletId: c.id,
+        cardTitle: c.title,
+        bankName: c.bankName || c.title,
+        month: (c as any).billingMonth || selectedMonth,
+        year: (c as any).billingYear || selectedYear,
+        amount: (c as any).paidAmount > 0 ? (c as any).paidAmount : c.faturaAtual,
+        paidAt: (c as any).paidAt || new Date().toISOString(),
+        paymentWalletId: null,
+        paymentWalletTitle: "Conta Bancária",
+      });
+    }
+  });
+
+  // Faturas A Vencer (cartões de crédito com fatura > 0 e NÃO pagas)
+  const upcomingBills: UpcomingBill[] = creditCards
+    .filter(c => c.faturaAtual > 0 && !(c as any).isPaid && !paidCardIds.has(c.id))
+    .map(c => {
+      const isPast = (c as any).isPast;
+      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
+
+      return {
+        id:         c.id,
+        title:      c.title,
+        bankName:   c.bankName || c.title,
+        vencimento: dateStr,
+        valor:      c.faturaAtual,
+        status:     isPast ? ("vencido" as const) : ("aberto" as const),
+        month:      (c as any).billingMonth || selectedMonth,
+        year:       (c as any).billingYear || selectedYear,
+      };
+    });
+
+  // Cálculo da porcentagem de faturas pagas no mês
+  const pagoFaturasMes    = unifiedPaidInvoices.reduce((s, p) => s + Number(p.amount), 0);
+  const pendenteFaturasMes = upcomingBills.reduce((s, b) => s + Number(b.valor), 0);
+  const totalFaturasMes   = pagoFaturasMes + pendenteFaturasMes;
+
+  const pctFaturasPagas = totalFaturasMes > 0
+    ? Math.min(100, Math.round((pagoFaturasMes / totalFaturasMes) * 100))
+    : (unifiedPaidInvoices.length > 0 ? 100 : 0);
+
+  const proximosVencimentos = pendenteFaturasMes;
 
   // ── 1. Cálculo do Card 1 (Compromisso Total do Mês: Despesas vs Assinaturas) ──
   const despesasMesTotal = totalFaturasMes;
@@ -517,24 +556,7 @@ export default function DespesasPage() {
 
   const kpi3 = getKpi3Info();
 
-  // ── Próximas faturas (lista) — somente cartões de crédito com fatura > 0 e NÃO pagas ──
-  const upcomingBills: UpcomingBill[] = creditCards
-    .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
-    .map(c => {
-      const isPast = (c as any).isPast;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
 
-      return {
-        id:         c.id,
-        title:      c.title,
-        bankName:   c.bankName || c.title,
-        vencimento: dateStr,
-        valor:      c.faturaAtual,
-        status:     isPast ? ("vencido" as const) : ("aberto" as const),
-        month:      (c as any).billingMonth || selectedMonth,
-        year:       (c as any).billingYear || selectedYear,
-      };
-    });
 
   // ── Helpers de modal ─────────────────────────────────────────────────────────
   const resetForm = () => {
@@ -691,84 +713,10 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 3. KPI CARDS (4 COLUNAS RESPONSIVAS + HERO UNIFICADO) ───────────────── */}
+      {/* ── 3. KPI CARDS (PLANEJAMENTO DETALHADO DE SAÍDAS) ───────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-        {/* CARD HERO DE TOTAL UNIFICADO (DESPESAS + ASSINATURAS) */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-4 card-glow p-6 rounded-2xl bg-gradient-to-br from-indigo-950/90 via-slate-900/90 to-slate-950 border border-indigo-500/40 shadow-[0_0_30px_rgba(99,102,241,0.22)] relative overflow-hidden group flex flex-col justify-between">
-          <Layers className="absolute -right-4 -bottom-4 w-36 h-36 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
-            
-            {/* LADO ESQUERDO: Título, Valor Consolidado e Detalhamento de Origem */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30 shadow-xs flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" /> Compromisso Total do Mês
-                </span>
-                <span className="text-[10px] font-extrabold text-slate-400">
-                  Unificado · {getMonthName(selectedMonth)}/{selectedYear}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-3xl sm:text-4xl font-black text-white tracking-tight font-tnum">
-                  {brl(compromissoTotalMes)}
-                </h3>
-                <span className="text-xs font-bold text-slate-400">
-                  ({pctPagoGeral}% quitado até o momento)
-                </span>
-              </div>
-
-              {/* Detalhamento Visual de Origem */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800 shadow-inner">
-                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-300">📄 Despesas do Mês:</span>
-                  <span className="text-xs font-black text-rose-400 font-tnum">{brl(despesasMesTotal)}</span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-slate-950/80 px-3.5 py-2 rounded-xl border border-slate-800 shadow-inner">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0 animate-pulse" />
-                  <span className="text-xs font-semibold text-slate-300">🔄 Assinaturas do Mês:</span>
-                  <span className="text-xs font-black text-purple-400 font-tnum">{brl(assinaturasMesTotal)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* LADO DIREITO: Progresso do Mês (Pago vs Pendente) */}
-            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4 min-w-[280px] lg:max-w-xs space-y-3 shadow-xl">
-              <div className="flex items-center justify-between text-xs font-extrabold">
-                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Quitação do Mês</span>
-                <span className="text-indigo-400 font-black font-tnum">{pctPagoGeral}%</span>
-              </div>
-
-              {/* Barra de Progresso */}
-              <div className="w-full h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
-                <div
-                  className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-indigo-500 transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"
-                  style={{ width: `${pctPagoGeral}%` }}
-                />
-              </div>
-
-              {/* Detalhamento Pago vs Pendente */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2.5 text-center">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase block tracking-wider">Já Pago</span>
-                  <span className="text-xs font-black text-emerald-400 font-tnum">{brl(totalPagoGeral)}</span>
-                </div>
-
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2.5 text-center">
-                  <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">Pendente</span>
-                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(totalPendenteGeral)}</span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* CARD 2: BANNER INFERIOR - PLANEJAMENTO DETALHADO DE SAÍDAS (CRÉDITO + DÉBITO/PIX + ASSINATURAS) */}
+        {/* BANNER PRINCIPAL - PLANEJAMENTO DETALHADO DE SAÍDAS (CRÉDITO + DÉBITO/PIX + ASSINATURAS) */}
         <div className="col-span-1 sm:col-span-2 lg:col-span-4 card-glow p-6 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950 to-indigo-950/80 border border-slate-800/90 shadow-[0_0_25px_rgba(30,41,59,0.3)] relative overflow-hidden group flex flex-col justify-between">
           <BarChart3 className="absolute -right-4 -bottom-4 w-36 h-36 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           
@@ -1039,7 +987,7 @@ export default function DespesasPage() {
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  Faturas Pagas ({paidInvoicesList.length})
+                  Faturas Pagas ({unifiedPaidInvoices.length})
                 </button>
               </div>
 
@@ -1134,14 +1082,14 @@ export default function DespesasPage() {
               </div>
             )
           ) : (
-            paidInvoicesList.length === 0 ? (
+            unifiedPaidInvoices.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                 <Clock className="w-8 h-8 text-slate-300" />
                 <p className="text-xs font-semibold text-slate-400">Nenhuma fatura paga encontrada para este mês.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {paidInvoicesList.map((paidItem: any) => (
+                {unifiedPaidInvoices.map((paidItem: any) => (
                   <div
                     key={paidItem.id}
                     className="flex items-center gap-4 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors group"
