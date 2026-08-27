@@ -139,7 +139,9 @@ export async function verifyTokenVersion(userId: string, tokenVersionInSession: 
     if (!user || user.status === "INATIVO") return false;
     return (user.tokenVersion || 1) === tokenVersionInSession;
   } catch (error) {
-    return false;
+    // Em caso de instabilidade ou limite do pooler no DB, não desconecta o usuário
+    console.warn("Aviso: Falha de comunicação com o banco ao verificar token. Mantendo sessão ativa.", error);
+    return true;
   }
 }
 

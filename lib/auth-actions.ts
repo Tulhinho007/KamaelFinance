@@ -48,30 +48,49 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
     }
     if (!parsed?.id) return null;
 
-    const isValidToken = await verifyTokenVersion(parsed.id, parsed.tokenVersion || 1);
-    if (!isValidToken) {
-      try { cookieStore.delete(COOKIE_NAME); } catch {}
-      return null;
+    try {
+      const isValidToken = await verifyTokenVersion(parsed.id, parsed.tokenVersion || 1);
+      if (!isValidToken) {
+        try { cookieStore.delete(COOKIE_NAME); } catch {}
+        return null;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: parsed.id },
+        select: { id: true, name: true, email: true, role: true, status: true, tokenVersion: true },
+      });
+
+      if (user) {
+        if (user.status === "INATIVO") {
+          try { cookieStore.delete(COOKIE_NAME); } catch {}
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.name || parsed.name || "Usuário",
+          email: user.email || parsed.email || "",
+          role: user.role || parsed.role || "MEMBRO",
+          tokenVersion: user.tokenVersion || parsed.tokenVersion || 1,
+        };
+      }
+    } catch (dbErr) {
+      console.warn("Aviso: Erro ao validar usuário no banco. Utilizando dados de sessão do cookie.", dbErr);
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: parsed.id },
-      select: { id: true, name: true, email: true, role: true, status: true, tokenVersion: true },
-    });
-
-    if (!user || user.status === "INATIVO") {
-      try { cookieStore.delete(COOKIE_NAME); } catch {}
-      return null;
-    }
-
+    // Fallback de resiliência: se o cookie de sessão é válido mas o banco falhou temporariamente, mantém a sessão ativa
     return {
-      id: user.id,
-      name: user.name || "Usuário",
-      email: user.email || "",
-      role: user.role || "MEMBRO",
-      tokenVersion: user.tokenVersion || 1,
+      id: parsed.id,
+      name: parsed.name || "Usuário",
+      email: parsed.email || "",
+      role: parsed.role || "MEMBRO",
+      tokenVersion: parsed.tokenVersion || 1,
     };
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.digest === "DYNAMIC_SERVER_USAGE" || error?.message?.includes("DYNAMIC_SERVER_USAGE") || error?.description?.includes("DYNAMIC_SERVER_USAGE")) {
+      throw error;
+    }
+    console.error("Erro inesperado em getCurrentUserAction:", error);
     return null;
   }
 }
