@@ -713,7 +713,7 @@ export default function DespesasPage() {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
         {/* CARD 1: GASTOS DO MÊS (CONSUMO CONSOLIDADO = CRÉDITO + ASSINATURAS) */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950 to-indigo-950/90 border border-indigo-500/40 shadow-[0_0_25px_rgba(99,102,241,0.2)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between">
           <Layers className="absolute -right-4 -bottom-4 w-32 h-32 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
@@ -721,64 +721,64 @@ export default function DespesasPage() {
             {/* Esquerda: Título, Valor e Origens (Crédito + Assinaturas) */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/20 px-3 py-1 rounded-full border border-indigo-400/30 shadow-xs flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-400" /> Gastos do Mês
+                <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-800 shadow-xs flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Gastos do Mês
                 </span>
-                <span className="text-[10px] font-extrabold text-slate-400">
+                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
                   Consumo Consolidado · {getMonthName(selectedMonth)}/{selectedYear}
                 </span>
               </div>
 
               <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-3xl font-black text-white tracking-tight font-tnum">
+                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-tnum">
                   {brl(gastosConsumoTotal)}
                 </h3>
-                <span className="text-xs font-bold text-slate-400">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   ({pctConsumoQuitado}% quitado)
                 </span>
               </div>
 
               {/* Origens de Consumo (Crédito + Assinaturas) */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <div className="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-purple-500/30 shadow-inner">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-purple-500/30 shadow-inner">
                   <span className="text-xs">💳</span>
-                  <span className="text-xs font-semibold text-slate-300">Crédito:</span>
-                  <span className="text-xs font-black text-purple-400 font-tnum">{brl(creditoMesTotal)}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Crédito:</span>
+                  <span className="text-xs font-black text-purple-600 dark:text-purple-400 font-tnum">{brl(creditoMesTotal)}</span>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-amber-500/30 shadow-inner">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-amber-500/30 shadow-inner">
                   <span className="text-xs">🔄</span>
-                  <span className="text-xs font-semibold text-slate-300">Assinaturas:</span>
-                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(assinaturasMesTotal)}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Assinaturas:</span>
+                  <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-tnum">{brl(assinaturasMesTotal)}</span>
                 </div>
               </div>
             </div>
 
             {/* Direita: Progresso de Quitação de Consumo */}
-            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-xl shrink-0">
+            <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-sm shrink-0">
               <div className="flex items-center justify-between text-xs font-extrabold">
-                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Quitação do Consumo</span>
-                <span className="text-indigo-400 font-black font-tnum">{pctConsumoQuitado}%</span>
+                <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">Quitação do Consumo</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-black font-tnum">{pctConsumoQuitado}%</span>
               </div>
 
               {/* Barra de Progresso */}
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div className="w-full h-2 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
                 <div
-                  className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"
+                  className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 transition-all duration-500 rounded-full"
                   style={{ width: `${pctConsumoQuitado}%` }}
                 />
               </div>
 
               {/* Já Pago vs Pendente */}
               <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase block tracking-wider">Já Pago</span>
-                  <span className="text-xs font-black text-emerald-400 font-tnum">{brl(gastosConsumoPago)}</span>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-xl p-2 text-center">
+                  <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Já Pago</span>
+                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 font-tnum">{brl(gastosConsumoPago)}</span>
                 </div>
 
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">Pendente</span>
-                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(gastosConsumoPendente)}</span>
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-2 text-center">
+                  <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase block tracking-wider">Pendente</span>
+                  <span className="text-xs font-black text-amber-700 dark:text-amber-400 font-tnum">{brl(gastosConsumoPendente)}</span>
                 </div>
               </div>
             </div>
@@ -787,7 +787,7 @@ export default function DespesasPage() {
         </div>
 
         {/* CARD 2: SAÍDAS DA CONTA (DÉBITO & PIX DIRETO) */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-gradient-to-br from-slate-900/95 via-slate-950 to-sky-950/90 border border-sky-500/40 shadow-[0_0_25px_rgba(14,165,233,0.2)] relative overflow-hidden group flex flex-col justify-between">
+        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between">
           <Building2 className="absolute -right-4 -bottom-4 w-32 h-32 text-sky-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
@@ -795,58 +795,58 @@ export default function DespesasPage() {
             {/* Esquerda: Título, Valor e Origem Exclusiva (Débito / PIX Direto) */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black text-sky-300 uppercase tracking-widest bg-sky-500/20 px-3 py-1 rounded-full border border-sky-400/30 shadow-xs flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-sky-400" /> Saídas da Conta
+                <span className="text-[10px] font-black text-sky-700 dark:text-sky-300 uppercase tracking-widest bg-sky-50 dark:bg-sky-950/50 px-3 py-1 rounded-full border border-sky-100 dark:border-sky-800 shadow-xs flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" /> Saídas da Conta
                 </span>
-                <span className="text-[10px] font-extrabold text-slate-400">
+                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
                   Débito & PIX · {getMonthName(selectedMonth)}/{selectedYear}
                 </span>
               </div>
 
               <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-3xl font-black text-white tracking-tight font-tnum">
+                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-tnum">
                   {brl(saidasContaTotal)}
                 </h3>
-                <span className="text-xs font-bold text-slate-400">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   ({pctSaidasContaRealizadas}% realizado)
                 </span>
               </div>
 
               {/* Origem Exclusiva (Débito Direto) */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <div className="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-sky-500/30 shadow-inner">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-sky-500/30 shadow-inner">
                   <span className="text-xs">🏦</span>
-                  <span className="text-xs font-semibold text-slate-300">Débito / PIX Direto:</span>
-                  <span className="text-xs font-black text-sky-400 font-tnum">{brl(debitoDiretoMesTotal)}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Débito / PIX Direto:</span>
+                  <span className="text-xs font-black text-sky-600 dark:text-sky-400 font-tnum">{brl(debitoDiretoMesTotal)}</span>
                 </div>
               </div>
             </div>
 
             {/* Direita: Progresso do Fluxo Realizado */}
-            <div className="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-xl shrink-0">
+            <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-sm shrink-0">
               <div className="flex items-center justify-between text-xs font-extrabold">
-                <span className="text-slate-400 uppercase tracking-wider text-[10px]">Fluxo Realizado</span>
-                <span className="text-sky-400 font-black font-tnum">{pctSaidasContaRealizadas}%</span>
+                <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">Fluxo Realizado</span>
+                <span className="text-sky-600 dark:text-sky-400 font-black font-tnum">{pctSaidasContaRealizadas}%</span>
               </div>
 
               {/* Barra de Progresso */}
-              <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+              <div className="w-full h-2 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
                 <div
-                  className="h-full bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 transition-all duration-500 rounded-full shadow-[0_0_10px_rgba(14,165,233,0.5)]"
+                  className="h-full bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 transition-all duration-500 rounded-full"
                   style={{ width: `${pctSaidasContaRealizadas}%` }}
                 />
               </div>
 
               {/* Realizado vs Pendente */}
               <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-emerald-400 uppercase block tracking-wider">Realizado</span>
-                  <span className="text-xs font-black text-emerald-400 font-tnum">{brl(saidasContaPagas)}</span>
+                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-xl p-2 text-center">
+                  <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Realizado</span>
+                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 font-tnum">{brl(saidasContaPagas)}</span>
                 </div>
 
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-amber-400 uppercase block tracking-wider">A Realizar</span>
-                  <span className="text-xs font-black text-amber-400 font-tnum">{brl(saidasContaPendentes)}</span>
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-2 text-center">
+                  <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase block tracking-wider">A Realizar</span>
+                  <span className="text-xs font-black text-amber-700 dark:text-amber-400 font-tnum">{brl(saidasContaPendentes)}</span>
                 </div>
               </div>
             </div>

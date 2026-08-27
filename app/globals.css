@@ -6,20 +6,20 @@
   --foreground: #0F172A;
   --surface: #FFFFFF;
   --surface-raised: #FFFFFF;
-  --border: rgba(226, 232, 240, 0.9);
-  --border-subtle: rgba(226, 232, 240, 0.5);
-  --muted: #94A3B8;
+  --border: #E2E8F0;
+  --border-subtle: rgba(226, 232, 240, 0.6);
+  --muted: #64748B;
   --accent: #6366F1;
 }
 
 html.dark {
-  --background: #080D18;
-  --foreground: #F1F5F9;
-  --surface: #111827;
+  --background: #0B0F19;
+  --foreground: #F8FAFC;
+  --surface: #131B2E;
   --surface-raised: #1A2236;
-  --border: rgba(30, 41, 59, 0.9);
-  --border-subtle: rgba(30, 41, 59, 0.5);
-  --muted: #64748B;
+  --border: #1E293B;
+  --border-subtle: rgba(30, 41, 59, 0.6);
+  --muted: #94A3B8;
   --accent: #818CF8;
   color-scheme: dark;
 }
@@ -43,26 +43,40 @@ body {
    CLASSES UTILITÁRIAS DE DESIGN SYSTEM (GLOW & CONTRASTE)
    ══════════════════════════════════════════════ */
 
-/* .card-glow — Fundo escuro Glassmorphism com brilho neon suave e hover dinâmico */
+/* .card-glow — Superfície responsiva com visual dinâmico em Light Mode (#FFFFFF) e Dark Mode (#131B2E) */
 .card-glow {
-  background-color: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(168, 85, 247, 0.3);
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15);
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
   border-radius: 28px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card-glow:hover {
-  border-color: rgba(168, 85, 247, 0.5);
-  box-shadow: 0 0 25px rgba(168, 85, 247, 0.25);
-  transform: scale(1.005);
+html.dark .card-glow {
+  background-color: #131b2e;
+  border: 1px solid #1e293b;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
-/* .text-secondary-light — Texto de suporte/rótulo em alto contraste sobre fundo escuro */
+.card-glow:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: scale(1.003);
+}
+
+html.dark .card-glow:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.2);
+}
+
+/* .text-secondary-light — Texto de suporte em contraste responsivo */
 .text-secondary-light {
-  color: #CBD5E1 !important;
+  color: #64748b;
   font-weight: 600;
+}
+
+html.dark .text-secondary-light {
+  color: #94a3b8 !important;
 }
 
 /* .btn-primary-glow — Botão CTA principal com gradiente roxo/azul e glow em foco */

@@ -278,84 +278,84 @@ export function DashboardOverview() {
       {/* ── 2. CARDS DE MÉTRICAS (KPIS SAAS FINTECH — ACUMULADO GERAL) ──────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
-        {/* KPI 1: Receita Real (Card Destaque / Ganhos — Gradiente Neon Roxo/Azul) */}
-        <div className="bg-gradient-to-br from-indigo-900/70 via-purple-900/50 to-slate-900 rounded-2xl border border-indigo-500/40 p-5 shadow-[0_0_25px_rgba(99,102,241,0.2)] hover:border-indigo-400 transition-all flex flex-col justify-between group relative">
+        {/* KPI 1: Receita Real */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
                 Receita Real
               </span>
               <button
                 onClick={() => setActiveMetricModal("RECEITA_REAL")}
-                className="text-indigo-400 hover:text-white transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
                 title="Ver detalhes da fórmula e lançamentos de Receita Real"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-white mt-2 font-tnum tabular-nums">
+            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {brl(data.totalReceitas)}
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-indigo-500/20 flex items-center justify-between">
-            <span className="text-xs font-black text-[#00e676] bg-[#00e676]/10 border border-[#00e676]/30 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-sm">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-xs">
               <ArrowUpRight className="w-3.5 h-3.5" />
               Acumulado Geral
             </span>
           </div>
         </div>
 
-        {/* KPI 2: Total Gasto (Saídas Consolidadas — Destaque Rosa Fluorescente) */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-5 shadow-sm hover:border-rose-500/40 transition-all flex flex-col justify-between group relative">
+        {/* KPI 2: Total Gasto */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-rose-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                 Total Gasto
               </span>
               <button
                 onClick={() => setActiveMetricModal("TOTAL_GASTO")}
-                className="text-slate-500 hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
                 title="Ver detalhes da fórmula e lançamentos de Total Gasto"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-rose-400 mt-2 font-tnum tabular-nums">
+            <p className="text-2xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
               {brl(data.totalGastos)}
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-black text-rose-400 bg-rose-500/10 border border-rose-500/30 px-3 py-1 rounded-full inline-flex items-center gap-1.5">
-              <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5">
+              <ArrowDownRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
               Saídas Consolidadas
             </span>
           </div>
         </div>
 
-        {/* KPI 3: Balanço Geral (Destaque Neon Verde / Rosa) */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-5 shadow-sm hover:border-slate-700 transition-all flex flex-col justify-between group relative">
+        {/* KPI 3: Balanço Geral */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                 Balanço Geral
               </span>
               <button
                 onClick={() => setActiveMetricModal("BALANCO_GERAL")}
-                className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
                 title="Ver demonstrativo de cálculo do Balanço Geral"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className={`text-2xl font-black tracking-tight mt-2 font-tnum tabular-nums ${data.balanco >= 0 ? "text-[#00e676]" : "text-rose-400"}`}>
+            <p className={`text-2xl font-black tracking-tight mt-2 font-tnum tabular-nums ${data.balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
               {brl(data.balanco)}
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className={`text-xs font-black px-3 py-1 rounded-full border inline-flex items-center gap-1.5 ${
               data.balanco >= 0 
-                ? "text-[#00e676] bg-[#00e676]/10 border-[#00e676]/30" 
-                : "text-rose-400 bg-rose-500/10 border-rose-500/30"
+                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100 dark:border-emerald-800" 
+                : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-100 dark:border-rose-800"
             }`}>
               {data.balanco >= 0 ? "+ Superávit Acumulado" : "Déficit Acumulado"}
             </span>
@@ -363,21 +363,21 @@ export function DashboardOverview() {
         </div>
 
         {/* KPI 4: Metas Globais */}
-        <div className="bg-slate-900/80 rounded-2xl border border-slate-800 p-5 shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between group relative">
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                 Metas Globais
               </span>
               <button
                 onClick={() => setActiveMetricModal("METAS_GLOBAIS")}
-                className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
                 title="Ver detalhes de cálculo do percentual de Metas Globais"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-white mt-2 font-tnum tabular-nums">
+            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {data.metasGlobaisPct}%
             </p>
           </div>
