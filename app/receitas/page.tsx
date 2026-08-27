@@ -88,19 +88,19 @@ const getCategoryName = (desc: string, customCat?: string): string => {
 const getCategoryBadgeStyle = (cat: string) => {
   switch (cat) {
     case "Salário":
-      return "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40";
+      return "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-400/40";
     case "Investimentos":
-      return "bg-indigo-500/20 text-indigo-300 border border-indigo-400/40";
+      return "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/40";
     case "Freelance":
-      return "bg-blue-500/20 text-blue-300 border border-blue-400/40";
+      return "bg-blue-50 dark:bg-blue-500/20 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-400/40";
     case "Bônus / PLR":
-      return "bg-purple-500/20 text-purple-300 border border-purple-400/40";
+      return "bg-purple-50 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-400/40";
     case "Benefícios / VR":
-      return "bg-amber-500/20 text-amber-300 border border-amber-400/40";
+      return "bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-400/40";
     case "Reembolso":
-      return "bg-teal-500/20 text-teal-300 border border-teal-400/40";
+      return "bg-teal-50 dark:bg-teal-500/20 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-400/40";
     default:
-      return "bg-slate-800 text-slate-300 border border-slate-700";
+      return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
   }
 };
 
@@ -189,21 +189,21 @@ function RevenueDonutChart({ list }: { list: Revenue[] }) {
           })}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total Previsto</span>
-          <span className="text-xs font-black text-white mt-0.5 font-tnum">{brl(total)}</span>
+          <span className="text-[9px] font-semibold text-slate-700 dark:text-slate-400 uppercase tracking-widest">Total Previsto</span>
+          <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5 font-tnum">{brl(total)}</span>
         </div>
       </div>
 
       <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 w-full">
         {slices.map((slice, i) => (
-          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs">
+          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-              <span className="font-bold text-slate-200 truncate">{slice.name}</span>
+              <span className="font-bold text-slate-900 dark:text-slate-200 truncate">{slice.name}</span>
             </div>
             <div className="text-right shrink-0 ml-2">
-              <span className="font-black text-white font-tnum block">{brl(slice.value)}</span>
-              <span className="text-[9px] font-bold text-slate-400">{slice.percentage}%</span>
+              <span className="font-black text-slate-900 dark:text-white font-tnum block">{brl(slice.value)}</span>
+              <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{slice.percentage}%</span>
             </div>
           </div>
         ))}
@@ -419,35 +419,35 @@ export default function ReceitasPage() {
       {/* ── 2. CARDS KPI NO TOPO (RESUMO FINANCEIRO) EM .CARD-GLOW ──────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Card 1 — Receita Total Prevista */}
-        <div className="card-glow p-5 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] relative overflow-hidden group flex flex-col justify-between">
-          <Coins className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Receita Total Prevista</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Mês Atual · Entradas Consolidadas</span>
-          <p className="text-2xl font-black text-white tracking-tight font-tnum">{brl(totalPrevisto)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-1 rounded-full border border-emerald-400/30 shadow-2xs w-fit">
-            <TrendingUp className="w-3 h-3 text-emerald-400" /> +5.2% vs mês anterior
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+          <Coins className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">Receita Total Prevista</span>
+          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Mês Atual · Entradas Consolidadas</span>
+          <p className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight font-tnum">{brl(totalPrevisto)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
+            <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> +5.2% vs mês anterior
           </span>
         </div>
 
         {/* Card 2 — Total Recebido */}
-        <div className="card-glow p-5 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] relative overflow-hidden group flex flex-col justify-between">
-          <CheckCircle2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">Total Recebido</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Liquidado em Conta</span>
-          <p className="text-2xl font-black text-emerald-400 tracking-tight font-tnum">{brl(totalReceived)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-1 rounded-full border border-emerald-400/30 shadow-2xs w-fit">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Entradas Confirmadas
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+          <CheckCircle2 className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">Total Recebido</span>
+          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Liquidado em Conta</span>
+          <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight font-tnum">{brl(totalReceived)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Entradas Confirmadas
           </span>
         </div>
 
         {/* Card 3 — A Receber / Pendente */}
-        <div className="card-glow p-5 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] relative overflow-hidden group flex flex-col justify-between">
-          <Clock className="absolute -right-3 -bottom-3 w-20 h-20 text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest block">A Receber / Pendente</span>
-          <span className="text-[9px] font-semibold text-secondary-light block mb-2">Aguardando Liquidação</span>
-          <p className="text-2xl font-black text-amber-400 tracking-tight font-tnum">{brl(totalPending)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-black text-amber-300 bg-amber-500/20 px-2 py-1 rounded-full border border-amber-400/30 shadow-2xs w-fit">
-            <Clock className="w-3 h-3 text-amber-400" /> A Pagar no Prazo
+        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+          <Clock className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
+          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">A Receber / Pendente</span>
+          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Aguardando Liquidação</span>
+          <p className="text-2xl font-bold text-amber-700 dark:text-amber-400 tracking-tight font-tnum">{brl(totalPending)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-400/30 shadow-2xs w-fit">
+            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> A Pagar no Prazo
           </span>
         </div>
       </section>
@@ -468,14 +468,14 @@ export default function ReceitasPage() {
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               placeholder="Buscar receitas..."
-              className="pl-10 pr-4 py-2.5 text-xs font-semibold bg-slate-900 border border-slate-700 rounded-2xl shadow-2xs text-white w-48 sm:w-60 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              className="pl-10 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-white placeholder-slate-400 w-48 sm:w-60 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as any); setCurrentPage(1); }}
-            className="px-3.5 py-2.5 text-xs font-semibold bg-slate-900 border border-slate-700 rounded-2xl shadow-2xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
+            className="px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">Todos os Status</option>
             <option value="RECEIVED">Status: Recebido</option>
@@ -485,7 +485,7 @@ export default function ReceitasPage() {
           <select
             value={categoryFilter}
             onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            className="px-3.5 py-2.5 text-xs font-semibold bg-slate-900 border border-slate-700 rounded-2xl shadow-2xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
+            className="px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">Todas as Categorias</option>
             {CATEGORIES_LIST.map(cat => (
@@ -498,10 +498,10 @@ export default function ReceitasPage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => exportRevenuesCSV(filteredRevenues, selectedMonth, selectedYear)}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-2xs transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-2xs transition-all cursor-pointer"
             title="Exportar receitas em CSV"
           >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Exportar CSV</span>
           </button>
 
@@ -551,17 +551,17 @@ export default function ReceitasPage() {
       )}
 
       {/* ── 6. TABELA DE RECEITAS REDESENHADA EM .CARD-GLOW ────────────────────── */}
-      <section className="card-glow p-6 flex flex-col gap-4">
+      <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-left text-slate-300 font-black uppercase tracking-wider border-b border-slate-800">
+              <tr className="text-left text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                 <th className="px-3 py-3 w-10 text-center">
                   <input
                     type="checkbox"
                     checked={selectedIds.length > 0 && selectedIds.length === filteredRevenues.length}
                     onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    className="rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                   />
                 </th>
                 <th className="px-4 py-3">Descrição</th>
@@ -573,16 +573,16 @@ export default function ReceitasPage() {
                 <th className="px-4 py-3 text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-emerald-400 font-bold animate-pulse text-xs uppercase tracking-wider">
+                  <td colSpan={8} className="px-4 py-10 text-center text-emerald-600 dark:text-emerald-400 font-bold animate-pulse text-xs uppercase tracking-wider">
                     Carregando receitas do banco...
                   </td>
                 </tr>
               ) : paginatedRevenues.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-slate-400 font-medium">
+                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500 dark:text-slate-400 font-medium">
                     Nenhuma receita registrada com os filtros ativos.
                   </td>
                 </tr>
@@ -595,9 +595,9 @@ export default function ReceitasPage() {
                   return (
                     <tr
                       key={rev.id}
-                      className={`transition-colors hover:bg-slate-800/40 ${
-                        isSelected ? "bg-indigo-900/30" :
-                        isReceived ? "bg-emerald-500/5" : ""
+                      className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
+                        isSelected ? "bg-indigo-50/50 dark:bg-indigo-900/30" :
+                        isReceived ? "bg-emerald-50/30 dark:bg-emerald-500/5" : ""
                       }`}
                     >
                       <td className="px-3 py-3.5 text-center">
@@ -605,11 +605,11 @@ export default function ReceitasPage() {
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleSelectOne(rev.id)}
-                          className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                          className="rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                         />
                       </td>
 
-                      <td className="px-4 py-3.5 font-bold text-white">
+                      <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
                         {rev.description}
                       </td>
 
@@ -619,37 +619,37 @@ export default function ReceitasPage() {
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-300 font-semibold flex items-center gap-1.5 mt-1">
-                        <Wallet className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-1.5 mt-1">
+                        <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-right font-medium text-slate-300">
+                      <td className="px-4 py-3.5 text-right font-semibold text-slate-600 dark:text-slate-300">
                         {rev.date.split("-").reverse().join("/")}
                       </td>
 
-                      <td className={`px-4 py-3.5 text-right font-black font-tnum tabular-nums text-sm ${isReceived ? "text-emerald-400" : "text-slate-100"}`}>
+                      <td className={`px-4 py-3.5 text-right font-bold font-tnum tabular-nums text-sm ${isReceived ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>
                         {brl(rev.amount)}
                       </td>
 
                       <td className="px-4 py-3.5 text-center">
                         <button
                           onClick={() => handleToggleStatus(rev.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-2xs cursor-pointer ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all shadow-2xs cursor-pointer ${
                             isReceived
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                              : "bg-slate-800/60 text-slate-400 hover:bg-emerald-500/20 hover:text-emerald-300 border border-slate-700"
+                              ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-400/40 font-bold"
+                              : "bg-emerald-50 dark:bg-slate-800/60 text-emerald-700 dark:text-slate-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300 border border-emerald-200 dark:border-slate-700"
                           }`}
                           title={isReceived ? "Clique para reabrir" : "Clique para marcar como recebido"}
                         >
                           {isReceived ? (
                             <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                               <span>Recebido</span>
                             </>
                           ) : (
                             <>
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-slate-400" />
                               <span>Marcar RECEBIDO</span>
                             </>
                           )}
@@ -660,14 +660,14 @@ export default function ReceitasPage() {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => openEditModal(rev)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                             title="Editar"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => openDeleteModal(rev)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Excluir"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -684,28 +684,28 @@ export default function ReceitasPage() {
 
         {/* CONTROLES DE PAGINAÇÃO */}
         {filteredRevenues.length > 0 && (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs font-medium text-slate-400">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
             <div>
-              Mostrando <span className="font-bold text-white">{((currentPage - 1) * itemsPerPage) + 1}</span> até{" "}
-              <span className="font-bold text-white">{Math.min(currentPage * itemsPerPage, filteredRevenues.length)}</span> de{" "}
-              <span className="font-bold text-white">{filteredRevenues.length}</span> lançamentos
+              Mostrando <span className="font-bold text-slate-900 dark:text-white">{((currentPage - 1) * itemsPerPage) + 1}</span> até{" "}
+              <span className="font-bold text-slate-900 dark:text-white">{Math.min(currentPage * itemsPerPage, filteredRevenues.length)}</span> de{" "}
+              <span className="font-bold text-slate-900 dark:text-white">{filteredRevenues.length}</span> lançamentos
             </div>
 
             <div className="flex items-center gap-1.5">
               <button
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="p-2 rounded-xl border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 cursor-pointer"
+                className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="px-3 py-1 font-bold text-slate-200 bg-slate-800 rounded-lg text-xs">
-                {currentPage} / {totalPages}
+              <span className="px-2 font-bold text-slate-900 dark:text-slate-200">
+                Página {currentPage} de {totalPages}
               </span>
               <button
-                disabled={currentPage >= totalPages}
+                disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="p-2 rounded-xl border border-slate-700 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-800 cursor-pointer"
+                className="p-2 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
