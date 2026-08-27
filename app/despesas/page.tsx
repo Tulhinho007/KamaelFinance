@@ -6,14 +6,16 @@ import {
   Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight,
   AlertCircle, CheckCircle2, Clock, Sparkles, TrendingDown, TrendingUp,
   BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
-  PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check
+  PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
+  HelpCircle, Coins
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
-  payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction
+  payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
+  getRevenues
 } from "@/lib/actions";
 import { getSubscriptionsWithMonthlyStatusAction } from "@/lib/subscription-actions";
 import { getMonthName } from "@/lib/constants";
@@ -304,6 +306,10 @@ export default function DespesasPage() {
     nextSaidasContaTotal: 0,
   });
 
+  // Ciclo Salarial / Receitas
+  const [totalReceitaMes, setTotalReceitaMes] = useState<number>(0);
+  const [showSalaryCycleInfo, setShowSalaryCycleInfo] = useState<boolean>(false);
+
   const loadPaidInvoices = async () => {
     try {
       const list = await getPaidInvoicesAction(selectedMonth, selectedYear);
@@ -410,6 +416,15 @@ export default function DespesasPage() {
       });
     }).catch(err => console.error("Erro ao carregar dados do mês seguinte:", err));
 
+    // Busca receitas cadastradas para o ciclo salarial
+    getRevenues(selectedMonth, selectedYear)
+      .then(revs => {
+        if (!active) return;
+        const total = (revs || []).reduce((s: number, r: any) => s + (Number(r.amount) || 0), 0);
+        setTotalReceitaMes(total);
+      })
+      .catch(err => console.error("Erro ao carregar receitas para despesas:", err));
+
     return () => { active = false; };
   }, [selectedMonth, selectedYear]);
 
@@ -511,6 +526,13 @@ export default function DespesasPage() {
 
   const pctSaidasContaRealizadas = saidasContaTotal > 0
     ? Math.min(100, Math.round((saidasContaPagas / saidasContaTotal) * 100))
+    : 0;
+
+  // ── 3. Ciclo Salarial / Sobra Prevista ──────────────────────────────────────────
+  const totalCompromissosSalario = gastosConsumoTotal + saidasContaTotal;
+  const sobraLiquidaSalario = totalReceitaMes - totalCompromissosSalario;
+  const pctComprometidoSalario = totalReceitaMes > 0
+    ? Math.min(100, Math.round((totalCompromissosSalario / totalReceitaMes) * 100))
     : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
@@ -750,6 +772,186 @@ export default function DespesasPage() {
           Lançar Despesa
         </button>
       </div>
+
+      {/* ── 2.5 CARD CONSOLIDADO: CICLO SALARIAL / SOBRA PREVISTA ─────────────────── */}
+      <section className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm relative overflow-hidden text-slate-800 dark:text-white">
+        {/* Visual Glow */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-emerald-500/10 via-indigo-500/5 to-transparent pointer-events-none rounded-full blur-3xl" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          
+          {/* Esquerda: Título, Botão Explicativo (?) e Métricas */}
+          <div className="space-y-4 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/50 px-3.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/60 shadow-xs flex items-center gap-1.5">
+                <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Ciclo Salarial & Sobra Prevista
+              </span>
+              <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+                Pagamento · {getMonthName(selectedMonth)}/{selectedYear}
+              </span>
+
+              {/* Botão Interrogação Explicativa (?) */}
+              <button
+                type="button"
+                onClick={() => setShowSalaryCycleInfo(true)}
+                title="Clique para entender a lógica de cálculo do Ciclo Salarial"
+                className="p-1 rounded-full bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-900/50 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Grid com Salário, Total Contas e Sobra Líquida */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+              
+              {/* Salário / Receita Base */}
+              <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  Salário / Receita Prevista
+                </span>
+                <p className="text-xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
+                  {brl(totalReceitaMes)}
+                </p>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
+                  Entrada cadastrada para o mês
+                </span>
+              </div>
+
+              {/* Total de Contas a Pagar */}
+              <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  Total de Contas a Pagar
+                </span>
+                <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1 font-tnum">
+                  {brl(totalCompromissosSalario)}
+                </p>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
+                  Cartão + Assinaturas + PIX/Débito
+                </span>
+              </div>
+
+              {/* Sobra Líquida Estimada */}
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-800/50">
+                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">
+                  Sobra Líquida Estimada
+                </span>
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-tnum">
+                  {brl(sobraLiquidaSalario)}
+                </p>
+                <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80 font-medium block mt-0.5">
+                  Saldo livre estimado pós-liquidação
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Direita: Barra de Comprometimento de Renda */}
+          <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-5 min-w-[240px] lg:max-w-xs space-y-3 shadow-sm shrink-0">
+            <div className="flex items-center justify-between text-xs font-extrabold">
+              <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">
+                Comprometimento de Renda
+              </span>
+              <span className={`font-black font-tnum text-sm ${pctComprometidoSalario >= 90 ? "text-rose-600 dark:text-rose-400" : pctComprometidoSalario >= 70 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {pctComprometidoSalario}%
+              </span>
+            </div>
+
+            {/* Barra de Progresso */}
+            <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
+              <div
+                className={`h-full transition-all duration-500 rounded-full ${pctComprometidoSalario >= 90 ? "bg-rose-500" : pctComprometidoSalario >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+                style={{ width: `${pctComprometidoSalario}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-slate-400 pt-0.5">
+              <span>{pctComprometidoSalario >= 90 ? "⚠️ Renda crítica" : pctComprometidoSalario >= 70 ? "⚡ Nível de atenção" : "✓ Saldo saudável"}</span>
+              <span className="font-bold">{pctComprometidoSalario}% comprometido</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* MODAL EXPLICATIVO DO CÁLCULO DO CICLO SALARIAL */}
+      {showSalaryCycleInfo && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800">
+                  <HelpCircle className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  Como funciona o Ciclo Salarial?
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSalaryCycleInfo(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              O cálculo do <strong>Ciclo Salarial</strong> responde de forma direta à sua gestão mensal: quando o seu pagamento/salário cair no início do mês, quanto você precisará para quitar todos os compromissos e qual será o seu saldo livre final:
+            </p>
+
+            <div className="bg-slate-50 dark:bg-slate-900/90 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-xs space-y-2.5 font-mono">
+              <div className="flex items-center justify-between text-slate-800 dark:text-slate-200">
+                <span className="font-sans font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  (+) Salário / Receita Prevista:
+                </span>
+                <span className="font-black">{brl(totalReceitaMes)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
+                <span className="font-sans font-semibold flex items-center gap-1">
+                  (-) Fatura do Cartão (Vencimento no mês):
+                </span>
+                <span className="font-black">{brl(creditoMesTotal)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                <span className="font-sans font-semibold flex items-center gap-1">
+                  (-) Assinaturas Recorrentes:
+                </span>
+                <span className="font-black">{brl(assinaturasMesTotal)}</span>
+              </div>
+
+              <div className="flex items-center justify-between text-sky-600 dark:text-sky-400">
+                <span className="font-sans font-semibold flex items-center gap-1">
+                  (-) Saídas da Conta (Contas Fixas / Débito / PIX):
+                </span>
+                <span className="font-black">{brl(saidasContaTotal)}</span>
+              </div>
+
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 flex items-center justify-between text-slate-900 dark:text-white font-sans font-extrabold">
+                <span>(=) Total de Compromissos a Pagar:</span>
+                <span className="text-rose-600 dark:text-rose-400">{brl(totalCompromissosSalario)}</span>
+              </div>
+
+              <div className="bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between text-emerald-800 dark:text-emerald-300 font-sans font-black text-sm">
+                <span>(=) Sobra Líquida Estimada:</span>
+                <span>{brl(sobraLiquidaSalario)}</span>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSalaryCycleInfo(false)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 3. KPI CARDS (NOVA ARQUITETURA: GASTOS DO MÊS vs SAÍDAS DA CONTA) ───────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
