@@ -1189,6 +1189,18 @@ export async function markBatchTransactionsPaidAction(ids: string[]) {
   return { success: true };
 }
 
+export async function unmarkBatchTransactionsPaidAction(ids: string[]) {
+  if (!ids || ids.length === 0) return { success: true };
+  await prisma.transaction.updateMany({
+    where: { id: { in: ids } },
+    data: { status: "PENDING" }
+  });
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
 // ---------- Actions de Ticket Alimentação ----------
 
 export async function getTicketData(month: number, year: number) {

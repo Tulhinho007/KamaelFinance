@@ -972,8 +972,8 @@ export default function DespesasPage() {
             <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-tnum">
               {brl(creditoMesTotal)}
             </p>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
-              Faturas acumuladas na competência ({creditCards.length} cartão(ões))
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1 truncate max-w-full" title={`Faturas acumuladas na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}>
+              Faturas acumuladas na competência ({creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})
             </span>
           </div>
         </div>

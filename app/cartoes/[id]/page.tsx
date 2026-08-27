@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
-  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
+  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -785,7 +785,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -808,7 +808,7 @@ export default function CartaoDetailPage() {
                                   prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                                 );
                               }}
-                              className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             />
                           </td>
                           <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
@@ -868,7 +868,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -892,7 +892,7 @@ export default function CartaoDetailPage() {
                                   prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                                 );
                               }}
-                              className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             />
                           </td>
                           <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
@@ -931,58 +931,58 @@ export default function CartaoDetailPage() {
           <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {/* Card 1: Saldo Disponível */}
-            <div className="card-glow p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col justify-between">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Saldo Disponível</span>
-                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider">Saldo Disponível</span>
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                   <Building2 className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className={`text-2xl font-black ${saldoAtualCalculado < 0 ? "text-rose-400" : "text-white"}`}>{brl(saldoAtualCalculado)}</h3>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Balanço consolidado da conta</p>
+                <h3 className={`text-2xl md:text-3xl font-black ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{brl(saldoAtualCalculado)}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Balanço consolidado da conta</p>
               </div>
             </div>
 
             {/* Card 2: Consumo no Mês */}
-            <div className="card-glow p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col justify-between">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Consumo no Mês</span>
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider">Consumo no Mês</span>
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                   <TrendingDown className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-black text-white">{brl(totalGastosMes)}</h3>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Lançamentos debitados no mês</p>
+                <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{brl(totalGastosMes)}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Lançamentos debitados no mês</p>
               </div>
             </div>
 
             {/* Card 3: Total Pago */}
-            <div className="card-glow p-5 rounded-2xl bg-slate-900/60 border border-emerald-500/20 flex flex-col justify-between">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/20 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-emerald-400 uppercase tracking-wider">Total Pago</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Total Pago</span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-black text-emerald-400">{brl(totalPago)}</h3>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Despesas quitadas no mês</p>
+                <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">{brl(totalPago)}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Despesas quitadas no mês</p>
               </div>
             </div>
 
             {/* Card 4: Total Pendente */}
-            <div className="card-glow p-5 rounded-2xl bg-slate-900/60 border border-amber-500/20 flex flex-col justify-between">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-500/20 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-amber-400 uppercase tracking-wider">Total Pendente</span>
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Total Pendente</span>
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                   <Clock className="w-5 h-5" />
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="text-2xl font-black text-amber-400">{brl(totalNaoPago)}</h3>
-                <p className="text-[10px] text-slate-500 mt-1 font-medium">Aguardando baixa de pagamento</p>
+                <h3 className="text-2xl md:text-3xl font-black text-amber-600 dark:text-amber-400">{brl(totalNaoPago)}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Aguardando baixa de pagamento</p>
               </div>
             </div>
 
@@ -1037,7 +1037,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -1063,7 +1063,7 @@ export default function CartaoDetailPage() {
                                     prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
                                   );
                                 }}
-                                className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                               />
                             </td>
                             <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">{t.date.split("-").reverse().join("/")}</td>
@@ -1540,6 +1540,21 @@ export default function CartaoDetailPage() {
             >
               <CheckCircle2 className="w-4 h-4" />
               ✓ Marcar Selecionados como PAGO
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await unmarkBatchTransactionsPaidAction(selectedIds);
+                  setSelectedIds([]);
+                  await loadData();
+                } catch (err) {
+                  console.error("Erro ao marcar como pendente:", err);
+                }
+              }}
+              className="px-4 py-2 text-xs font-black text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-lg shadow-amber-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              ⟲ Marcar como PENDENTE
             </button>
             <button
               onClick={() => setBatchDeleteModalOpen(true)}
