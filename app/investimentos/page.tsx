@@ -841,28 +841,28 @@ export default function InvestimentosPage() {
           
           {/* KPIs Consolidados */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="card-glow p-6 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] flex flex-col justify-between relative overflow-hidden">
-              <span className="text-[10px] uppercase font-black tracking-wider text-slate-300">Patrimônio Bruto</span>
-              <h3 className="text-3xl font-black text-white mt-2 font-tnum tabular-nums">
+            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Bruto</span>
+              <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioBruto || 0)}
               </h3>
-              <span className="text-xs font-semibold text-secondary-light mt-3 block">Total acumulado na carteira corporativa</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">Total acumulado na carteira corporativa</span>
             </div>
 
-            <div className="card-glow p-6 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] flex flex-col justify-between relative overflow-hidden">
-              <span className="text-[10px] uppercase font-black tracking-wider text-slate-300">Patrimônio Líquido</span>
-              <h3 className="text-3xl font-black text-emerald-400 mt-2 font-tnum tabular-nums">
+            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Líquido</span>
+              <h3 className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioLiquido || 0)}
               </h3>
-              <span className="text-xs font-semibold text-emerald-300 mt-3 block">Após impostos e taxas estimadas</span>
+              <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mt-3 block">Após impostos e taxas estimadas</span>
             </div>
 
-            <div className="card-glow p-6 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] flex flex-col justify-between relative overflow-hidden">
-              <span className="text-[10px] uppercase font-black tracking-wider text-slate-300">Lucro Total Acumulado</span>
-              <h3 className={`text-3xl font-black mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Lucro Total Acumulado</span>
+              <h3 className={`text-3xl font-bold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
                 {(overview?.lucroTotal || 0) >= 0 ? "+" : ""}{brl(overview?.lucroTotal || 0)}
               </h3>
-              <span className={`text-xs font-extrabold mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              <span className={`text-xs font-bold mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-800 dark:text-emerald-400" : "text-rose-800 dark:text-rose-400"}`}>
                 Rentabilidade geral: {(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}{(overview?.rentabilidadeGeral || 0).toFixed(2)}%
               </span>
             </div>

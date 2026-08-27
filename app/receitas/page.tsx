@@ -742,7 +742,7 @@ export default function ReceitasPage() {
             {(modalType === "create" || modalType === "edit") && (
               <form onSubmit={modalType === "create" ? handleCreate : handleEdit} className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Descrição *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Descrição *</label>
                   <input
                     type="text"
                     list="descricoes-sugestoes"
@@ -750,12 +750,12 @@ export default function ReceitasPage() {
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
                     placeholder="Selecione ou digite a descrição..."
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white placeholder-slate-500"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Valor (R$) *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor (R$) *</label>
                   <input
                     type="number"
                     required
@@ -764,38 +764,38 @@ export default function ReceitasPage() {
                     value={formAmount || ""}
                     onChange={(e) => setFormAmount(Number(e.target.value))}
                     placeholder="Ex: 1500"
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Data *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data *</label>
                   <input
                     type="date"
                     required
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white [color-scheme:dark]"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
                   />
                 </div>
 
                 {/* Conta de Destino */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Wallet className="w-3.5 h-3.5 text-indigo-400" />
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                     Conta de Destino *
                   </label>
                   <select
                     required
                     value={formWalletId}
                     onChange={(e) => setFormWalletId(e.target.value)}
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-white cursor-pointer"
+                    className="w-full appearance-none rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 pl-4 pr-10 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white cursor-pointer"
                   >
-                    <option value="" disabled>
+                    <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-500">
                       Selecione a conta de destino...
                     </option>
                     {wallets.map((w) => (
-                      <option key={w.id} value={w.id}>
+                      <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
                         {formatWalletDropdownLabel(w)}
                       </option>
                     ))}
@@ -803,17 +803,19 @@ export default function ReceitasPage() {
                 </div>
 
                 {/* Checkbox Opção 'Saldo já considerado' */}
-                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-950 border border-slate-800">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
                   <input
                     type="checkbox"
                     id="formSkipDeduction"
                     checked={formSkipDeduction}
                     onChange={(e) => setFormSkipDeduction(e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500/30 cursor-pointer"
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
-                  <label htmlFor="formSkipDeduction" className="text-xs text-slate-300 font-medium cursor-pointer select-none">
-                    <strong className="block text-white font-bold">Saldo já considerado (não alterar saldo)</strong>
-                    Registra a receita como recebida apenas no histórico do mês sem somar novamente ao saldo da conta.
+                  <label htmlFor="formSkipDeduction" className="text-xs text-slate-700 dark:text-slate-300 font-medium cursor-pointer select-none">
+                    <strong className="block text-slate-900 dark:text-white font-bold mb-0.5">Saldo já considerado (não alterar saldo)</strong>
+                    <span className="text-slate-500 dark:text-slate-400 font-normal leading-relaxed block">
+                      Registra a receita como recebida apenas no histórico do mês sem somar novamente ao saldo da conta.
+                    </span>
                   </label>
                 </div>
 
@@ -828,8 +830,8 @@ export default function ReceitasPage() {
 
             {modalType === "delete" && selectedRevenue && (
               <div className="flex flex-col gap-4 text-center">
-                <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                  Tem certeza que deseja excluir a receita <strong className="text-white font-bold">"{selectedRevenue.description}"</strong>?<br/>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Tem certeza que deseja excluir a receita <strong className="text-slate-900 dark:text-white font-bold">"{selectedRevenue.description}"</strong>?<br/>
                   Isso removerá definitivamente o lançamento financeiro da carteira.
                 </p>
 
@@ -837,7 +839,7 @@ export default function ReceitasPage() {
                   <button
                     type="button"
                     onClick={() => setModalType(null)}
-                    className="flex-1 py-3 rounded-2xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 font-extrabold text-xs tracking-wider transition-all cursor-pointer"
+                    className="flex-1 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-xs tracking-wider transition-all cursor-pointer"
                   >
                     CANCELAR
                   </button>
