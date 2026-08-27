@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
-  deleteBatchPurchasesAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
+  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
@@ -1508,7 +1508,7 @@ export default function CartaoDetailPage() {
         </div>
       )}
 
-      {/* ── BARRA DE AÇÕES EM LOTE (FLOATING ACTION BAR) ───────────────────── */}
+      {/* ── BARRA DE AÇÕES EM LOTE (FLOATING ACTION BAR CONTEXTUAL) ───────────────────── */}
       {selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl px-6 py-3.5 flex items-center gap-6 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -1517,27 +1517,42 @@ export default function CartaoDetailPage() {
             </div>
             <div>
               <p className="text-xs font-black text-white">
-                {selectedIds.length} {selectedIds.length === 1 ? "despesa selecionada" : "despesas selecionadas"}
+                {selectedIds.length} {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
               </p>
               <p className="text-[10px] text-slate-400 font-bold">
-                Soma Total: <strong className="text-white">{brl(selectedTotalAmount)}</strong>
+                Total: <strong className="text-white font-tnum">{brl(selectedTotalAmount)}</strong>
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
             <button
-              onClick={() => setSelectedIds([])}
-              className="px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              onClick={async () => {
+                try {
+                  await markBatchTransactionsPaidAction(selectedIds);
+                  setSelectedIds([]);
+                  await loadData();
+                } catch (err) {
+                  console.error("Erro ao marcar como pago:", err);
+                }
+              }}
+              className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              Cancelar
+              <CheckCircle2 className="w-4 h-4" />
+              ✓ Marcar Selecionados como PAGO
             </button>
             <button
               onClick={() => setBatchDeleteModalOpen(true)}
               className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
-              Excluir Selecionadas
+              Excluir Selecionados
+            </button>
+            <button
+              onClick={() => setSelectedIds([])}
+              className="px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+            >
+              Desmarcar Seleção
             </button>
           </div>
         </div>
