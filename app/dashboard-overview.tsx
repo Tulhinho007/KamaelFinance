@@ -199,7 +199,7 @@ export function DashboardOverview() {
     });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-8 select-none relative font-sans text-white bg-[#0f172a]">
+    <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-8 select-none relative font-sans text-slate-900 dark:text-white">
       
       {/* ── 1. CABEÇALHO & AÇÕES ───────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -279,10 +279,10 @@ export function DashboardOverview() {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         
         {/* KPI 1: Receita Real */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between group relative">
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-emerald-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
                 Receita Real
               </span>
               <button
@@ -306,10 +306,10 @@ export function DashboardOverview() {
         </div>
 
         {/* KPI 2: Total Gasto */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-rose-500/40 transition-all flex flex-col justify-between group relative">
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-rose-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
                 Total Gasto
               </span>
               <button
@@ -333,10 +333,10 @@ export function DashboardOverview() {
         </div>
 
         {/* KPI 3: Balanço Geral */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group relative">
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
                 Balanço Geral
               </span>
               <button
@@ -363,10 +363,10 @@ export function DashboardOverview() {
         </div>
 
         {/* KPI 4: Metas Globais */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between group relative">
+        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-emerald-500/40 transition-all flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
                 Metas Globais
               </span>
               <button

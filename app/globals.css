@@ -2,14 +2,14 @@
 
 /* ─── Design Tokens ─── */
 :root {
-  --background: #F8FAFC;
+  --background: #F4F7F5;
   --foreground: #0F172A;
   --surface: #FFFFFF;
   --surface-raised: #FFFFFF;
   --border: #E2E8F0;
-  --border-subtle: rgba(226, 232, 240, 0.6);
+  --border-subtle: rgba(226, 232, 240, 0.7);
   --muted: #64748B;
-  --accent: #6366F1;
+  --accent: #10B981;
 }
 
 html.dark {
@@ -20,7 +20,7 @@ html.dark {
   --border: #1E293B;
   --border-subtle: rgba(30, 41, 59, 0.6);
   --muted: #94A3B8;
-  --accent: #818CF8;
+  --accent: #10B981;
   color-scheme: dark;
 }
 

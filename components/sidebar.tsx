@@ -82,15 +82,15 @@ export function Sidebar() {
         key={href}
         href={href}
         onClick={() => setIsMobileOpen(false)}
-        className={`flex items-center gap-3 px-3.5 py-2.5 text-xs font-semibold rounded-xl transition-all duration-150 ${
+        className={`flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 ${
           active
-            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30 font-bold"
-            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100"
+            ? "bg-emerald-50 dark:bg-indigo-600 text-emerald-800 dark:text-white border border-emerald-200/90 dark:border-transparent font-black shadow-2xs dark:shadow-indigo-600/30"
+            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 font-semibold"
         }`}
       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 transition-colors ${
-            active ? "text-indigo-200" : "text-slate-400 dark:text-slate-500"
+            active ? "text-emerald-600 dark:text-indigo-200" : "text-slate-400 dark:text-slate-500"
           }`}
         />
         <span>{label}</span>
@@ -99,7 +99,7 @@ export function Sidebar() {
   };
 
   const sectionLabel = (text: string) => (
-    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-600 tracking-[0.15em] px-3 uppercase block mb-1.5">
+    <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 tracking-[0.18em] px-3 uppercase block mb-1.5">
       {text}
     </span>
   );
