@@ -597,22 +597,24 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 3 — FATURA DO MÊS */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between h-40 w-full">
-              <div className="min-h-[32px] flex items-start justify-between gap-1">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Fatura do Mês</span>
-                {(cardData as any).isPaid ? (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
-                    ✓ Fatura Paga
-                  </span>
-                ) : (cardData as any).isPast ? (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full shrink-0">
-                    🚨 Fatura Vencida
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0">
-                    Aguardando Pagamento
-                  </span>
-                )}
+            <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between h-40 w-full relative overflow-hidden">
+              <div className="flex flex-col gap-1 min-h-[32px]">
+                <div className="flex items-center justify-between gap-1.5 w-full">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block shrink-0">Fatura do Mês</span>
+                  {(cardData as any).isPaid ? (
+                    <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0 leading-none">
+                      ✓ Fatura Paga
+                    </span>
+                  ) : (cardData as any).isPast ? (
+                    <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full shrink-0 leading-none">
+                      🚨 Fatura Vencida
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full shrink-0 leading-none">
+                      Aguardando Pagamento
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
                 <p className={`text-base sm:text-lg xl:text-base 2xl:text-lg font-black tracking-tight whitespace-nowrap font-tnum tabular-nums ${(cardData as any).isPaid ? "text-emerald-400" : "text-rose-400"}`} title={brl(impactoMes)}>
