@@ -597,35 +597,22 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 3 — FATURA DO MÊS */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 flex flex-col justify-between h-40 w-full overflow-hidden shadow-sm">
-              <div className="flex flex-col gap-1.5 w-full">
+            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-40 w-full overflow-hidden shadow-sm">
+              <div className="min-h-[32px] flex items-start justify-between">
                 <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Fatura do Mês</span>
-                {(cardData as any).isPaid ? (
-                  <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2 py-0.5 rounded-full w-fit max-w-full truncate leading-none">
-                    ✓ Fatura Paga
-                  </span>
-                ) : (cardData as any).isPast ? (
-                  <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-2 py-0.5 rounded-full w-fit max-w-full truncate leading-none">
-                    🚨 Fatura Vencida
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[8.5px] font-extrabold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2 py-0.5 rounded-full w-fit max-w-full truncate leading-none">
-                    Aguardando Pagamento
-                  </span>
-                )}
               </div>
-              <div className="my-auto flex items-center min-h-[30px] py-0.5 overflow-hidden">
+              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
                 <p className={`text-base sm:text-lg xl:text-base 2xl:text-lg font-black tracking-tight whitespace-nowrap font-tnum tabular-nums ${(cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
-              <div className="min-h-[22px] flex items-center">
+              <div className="min-h-[24px] flex items-center">
                 {(cardData as any).isPaid ? (
-                  <span className="inline-flex items-center gap-1 text-[8.5px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2 py-0.5 rounded-full truncate">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2 py-0.5 rounded-full truncate">
                     ✓ Ciclo liquidado no período
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[8.5px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 truncate">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 truncate">
                     {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Mês Selecionado"}
                   </span>
                 )}
@@ -718,7 +705,7 @@ export default function CartaoDetailPage() {
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
@@ -732,7 +719,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -743,9 +730,9 @@ export default function CartaoDetailPage() {
                         <th className="p-3 text-center whitespace-nowrap">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {vistaPurchases.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(p.id) ? "bg-indigo-500/10" : ""}`}>
+                        <tr key={p.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                           <td className="p-3 w-10 text-center">
                             <input
                               type="checkbox"
@@ -755,23 +742,23 @@ export default function CartaoDetailPage() {
                                   prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                                 );
                               }}
-                              className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             />
                           </td>
-                          <td className="p-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
-                          <td className="p-3 font-extrabold text-white">{p.description}</td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                           <td className="p-3">
-                            <span className="bg-slate-800 text-slate-300 border border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-semibold uppercase">
+                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
                               {p.category}
                             </span>
                           </td>
-                          <td className="p-3 text-right font-black text-rose-400">{brl(p.amount)}</td>
+                          <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
                           <td className="p-3 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-400">
+                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-400">
+                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -801,7 +788,7 @@ export default function CartaoDetailPage() {
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
@@ -815,7 +802,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -827,9 +814,9 @@ export default function CartaoDetailPage() {
                         <th className="p-3 text-center whitespace-nowrap">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {parceladoPurchasesProcessed.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(p.id) ? "bg-indigo-500/10" : ""}`}>
+                        <tr key={p.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                           <td className="p-3 w-10 text-center">
                             <input
                               type="checkbox"
@@ -839,24 +826,24 @@ export default function CartaoDetailPage() {
                                   prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
                                 );
                               }}
-                              className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             />
                           </td>
-                          <td className="p-3 text-[10px] font-bold text-slate-400">{formatDateBR(p.date)}</td>
-                          <td className="p-3 font-extrabold text-white">{p.description}</td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                           <td className="p-3">
-                            <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold">
+                            <span className="bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
                               {p.currentInstallment} / {p.installmentsCount}
                             </span>
                           </td>
-                          <td className="p-3 text-right font-black text-white">{brl(p.amount)}</td>
-                          <td className="p-3 text-right font-bold text-slate-400">{brl(p.remainingDebt)}</td>
+                          <td className="p-3 text-right font-bold text-slate-900 dark:text-white">{brl(p.amount)}</td>
+                          <td className="p-3 text-right font-medium text-slate-600 dark:text-slate-400">{brl(p.remainingDebt)}</td>
                           <td className="p-3 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-400">
+                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-400">
+                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -970,7 +957,7 @@ export default function CartaoDetailPage() {
                 <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         <th className="p-4 w-10 text-center">
                           <input
                             type="checkbox"
@@ -984,7 +971,7 @@ export default function CartaoDetailPage() {
                                 setSelectedIds(newIds);
                               }
                             }}
-                            className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                             title="Selecionar Todos"
                           />
                         </th>
@@ -996,11 +983,11 @@ export default function CartaoDetailPage() {
                         <th className="p-4 text-center whitespace-nowrap">Ações</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60 font-medium text-slate-300">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {monthTransactions.map((t) => {
                         const isPaid = t.status !== "PENDING";
                         return (
-                          <tr key={t.id} className={`hover:bg-slate-800/40 transition-colors ${selectedIds.includes(t.id) ? "bg-indigo-500/10" : ""}`}>
+                          <tr key={t.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                             <td className="p-4 w-10 text-center">
                               <input
                                 type="checkbox"
@@ -1010,17 +997,17 @@ export default function CartaoDetailPage() {
                                     prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
                                   );
                                 }}
-                                className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                className="w-4 h-4 rounded bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                               />
                             </td>
-                            <td className="p-4 text-xs font-bold text-slate-400">{t.date.split("-").reverse().join("/")}</td>
-                            <td className="p-4 font-black text-white text-sm">{t.description}</td>
+                            <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">{t.date.split("-").reverse().join("/")}</td>
+                            <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">{t.description}</td>
                             <td className="p-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-bold uppercase">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium uppercase">
                                 {t.category || "Despesa"}
                               </span>
                             </td>
-                            <td className="p-4 text-right font-black text-white text-sm tabular-nums">
+                            <td className="p-4 text-right font-bold text-slate-900 dark:text-white text-sm tabular-nums">
                               {brl(t.amount)}
                             </td>
                             <td className="p-4 text-center">
@@ -1035,19 +1022,19 @@ export default function CartaoDetailPage() {
                                 }}
                                 className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${
                                   isPaid
-                                    ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
-                                    : "bg-amber-500/10 text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
                                 }`}
                                 title={isPaid ? "Clique para desmarcar" : "Clique para marcar como pago"}
                               >
                                 {isPaid ? (
                                   <>
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                     <span>Pago</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                                    <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse" />
                                     <span>Marcar como PAGO</span>
                                   </>
                                 )}
@@ -1055,10 +1042,10 @@ export default function CartaoDetailPage() {
                             </td>
                             <td className="p-4 text-center whitespace-nowrap">
                               <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
+                                <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
                                   <Edit2 className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Excluir">
+                                <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }} className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Excluir">
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
@@ -1069,10 +1056,10 @@ export default function CartaoDetailPage() {
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
-                        <td colSpan={3} className="p-4 text-slate-400 uppercase tracking-wider text-xs">
+                        <td colSpan={3} className="p-4 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-xs font-bold">
                           TOTAL CONSUMIDO NO MÊS
                         </td>
-                        <td className="p-4 text-right font-black text-white text-base">
+                        <td className="p-4 text-right font-black text-slate-900 dark:text-white text-base">
                           {brl(totalGastosMes)}
                         </td>
                         <td colSpan={2} />
