@@ -288,7 +288,7 @@ export function DashboardOverview() {
               <button
                 onClick={() => setActiveMetricModal("RECEITA_REAL")}
                 className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                title="Ver detalhes da fórmula e lançamentos de Receita Real"
+                title="Entender como funciona o cálculo de Receita Real"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
@@ -300,7 +300,7 @@ export function DashboardOverview() {
           <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-xs">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              Acumulado Geral
+              Total que já entrou
             </span>
           </div>
         </div>
@@ -315,7 +315,7 @@ export function DashboardOverview() {
               <button
                 onClick={() => setActiveMetricModal("TOTAL_GASTO")}
                 className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
-                title="Ver detalhes da fórmula e lançamentos de Total Gasto"
+                title="Entender como funciona o cálculo do Total Gasto"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
@@ -327,7 +327,7 @@ export function DashboardOverview() {
           <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5">
               <ArrowDownRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              Saídas Consolidadas
+              Total já pago no mês
             </span>
           </div>
         </div>
@@ -342,7 +342,7 @@ export function DashboardOverview() {
               <button
                 onClick={() => setActiveMetricModal("BALANCO_GERAL")}
                 className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                title="Ver demonstrativo de cálculo do Balanço Geral"
+                title="Entender o cálculo do Balanço Geral"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
@@ -357,7 +357,7 @@ export function DashboardOverview() {
                 ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100 dark:border-emerald-800" 
                 : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-100 dark:border-rose-800"
             }`}>
-              {data.balanco >= 0 ? "+ Superávit Acumulado" : "Déficit Acumulado"}
+              {data.balanco >= 0 ? "Saldo Positivo (Sobrando)" : "No vermelho (Gastos > Entradas)"}
             </span>
           </div>
         </div>
