@@ -560,8 +560,8 @@ export async function updateGoalAction(
       dataFim: new Date(dataFim),
       objetivo,
       iconName,
-      status: isCompleted ? "COMPLETED" : (currentGoal?.status || "ACTIVE"),
-      completedAt: isCompleted ? (currentGoal?.completedAt || new Date()) : null,
+      status: isCompleted ? "COMPLETED" : ((currentGoal as any)?.status || "ACTIVE"),
+      completedAt: isCompleted ? ((currentGoal as any)?.completedAt || new Date()) : null,
     } as any
   });
 
@@ -582,7 +582,7 @@ export async function toggleGoalStatusAction(goalId: string, status: "ACTIVE" | 
     data: {
       status,
       completedAt: isCompleted ? new Date() : null,
-    }
+    } as any
   });
 
   revalidatePath("/metas");
@@ -678,8 +678,8 @@ export async function updateAporteAction(historyId: string, amount: number, date
       data: {
         acumulado: totalAportado,
         status: isCompleted ? "COMPLETED" : "ACTIVE",
-        completedAt: isCompleted ? (goal.completedAt || new Date()) : null
-      }
+        completedAt: isCompleted ? ((goal as any)?.completedAt || new Date()) : null
+      } as any
     });
   }
 
@@ -715,8 +715,8 @@ export async function deleteAporteAction(historyId: string) {
       data: {
         acumulado: totalAportado,
         status: isCompleted ? "COMPLETED" : "ACTIVE",
-        completedAt: isCompleted ? (goal.completedAt || new Date()) : null
-      }
+        completedAt: isCompleted ? ((goal as any)?.completedAt || new Date()) : null
+      } as any
     });
   }
 
