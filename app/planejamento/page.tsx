@@ -139,19 +139,22 @@ export default function PlanningPage() {
   };
 
   // Carrega projetos
-  const loadData = async () => {
+  const loadData = async (targetId?: string) => {
     try {
       setLoading(true);
       const data = await getEventProjects();
       setProjects(data);
-      if (data.length > 0) {
-        const current = data.find((p: EventProject) => p.id === selectedProjectId) || data[0];
-        setSelectedProjectId(current.id);
-        setEditTitle(current.title);
-        setEditStartDate(current.startDate || "");
-        setEditEndDate(current.endDate || "");
-        setEditStatus(current.status);
-        parseNotesAndChecklist(current.notes || "");
+      const activeId = targetId !== undefined ? targetId : selectedProjectId;
+      if (activeId) {
+        const current = data.find((p: EventProject) => p.id === activeId);
+        if (current) {
+          setSelectedProjectId(current.id);
+          setEditTitle(current.title);
+          setEditStartDate(current.startDate || "");
+          setEditEndDate(current.endDate || "");
+          setEditStatus(current.status);
+          parseNotesAndChecklist(current.notes || "");
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar projetos de planejamento:", error);
@@ -164,7 +167,7 @@ export default function PlanningPage() {
     loadData();
   }, []);
 
-  const activeProject = projects.find((p: EventProject) => p.id === selectedProjectId) || projects[0];
+  const activeProject = selectedProjectId ? projects.find((p: EventProject) => p.id === selectedProjectId) || null : null;
 
   // Cálculo da Duração da Viagem em Dias
   const calculateDurationInDays = (startStr?: string | null, endStr?: string | null) => {
@@ -182,6 +185,15 @@ export default function PlanningPage() {
   // Troca de projeto selecionado
   const handleSelectProject = (projId: string) => {
     setSelectedProjectId(projId);
+    if (!projId) {
+      setEditTitle("");
+      setEditStartDate("");
+      setEditEndDate("");
+      setEditStatus("Em Planejamento");
+      setChecklistTasks([]);
+      setEditNotes("");
+      return;
+    }
     const proj = projects.find((p: EventProject) => p.id === projId);
     if (proj) {
       setEditTitle(proj.title);
@@ -217,8 +229,8 @@ export default function PlanningPage() {
       setNewProjectStartDate("");
       setNewProjectEndDate("");
       setIsNewProjectModalOpen(false);
-      await loadData();
-      setSelectedProjectId(created.id);
+      await loadData(created.id);
+      handleSelectProject(created.id);
     } catch (err) {
       console.error(err);
       showAlert("Erro ao criar projeto.", { variant: "error" });
@@ -509,6 +521,7 @@ export default function PlanningPage() {
               onChange={e => handleSelectProject(e.target.value)}
               className="w-full appearance-none rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-2.5 pr-8 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
             >
+              <option value="" className="bg-white dark:bg-slate-900 text-slate-500">Selecione um Projeto...</option>
               {projects.map(p => (
                 <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
                   {p.title} ({p.status})
@@ -527,6 +540,28 @@ export default function PlanningPage() {
           </button>
         </div>
       </div>
+
+      {/* ── ESTADO VAZIO (NENHUM PROJETO SELECIONADO) ────────────────────── */}
+      {!activeProject && (
+        <div className="card-glow p-12 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm my-6">
+          <div className="p-4 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-2xl border border-indigo-200 dark:border-indigo-400/30">
+            <Plane className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">Selecione ou Crie um Projeto</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 max-w-md">
+              Escolha um projeto de viagem no menu acima para visualizar o orçamento ou clique no botão abaixo para cadastrar um novo projeto.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsNewProjectModalOpen(true)}
+            className="btn-primary-glow py-2.5 px-5 text-xs mt-2"
+          >
+            <Plus className="w-4 h-4 text-white" />
+            <span>+ Novo Projeto</span>
+          </button>
+        </div>
+      )}
 
       {/* ── 2. DADOS DO PROJETO ATIVO ────────────────────────────────────────── */}
       {activeProject && (
@@ -822,12 +857,12 @@ export default function PlanningPage() {
                               onClick={() => handleTogglePaid(item)}
                               className={`inline-flex items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
                                 item.isPaid
-                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]"
-                                  : "bg-slate-800/60 text-slate-400 border-slate-700 hover:text-emerald-400"
+                                  ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/50 shadow-2xs"
+                                  : "bg-slate-100 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400"
                               }`}
                               title={item.isPaid ? "Desmarcar Pago" : "Marcar como Pago"}
                             >
-                              <CheckCircle2 className={`w-4 h-4 ${item.isPaid ? "text-emerald-300" : "text-slate-400"}`} />
+                              <CheckCircle2 className={`w-4 h-4 ${item.isPaid ? "text-emerald-600 dark:text-emerald-300" : "text-slate-400"}`} />
                             </button>
                           </td>
 
@@ -838,15 +873,15 @@ export default function PlanningPage() {
                                 type="text"
                                 value={editItemDesc}
                                 onChange={e => setEditItemDesc(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white font-bold"
+                                className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white font-bold"
                               />
                             ) : (
                               <div>
-                                <span className={`font-bold ${item.isPaid ? "line-through text-slate-400" : "text-white"}`}>
+                                <span className={`font-semibold ${item.isPaid ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
                                   {item.description}
                                 </span>
                                 {item.transactionId && (
-                                  <span className="ml-2 text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-400/30">
+                                  <span className="ml-2 text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-400/30">
                                     Lançado no Extrato
                                   </span>
                                 )}
@@ -897,17 +932,17 @@ export default function PlanningPage() {
                                 type="text"
                                 value={editItemNotes}
                                 onChange={e => setEditItemNotes(e.target.value)}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white"
+                                className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white"
                               />
                             ) : item.notes ? (
-                              <div className="flex items-center gap-1.5 text-slate-300 max-w-xs truncate">
+                              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 max-w-xs truncate font-normal">
                                 <span className="truncate">{item.notes}</span>
                                 {item.notes.startsWith("http") && (
                                   <a
                                     href={item.notes}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="text-indigo-400 hover:text-indigo-300 transition-colors"
+                                    className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 transition-colors"
                                     title="Abrir Link"
                                   >
                                     <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -915,7 +950,7 @@ export default function PlanningPage() {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-slate-600 font-normal">-</span>
+                              <span className="text-slate-400 font-normal">-</span>
                             )}
                           </td>
 

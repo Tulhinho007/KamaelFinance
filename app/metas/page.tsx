@@ -569,7 +569,7 @@ export default function MetasPage() {
             
             {/* Header do Modal */}
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
                 {modalType === "create" && "Nova Meta Financeira"}
                 {modalType === "edit" && "Editar Meta"}
                 {modalType === "aporte" && "Fazer Aporte"}
@@ -578,7 +578,7 @@ export default function MetasPage() {
               </h3>
               <button 
                 onClick={() => setModalType(null)}
-                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all cursor-pointer"
+                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition-all cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -589,42 +589,42 @@ export default function MetasPage() {
               <form onSubmit={modalType === "create" ? handleCreate : handleEdit} className="flex flex-col gap-4">
                 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Título da Meta *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Título da Meta *</label>
                   <input
                     type="text"
                     required
                     value={formTitle}
                     onChange={(e) => setFormTitle(e.target.value)}
                     placeholder="Ex: Viagem Japão, Novo Computador..."
-                    className="rounded-2xl bg-slate-800/80 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white placeholder-slate-500"
+                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Data Início *</label>
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data Início *</label>
                     <input
                       type="date"
                       required
                       value={formDataInicio}
                       onChange={(e) => setFormDataInicio(e.target.value)}
-                      className="rounded-2xl bg-slate-800/80 border border-slate-700 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white"
+                      className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Data Fim *</label>
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data Fim *</label>
                     <input
                       type="date"
                       required
                       value={formDataFim}
                       onChange={(e) => setFormDataFim(e.target.value)}
-                      className="rounded-2xl bg-slate-800/80 border border-slate-700 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white"
+                      className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Valor Objetivo (R$) *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor Objetivo (R$) *</label>
                   <input
                     type="number"
                     required
@@ -632,16 +632,16 @@ export default function MetasPage() {
                     value={formObjetivo || ""}
                     onChange={(e) => setFormObjetivo(Number(e.target.value))}
                     placeholder="Ex: 15000"
-                    className="rounded-2xl bg-slate-800/80 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white"
+                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Vincular a Conta/Cofre (Opcional)</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Vincular a Conta/Cofre (Opcional)</label>
                   <select
                     value={formWalletId}
                     onChange={(e) => setFormWalletId(e.target.value)}
-                    className="rounded-2xl bg-slate-800/80 border border-slate-700 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white cursor-pointer"
+                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
                     <option value="">Nenhum cofre vinculado (Aportes manuais)</option>
                     {wallets.map((w) => (
@@ -654,20 +654,20 @@ export default function MetasPage() {
 
                 {modalType === "create" && (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Aporte Inicial (R$)</label>
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Aporte Inicial (R$)</label>
                     <input
                       type="number"
                       min="0"
                       value={formAcumuladoInicial || ""}
                       onChange={(e) => setFormAcumuladoInicial(Number(e.target.value))}
                       placeholder="Ex: 1000 (Opcional)"
-                      className="rounded-2xl bg-slate-800/80 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white"
+                      className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                 )}
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Selecionar Ícone</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Selecionar Ícone</label>
                   <div className="grid grid-cols-4 gap-2">
                     {[
                       { name: "Plane", icon: Plane },
@@ -685,7 +685,7 @@ export default function MetasPage() {
                           className={`p-3 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
                             isSelected 
                               ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" 
-                              : "bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700"
+                              : "bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                           }`}
                         >
                           <SelectedIcon className="w-5 h-5" />
@@ -708,12 +708,12 @@ export default function MetasPage() {
             {/* Modal Fazer Aporte */}
             {modalType === "aporte" && selectedGoal && (
               <form onSubmit={handleAporte} className="flex flex-col gap-4">
-                <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                  Fazer aporte financeiro na meta <strong className="text-white font-black">{selectedGoal.title}</strong>.
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Fazer aporte financeiro na meta <strong className="text-slate-900 dark:text-white font-black">{selectedGoal.title}</strong>.
                 </p>
                 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
                   <input
                     type="number"
                     required
@@ -722,9 +722,9 @@ export default function MetasPage() {
                     value={formAporteVal || ""}
                     onChange={(e) => setFormAporteVal(Number(e.target.value))}
                     placeholder="Ex: 500"
-                    className="rounded-2xl bg-slate-800/80 border border-slate-700 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-white"
+                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
-                  <span className="text-[10px] text-slate-400 font-bold">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                     Limite máximo restante: {brl(selectedGoal.objetivo - selectedGoal.acumulado)}
                   </span>
                 </div>
@@ -741,25 +741,25 @@ export default function MetasPage() {
             {/* Modal de Histórico */}
             {modalType === "history" && selectedGoal && (
               <div className="flex flex-col gap-4">
-                <p className="text-xs font-semibold text-slate-300">
-                  Histórico de aportes para <strong className="text-white font-bold">{selectedGoal.title}</strong>:
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                  Histórico de aportes para <strong className="text-slate-900 dark:text-white font-bold">{selectedGoal.title}</strong>:
                 </p>
 
                 <div className="max-h-52 overflow-y-auto pr-1 flex flex-col gap-2.5">
                   {selectedGoal.history.map((h) => (
                     <div 
                       key={h.id} 
-                      className="bg-slate-800/70 border border-slate-700 rounded-2xl p-3.5 flex justify-between items-center"
+                      className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 flex justify-between items-center"
                     >
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                        <span className="text-[11px] font-bold text-slate-300">{h.date}</span>
+                        <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{h.date}</span>
                       </div>
-                      <span className="text-xs font-black text-emerald-400">{brl(h.amount)}</span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">{brl(h.amount)}</span>
                     </div>
                   ))}
                   {selectedGoal.history.length === 0 && (
-                    <p className="text-xs text-slate-400 text-center py-6 font-semibold">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-6 font-semibold">
                       Nenhum aporte registrado nesta meta.
                     </p>
                   )}
@@ -770,15 +770,15 @@ export default function MetasPage() {
             {/* Modal de Exclusão */}
             {modalType === "delete" && selectedGoal && (
               <div className="flex flex-col gap-4 text-center">
-                <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                  Tem certeza que deseja excluir a meta <strong className="text-white font-bold">"{selectedGoal.title}"</strong>?<br/>
+                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Tem certeza que deseja excluir a meta <strong className="text-slate-900 dark:text-white font-bold">"{selectedGoal.title}"</strong>?<br/>
                   Esta ação é irreversível e removerá todos os dados de aportes associados.
                 </p>
 
                 <div className="flex gap-3 mt-2">
                   <button
                     onClick={() => setModalType(null)}
-                    className="flex-1 py-3 rounded-2xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 font-extrabold text-xs tracking-wider transition-all cursor-pointer"
+                    className="flex-1 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-extrabold text-xs tracking-wider transition-all cursor-pointer"
                   >
                     CANCELAR
                   </button>
