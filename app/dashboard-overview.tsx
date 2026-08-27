@@ -19,7 +19,7 @@ import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
-  getFutureBalanceProjection, getAllTags
+  getAllTags
 } from "@/lib/actions";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -58,21 +58,15 @@ export function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
 
-  // Projeção de Saldo Futuro (30 / 60 dias)
-  const [projectionDays, setProjectionDays] = useState<30 | 60>(30);
-  const [projectionData, setProjectionData] = useState<any>(null);
-  const [loadingProjection, setLoadingProjection] = useState(true);
+  const [viewMode, setViewMode] = useState<"annual" | "monthly">("annual");
+  const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(2026);
+  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(new Date().getMonth() + 1);
 
   // Tags, Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
   const [ofxModalOpen, setOfxModalOpen] = useState(false);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [activeMetricModal, setActiveMetricModal] = useState<MetricKey | null>(null);
-
-  // Garantir que ao abrir a página do Dashboard ele inicie no mês atual
-  useEffect(() => {
-    goToCurrentMonth();
-  }, []);
 
   // Modais de ação rápida
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -93,24 +87,13 @@ export function DashboardOverview() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const result = await getDashboardOverviewData(selectedMonth, selectedYear);
+      const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
+      const result = await getDashboardOverviewData(selectedDashboardYear, monthParam);
       setData(result);
     } catch (err) {
       console.error("Erro ao carregar dados do dashboard:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadProjection = async () => {
-    setLoadingProjection(true);
-    try {
-      const res = await getFutureBalanceProjection(projectionDays);
-      setProjectionData(res);
-    } catch (err) {
-      console.error("Erro ao carregar projeção:", err);
-    } finally {
-      setLoadingProjection(false);
     }
   };
 
@@ -126,11 +109,7 @@ export function DashboardOverview() {
   useEffect(() => {
     loadDashboardData();
     loadTags();
-  }, [selectedMonth, selectedYear]);
-
-  useEffect(() => {
-    loadProjection();
-  }, [projectionDays]);
+  }, [viewMode, selectedDashboardYear, selectedDashboardMonth]);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,45 +180,100 @@ export function DashboardOverview() {
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-8 select-none relative font-sans text-slate-900 dark:text-white">
       
-      {/* ── 1. CABEÇALHO & AÇÕES ───────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <PeriodHeader 
-          title="Dashboard Financeiro" 
-          tagline="Visão geral e balanço consolidado de suas contas corporativas e pessoais." 
-        />
+      {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO FLEXÍVEL (VISÃO ANUAL vs MENSAL) ── */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Dashboard Financeiro
+            </h1>
+            <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              {viewMode === "annual" ? `ANO ${selectedDashboardYear}` : `MÊS ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+            {viewMode === "annual"
+              ? `Visão consolidada do ano de ${selectedDashboardYear}.`
+              : `Detalhamento pontual das movimentações de ${selectedDashboardMonth}/${selectedDashboardYear}.`}
+          </p>
+        </div>
 
-        <div className="flex flex-wrap gap-2.5">
-          <button
-            onClick={() => setOfxModalOpen(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-emerald-600/30 cursor-pointer border border-white/10"
-          >
-            <FileText className="w-4 h-4 text-emerald-100" />
-            Conciliação OFX
-          </button>
+        {/* Controles de Período Flexível (Modo Anual vs Mensal) */}
+        <div className="flex flex-wrap items-center gap-3">
+          
+          {/* Toggle de Modo: Anual (Ano Completo) vs Mensal (Por Mês) */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setViewMode("annual")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                viewMode === "annual"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Ano Completo
+            </button>
+            <button
+              onClick={() => setViewMode("monthly")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                viewMode === "monthly"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Filtrar por Mês
+            </button>
+          </div>
 
-          <button
-            onClick={() => setHistoryModalOpen(true)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer border border-slate-700"
+          {/* Seletor de Ano */}
+          <select
+            value={selectedDashboardYear}
+            onChange={(e) => setSelectedDashboardYear(Number(e.target.value))}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
-            <History className="w-4 h-4 text-indigo-400" />
-            Histórico Geral
-          </button>
+            {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+              <option key={y} value={y}>Ano {y}</option>
+            ))}
+          </select>
 
-          <button
-            onClick={() => setRevenueModalOpen(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-emerald-600/30 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Lançar Receita
-          </button>
+          {/* Seletor de Mês (Visível quando em Modo Mensal) */}
+          {viewMode === "monthly" && (
+            <select
+              value={selectedDashboardMonth}
+              onChange={(e) => setSelectedDashboardMonth(Number(e.target.value))}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer animate-in fade-in"
+            >
+              {[
+                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+              ].map((mName, idx) => (
+                <option key={idx + 1} value={idx + 1}>{mName}</option>
+              ))}
+            </select>
+          )}
 
-          <button
-            onClick={() => setPurchaseModalOpen(true)}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg shadow-indigo-600/30 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            Nova Despesa
-          </button>
+          {/* Botões de Ação Rápida */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setOfxModalOpen(true)}
+              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+            >
+              <FileText className="w-3.5 h-3.5" /> Conciliação
+            </button>
+            <button
+              onClick={() => setRevenueModalOpen(true)}
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" /> Receita
+            </button>
+            <button
+              onClick={() => setPurchaseModalOpen(true)}
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+            >
+              <Plus className="w-3.5 h-3.5" /> Despesa
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -275,278 +309,96 @@ export function DashboardOverview() {
         </div>
       )}
 
-      {/* ── 2. CARDS DE MÉTRICAS (KPIS SAAS FINTECH — ACUMULADO GERAL) ──────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* ── 2. CARDS DE MÉTRICAS (APENAS 3 CARDS: RECEITA REAL, TOTAL GASTO, METAS GLOBAIS) ──────── */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
-        {/* KPI 1: Receita Real */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-emerald-500/40 transition-all flex flex-col justify-between group relative">
+        {/* KPI 1: RECEITA REAL */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
-                Receita Real
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                RECEITA REAL
               </span>
               <button
                 onClick={() => setActiveMetricModal("RECEITA_REAL")}
-                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 title="Entender como funciona o cálculo de Receita Real"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+            <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {brl(data.totalReceitas)}
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-xs">
+          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              Total que já entrou
+              ↗ Total que já entrou
             </span>
           </div>
         </div>
 
-        {/* KPI 2: Total Gasto */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-rose-500/40 transition-all flex flex-col justify-between group relative">
+        {/* KPI 2: TOTAL GASTO */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
-                Total Gasto
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                TOTAL GASTO
               </span>
               <button
                 onClick={() => setActiveMetricModal("TOTAL_GASTO")}
-                className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
                 title="Entender como funciona o cálculo do Total Gasto"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
+            <p className="text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
               {brl(data.totalGastos)}
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5">
+          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
               <ArrowDownRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              Total já pago no mês
+              ↘ Total já pago
             </span>
           </div>
         </div>
 
-        {/* KPI 3: Balanço Geral */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between group relative">
+        {/* KPI 3: METAS GLOBAIS */}
+        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
-                Balanço Geral
-              </span>
-              <button
-                onClick={() => setActiveMetricModal("BALANCO_GERAL")}
-                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                title="Entender o cálculo do Balanço Geral"
-              >
-                <HelpCircle className="w-4 h-4" />
-              </button>
-            </div>
-            <p className={`text-2xl font-black tracking-tight mt-2 font-tnum tabular-nums ${data.balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {brl(data.balanco)}
-            </p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className={`text-xs font-black px-3 py-1 rounded-full border inline-flex items-center gap-1.5 ${
-              data.balanco >= 0 
-                ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100 dark:border-emerald-800" 
-                : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-100 dark:border-rose-800"
-            }`}>
-              {data.balanco >= 0 ? "Saldo Positivo (Sobrando)" : "No vermelho (Gastos > Entradas)"}
-            </span>
-          </div>
-        </div>
-
-        {/* KPI 4: Metas Globais */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs hover:border-emerald-500/40 transition-all flex flex-col justify-between group relative">
-          <div>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 block">
-                Metas Globais
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                METAS GLOBAIS
               </span>
               <button
                 onClick={() => setActiveMetricModal("METAS_GLOBAIS")}
-                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                title="Ver detalhes de cálculo do percentual de Metas Globais"
+                className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                title="Ver detalhes do percentual de Metas Globais"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+            <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {data.metasGlobaisPct}%
             </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
+            <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
+              <span>Progresso acumulado</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{data.metasGlobaisPct}%</span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
               <div 
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500" 
+                className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-500" 
                 style={{ width: `${Math.min(100, data.metasGlobaisPct)}%` }} 
               />
             </div>
           </div>
         </div>
 
-      </section>
-
-      {/* ── 2.1 PROJEÇÃO DE SALDO FUTURO (GRÁFICO DE LINHA TEMPORAL - 30/60 DIAS) ─ */}
-      <section className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-              <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
-                Projeção de Saldo Futuro ({projectionDays} Dias)
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-              Tendência diária calculada a partir de contas a pagar, receber e faturas cadastradas.
-            </p>
-          </div>
-
-          {/* Seletor de Período 30d / 60d */}
-          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-fit">
-            <button
-              onClick={() => setProjectionDays(30)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                projectionDays === 30
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              30 Dias
-            </button>
-            <button
-              onClick={() => setProjectionDays(60)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                projectionDays === 60
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              60 Dias
-            </button>
-          </div>
-        </div>
-
-        {/* Métricas de resumo da projeção */}
-        {projectionData && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-950/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
-            <div className="group relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saldo Atual (Hoje)</span>
-                <button
-                  onClick={() => setActiveMetricModal("SALDO_ATUAL")}
-                  className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                  title="Ver origem e cálculo do Saldo Atual"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-sm font-black text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
-                {brl(projectionData.currentBalance)}
-              </p>
-            </div>
-
-            <div className="group relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saldo Projetado ({projectionDays}d)</span>
-                <button
-                  onClick={() => setActiveMetricModal("SALDO_PROJETADO")}
-                  className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                  title="Ver equação e demonstrativo do Saldo Projetado"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className={`text-sm font-black font-tnum tabular-nums mt-0.5 ${projectionData.projectedFinalBalance >= 0 ? "text-emerald-600 dark:text-[#00e676]" : "text-rose-600 dark:text-rose-400"}`}>
-                {brl(projectionData.projectedFinalBalance)}
-              </p>
-            </div>
-
-            <div className="group relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Entradas Previstas</span>
-                <button
-                  onClick={() => setActiveMetricModal("ENTRADAS_PREVISTAS")}
-                  className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                  title="Ver receitas consideradas em Entradas Previstas"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-sm font-black text-emerald-600 dark:text-[#00e676] font-tnum tabular-nums mt-0.5">
-                +{brl(projectionData.totalFutureIncome)}
-              </p>
-            </div>
-
-            <div className="group relative">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Saídas Previstas</span>
-                <button
-                  onClick={() => setActiveMetricModal("SAIDAS_PREVISTAS")}
-                  className="text-slate-500 hover:text-indigo-400 transition-colors p-0.5 cursor-pointer"
-                  title="Ver despesas não pagas consideradas em Saídas Previstas"
-                >
-                  <HelpCircle className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-sm font-black text-rose-600 dark:text-rose-400 font-tnum tabular-nums mt-0.5">
-                -{brl(projectionData.totalFutureExpense)}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Gráfico de Linha/Área Temporal Recharts (Dark Neon) */}
-        <div className="w-full h-[280px]">
-          {loadingProjection || !projectionData ? (
-            <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-500 animate-pulse">
-              Calculando projeção temporal de saldo...
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={projectionData.timeline} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="colorSaldoProjetado" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.4} vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  dy={4}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "#64748b", fontWeight: 700 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v}`}
-                  dx={-4}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10, fontWeight: 700 }} iconType="circle" />
-                <Area
-                  type="monotone"
-                  dataKey="projectedBalance"
-                  stroke="#6366f1"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill="url(#colorSaldoProjetado)"
-                  name="Saldo Projetado (R$)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
       </section>
 
       {/* ── 3. MEUS CARTÕES & CONTAS ────────────────────────────────────────── */}
@@ -1052,7 +904,6 @@ export function DashboardOverview() {
         onClose={() => setOfxModalOpen(false)}
         onSuccess={() => {
           loadDashboardData();
-          loadProjection();
         }}
       />
 
@@ -1062,8 +913,8 @@ export function DashboardOverview() {
         metricKey={activeMetricModal}
         onClose={() => setActiveMetricModal(null)}
         dashboardData={data}
-        projectionData={projectionData}
-        projectionDays={projectionDays}
+        projectionData={null}
+        projectionDays={30}
       />
 
     </div>

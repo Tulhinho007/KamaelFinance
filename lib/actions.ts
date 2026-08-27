@@ -1852,14 +1852,26 @@ export async function deleteCardAccount(walletId: string) {
 
 // ---------- Actions de Dashboard Principal ----------
 
-export async function getDashboardOverviewData(month: number, year: number) {
+export async function getDashboardOverviewData(year: number, month?: number | null) {
   const userId = await getActiveUserId();
 
-  // 1. Acumulado Geral Realizado (Apenas transações efetivamente Recebidas ou Pagas)
-  const allTransactions = await prisma.transaction.findMany({
+  let from: Date;
+  let to: Date;
+
+  if (month && month >= 1 && month <= 12) {
+    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
+
+  // 1. Lançamentos filtrados pelo período (Mês ou Ano)
+  const rangeTransactions = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       deletedAt: null,
+      date: { gte: from, lte: to }
     },
     include: {
       category: true,
@@ -1871,92 +1883,39 @@ export async function getDashboardOverviewData(month: number, year: number) {
   let totalReceitas = 0;
   let totalGastos = 0;
 
-  const monthNames = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
-
-  const monthMap: Record<string, { year: number; month: number; label: string; receitas: number; gastos: number }> = {};
-
-  allTransactions.forEach((t) => {
+  rangeTransactions.forEach((t) => {
     const amt = Number(t.amount);
-    const d = new Date(t.date);
-    const m = d.getUTCMonth() + 1;
-    const y = d.getUTCFullYear();
-    const key = `${y}-${String(m).padStart(2, "0")}`;
     const isRealized = t.status === "COMPLETED" || t.status !== "PENDING";
 
-    if (!monthMap[key]) {
-      monthMap[key] = {
-        year: y,
-        month: m,
-        label: `${monthNames[m - 1]}/${y}`,
-        receitas: 0,
-        gastos: 0,
-      };
-    }
-
     if (t.type === "INCOME") {
-      // Receita Real: Apenas o que foi efetivamente recebido
       if (isRealized) {
         totalReceitas += amt;
-        monthMap[key].receitas += amt;
       }
     } else if (t.type === "EXPENSE") {
-      // Total Gasto: Apenas saídas efetivamente pagas, desconsiderando Pagamento de Fatura para evitar duplicidade
       if (t.wallet.walletType !== "TICKET" && isRealized && !isInvoicePaymentTransaction(t)) {
         totalGastos += amt;
-        monthMap[key].gastos += amt;
       }
     }
   });
 
   const balanco = totalReceitas - totalGastos;
 
-  const consolidatedHistory = Object.values(monthMap)
-    .sort((a, b) => b.year - a.year || b.month - a.month)
-    .map((h) => ({
-      year: h.year,
-      month: h.month,
-      label: h.label,
-      receitas: h.receitas,
-      gastos: h.gastos,
-      balanco: h.receitas - h.gastos,
-    }));
+  // Cartões & Contas Overview (usamos o mês fornecido ou o mês atual)
+  const currentMonthNum = month || (new Date().getMonth() + 1);
+  const cards = await getAllCardsOverview(currentMonthNum, year);
 
-  // 2. Transações e dados do Mês Selecionado (para o breakdown por categoria e gráficos)
-  const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
-
-  const rawMonthExpenses = await prisma.transaction.findMany({
-    where: {
-      wallet: {
-        userId,
-        walletType: { in: ["CREDIT_CARD", "CONTA_CORRENTE"] }
-      },
-      type: "EXPENSE",
-      date: { gte: from, lte: to },
-      deletedAt: null,
-    },
-    include: { category: true }
-  });
-
-  const monthExpenses = rawMonthExpenses.filter(e => !isInvoicePaymentTransaction(e));
-
-  const revenuesMonth = await getRevenues(month, year);
-  const totalReceitasMes = revenuesMonth.reduce((s, r) => s + r.amount, 0);
-  const totalGastosMes = monthExpenses.reduce((s, e) => s + Number(e.amount), 0);
-
-  // Cartões & Contas Overview
-  const cards = await getAllCardsOverview(month, year);
-
-  // Metas Globais
+  // Metas Globais (Média ponderada ou percentual acumulado sobre objetivos ativos)
   const goals = await getGoals();
-  const totalAcumuladoMetas = goals.reduce((s, g) => s + g.acumulado, 0);
-  const totalObjetivoMetas = goals.reduce((s, g) => s + g.objetivo, 0);
+  const activeGoals = goals.filter((g: any) => g.status !== "COMPLETED" || g.pct >= 0);
+  const totalAcumuladoMetas = activeGoals.reduce((s, g) => s + g.acumulado, 0);
+  const totalObjetivoMetas = activeGoals.reduce((s, g) => s + g.objetivo, 0);
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
-  // DNA de Gastos
+  // Breakdown de Gastos por Categoria no Período Filtrado
+  const monthExpenses = rangeTransactions.filter(
+    (e) => e.type === "EXPENSE" && e.wallet.walletType !== "TICKET" && !isInvoicePaymentTransaction(e)
+  );
+
   const categoryMap: Record<string, { name: string; color: string; total: number }> = {};
   const DEFAULT_COLORS = ["#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", "#6366F1", "#64748B"];
 
@@ -1976,8 +1935,9 @@ export async function getDashboardOverviewData(month: number, year: number) {
 
   // Histórico Comparativo (Últimos 7 meses)
   const historyMonths = [];
+  const startMonth = currentMonthNum;
   for (let i = 6; i >= 0; i--) {
-    let m = month - i;
+    let m = startMonth - i;
     let y = year;
     if (m <= 0) {
       m += 12;
@@ -2019,18 +1979,14 @@ export async function getDashboardOverviewData(month: number, year: number) {
   }
 
   return {
-    totalReceitas,     // Acumulado Geral de Receitas
-    totalGastos,       // Acumulado Geral de Gastos
-    balanco,           // Balanço Acumulado Geral
-    totalReceitasMes,
-    totalGastosMes,
-    balancoMes: totalReceitasMes - totalGastosMes,
+    totalReceitas,
+    totalGastos,
+    balanco,
     metasGlobaisPct,
     cards,
     goals,
     categoryBreakdown,
     monthlyHistory: historyMonths,
-    consolidatedHistory, // Array com todos os meses e seus balanços
   };
 }
 
