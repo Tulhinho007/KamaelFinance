@@ -583,35 +583,39 @@ export default function CartaoDetailPage() {
         // ── VISÃO PARA CARTÃO DE CRÉDITO (DARK THEME) ─────────────────────────────────────
         <div className="flex flex-col gap-8">
           
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 items-stretch w-full">
+          <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-stretch w-full">
             {/* Card 1 — LIMITE TOTAL */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-40 w-full shadow-sm">
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Limite Total</span>
+            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Limite Total
+                </span>
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className="text-base sm:text-lg xl:text-base 2xl:text-lg font-black text-slate-900 dark:text-white tracking-tight whitespace-nowrap font-tnum tabular-nums" title={brl(cardData.creditLimit)}>
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap" title={brl(cardData.creditLimit)}>
                   {brl(cardData.creditLimit)}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2 py-0.5 rounded-full truncate">
+              <div className="h-7 flex items-center w-full">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2.5 py-1 rounded-full truncate">
                   Definido no sistema
                 </span>
               </div>
             </div>
 
             {/* Card 2 — LIMITE DISPONÍVEL */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-40 w-full shadow-sm">
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Limite Disponível</span>
+            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Limite Disponível
+                </span>
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className={`text-base sm:text-lg xl:text-base 2xl:text-lg font-black tracking-tight whitespace-nowrap font-tnum tabular-nums ${limitAvailable < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`} title={brl(limitAvailable)}>
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${limitAvailable < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`} title={brl(limitAvailable)}>
                   {brl(limitAvailable)}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center w-full">
+              <div className="h-7 flex items-center w-full">
                 <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
                   <div
                     className={`h-full transition-all duration-500 ${usagePct >= 90 ? "bg-rose-500" : usagePct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
@@ -622,22 +626,24 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 3 — FATURA DO MÊS */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-40 w-full overflow-hidden shadow-sm">
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">Fatura do Mês</span>
+            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Fatura do Mês
+                </span>
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className={`text-base sm:text-lg xl:text-base 2xl:text-lg font-black tracking-tight whitespace-nowrap font-tnum tabular-nums ${(cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`} title={brl(impactoMes)}>
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${(cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center">
+              <div className="h-7 flex items-center w-full">
                 {(cardData as any).isPaid ? (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2 py-0.5 rounded-full truncate">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
                     ✓ Ciclo liquidado no período
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 truncate">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 truncate">
                     {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Mês Selecionado"}
                   </span>
                 )}
@@ -648,19 +654,21 @@ export default function CartaoDetailPage() {
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 relative overflow-hidden cursor-pointer group hover:border-indigo-500/40 transition-all flex flex-col justify-between h-40 w-full shadow-sm"
+              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-indigo-500/40 transition-all overflow-hidden"
             >
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block leading-tight">Data Fechamento</span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0 mt-0.5" />
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Data Fechamento
+                </span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className="text-lg xl:text-xl 2xl:text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight whitespace-nowrap">
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className="text-xl md:text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight leading-none whitespace-nowrap">
                   Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2 py-0.5 rounded-full truncate">
+              <div className="h-7 flex items-center w-full">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2.5 py-1 rounded-full truncate">
                   Encerramento da fatura
                 </span>
               </div>
@@ -670,19 +678,21 @@ export default function CartaoDetailPage() {
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 relative overflow-hidden cursor-pointer group hover:border-amber-500/40 transition-all flex flex-col justify-between h-40 w-full shadow-sm"
+              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-amber-500/40 transition-all overflow-hidden"
             >
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block leading-tight">Dia Vencimento</span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 transition-colors shrink-0 mt-0.5" />
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Dia Vencimento
+                </span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 transition-colors shrink-0" />
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className="text-lg xl:text-xl 2xl:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight whitespace-nowrap">
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className="text-xl md:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight leading-none whitespace-nowrap">
                   Dia {String(cardData.vencimento || 10).padStart(2, "0")}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2 py-0.5 rounded-full truncate">
+              <div className="h-7 flex items-center w-full">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2.5 py-1 rounded-full truncate">
                   Limite de pagamento
                 </span>
               </div>
@@ -692,19 +702,21 @@ export default function CartaoDetailPage() {
             <div
               onClick={openDatesModal}
               title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 relative overflow-hidden cursor-pointer group hover:border-emerald-500/40 transition-all flex flex-col justify-between h-40 w-full shadow-sm"
+              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-emerald-500/40 transition-all overflow-hidden"
             >
-              <div className="min-h-[32px] flex items-start justify-between">
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block leading-tight">Melhor Dia Compra</span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-500 transition-colors shrink-0 mt-0.5" />
+              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                  Melhor Dia Compra
+                </span>
+                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-500 transition-colors shrink-0" />
               </div>
-              <div className="my-auto flex items-center min-h-[36px] py-1 overflow-hidden">
-                <p className="text-lg xl:text-xl 2xl:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight whitespace-nowrap">
+              <div className="flex-1 flex items-center my-2 overflow-hidden">
+                <p className="text-xl md:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight leading-none whitespace-nowrap">
                   Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}
                 </p>
               </div>
-              <div className="min-h-[24px] flex items-center">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2 py-0.5 rounded-full truncate">
+              <div className="h-7 flex items-center w-full">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
                   Próxima fatura (+30d)
                 </span>
               </div>
