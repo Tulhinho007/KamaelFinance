@@ -1,11 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 
-// Evita criar uma nova conexão a cada hot-reload em desenvolvimento.
-// Em produção (serverless), uma instância por invocação é o padrão recomendado.
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+// Singleton do PrismaClient para reaproveitar o pool de conexões e evitar estouro de clientes (EMAXCONNSESSION)
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;
+
