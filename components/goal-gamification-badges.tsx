@@ -15,32 +15,32 @@ export function GoalGamificationBadges({ pct, compact = false }: GoalGamificatio
       title: "Primeiro Passo",
       badge: "25%",
       icon: Award,
-      unlockedBg: "bg-amber-500/20 text-amber-300 border-amber-400/50 shadow-[0_0_12px_rgba(245,158,11,0.25)]",
-      colorText: "text-amber-300",
+      unlockedBg: "bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(245,158,11,0.25)]",
+      colorText: "text-amber-800 dark:text-amber-300",
     },
     {
       pctRequired: 50,
       title: "Meio Caminho",
       badge: "50%",
       icon: Medal,
-      unlockedBg: "bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(6,182,212,0.25)]",
-      colorText: "text-cyan-300",
+      unlockedBg: "bg-cyan-50 dark:bg-cyan-500/20 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(6,182,212,0.25)]",
+      colorText: "text-cyan-800 dark:text-cyan-300",
     },
     {
       pctRequired: 75,
       title: "Quase Lá",
       badge: "75%",
       icon: Trophy,
-      unlockedBg: "bg-purple-500/20 text-purple-300 border-purple-400/50 shadow-[0_0_12px_rgba(168,85,247,0.25)]",
-      colorText: "text-purple-300",
+      unlockedBg: "bg-purple-50 dark:bg-purple-500/20 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-400/50 shadow-2xs dark:shadow-[0_0_12px_rgba(168,85,247,0.25)]",
+      colorText: "text-purple-800 dark:text-purple-300",
     },
     {
       pctRequired: 100,
       title: "Meta Concluída",
       badge: "100%",
       icon: Crown,
-      unlockedBg: "bg-emerald-500/25 text-emerald-300 border-emerald-400/60 shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse",
-      colorText: "text-emerald-300",
+      unlockedBg: "bg-emerald-50 dark:bg-emerald-500/25 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/60 shadow-2xs dark:shadow-[0_0_15px_rgba(16,185,129,0.35)] animate-pulse",
+      colorText: "text-emerald-800 dark:text-emerald-300",
     },
   ];
 
@@ -68,14 +68,14 @@ export function GoalGamificationBadges({ pct, compact = false }: GoalGamificatio
             className={`relative flex items-center justify-center gap-1 px-1.5 py-1 rounded-xl border text-[9px] font-black w-full transition-all duration-300 text-center ${
               isUnlocked
                 ? `${m.unlockedBg} scale-100`
-                : "bg-slate-800/40 text-slate-400 border-slate-700/60 opacity-70"
+                : "bg-slate-100 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700/80"
             }`}
             title={isUnlocked ? `Conquista desbloqueada: ${m.title} (${m.badge})` : `Bloqueado: Requer ${m.badge} da meta`}
           >
             {isUnlocked ? (
               <IconComp className="w-3 h-3 shrink-0" />
             ) : (
-              <Lock className="w-2.5 h-2.5 shrink-0 text-slate-400" />
+              <Lock className="w-2.5 h-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
             )}
             <span className="truncate">{m.badge}</span>
           </div>

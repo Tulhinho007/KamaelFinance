@@ -468,34 +468,34 @@ export default function PlanningPage() {
 
   if (loading && projects.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-6">
+      <div className="min-h-screen flex items-center justify-center bg-[#F4F7F5] dark:bg-slate-950 p-6">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-          <p className="text-xs font-bold text-slate-300">Carregando planejamento de viagens...</p>
+          <Loader2 className="w-8 h-8 text-indigo-500 dark:text-indigo-400 animate-spin" />
+          <p className="text-xs font-bold text-slate-600 dark:text-slate-300">Carregando planejamento de viagens...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6 select-none">
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8 space-y-6 select-none text-slate-900 dark:text-slate-100">
       
       {/* ── 1. HEADER DA PÁGINA ──────────────────────────────────────────────── */}
       <div className="card-glow p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+            <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shadow-xs">
             <Plane className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black tracking-tight text-white">
+              <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 Planejamento de Viagens & Eventos
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-full shadow-2xs">
+              <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-full shadow-2xs">
                 Orçamentos Futuros
               </span>
             </div>
-            <p className="text-xs text-secondary-light mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               Simule cenários de custos, organize itens da viagem e converta em despesas reais.
             </p>
           </div>
@@ -572,8 +572,8 @@ export default function PlanningPage() {
 
                 {/* Date Range & Duração */}
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-xs text-secondary-light bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-800">
-                    <Calendar className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                     <span className="font-bold">Início:</span>
                     <input
                       type="date"
@@ -582,7 +582,7 @@ export default function PlanningPage() {
                         setEditStartDate(e.target.value);
                         handleUpdateProjectHeader("startDate", e.target.value);
                       }}
-                      className="bg-transparent border-none text-xs font-bold text-white focus:outline-none [color-scheme:dark]"
+                      className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                     <span className="font-bold mx-1 text-slate-400">até</span>
                     <span className="font-bold">Fim:</span>
@@ -593,13 +593,13 @@ export default function PlanningPage() {
                         setEditEndDate(e.target.value);
                         handleUpdateProjectHeader("endDate", e.target.value);
                       }}
-                      className="bg-transparent border-none text-xs font-bold text-white focus:outline-none [color-scheme:dark]"
+                      className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                   </div>
 
                   {tripDays !== null && tripDays > 0 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded-xl text-xs font-extrabold shadow-2xs">
-                      <Clock className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-xl text-xs font-extrabold shadow-2xs">
+                      <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                       <span>Duração: {tripDays} {tripDays === 1 ? "dia" : "dias"}</span>
                     </div>
                   )}
@@ -622,74 +622,74 @@ export default function PlanningPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Card 1: Cenário Otimista (Total Mínimo) */}
-              <div className="card-glow p-4 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] flex flex-col justify-between space-y-2">
+              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Cenário Otimista
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                  <div className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/30">
                     <TrendingDown className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-emerald-400 tracking-tight font-tnum">
+                  <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum">
                     {totalMinimoOtimista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </p>
-                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos menores valores</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">Soma dos menores valores</p>
                 </div>
               </div>
 
               {/* Card 2: Cenário Realista (Total Máximo) */}
-              <div className="card-glow p-4 border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)] flex flex-col justify-between space-y-2">
+              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Cenário Realista (Máx)
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+                  <div className="w-7 h-7 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-500/30">
                     <TrendingUp className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-amber-400 tracking-tight font-tnum">
+                  <p className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-tnum">
                     {totalMaximoRealista.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </p>
-                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos maiores valores</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">Soma dos maiores valores</p>
                 </div>
               </div>
 
               {/* Card 3: TOTAL JÁ PAGO (Azul/Índigo - Card-glow) */}
-              <div className="card-glow p-4 border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.15)] flex flex-col justify-between space-y-2">
+              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Total Já Pago (Real)
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                  <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-indigo-400 tracking-tight font-tnum">
+                  <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">
                     {totalJaPagoReal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </p>
-                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma dos itens liquidados</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">Soma dos itens liquidados</p>
                 </div>
               </div>
 
               {/* Card 4: RESTANTE A PAGAR (Rosa/Vermelho - Card-glow) */}
-              <div className="card-glow p-4 border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.15)] flex flex-col justify-between space-y-2">
+              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
+                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Restante a Pagar
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                  <div className="w-7 h-7 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-500/30">
                     <DollarSign className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-rose-400 tracking-tight font-tnum">
+                  <p className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">
                     {restanteAPagarEstimado.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </p>
-                  <p className="text-[10px] text-slate-300 font-semibold mt-0.5">Soma estimada dos pendentes</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">Soma estimada dos pendentes</p>
                 </div>
               </div>
 
@@ -699,30 +699,30 @@ export default function PlanningPage() {
           {/* ── 4. FORMULÁRIO DE INSERÇÃO RÁPIDA DE ITENS ─────────────────────── */}
           <div className="card-glow p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <Plus className="w-4 h-4 text-purple-400" />
+              <h2 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                 Adicionar Novo Item ao Orçamento
               </h2>
-              <span className="text-[10px] font-semibold text-slate-300">
+              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">
                 {items.length} {items.length === 1 ? "item cadastrado" : "itens cadastrados"}
               </span>
             </div>
 
-            <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+            <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-50/80 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
               <div className="lg:col-span-4 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Item / Descrição *</label>
+                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Item / Descrição *</label>
                 <input
                   type="text"
                   required
                   value={newItemDesc}
                   onChange={e => setNewItemDesc(e.target.value)}
                   placeholder="Ex: Hotel, Passagem aérea, Ingresso..."
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
               <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Valor Mínimo (R$)</label>
+                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Valor Mínimo (R$)</label>
                 <input
                   type="number"
                   min="0"
@@ -730,12 +730,12 @@ export default function PlanningPage() {
                   value={newItemMin}
                   onChange={e => setNewItemMin(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0.00 (Opcional)"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
               <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Valor Máximo *</label>
+                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Valor Máximo *</label>
                 <input
                   type="number"
                   required
@@ -744,18 +744,18 @@ export default function PlanningPage() {
                   value={newItemMax}
                   onChange={e => setNewItemMax(e.target.value === "" ? "" : Number(e.target.value))}
                   placeholder="0.00"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
               <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-300 uppercase">Anotações / Links</label>
+                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Anotações / Links</label>
                 <input
                   type="text"
                   value={newItemNotes}
                   onChange={e => setNewItemNotes(e.target.value)}
                   placeholder="Link ou observação"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
               </div>
 
@@ -855,38 +855,38 @@ export default function PlanningPage() {
                           </td>
 
                           {/* VALOR MÍNIMO */}
-                          <td className="py-3 px-4 text-right font-black font-tnum text-emerald-400">
+                          <td className="py-3 px-4 text-right font-black font-tnum text-emerald-600 dark:text-emerald-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.minAmount !== null && item.minAmount !== undefined ? item.minAmount : ""}
                               onChange={e => handleItemValueChange(item.id, "minAmount", e.target.value)}
                               placeholder="0.00"
-                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                              className="w-24 bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-2xs"
                             />
                           </td>
 
                           {/* VALOR MÁXIMO */}
-                          <td className="py-3 px-4 text-right font-black font-tnum text-amber-400">
+                          <td className="py-3 px-4 text-right font-black font-tnum text-amber-600 dark:text-amber-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.maxAmount || ""}
                               onChange={e => handleItemValueChange(item.id, "maxAmount", e.target.value)}
                               placeholder="0.00"
-                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              className="w-24 bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-amber-600 dark:text-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-2xs"
                             />
                           </td>
 
                           {/* VALOR PAGO */}
-                          <td className="py-3 px-4 text-right font-black font-tnum text-indigo-400">
+                          <td className="py-3 px-4 text-right font-black font-tnum text-indigo-600 dark:text-indigo-400">
                             <input
                               type="number"
                               step="0.01"
                               value={item.paidAmount || ""}
                               onChange={e => handleItemValueChange(item.id, "paidAmount", e.target.value)}
                               placeholder={item.isPaid ? "0.00" : "Pendente"}
-                              className="w-24 bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="w-24 bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-right font-black text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 shadow-2xs"
                             />
                           </td>
 
@@ -1127,16 +1127,16 @@ export default function PlanningPage() {
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-white">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-800">
-              <h3 className="text-base font-black">Novo Projeto de Viagem / Evento</h3>
-              <button onClick={() => setIsNewProjectModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-base font-black text-slate-900 dark:text-white">Novo Projeto de Viagem / Evento</h3>
+              <button onClick={() => setIsNewProjectModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleCreateProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-black uppercase text-slate-300 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
                   Nome do Projeto / Viagem *
                 </label>
                 <input
@@ -1145,43 +1145,43 @@ export default function PlanningPage() {
                   value={newProjectTitle}
                   onChange={e => setNewProjectTitle(e.target.value)}
                   placeholder="Ex: Viagem Japão, Aniversário 30 Anos"
-                  className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-black uppercase text-slate-300 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
                     Data de Início
                   </label>
                   <input
                     type="date"
                     value={newProjectStartDate}
                     onChange={e => setNewProjectStartDate(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white [color-scheme:dark]"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black uppercase text-slate-300 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
                     Data de Fim
                   </label>
                   <input
                     type="date"
                     value={newProjectEndDate}
                     onChange={e => setNewProjectEndDate(e.target.value)}
-                    className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white [color-scheme:dark]"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase text-slate-300 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
                   Status Inicial
                 </label>
                 <select
                   value={newProjectStatus}
                   onChange={e => setNewProjectStatus(e.target.value)}
-                  className="w-full rounded-xl bg-slate-950 border border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-white cursor-pointer"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
                 >
                   <option value="Em Planejamento">Em Planejamento</option>
                   <option value="Confirmado">Confirmado</option>
