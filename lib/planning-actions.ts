@@ -309,7 +309,8 @@ export async function convertItemToExpenseAction(
   walletId: string,
   categoryName?: string,
   customDate?: string,
-  actualPaidAmount?: number
+  actualPaidAmount?: number,
+  installmentsCount?: number
 ) {
   const item = await db.eventItem.findUnique({
     where: { id: itemId },
@@ -333,26 +334,69 @@ export async function convertItemToExpenseAction(
     ? actualPaidAmount 
     : (Number(item.paidAmount) > 0 ? Number(item.paidAmount) : Number(item.maxAmount));
 
-  const transaction = await prisma.transaction.create({
-    data: {
-      walletId,
-      categoryId,
-      description: `[${item.project.title}] ${item.description}`,
-      type: "EXPENSE",
-      amount: finalPaid,
-      date: txDate,
-      source: "PLANNING",
-      status: "COMPLETED",
-      tags: `#${item.project.title.toLowerCase().replace(/\s+/g, "")}`,
+  const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
+  const projectTag = `#${item.project.title.toLowerCase().replace(/\s+/g, "")}`;
+  const baseDescription = `[${item.project.title}] ${item.description}`;
+
+  let firstTransactionId: string | null = null;
+
+  if (numInstallments > 1) {
+    const groupId = crypto.randomUUID();
+    const baseInstallment = Math.floor((finalPaid / numInstallments) * 100) / 100;
+    const remainder = Math.round((finalPaid - baseInstallment * numInstallments) * 100) / 100;
+
+    const transactionsData = [];
+    for (let i = 1; i <= numInstallments; i++) {
+      const instDate = new Date(txDate);
+      instDate.setMonth(instDate.getMonth() + (i - 1));
+
+      const instAmount = i === 1 ? baseInstallment + remainder : baseInstallment;
+      const instDesc = `${baseDescription} (${i}/${numInstallments})`;
+
+      transactionsData.push({
+        walletId,
+        categoryId,
+        description: instDesc,
+        type: "EXPENSE" as const,
+        amount: instAmount,
+        installmentsCount: numInstallments,
+        currentInstallment: i,
+        installmentGroupId: groupId,
+        date: instDate,
+        source: "PLANNING",
+        status: "COMPLETED",
+        tags: projectTag,
+      });
     }
-  });
+
+    const createdTxs = await Promise.all(
+      transactionsData.map(tx => (prisma.transaction as any).create({ data: tx }))
+    );
+    firstTransactionId = createdTxs[0]?.id || null;
+  } else {
+    const transaction = await (prisma.transaction as any).create({
+      data: {
+        walletId,
+        categoryId,
+        description: baseDescription,
+        type: "EXPENSE",
+        amount: finalPaid,
+        installmentsCount: 1,
+        date: txDate,
+        source: "PLANNING",
+        status: "COMPLETED",
+        tags: projectTag,
+      }
+    });
+    firstTransactionId = transaction.id;
+  }
 
   await db.eventItem.update({
     where: { id: itemId },
     data: {
       isPaid: true,
       paidAmount: finalPaid,
-      transactionId: transaction.id
+      transactionId: firstTransactionId
     }
   });
 
@@ -361,5 +405,5 @@ export async function convertItemToExpenseAction(
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
 
-  return transaction;
+  return { success: true };
 }

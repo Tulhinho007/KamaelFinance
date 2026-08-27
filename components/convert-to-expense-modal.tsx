@@ -37,6 +37,8 @@ export function ConvertToExpenseModal({
   const [category, setCategory] = useState("Lazer");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [actualPaidAmount, setActualPaidAmount] = useState<number | "">("");
+  const [formType, setFormType] = useState<"vista" | "parcelado">("vista");
+  const [installmentsCount, setInstallmentsCount] = useState<number>(2);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -59,6 +61,9 @@ export function ConvertToExpenseModal({
 
   if (!isOpen || !item) return null;
 
+  const currentWallet = wallets.find(w => w.id === selectedWalletId);
+  const isCredit = currentWallet?.walletType === "CREDIT_CARD";
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWalletId) {
@@ -72,9 +77,11 @@ export function ConvertToExpenseModal({
       return;
     }
 
+    const installments = formType === "parcelado" ? installmentsCount : undefined;
+
     setLoading(true);
     try {
-      await convertItemToExpenseAction(item.id, selectedWalletId, category, date, finalAmount);
+      await convertItemToExpenseAction(item.id, selectedWalletId, category, date, finalAmount, installments);
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
@@ -97,10 +104,10 @@ export function ConvertToExpenseModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Converter em Despesa Real
+                Lançar Item do Planejamento
               </h3>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Lançar o item no extrato/fluxo de caixa principal
+                Lançar despesa no extrato / cartão de crédito
               </p>
             </div>
           </div>
@@ -130,7 +137,7 @@ export function ConvertToExpenseModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 p-6 overflow-y-auto max-h-[75vh]">
           
           {/* Valor Real Pago */}
           <div className="flex flex-col gap-1.5">
@@ -150,11 +157,11 @@ export function ConvertToExpenseModal({
             />
           </div>
 
-          {/* Seletor de Conta */}
+          {/* Seletor de Conta / Cartão */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <Wallet className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Conta / Cartão de Débito *</span>
+              <span>Conta / Cartão de Crédito *</span>
             </label>
             <select
               required
@@ -163,7 +170,7 @@ export function ConvertToExpenseModal({
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm cursor-pointer"
             >
               <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-400">
-                -- Selecione a conta de saída --
+                -- Selecione a conta ou cartão --
               </option>
               {wallets.map(w => (
                 <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
@@ -172,6 +179,73 @@ export function ConvertToExpenseModal({
               ))}
             </select>
           </div>
+
+          {/* Forma de Pagamento (À Vista vs Parcelado) */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Forma de Pagamento
+            </label>
+            <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setFormType("vista")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formType === "vista"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
+                }`}
+              >
+                À Vista (1x)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormType("parcelado")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formType === "parcelado"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
+                }`}
+              >
+                Parcelado
+              </button>
+            </div>
+          </div>
+
+          {/* Cálculo e Opções de Parcelamento */}
+          {formType === "parcelado" && (
+            <div className="flex flex-col gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Quantidade de Parcelas *
+                </label>
+                <select
+                  value={installmentsCount}
+                  onChange={e => setInstallmentsCount(Number(e.target.value))}
+                  className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  {Array.from({ length: 23 }, (_, i) => i + 2).map(n => (
+                    <option key={n} value={n}>
+                      {n}x parcelas
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {Number(actualPaidAmount || item.maxAmount) > 0 && (
+                <div className="text-center pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">
+                    Cálculo da Parcela
+                  </span>
+                  <p className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 font-tnum mt-0.5">
+                    {Number(actualPaidAmount || item.maxAmount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em {installmentsCount}x de{" "}
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {(Number(actualPaidAmount || item.maxAmount) / installmentsCount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Categoria */}
           <div className="flex flex-col gap-1.5">
@@ -188,11 +262,11 @@ export function ConvertToExpenseModal({
             />
           </div>
 
-          {/* Data */}
+          {/* Data da 1ª Parcela / Lançamento */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-              <span>Data do Lançamento</span>
+              <span>{formType === "parcelado" ? "Data da 1ª Parcela *" : "Data do Lançamento *"}</span>
             </label>
             <input
               type="date"
@@ -216,7 +290,7 @@ export function ConvertToExpenseModal({
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                <span>Confirmar & Marcar como Pago</span>
+                <span>Confirmar & Lançar no Extrato</span>
               </>
             )}
           </button>

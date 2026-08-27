@@ -971,23 +971,59 @@ export async function createCardPurchase(
   }
 
   const finalTags = extractTags(description, tags);
+  const initialDate = parseInputDate(dateStr);
+  const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
 
-  await prisma.transaction.create({
-    data: {
-      walletId,
-      categoryId: dbCategory.id,
-      description,
-      type: "EXPENSE",
-      amount,
-      installmentsCount,
-      date: parseInputDate(dateStr),
-      source: "MANUAL",
-      tags: finalTags
-    } as any
-  });
+  if (numInstallments > 1) {
+    const groupId = crypto.randomUUID();
+    const baseInstallment = Math.floor((amount / numInstallments) * 100) / 100;
+    const remainder = Math.round((amount - baseInstallment * numInstallments) * 100) / 100;
+
+    const transactionsData = [];
+    for (let i = 1; i <= numInstallments; i++) {
+      const instDate = new Date(initialDate);
+      instDate.setMonth(instDate.getMonth() + (i - 1));
+
+      const instAmount = i === 1 ? baseInstallment + remainder : baseInstallment;
+      const instDesc = `${description} (${i}/${numInstallments})`;
+
+      transactionsData.push({
+        walletId,
+        categoryId: dbCategory.id,
+        description: instDesc,
+        type: "EXPENSE" as const,
+        amount: instAmount,
+        installmentsCount: numInstallments,
+        currentInstallment: i,
+        installmentGroupId: groupId,
+        date: instDate,
+        source: "MANUAL",
+        tags: finalTags,
+      });
+    }
+
+    await (prisma.transaction as any).createMany({
+      data: transactionsData,
+    });
+  } else {
+    await (prisma.transaction as any).create({
+      data: {
+        walletId,
+        categoryId: dbCategory.id,
+        description,
+        type: "EXPENSE",
+        amount,
+        installmentsCount: 1,
+        date: initialDate,
+        source: "MANUAL",
+        tags: finalTags
+      }
+    });
+  }
 
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
 export async function updateCardPurchase(

@@ -70,8 +70,8 @@ export function NewPurchaseModal({
       return;
     }
 
-    const calculatedAmount = formType === "vista" ? Number(formAmount || 0) : Number(formInstallmentAmount || 0);
-    if (calculatedAmount <= 0) {
+    const totalAmountVal = Number(formAmount || 0);
+    if (totalAmountVal <= 0) {
       showAlert("Informe um valor válido maior que zero.", { variant: "warning" });
       return;
     }
@@ -84,7 +84,7 @@ export function NewPurchaseModal({
         selectedWalletId,
         formDescription,
         formCategory,
-        calculatedAmount,
+        totalAmountVal,
         installments,
         formDate,
         formTags
@@ -223,7 +223,7 @@ export function NewPurchaseModal({
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
                 }`}
               >
-                À Vista
+                À Vista (1x)
               </button>
               <button
                 type="button"
@@ -239,54 +239,56 @@ export function NewPurchaseModal({
             </div>
           </div>
 
-          {/* Campo 5 & 6: Valor e Parcelas */}
-          {formType === "vista" ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Valor Total (R$) *
-              </label>
-              <input
-                required
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={formAmount}
-                onChange={e => setFormAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                placeholder="0.00"
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
+          {/* Campo 5: Valor Total */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Valor Total (R$) *
+            </label>
+            <input
+              required
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={formAmount}
+              onChange={e => setFormAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="0.00"
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+            />
+          </div>
+
+          {/* Campo 6: Opções de Parcelamento em tempo real */}
+          {formType === "parcelado" && (
+            <div className="flex flex-col gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
+              <div className="flex justify-between items-center">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Valor da Parcela (R$) *
+                  Quantidade de Parcelas *
                 </label>
-                <input
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={formInstallmentAmount}
-                  onChange={e => setFormInstallmentAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0.00"
-                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Nº de Parcelas *
-                </label>
-                <input
-                  required
-                  type="number"
-                  min="2"
-                  max="48"
+                <select
                   value={formInstallmentsCount}
                   onChange={e => setFormInstallmentsCount(Number(e.target.value))}
-                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
-                />
+                  className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  {Array.from({ length: 23 }, (_, i) => i + 2).map(n => (
+                    <option key={n} value={n}>
+                      {n}x parcelas
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {Number(formAmount) > 0 && (
+                <div className="text-center pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 block uppercase tracking-wide">
+                    Cálculo da Parcela
+                  </span>
+                  <p className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 font-tnum mt-0.5">
+                    {Number(formAmount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em {formInstallmentsCount}x de{" "}
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      {(Number(formAmount) / formInstallmentsCount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </span>
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

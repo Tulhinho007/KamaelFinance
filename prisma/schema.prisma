@@ -73,8 +73,10 @@ model Transaction {
   isRecurring       Boolean         @default(false)
   source            String          @default("MANUAL")
   tags              String?         // Tags ou centro de custos (ex: #viagem2026, #reforma)
-  deletedAt         DateTime?
-  installmentsCount Int?            // Quantidade de parcelas se for compra parcelada
+  deletedAt          DateTime?
+  installmentsCount  Int?            // Quantidade total de parcelas se for compra parcelada
+  currentInstallment Int?            // Número da parcela atual (ex: 1, 2, 3)
+  installmentGroupId String?         // ID do grupo de parcelas para vinculação
 }
 
 model Goal {
