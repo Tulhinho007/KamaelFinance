@@ -165,10 +165,19 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 
 // ---------- Actions de Receitas ----------
 
-export async function getRevenues(month: number, year: number) {
+export async function getRevenues(month?: number | null, year: number = 2026) {
   const userId = await getActiveUserId();
-  const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const to = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  
+  let from: Date;
+  let to: Date;
+
+  if (month && month >= 1 && month <= 12) {
+    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
 
   let transactions = await prisma.transaction.findMany({
     where: {
@@ -1453,7 +1462,7 @@ export async function deleteTicketExpense(id: string) {
 
 // ---------- Actions de Visão Geral de Despesas ----------
 
-export async function getAllCardsOverview(month: number, year: number) {
+export async function getAllCardsOverview(month?: number | null, year: number = 2026) {
   const userId = await getActiveUserId();
 
   const wallets = await prisma.wallet.findMany({
@@ -1464,13 +1473,23 @@ export async function getAllCardsOverview(month: number, year: number) {
     orderBy: { title: "asc" },
   });
 
-  const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  let from: Date;
+  let to: Date;
+
+  if (month && month >= 1 && month <= 12) {
+    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
+
+  const effectiveMonth = month || (new Date().getMonth() + 1);
 
   const result = await Promise.all(
     wallets.map(async (w) => {
       const isCredit = w.walletType === "CREDIT_CARD";
-      const balanceInfo = await calculateAccountBalance(w.id, month, year);
+      const balanceInfo = await calculateAccountBalance(w.id, effectiveMonth, year);
 
       const transactions = await prisma.transaction.findMany({
         where: {
@@ -1523,7 +1542,7 @@ export async function getAllCardsOverview(month: number, year: number) {
       const dueDateInfo = getInvoiceDueDateInfo(
         (w as any).diaFechamento ?? 1,
         w.vencimento ?? 10,
-        month,
+        effectiveMonth,
         year
       );
 
@@ -1703,7 +1722,7 @@ export async function undoCardInvoicePaymentAction(
   return { success: true };
 }
 
-export async function getPaidInvoicesAction(month: number, year: number) {
+export async function getPaidInvoicesAction(month?: number | null, year: number = 2026) {
   const userId = await getActiveUserId();
 
   const paidInvoices = await (prisma as any).invoicePayment.findMany({
@@ -1717,9 +1736,15 @@ export async function getPaidInvoicesAction(month: number, year: number) {
   });
 
   const filtered = paidInvoices.filter((p: any) => {
-    if (p.month === month && p.year === year) return true;
-    const paidDate = new Date(p.paidAt);
-    return (paidDate.getUTCMonth() + 1 === month && paidDate.getUTCFullYear() === year);
+    if (month && month >= 1 && month <= 12) {
+      if (p.month === month && p.year === year) return true;
+      const paidDate = new Date(p.paidAt);
+      return (paidDate.getUTCMonth() + 1 === month && paidDate.getUTCFullYear() === year);
+    } else {
+      if (p.year === year) return true;
+      const paidDate = new Date(p.paidAt);
+      return paidDate.getUTCFullYear() === year;
+    }
   });
 
   return Promise.all(

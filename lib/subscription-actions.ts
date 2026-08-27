@@ -62,8 +62,8 @@ export type SubscriptionWithStatus = {
 
 // 1. Obter assinaturas com status do mês selecionado
 export async function getSubscriptionsWithMonthlyStatusAction(
-  month: number,
-  year: number
+  month?: number | null,
+  year: number = 2026
 ): Promise<{
   subscriptions: SubscriptionWithStatus[];
   summary: {
@@ -75,6 +75,11 @@ export async function getSubscriptionsWithMonthlyStatusAction(
 }> {
   const userId = await getActiveUserId();
 
+  const paymentWhere: any = { year };
+  if (month && month >= 1 && month <= 12) {
+    paymentWhere.month = month;
+  }
+
   // Buscar todas as assinaturas do usuário (ou sistema)
   const subscriptions = await db.subscription.findMany({
     where: {
@@ -85,7 +90,7 @@ export async function getSubscriptionsWithMonthlyStatusAction(
         select: { id: true, title: true, bankName: true }
       },
       payments: {
-        where: { month, year },
+        where: paymentWhere,
         include: {
           subscription: true
         }

@@ -261,8 +261,10 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
-  const { selectedMonth, selectedYear } = usePeriod();
   const { showAlert } = useModal();
+
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | null>(null); // null = Todos os Meses (Visão Anual)
 
   const [cards, setCards]         = useState<CardOverview[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -313,7 +315,7 @@ export default function DespesasPage() {
 
   const loadPaidInvoices = async () => {
     try {
-      const list = await getPaidInvoicesAction(selectedMonth, selectedYear);
+      const list = await getPaidInvoicesAction(selectedMonthFilter, selectedYear);
       setPaidInvoicesList(list);
     } catch (e) {
       console.error("Erro ao carregar faturas pagas:", e);
@@ -331,7 +333,7 @@ export default function DespesasPage() {
         payModalCard.amount,
         selectedPaymentWalletId
       );
-      const fresh = await getAllCardsOverview(selectedMonth, selectedYear);
+      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
       await loadPaidInvoices();
       setPayModalCard(null);
@@ -346,7 +348,7 @@ export default function DespesasPage() {
   const handleUndoPayment = async (cardWalletId: string, month: number, year: number) => {
     try {
       await undoCardInvoicePaymentAction(cardWalletId, month, year);
-      const fresh = await getAllCardsOverview(selectedMonth, selectedYear);
+      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
       await loadPaidInvoices();
     } catch (e) {
@@ -365,69 +367,47 @@ export default function DespesasPage() {
   const [formDiaFech,     setFormDiaFech]     = useState<number>(1);
   const [formDiaVenc,     setFormDiaVenc]     = useState<number>(10);
   const [formOrigin,      setFormOrigin]      = useState<"ROLLOVER" | "SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE">("ROLLOVER");
-  const [formTargetMonth, setFormTargetMonth] = useState<number>(selectedMonth);
+  const [formTargetMonth, setFormTargetMonth] = useState<number>(selectedMonthFilter || (new Date().getMonth() + 1));
   const [formTargetYear,  setFormTargetYear]  = useState<number>(selectedYear);
   const [formSaving,      setFormSaving]      = useState(false);
 
-  // ── Carrega dados ────────────────────────────────────────────────────────────
+  // ── Carrega dados em modo Anual ou Mensal ─────────────────────────────────
   useEffect(() => {
     let active = true;
     setLoading(true);
-    getAllCardsOverview(selectedMonth, selectedYear)
-      .then(data => { if (active) { setCards(data); setLoading(false); } })
-      .catch(err  => { console.error(err); if (active) setLoading(false); });
-    loadPaidInvoices();
 
-    getSubscriptionsWithMonthlyStatusAction(selectedMonth, selectedYear)
-      .then(res => {
-        if (active && res?.summary) {
-          setSubscriptionsSummary({
-            totalMonthlyAmount: res.summary.totalMonthlyAmount || 0,
-            totalPaidAmount: res.summary.totalPaidAmount || 0,
-            totalPendingAmount: res.summary.totalPendingAmount || 0,
-          });
-        }
-      })
-      .catch(err => console.error("Erro ao carregar assinaturas para despesas:", err));
-
-    // Busca previsões do próximo mês (Mês + 1) em paralelo
-    const nextM = selectedMonth === 12 ? 1 : selectedMonth + 1;
-    const nextY = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
-    const nextName = getMonthName(nextM);
+    const monthParam = selectedMonthFilter;
 
     Promise.all([
-      getAllCardsOverview(nextM, nextY),
-      getSubscriptionsWithMonthlyStatusAction(nextM, nextY)
-    ]).then(([nextCardsRes, nextSubsRes]) => {
-      if (!active) return;
-      const nextCreditCards = (nextCardsRes || []).filter((c: any) => c.walletType === "CREDIT_CARD");
-      const nextAccountCards = (nextCardsRes || []).filter((c: any) => c.walletType !== "CREDIT_CARD");
-
-      const nextCreditTotal = nextCreditCards.reduce((s: number, c: any) => s + (c.faturaAtual || 0), 0);
-      const nextAccountTotal = nextAccountCards.reduce((s: number, c: any) => s + (c.faturaAtual || 0), 0);
-      const nextSubscriptionsTotal = nextSubsRes?.summary?.totalMonthlyAmount || 0;
-      const nextGastosConsumoTotal = nextCreditTotal + nextSubscriptionsTotal;
-
-      setNextMonthData({
-        nextMonthName: nextName,
-        nextCreditTotal,
-        nextSubscriptionsTotal,
-        nextGastosConsumoTotal,
-        nextSaidasContaTotal: nextAccountTotal,
-      });
-    }).catch(err => console.error("Erro ao carregar dados do mês seguinte:", err));
-
-    // Busca resumo do ciclo salarial (Saldo Anterior + Receitas do Mês)
-    getSalaryCycleSummary(selectedMonth, selectedYear)
-      .then(summary => {
+      getAllCardsOverview(monthParam, selectedYear),
+      getSubscriptionsWithMonthlyStatusAction(monthParam, selectedYear),
+      getRevenues(monthParam, selectedYear),
+      getPaidInvoicesAction(monthParam || (new Date().getMonth() + 1), selectedYear),
+    ])
+      .then(([cardsRes, subsRes, revsRes, paidInvoicesRes]) => {
         if (!active) return;
-        setTotalSaldoAnterior(summary.totalSaldoAnterior || 0);
-        setTotalReceitaMes(summary.totalReceitaPrevista || 0);
+        setCards(cardsRes || []);
+        setPaidInvoicesList(paidInvoicesRes || []);
+
+        if (subsRes?.summary) {
+          setSubscriptionsSummary({
+            totalMonthlyAmount: subsRes.summary.totalMonthlyAmount || 0,
+            totalPaidAmount: subsRes.summary.totalPaidAmount || 0,
+            totalPendingAmount: subsRes.summary.totalPendingAmount || 0,
+          });
+        }
+
+        const totalRev = (revsRes || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
+        setTotalReceitaMes(totalRev);
+        setLoading(false);
       })
-      .catch(err => console.error("Erro ao carregar receitas/ciclo salarial para despesas:", err));
+      .catch(err => {
+        console.error("Erro ao carregar dados de despesas:", err);
+        if (active) setLoading(false);
+      });
 
     return () => { active = false; };
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonthFilter, selectedYear]);
 
   // ── Titulares únicos para o filtro rápido ────────────────────────────────────
   const uniqueHolders = Array.from(
@@ -458,7 +438,7 @@ export default function DespesasPage() {
         walletId: c.id,
         cardTitle: c.title,
         bankName: c.bankName || c.title,
-        month: (c as any).billingMonth || selectedMonth,
+        month: (c as any).billingMonth || selectedMonthFilter || 1,
         year: (c as any).billingYear || selectedYear,
         amount: (c as any).paidAmount > 0 ? (c as any).paidAmount : c.faturaAtual,
         paidAt: (c as any).paidAt || new Date().toISOString(),
@@ -473,7 +453,7 @@ export default function DespesasPage() {
     .filter(c => c.faturaAtual > 0 && !(c as any).isPaid && !paidCardIds.has(c.id))
     .map(c => {
       const isPast = (c as any).isPast;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
+      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
 
       return {
         id:         c.id,
@@ -482,7 +462,7 @@ export default function DespesasPage() {
         vencimento: dateStr,
         valor:      c.faturaAtual,
         status:     isPast ? ("vencido" as const) : ("aberto" as const),
-        month:      (c as any).billingMonth || selectedMonth,
+        month:      (c as any).billingMonth || selectedMonthFilter || 1,
         year:       (c as any).billingYear || selectedYear,
       };
     });
@@ -541,7 +521,7 @@ export default function DespesasPage() {
     .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
     .map(c => {
       let daysDiff: number | null = null;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`;
+      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
       const parts = dateStr.split("/");
       if (parts.length === 3) {
         const todayZero = new Date();
@@ -623,7 +603,7 @@ export default function DespesasPage() {
   const resetForm = () => {
     setFormBank(""); setFormType("CREDIT_CARD"); setFormHolder("");
     setFormAgencia(""); setFormConta(""); setFormLimit(""); setFormDiaFech(1); setFormDiaVenc(10);
-    setFormOrigin("ROLLOVER"); setFormTargetMonth(selectedMonth); setFormTargetYear(selectedYear);
+    setFormOrigin("ROLLOVER"); setFormTargetMonth(selectedMonthFilter || (new Date().getMonth() + 1)); setFormTargetYear(selectedYear);
   };
 
   const openCreate = () => {
@@ -643,7 +623,7 @@ export default function DespesasPage() {
     setFormDiaFech((card as any).diaFechamento || 1);
     setFormDiaVenc(card.vencimento);
     setFormOrigin("ROLLOVER");
-    setFormTargetMonth(selectedMonth);
+    setFormTargetMonth(selectedMonthFilter || (new Date().getMonth() + 1));
     setFormTargetYear(selectedYear);
     setModalMode("edit");
   };
@@ -679,7 +659,7 @@ export default function DespesasPage() {
         targetMonth:    formTargetMonth,
         targetYear:     formTargetYear,
       });
-      const fresh = await getAllCardsOverview(selectedMonth, selectedYear);
+      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
       closeModal();
     } catch (err) {
@@ -707,7 +687,7 @@ export default function DespesasPage() {
         diaFechamento:  formDiaFech,
         diaVencimento:  formDiaVenc,
       });
-      const fresh = await getAllCardsOverview(selectedMonth, selectedYear);
+      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
       closeModal();
     } catch (err) {
@@ -738,21 +718,86 @@ export default function DespesasPage() {
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
 
-      {/* ── 1. HEADER ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <PeriodHeader
-          title="Despesas & Contas"
-          tagline="Gerencie seus cartões, contas bancárias e acompanhe seus gastos consolidados."
-        />
+      {/* ── 1. HEADER ANUAL & NAVEGAÇÃO ────────────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Despesas & Contas
+            </h1>
+            <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              {selectedMonthFilter === null ? `VISÃO ANUAL – ${selectedYear}` : `${getMonthName(selectedMonthFilter)}/${selectedYear}`}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+            {selectedMonthFilter === null
+              ? `Consolidado dos lançamentos e faturas do ano de ${selectedYear}.`
+              : `Lançamentos do mês de ${getMonthName(selectedMonthFilter)} de ${selectedYear}.`}
+          </p>
+        </div>
 
-        <button
-          onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonth, selectedYear)}
-          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-md transition-all cursor-pointer self-start sm:self-auto shrink-0"
-          title="Exportar dados do mês em planilha CSV"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span>Exportar Relatório</span>
-        </button>
+        {/* Seletor de Período no Topo (Navegação Anual + Filtro por Mês) */}
+        <div className="flex flex-wrap items-center gap-3">
+          
+          {/* Navegador de Ano: [< ANO 2026 >] */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-900 px-2 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => setSelectedYear(prev => prev - 1)}
+              className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
+              title="Ano Anterior"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+            <span className="font-black text-xs text-slate-900 dark:text-white px-3 uppercase tracking-wider">
+              ANO {selectedYear}
+            </span>
+            <button
+              onClick={() => setSelectedYear(prev => prev + 1)}
+              className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
+              title="Próximo Ano"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Atalho "ANO ATUAL" */}
+          <button
+            onClick={() => {
+              setSelectedYear(new Date().getFullYear());
+              setSelectedMonthFilter(null);
+            }}
+            className="px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl font-extrabold text-xs transition-all cursor-pointer"
+          >
+            ANO ATUAL
+          </button>
+
+          {/* Dropdown de Filtro Opcional por Mês */}
+          <select
+            value={selectedMonthFilter === null ? "" : selectedMonthFilter}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedMonthFilter(val === "" ? null : Number(val));
+            }}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="">Todos os Meses (Visão Anual)</option>
+            {[
+              "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+            ].map((mName, idx) => (
+              <option key={idx + 1} value={idx + 1}>{mName}</option>
+            ))}
+          </select>
+
+          <button
+            onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonthFilter || 12, selectedYear)}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-md transition-all cursor-pointer"
+            title="Exportar relatório CSV"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Exportar</span>
+          </button>
+        </div>
       </div>
 
       {/* ── 2. BOTÕES CTA ──────────────────────────────────────────────────────── */}
@@ -774,54 +819,52 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 2.5 CARD CONSOLIDADO: CICLO SALARIAL / SOBRA PREVISTA ─────────────────── */}
+      {/* ── 2.5 BANNER CONSOLIDADO ANUAL & SOBRA PREVISTA ─────────────────── */}
       <section className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm relative overflow-hidden text-slate-800 dark:text-white">
         {/* Visual Glow */}
         <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-emerald-500/10 via-indigo-500/5 to-transparent pointer-events-none rounded-full blur-3xl" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           
-          {/* Esquerda: Título, Botão Explicativo (?) e Métricas */}
+          {/* Esquerda: Título e Métricas Anuais */}
           <div className="space-y-4 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-widest bg-emerald-50 dark:bg-emerald-950/50 px-3.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800/60 shadow-xs flex items-center gap-1.5">
-                <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Ciclo Salarial & Sobra Prevista
-              </span>
-              <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
-                Pagamento · {getMonthName(selectedMonth)}/{selectedYear}
+                <Coins className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                {selectedMonthFilter === null ? `Consolidado Anual & Sobra Prevista (Ano ${selectedYear})` : `Consolidado & Sobra Prevista (${getMonthName(selectedMonthFilter)}/${selectedYear})`}
               </span>
 
               {/* Botão Interrogação Explicativa (?) */}
               <button
                 type="button"
                 onClick={() => setShowSalaryCycleInfo(true)}
-                title="Clique para entender a lógica de cálculo do Ciclo Salarial"
+                title="Clique para entender a lógica de cálculo consolidado"
                 className="p-1 rounded-full bg-slate-100 hover:bg-indigo-100 dark:bg-slate-800 dark:hover:bg-indigo-900/50 text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300 transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Grid com Receita Prevista, Total Contas e Sobra Líquida */}
+            {/* Grid com Receitas do Ano, Total de Contas e Sobra Líquida */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
               
-              {/* Receita / Salário Previsto */}
+              {/* Receita / Salários do Ano */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Receita / Salário Previsto
+                  {selectedMonthFilter === null ? "Receita / Salários do Ano" : "Receita / Salário do Mês"}
                 </span>
                 <p className="text-2xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
                   {brl(totalReceitaMes)}
                 </p>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
-                  Salário esperado no ciclo
+                  {selectedMonthFilter === null ? `Entradas dos 12 meses de ${selectedYear}` : `Entradas em ${getMonthName(selectedMonthFilter)}/${selectedYear}`}
                 </span>
               </div>
 
-              {/* Total de Contas a Pagar */}
+              {/* Total de Contas no Ano */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  (-) Contas a Pagar no Ciclo
+                  {selectedMonthFilter === null ? "(-) Total de Contas no Ano" : "(-) Contas a Pagar no Mês"}
                 </span>
                 <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1 font-tnum">
                   {brl(totalCompromissosSalario)}
@@ -831,27 +874,27 @@ export default function DespesasPage() {
                 </span>
               </div>
 
-              {/* Sobra Líquida Real (Destaque Principal em Verde Esmeralda Grande) */}
+              {/* Sobra Líquida Anual Estimada (Destaque Principal em Verde Esmeralda Grande) */}
               <div className={`${sobraLiquidaSalario >= 0 ? "bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60" : "bg-rose-50/80 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/60"} p-4 rounded-2xl border transition-colors`}>
                 <span className={`text-[10px] font-bold uppercase tracking-wider block ${sobraLiquidaSalario >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"}`}>
-                  (=) Sobra Líquida Real
+                  {selectedMonthFilter === null ? "(=) Sobra Líquida Anual Estimada" : "(=) Sobra Líquida Real"}
                 </span>
                 <p className={`text-3xl font-black mt-1 font-tnum ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   {brl(sobraLiquidaSalario)}
                 </p>
                 <span className={`text-[10px] font-medium block mt-0.5 ${sobraLiquidaSalario >= 0 ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-rose-700/80 dark:text-rose-400/80"}`}>
-                  Receita (-) Total de Contas
+                  Receitas (-) Total de Contas
                 </span>
               </div>
 
             </div>
           </div>
 
-          {/* Direita: Barra de Comprometimento de Renda */}
+          {/* Direita: Barra de Comprometimento de Renda Médio Anual */}
           <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-5 min-w-[240px] lg:max-w-xs space-y-3 shadow-sm shrink-0">
             <div className="flex items-center justify-between text-xs font-extrabold">
               <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">
-                Comprometimento de Renda
+                {selectedMonthFilter === null ? "Comprometimento Médio Anual" : "Comprometimento no Mês"}
               </span>
               <span className={`font-black font-tnum text-sm ${pctComprometidoSalario >= 90 ? "text-rose-600 dark:text-rose-400" : pctComprometidoSalario >= 70 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                 {pctComprometidoSalario}%
@@ -958,11 +1001,11 @@ export default function DespesasPage() {
           </div>
         </div>
 
-        {/* Card 2: TOTAL GASTO NO CRÉDITO (MÊS) */}
+        {/* Card 2: TOTAL GASTO NO CRÉDITO (ANO) */}
         <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
-              TOTAL GASTO NO CRÉDITO (MÊS)
+              {selectedMonthFilter === null ? "TOTAL GASTO NO CRÉDITO (ANO)" : "TOTAL GASTO NO CRÉDITO (MÊS)"}
             </span>
             <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
               <CreditCard className="w-4 h-4" />
@@ -972,8 +1015,8 @@ export default function DespesasPage() {
             <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-tnum">
               {brl(creditoMesTotal)}
             </p>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1 truncate max-w-full" title={`Faturas acumuladas na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}>
-              Faturas acumuladas na competência ({creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1 truncate max-w-full" title={selectedMonthFilter === null ? `Acumulado nos 12 meses (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})` : `Acumulado na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}>
+              {selectedMonthFilter === null ? `Acumulado nos 12 meses (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})` : `Faturas acumuladas na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}
             </span>
           </div>
         </div>
@@ -1068,19 +1111,19 @@ export default function DespesasPage() {
               <CardTile
                 key={card.id}
                 card={card}
-                selectedMonth={selectedMonth}
+                selectedMonth={selectedMonthFilter}
                 selectedYear={selectedYear}
                 isPaid={!!(card as any).isPaid}
                 onTogglePaid={(id) => {
                   if ((card as any).isPaid) {
-                    handleUndoPayment(id, (card as any).billingMonth || selectedMonth, (card as any).billingYear || selectedYear);
+                    handleUndoPayment(id, (card as any).billingMonth || selectedMonthFilter || 1, (card as any).billingYear || selectedYear);
                   } else {
                     setSelectedPaymentWalletId("NONE");
                     setPayModalCard({
                       id,
                       title: card.title || card.bankName,
                       amount: card.faturaAtual,
-                      month: (card as any).billingMonth || selectedMonth,
+                      month: (card as any).billingMonth || selectedMonthFilter || 1,
                       year: (card as any).billingYear || selectedYear,
                     });
                   }
@@ -1679,7 +1722,7 @@ export default function DespesasPage() {
         isOpen={purchaseModalOpen}
         onClose={() => setPurchaseModalOpen(false)}
         onSuccess={() => {
-          getAllCardsOverview(selectedMonth, selectedYear).then(setCards);
+          getAllCardsOverview(selectedMonthFilter, selectedYear).then(setCards);
         }}
       />
 
@@ -1698,7 +1741,7 @@ function CardTile({
   onDelete,
 }: {
   card: CardOverview;
-  selectedMonth: number;
+  selectedMonth: number | null;
   selectedYear: number;
   isPaid: boolean;
   onTogglePaid: (id: string) => void;
@@ -1723,7 +1766,7 @@ function CardTile({
   const isZero = card.faturaAtual === 0;
   const dueDateInfo = (card as any).vencimentoStr
     ? { dateStr: (card as any).vencimentoStr }
-    : calculateNextDueDate(card.vencimento, selectedMonth, selectedYear, isPaid || isZero);
+    : calculateNextDueDate(card.vencimento, selectedMonth || (new Date().getMonth() + 1), selectedYear, isPaid || isZero);
 
   return (
     <div className="relative group">
