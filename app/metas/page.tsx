@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getGoals, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, getWalletsAction } from "@/lib/actions";
+import { getGoals, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, getWalletsAction, toggleGoalStatusAction } from "@/lib/actions";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
 import { GoalCelebrationModal } from "@/components/goal-celebration-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
-  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight
+  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw
 } from "lucide-react";
 
 import { parseCurrencyInput } from "@/lib/constants";
@@ -39,6 +39,8 @@ type Goal = {
   objetivo: number;
   pct: number;
   iconName: "Plane" | "Car" | "Home" | "Target";
+  status?: string;
+  completedAt?: string | null;
   walletId?: string | null;
   walletTitle?: string | null;
   mediaAporteMensal?: number;
@@ -168,18 +170,26 @@ export default function MetasPage() {
     loadAllData();
   }, []);
 
-  const filteredMetas = metas.filter(m => 
+  // Seletor de Abas (Metas Ativas vs Conquistas Batidas)
+  const [activeTab, setActiveTab] = useState<"active" | "completed">("active");
+
+  // Separação entre metas ativas e concluídas
+  const activeMetas = metas.filter(m => m.status !== "COMPLETED" && m.pct < 100);
+  const completedMetas = metas.filter(m => m.status === "COMPLETED" || m.pct >= 100);
+
+  const currentTabMetas = activeTab === "active" ? activeMetas : completedMetas;
+  const filteredMetas = currentTabMetas.filter(m => 
     m.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Valores Consolidados Dinâmicos (3 KPIs)
-  const totalAcumulado = metas.reduce((sum, m) => sum + m.acumulado, 0);
-  const objetivoFinal  = metas.reduce((sum, m) => sum + m.objetivo, 0);
+  // Valores Consolidados Dinâmicos calculados APENAS para as Metas Ativas
+  const totalAcumulado = activeMetas.reduce((sum, m) => sum + m.acumulado, 0);
+  const objetivoFinal  = activeMetas.reduce((sum, m) => sum + m.objetivo, 0);
   const faltaAportar   = Math.max(0, objetivoFinal - totalAcumulado);
   const globalPct      = objetivoFinal > 0 ? Math.min(100, Math.round((totalAcumulado / objetivoFinal) * 100)) : 0;
-  const activeMetasCount = metas.length;
+  const activeMetasCount = activeMetas.length;
 
-  // Círculo Radial Progresso
+  // Círculo Radial Progresso Global
   const radius = 34;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (globalPct / 100) * circumference;
@@ -295,6 +305,22 @@ export default function MetasPage() {
     setModalType("delete");
   };
 
+  const handleToggleGoalStatus = async (goalId: string, newStatus: "ACTIVE" | "COMPLETED") => {
+    try {
+      await toggleGoalStatusAction(goalId, newStatus);
+      await loadAllData();
+      showAlert(
+        newStatus === "COMPLETED"
+          ? "🏆 Parabéns! Meta movida para o seu Mural de Conquistas!"
+          : "Meta reaberta com sucesso! Ela voltou para suas Metas Ativas.",
+        { variant: "success" }
+      );
+    } catch (err) {
+      console.error(err);
+      showAlert("Erro ao alterar o status da meta.", { variant: "error" });
+    }
+  };
+
   const handleDelete = async () => {
     if (!selectedGoal) return;
     try {
@@ -384,8 +410,14 @@ export default function MetasPage() {
                 Visão Consolidada
               </span>
               <span className="text-[10px] font-black text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 border border-purple-200 dark:border-purple-400/30 px-3 py-1 rounded-full uppercase">
-                {activeMetasCount} Metas Ativas
+                {activeMetasCount} Meta{activeMetasCount !== 1 ? "s" : ""} Ativa{activeMetasCount !== 1 ? "s" : ""}
               </span>
+              {completedMetas.length > 0 && (
+                <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/30 px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-xs">
+                  <Trophy className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  {completedMetas.length} Conquista{completedMetas.length > 1 ? "s" : ""} Batida{completedMetas.length > 1 ? "s" : ""} 🎉
+                </span>
+              )}
             </div>
             
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
@@ -418,15 +450,48 @@ export default function MetasPage() {
 
       </div>
 
-      {/* ── 4. GRID DE OBJETIVOS ESTRATÉGICOS ───────────────────────────────── */}
-      <section className="flex flex-col gap-4">
-        
-        <div className="flex justify-between items-center">
-          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            Objetivos Estratégicos ({filteredMetas.length})
-          </h2>
+      {/* ── 4. SELETOR DE ABAS (METAS ATIVAS VS MURAL DE CONQUISTAS) ───────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("active")}
+            className={`px-4.5 py-2.5 rounded-2xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "active"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <span>🎯 METAS ATIVAS</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "active" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
+              {activeMetas.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("completed")}
+            className={`px-4.5 py-2.5 rounded-2xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "completed"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <span>🏆 CONQUISTAS BATIDAS</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "completed" ? "bg-white/20 text-white" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300"}`}>
+              {completedMetas.length}
+            </span>
+          </button>
         </div>
 
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          {activeTab === "active" ? `Objetivos em Andamento (${filteredMetas.length})` : `Mural de Conquistas Alcançadas (${filteredMetas.length})`}
+        </span>
+      </div>
+
+      {/* ── 5. GRID DE OBJETIVOS / MURAL DE CONQUISTAS ──────────────────────── */}
+      <section className="flex flex-col gap-4">
+        
         {/* Lista de Metas */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {loading ? (
@@ -435,25 +500,30 @@ export default function MetasPage() {
             </div>
           ) : filteredMetas.length === 0 ? (
             <div className="col-span-1 md:col-span-3 text-center py-12 bg-white dark:bg-slate-900/80 rounded-[28px] border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold uppercase tracking-wider shadow-sm">
-              Nenhuma meta financeira cadastrada.
+              {activeTab === "active" ? "Nenhuma meta em andamento no momento." : "Nenhuma conquista ou meta concluída registrada ainda."}
             </div>
           ) : (
             filteredMetas.map((meta) => {
               const IconComponent = ICON_MAP[meta.iconName] || Target;
               const iconStyle     = getIconBadgeStyle(meta.iconName, meta.title);
               const daysBadge     = getDaysRemainingBadge(meta.dataFim, meta.pct);
+              const isCompleted   = activeTab === "completed" || meta.status === "COMPLETED" || meta.pct >= 100;
               
               return (
                 <div 
                   key={meta.id} 
-                  className="bg-white dark:bg-slate-900/90 backdrop-blur-md rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-md flex flex-col justify-between hover:shadow-lg dark:hover:shadow-xl hover:border-indigo-400/40 dark:hover:border-indigo-500/30 hover:scale-[1.01] transition-all duration-300 min-h-[340px]"
+                  className={`rounded-[28px] p-6 flex flex-col justify-between transition-all duration-300 min-h-[340px] ${
+                    isCompleted
+                      ? "bg-white dark:bg-[#131B2E] border border-emerald-200 dark:border-emerald-800/40 shadow-sm hover:shadow-lg hover:border-emerald-300"
+                      : "bg-white dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-md hover:shadow-lg dark:hover:shadow-xl hover:border-indigo-400/40 dark:hover:border-indigo-500/30 hover:scale-[1.01]"
+                  }`}
                 >
                   
                   {/* Cabeçalho do Card */}
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Container do Ícone Circular Translúcido com Glow */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconStyle}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCompleted ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]" : iconStyle}`}>
                         <IconComponent className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
@@ -466,8 +536,25 @@ export default function MetasPage() {
                       </div>
                     </div>
 
-                    {/* Botões Rápidos (Editar / Excluir / Porcentagem) */}
+                    {/* Botões Rápidos (Concluir / Reabrir / Editar / Excluir / Porcentagem) */}
                     <div className="flex items-center gap-1 shrink-0">
+                      {isCompleted ? (
+                        <button
+                          onClick={() => handleToggleGoalStatus(meta.id.toString(), "ACTIVE")}
+                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                          title="Reabrir Meta"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleGoalStatus(meta.id.toString(), "COMPLETED")}
+                          className="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                          title="Marcar como Concluída"
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button 
                         onClick={() => openEditModal(meta)}
                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
@@ -482,16 +569,25 @@ export default function MetasPage() {
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 pl-1">{meta.pct}%</span>
+                      <span className={`text-sm font-black pl-1 ${isCompleted ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"}`}>
+                        {isCompleted ? "100%" : `${meta.pct}%`}
+                      </span>
                     </div>
 
                   </div>
 
-                  {/* Badge Dinâmico de Tempo Restante */}
+                  {/* Badge Dinâmico / Selo de Celebração */}
                   <div className="mt-3 flex items-center justify-between">
-                    <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase tracking-wider ${daysBadge.style}`}>
-                      {daysBadge.text}
-                    </span>
+                    {isCompleted ? (
+                      <span className="px-3 py-1 rounded-full text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 uppercase tracking-wider shadow-xs">
+                        <Trophy className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span>Conquistada {meta.completedAt ? `em ${meta.completedAt}` : "100%"}</span>
+                      </span>
+                    ) : (
+                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black border uppercase tracking-wider ${daysBadge.style}`}>
+                        {daysBadge.text}
+                      </span>
+                    )}
 
                     {meta.walletTitle && (
                       <span className="flex items-center gap-1 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-400/30 px-2.5 py-1 rounded-full truncate max-w-[140px]">
@@ -503,14 +599,14 @@ export default function MetasPage() {
 
                   {/* Selos de Gamificação / Marcos com Neon Glow (25%, 50%, 75%, 100%) */}
                   <div className="mt-3">
-                    <GoalGamificationBadges pct={meta.pct} />
+                    <GoalGamificationBadges pct={isCompleted ? 100 : meta.pct} />
                   </div>
 
-                  {/* Previsão Realista de Conclusão */}
+                  {/* Previsão Realista / Selo de Sucesso */}
                   <div className="mt-3 text-[10px] font-medium leading-tight">
-                    {meta.paceStatus === "COMPLETED" ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Meta 100% Concluída!
+                    {isCompleted ? (
+                      <span className="text-emerald-700 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Meta Alcançada com Sucesso! 🎉
                       </span>
                     ) : meta.paceStatus === "ADVANCED" ? (
                       <span className="text-emerald-600 dark:text-emerald-400 font-extrabold inline-flex items-center gap-1">
@@ -531,8 +627,12 @@ export default function MetasPage() {
                   <div className="mt-3">
                     <div className="h-2.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700/80 p-0.5">
                       <div 
-                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-700 shadow-[0_0_12px_rgba(99,102,241,0.4)]" 
-                        style={{ width: `${meta.pct}%` }}
+                        className={`h-full rounded-full transition-all duration-700 ${
+                          isCompleted
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                            : "bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 shadow-[0_0_12px_rgba(99,102,241,0.4)]"
+                        }`} 
+                        style={{ width: `${isCompleted ? 100 : meta.pct}%` }}
                       />
                     </div>
                   </div>
@@ -540,24 +640,35 @@ export default function MetasPage() {
                   {/* Acumulado / Objetivo com Tipografia Clara de Alto Contraste */}
                   <div className="border-t border-slate-100 dark:border-slate-800 mt-3 pt-3 grid grid-cols-2 gap-4">
                     <div>
-                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Acumulado</span>
+                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Total Poupado</span>
                       <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-0.5 block">{brl(meta.acumulado)}</span>
                     </div>
                     <div>
-                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Objetivo</span>
+                      <span className="text-[9px] font-black text-slate-500 dark:text-slate-300 uppercase tracking-wider block">Objetivo Meta</span>
                       <span className="text-xs font-black text-slate-900 dark:text-slate-200 mt-0.5 block">{brl(meta.objetivo)}</span>
                     </div>
                   </div>
 
-                  {/* Rodapé: Botão CTA Principal (FAZER APORTE) */}
+                  {/* Rodapé: Botões de Ação */}
                   <div className="flex items-center gap-2 mt-3">
-                    <button 
-                      onClick={() => openAporteModal(meta)}
-                      className="flex-1 py-2.5 text-xs font-black rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/30 hover:scale-[1.02] border border-white/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Coins className="w-3.5 h-3.5 text-white" />
-                      <span>FAZER APORTE</span>
-                    </button>
+                    {isCompleted ? (
+                      <button 
+                        onClick={() => handleToggleGoalStatus(meta.id.toString(), "ACTIVE")}
+                        className="flex-1 py-2.5 text-xs font-black rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Reabrir Meta para continuar aportando"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span>REABRIR META</span>
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => openAporteModal(meta)}
+                        className="flex-1 py-2.5 text-xs font-black rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-500 hover:from-indigo-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/30 hover:scale-[1.02] border border-white/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Coins className="w-3.5 h-3.5 text-white" />
+                        <span>FAZER APORTE</span>
+                      </button>
+                    )}
                     
                     <button 
                       onClick={() => openHistoryModal(meta)}

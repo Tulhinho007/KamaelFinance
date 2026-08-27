@@ -401,6 +401,17 @@ export async function getGoals() {
         }
       }
 
+      const isCompleted = g.status === "COMPLETED" || pct >= 100;
+      const status = isCompleted ? "COMPLETED" : "ACTIVE";
+      let completedAtStr: string | null = null;
+      if (g.completedAt) {
+        completedAtStr = new Date(g.completedAt).toLocaleDateString("pt-BR");
+      } else if (isCompleted && g.history && g.history.length > 0) {
+        completedAtStr = new Date(g.history[g.history.length - 1].date).toLocaleDateString("pt-BR");
+      } else if (isCompleted) {
+        completedAtStr = new Date().toLocaleDateString("pt-BR");
+      }
+
       return {
         id: g.id,
         title: g.title,
@@ -412,6 +423,8 @@ export async function getGoals() {
         iconName: g.iconName as "Plane" | "Car" | "Home" | "Target",
         walletId: g.walletId || null,
         walletTitle: g.wallet?.title || null,
+        status,
+        completedAt: completedAtStr,
         mediaAporteMensal,
         estimatedDateStr,
         paceStatus,
@@ -435,6 +448,7 @@ export async function createGoalAction(
   walletId?: string
 ) {
   const userId = await getActiveUserId();
+  const isCompleted = acumuladoInicial > 0 && acumuladoInicial >= objetivo;
 
   await prisma.goal.create({
     data: {
@@ -446,6 +460,8 @@ export async function createGoalAction(
       objetivo,
       acumulado: acumuladoInicial,
       iconName,
+      status: isCompleted ? "COMPLETED" : "ACTIVE",
+      completedAt: isCompleted ? new Date() : null,
       history: acumuladoInicial > 0 ? {
         create: {
           date: new Date(),
@@ -467,6 +483,9 @@ export async function updateGoalAction(
   iconName: string,
   walletId?: string
 ) {
+  const currentGoal = await prisma.goal.findUnique({ where: { id } });
+  const isCompleted = currentGoal ? Number(currentGoal.acumulado) >= objetivo : false;
+
   await prisma.goal.update({
     where: { id },
     data: {
@@ -476,6 +495,8 @@ export async function updateGoalAction(
       dataFim: new Date(dataFim),
       objetivo,
       iconName,
+      status: isCompleted ? "COMPLETED" : (currentGoal?.status || "ACTIVE"),
+      completedAt: isCompleted ? (currentGoal?.completedAt || new Date()) : null,
     } as any
   });
 
@@ -486,6 +507,19 @@ export async function deleteGoalAction(id: string) {
   await prisma.goal.delete({
     where: { id }
   });
+  revalidatePath("/metas");
+}
+
+export async function toggleGoalStatusAction(goalId: string, status: "ACTIVE" | "COMPLETED") {
+  const isCompleted = status === "COMPLETED";
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      status,
+      completedAt: isCompleted ? new Date() : null,
+    }
+  });
+
   revalidatePath("/metas");
 }
 
@@ -531,10 +565,12 @@ export async function addAporteAction(goalId: string, amount: number) {
 
   if (goal) {
     const newAcumulado = Number(goal.acumulado) + amount;
+    const isNowCompleted = newAcumulado >= Number(goal.objetivo);
     await prisma.goal.update({
       where: { id: goalId },
       data: {
-        acumulado: Math.min(Number(goal.objetivo), newAcumulado)
+        acumulado: Math.min(Number(goal.objetivo), newAcumulado),
+        ...(isNowCompleted ? { status: "COMPLETED", completedAt: new Date() } : {})
       }
     });
   }

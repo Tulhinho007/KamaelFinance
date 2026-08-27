@@ -80,18 +80,20 @@ model Transaction {
 }
 
 model Goal {
-  id         String        @id @default(uuid())
-  userId     String
-  user       User          @relation(fields: [userId], references: [id])
-  walletId   String?
-  wallet     Wallet?       @relation(fields: [walletId], references: [id])
-  title      String
-  dataInicio DateTime
-  dataFim    DateTime
-  acumulado  Decimal       @default(0)
-  objetivo   Decimal
-  iconName   String        @default("Target")
-  history    GoalHistory[]
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  walletId    String?
+  wallet      Wallet?       @relation(fields: [walletId], references: [id])
+  title       String
+  dataInicio  DateTime
+  dataFim     DateTime
+  acumulado   Decimal       @default(0)
+  objetivo    Decimal
+  iconName    String        @default("Target")
+  status      String        @default("ACTIVE") // ACTIVE | COMPLETED
+  completedAt DateTime?
+  history     GoalHistory[]
 }
 
 model GoalHistory {
