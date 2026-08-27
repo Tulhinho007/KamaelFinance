@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Calculator, Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw, Table } from "lucide-react";
+import { Calculator, Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw, Table, Percent } from "lucide-react";
 
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -116,12 +116,14 @@ export function CompoundInterestSimulator() {
       </div>
 
       {/* Inputs Form Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Valor Inicial */}
-        <div className="flex flex-col gap-1.5 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
-            <DollarSign className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Aporte Inicial
-          </label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+        {/* Card 1 — Valor Inicial */}
+        <div className="h-full flex flex-col justify-between p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="h-8 flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <DollarSign className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Aporte Inicial
+            </span>
+          </div>
           <input
             type="number"
             min="0"
@@ -129,15 +131,17 @@ export function CompoundInterestSimulator() {
             value={initialAmount}
             onChange={(e) => setInitialAmount(e.target.value === "" ? "" : Number(e.target.value))}
             placeholder="0,00"
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
 
-        {/* Aporte Mensal */}
-        <div className="flex flex-col gap-1.5 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Aporte Mensal
-          </label>
+        {/* Card 2 — Aporte Mensal */}
+        <div className="h-full flex flex-col justify-between p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="h-8 flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> Aporte Mensal
+            </span>
+          </div>
           <input
             type="number"
             min="0"
@@ -145,26 +149,28 @@ export function CompoundInterestSimulator() {
             value={monthlyAmount}
             onChange={(e) => setMonthlyAmount(e.target.value === "" ? "" : Number(e.target.value))}
             placeholder="0,00"
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
 
-        {/* Taxa de Juros */}
-        <div className="flex flex-col gap-1.5 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Taxa de Juros (%)</label>
-            <div className="flex bg-slate-100 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[9px] font-bold">
+        {/* Card 3 — Taxa de Juros */}
+        <div className="h-full flex flex-col justify-between p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="h-8 flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+              <Percent className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> Taxa de Juros (%)
+            </span>
+            <div className="h-6 px-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
               <button
                 type="button"
                 onClick={() => setRateType("ANNUAL")}
-                className={`px-1.5 py-0.5 rounded cursor-pointer ${rateType === "ANNUAL" ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}
+                className={`transition-all ${rateType === "ANNUAL" ? "bg-indigo-600 text-white rounded-md px-1.5 py-0.5 shadow-xs cursor-pointer" : "px-1.5 py-0.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"}`}
               >
                 /ano
               </button>
               <button
                 type="button"
                 onClick={() => setRateType("MONTHLY")}
-                className={`px-1.5 py-0.5 rounded cursor-pointer ${rateType === "MONTHLY" ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}
+                className={`transition-all ${rateType === "MONTHLY" ? "bg-indigo-600 text-white rounded-md px-1.5 py-0.5 shadow-xs cursor-pointer" : "px-1.5 py-0.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"}`}
               >
                 /mês
               </button>
@@ -177,28 +183,28 @@ export function CompoundInterestSimulator() {
             value={rate}
             onChange={(e) => setRate(e.target.value === "" ? "" : Number(e.target.value))}
             placeholder="12"
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
 
-        {/* Período */}
-        <div className="flex flex-col gap-1.5 bg-white dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+        {/* Card 4 — Período */}
+        <div className="h-full flex flex-col justify-between p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="h-8 flex items-center justify-between gap-2 mb-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> Período
-            </label>
-            <div className="flex bg-slate-100 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[9px] font-bold">
+            </span>
+            <div className="h-6 px-1 bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg flex items-center gap-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
               <button
                 type="button"
                 onClick={() => setPeriodType("YEARS")}
-                className={`px-1.5 py-0.5 rounded cursor-pointer ${periodType === "YEARS" ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}
+                className={`transition-all ${periodType === "YEARS" ? "bg-indigo-600 text-white rounded-md px-1.5 py-0.5 shadow-xs cursor-pointer" : "px-1.5 py-0.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"}`}
               >
                 Anos
               </button>
               <button
                 type="button"
                 onClick={() => setPeriodType("MONTHS")}
-                className={`px-1.5 py-0.5 rounded cursor-pointer ${periodType === "MONTHS" ? "bg-indigo-600 text-white" : "bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}
+                className={`transition-all ${periodType === "MONTHS" ? "bg-indigo-600 text-white rounded-md px-1.5 py-0.5 shadow-xs cursor-pointer" : "px-1.5 py-0.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer"}`}
               >
                 Meses
               </button>
@@ -211,7 +217,7 @@ export function CompoundInterestSimulator() {
             value={period}
             onChange={(e) => setPeriod(e.target.value === "" ? "" : Number(e.target.value))}
             placeholder="5"
-            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:bg-white dark:focus:bg-slate-900 focus:outline-none focus:border-indigo-500"
+            className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
       </div>
