@@ -530,11 +530,10 @@ export default function DespesasPage() {
     : 0;
 
   // ── 3. Ciclo Salarial / Sobra Prevista ──────────────────────────────────────────
-  const disponivelReal = totalSaldoAnterior + totalReceitaMes;
   const totalCompromissosSalario = gastosConsumoTotal + saidasContaTotal;
-  const sobraLiquidaSalario = disponivelReal - totalCompromissosSalario;
-  const pctComprometidoSalario = disponivelReal > 0
-    ? Math.min(100, Math.round((totalCompromissosSalario / disponivelReal) * 100))
+  const sobraLiquidaSalario = totalReceitaMes - totalCompromissosSalario;
+  const pctComprometidoSalario = totalReceitaMes > 0
+    ? Math.min(100, Math.round((totalCompromissosSalario / totalReceitaMes) * 100))
     : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
@@ -803,45 +802,45 @@ export default function DespesasPage() {
               </button>
             </div>
 
-            {/* Grid com Salário / Receita Prevista, Total Contas e Sobra Líquida */}
+            {/* Grid com Receita Prevista, Total Contas e Sobra Líquida */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
               
-              {/* Salário / Receita Prevista (Soma do Disponível Real) */}
+              {/* Receita / Salário Previsto */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Salário / Receita Prevista
+                  Receita / Salário Previsto
                 </span>
-                <p className="text-xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
-                  {brl(disponivelReal)}
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
+                  {brl(totalReceitaMes)}
                 </p>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
-                  Salário: {brl(totalReceitaMes)} + Saldo Anterior: {brl(totalSaldoAnterior)}
+                  Salário esperado no ciclo
                 </span>
               </div>
 
               {/* Total de Contas a Pagar */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Total de Contas a Pagar
+                  (-) Contas a Pagar no Ciclo
                 </span>
-                <p className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1 font-tnum">
+                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1 font-tnum">
                   {brl(totalCompromissosSalario)}
                 </p>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
-                  Cartão + Assinaturas + PIX/Débito
+                  Faturas + Assinaturas + Débitos
                 </span>
               </div>
 
-              {/* Sobra Líquida Estimada */}
-              <div className={`${sobraLiquidaSalario >= 0 ? "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50" : "bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50"} p-4 rounded-2xl border transition-colors`}>
+              {/* Sobra Líquida Real (Destaque Principal em Verde Esmeralda Grande) */}
+              <div className={`${sobraLiquidaSalario >= 0 ? "bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60" : "bg-rose-50/80 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/60"} p-4 rounded-2xl border transition-colors`}>
                 <span className={`text-[10px] font-bold uppercase tracking-wider block ${sobraLiquidaSalario >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"}`}>
-                  Sobra Líquida Estimada
+                  (=) Sobra Líquida Real
                 </span>
-                <p className={`text-2xl font-black mt-1 font-tnum ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                <p className={`text-3xl font-black mt-1 font-tnum ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   {brl(sobraLiquidaSalario)}
                 </p>
                 <span className={`text-[10px] font-medium block mt-0.5 ${sobraLiquidaSalario >= 0 ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-rose-700/80 dark:text-rose-400/80"}`}>
-                  Saldo livre estimado pós-liquidação
+                  Receita (-) Total de Contas
                 </span>
               </div>
 
@@ -905,33 +904,21 @@ export default function DespesasPage() {
             <div className="bg-slate-50 dark:bg-slate-900/90 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-xs space-y-2.5 font-mono">
               <div className="flex items-center justify-between text-slate-800 dark:text-slate-200">
                 <span className="font-sans font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                  (+) Salário / Receita Prevista do Mês:
+                  (+) Receita / Salário Previsto:
                 </span>
                 <span className="font-black">{brl(totalReceitaMes)}</span>
               </div>
 
-              <div className="flex items-center justify-between text-indigo-600 dark:text-indigo-400">
+              <div className="flex items-center justify-between text-rose-600 dark:text-rose-400 pt-1 border-t border-slate-200 dark:border-slate-800">
                 <span className="font-sans font-semibold flex items-center gap-1">
-                  (+) Saldo Remanescente Anterior ({getMonthName(selectedMonth === 1 ? 12 : selectedMonth - 1)}):
-                </span>
-                <span className="font-black">{brl(totalSaldoAnterior)}</span>
-              </div>
-
-              <div className="pt-1 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-slate-900 dark:text-white font-bold">
-                <span className="font-sans font-extrabold">(=) Disponível Real Total:</span>
-                <span className="font-black text-emerald-600 dark:text-emerald-400">{brl(disponivelReal)}</span>
-              </div>
-
-              <div className="flex items-center justify-between text-rose-600 dark:text-rose-400 pt-1">
-                <span className="font-sans font-semibold flex items-center gap-1">
-                  (-) Total de Contas a Pagar:
+                  (-) Contas a Pagar no Ciclo:
                 </span>
                 <span className="font-black">{brl(totalCompromissosSalario)}</span>
               </div>
 
               <div className={`pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between font-bold text-sm ${sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                <span className="font-sans font-black">(=) Sobra Líquida Estimada:</span>
-                <span className="font-black">{brl(sobraLiquidaSalario)}</span>
+                <span className="font-sans font-black">(=) Sobra Líquida Real:</span>
+                <span className="font-black text-xl">{brl(sobraLiquidaSalario)}</span>
               </div>
             </div>
 
@@ -948,226 +935,69 @@ export default function DespesasPage() {
         </div>
       )}
 
-      {/* ── 3. KPI CARDS (NOVA ARQUITETURA: GASTOS DO MÊS vs SAÍDAS DA CONTA) ───────────────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── SEÇÃO B: LINHA DE 3 CARDS ESSENCIAIS (SALDO TOTAL, GASTO CRÉDITO, PRÓXIMAS FATURAS) ── */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        {/* CARD 1: GASTOS DO MÊS (CONSUMO CONSOLIDADO = CRÉDITO + ASSINATURAS) */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between">
-          <Layers className="absolute -right-4 -bottom-4 w-32 h-32 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-            
-            {/* Esquerda: Título, Valor e Origens (Crédito + Assinaturas) */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-full border border-indigo-100 dark:border-indigo-800 shadow-xs flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Gastos do Mês
-                </span>
-                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
-                  Consumo Consolidado · {getMonthName(selectedMonth)}/{selectedYear}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-tnum">
-                  {brl(gastosConsumoTotal)}
-                </h3>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  ({pctConsumoQuitado}% quitado)
-                </span>
-              </div>
-
-              {/* Origens de Consumo (Crédito + Assinaturas) */}
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-purple-500/30 shadow-inner">
-                  <span className="text-xs">💳</span>
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Crédito:</span>
-                  <span className="text-xs font-black text-purple-600 dark:text-purple-400 font-tnum">{brl(creditoMesTotal)}</span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-amber-500/30 shadow-inner">
-                  <span className="text-xs">🔄</span>
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Assinaturas:</span>
-                  <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-tnum">{brl(assinaturasMesTotal)}</span>
-                </div>
-              </div>
+        {/* Card 1: SALDO TOTAL EM CONTA */}
+        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
+              SALDO TOTAL EM CONTA
+            </span>
+            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+              <Building2 className="w-4 h-4" />
             </div>
-
-            {/* Direita: Progresso de Quitação de Consumo */}
-            <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-sm shrink-0">
-              <div className="flex items-center justify-between text-xs font-extrabold">
-                <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">Quitação do Consumo</span>
-                <span className="text-indigo-600 dark:text-indigo-400 font-black font-tnum">{pctConsumoQuitado}%</span>
-              </div>
-
-              {/* Barra de Progresso */}
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 transition-all duration-500 rounded-full"
-                  style={{ width: `${pctConsumoQuitado}%` }}
-                />
-              </div>
-
-              {/* Já Pago vs Pendente */}
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Já Pago</span>
-                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 font-tnum">{brl(gastosConsumoPago)}</span>
-                </div>
-
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase block tracking-wider">Pendente</span>
-                  <span className="text-xs font-black text-amber-700 dark:text-amber-400 font-tnum">{brl(gastosConsumoPendente)}</span>
-                </div>
-              </div>
-            </div>
-
           </div>
-
-          {/* Rodapé Informativo: Previsão Mês Seguinte */}
-          <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 relative z-10">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-semibold text-slate-600 dark:text-slate-400">
-                Previsão Mês Seguinte ({nextMonthData.nextMonthName || "Próximo Mês"}):
-              </span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum">
-                {brl(nextMonthData.nextGastosConsumoTotal)}
-              </span>
-            </div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              (Crédito: <span className="font-semibold text-slate-700 dark:text-slate-200 font-tnum">{brl(nextMonthData.nextCreditTotal)}</span>
-              {" • "}
-              Assinaturas: <span className="font-semibold text-slate-700 dark:text-slate-200 font-tnum">{brl(nextMonthData.nextSubscriptionsTotal)}</span>)
-            </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-slate-900 dark:text-white font-tnum">
+              {brl(saldoTotalConta)}
+            </p>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
+              Soma do saldo disponível em todas as contas bancárias
+            </span>
           </div>
         </div>
 
-        {/* CARD 2: SAÍDAS DA CONTA (DÉBITO & PIX DIRETO) */}
-        <div className="col-span-1 sm:col-span-2 lg:col-span-2 card-glow p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between">
-          <Building2 className="absolute -right-4 -bottom-4 w-32 h-32 text-sky-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
-            
-            {/* Esquerda: Título, Valor e Origem Exclusiva (Débito / PIX Direto) */}
-            <div className="space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black text-sky-700 dark:text-sky-300 uppercase tracking-widest bg-sky-50 dark:bg-sky-950/50 px-3 py-1 rounded-full border border-sky-100 dark:border-sky-800 shadow-xs flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" /> Saídas da Conta
-                </span>
-                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
-                  Débito & PIX · {getMonthName(selectedMonth)}/{selectedYear}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-baseline gap-3">
-                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-tnum">
-                  {brl(saidasContaTotal)}
-                </h3>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  ({pctSaidasContaRealizadas}% realizado)
-                </span>
-              </div>
-
-              {/* Origem Exclusiva (Débito Direto) */}
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-sky-500/30 shadow-inner">
-                  <span className="text-xs">🏦</span>
-                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Débito / PIX Direto:</span>
-                  <span className="text-xs font-black text-sky-600 dark:text-sky-400 font-tnum">{brl(debitoDiretoMesTotal)}</span>
-                </div>
-              </div>
+        {/* Card 2: TOTAL GASTO NO CRÉDITO (MÊS) */}
+        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
+              TOTAL GASTO NO CRÉDITO (MÊS)
+            </span>
+            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              <CreditCard className="w-4 h-4" />
             </div>
-
-            {/* Direita: Progresso do Fluxo Realizado */}
-            <div className="bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/90 rounded-2xl p-3.5 min-w-[200px] sm:max-w-xs space-y-2.5 shadow-sm shrink-0">
-              <div className="flex items-center justify-between text-xs font-extrabold">
-                <span className="text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">Fluxo Realizado</span>
-                <span className="text-sky-600 dark:text-sky-400 font-black font-tnum">{pctSaidasContaRealizadas}%</span>
-              </div>
-
-              {/* Barra de Progresso */}
-              <div className="w-full h-2 bg-slate-200 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-300 dark:border-slate-800">
-                <div
-                  className="h-full bg-gradient-to-r from-sky-500 via-teal-400 to-emerald-400 transition-all duration-500 rounded-full"
-                  style={{ width: `${pctSaidasContaRealizadas}%` }}
-                />
-              </div>
-
-              {/* Realizado vs Pendente */}
-              <div className="grid grid-cols-2 gap-2 pt-0.5">
-                <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase block tracking-wider">Realizado</span>
-                  <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 font-tnum">{brl(saidasContaPagas)}</span>
-                </div>
-
-                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 rounded-xl p-2 text-center">
-                  <span className="text-[9px] font-black text-amber-700 dark:text-amber-400 uppercase block tracking-wider">A Realizar</span>
-                  <span className="text-xs font-black text-amber-700 dark:text-amber-400 font-tnum">{brl(saidasContaPendentes)}</span>
-                </div>
-              </div>
-            </div>
-
           </div>
-
-          {/* Rodapé Informativo: Previsão Mês Seguinte (Saídas da Conta) */}
-          <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2.5 mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 relative z-10">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="font-semibold text-slate-600 dark:text-slate-400">
-                Previsão Mês Seguinte ({nextMonthData.nextMonthName || "Próximo Mês"}):
-              </span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum">
-                {brl(nextMonthData.nextSaidasContaTotal)}
-              </span>
-            </div>
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              (Agendados em Conta / PIX)
-            </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-tnum">
+              {brl(creditoMesTotal)}
+            </p>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
+              Faturas acumuladas na competência ({creditCards.length} cartão(ões))
+            </span>
           </div>
         </div>
 
-        {/* KPI 0 — Saldo Total em Conta */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <Building2 className="absolute -right-3 -bottom-3 w-20 h-20 text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">SALDO TOTAL EM CONTA</span>
-          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Consolidado · Contas & Débito</span>
-          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum">{brl(saldoTotalConta)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
-            <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> +8.5% vs mês anterior
-          </span>
+        {/* Card 3: PRÓXIMAS FATURAS A VENCER */}
+        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
+              PRÓXIMAS FATURAS A VENCER
+            </span>
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-tnum">
+              {brl(pendenteFaturasMes)}
+            </p>
+            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
+              {kpi3.subtitle}
+            </span>
+          </div>
         </div>
 
-        {/* KPI 1 — Total em Faturas */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <TrendingDown className="absolute -right-3 -bottom-3 w-20 h-20 text-rose-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">TOTAL EM FATURAS</span>
-          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Mês Atual · Cartões de Crédito</span>
-          <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">{brl(totalFaturas)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20 px-2.5 py-1 rounded-full border border-rose-200 dark:border-rose-400/30 shadow-2xs w-fit">
-            <TrendingDown className="w-3 h-3 text-rose-600 dark:text-rose-400" /> -3.2% vs mês anterior
-          </span>
-        </div>
-
-        {/* KPI 2 — Limite Consolidado */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <Wallet className="absolute -right-3 -bottom-3 w-20 h-20 text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">LIMITE CONSOLIDADO</span>
-          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">Disponível em Crédito</span>
-          <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">{brl(limiteConsolidado)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/20 px-2.5 py-1 rounded-full border border-indigo-200 dark:border-indigo-400/30 shadow-2xs w-fit">
-            <CheckCircle2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" /> Limite seguro
-          </span>
-        </div>
-
-        {/* KPI 3 — Próximos Vencimentos */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <Calendar className="absolute -right-3 -bottom-3 w-20 h-20 text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest block">PRÓXIMOS VENCIMENTOS</span>
-          <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-2">{kpi3.subtitle}</span>
-          <p className={`text-2xl font-black tracking-tight font-tnum ${kpi3.amountColor}`}>{brl(proximosVencimentos)}</p>
-          <span className={`mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold px-2.5 py-1 rounded-full border shadow-2xs w-fit ${kpi3.badgeClass}`}>
-            <Clock className="w-3.5 h-3.5" /> {kpi3.badgeText}
-          </span>
-        </div>
       </section>
 
       {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
