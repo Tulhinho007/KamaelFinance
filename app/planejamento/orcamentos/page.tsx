@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  PieChart, Plus, Pencil, AlertTriangle, CheckCircle2, TrendingUp,
-  ArrowLeft, Coins, Filter, HelpCircle, X
+  Pencil, ArrowLeft, X, Coins, AlertTriangle, CheckCircle2, ShieldCheck
 } from "lucide-react";
 import {
   getCategoryBudgetsOverviewAction,
@@ -80,7 +79,7 @@ export default function CategoryBudgetsPage() {
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none font-sans text-slate-900 dark:text-white">
 
-      {/* Header com Navegação e Filtros */}
+      {/* Header com Navegação e Seletor de Mês */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
         <div>
           <div className="flex items-center gap-3">
@@ -95,7 +94,7 @@ export default function CategoryBudgetsPage() {
             </h1>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium pl-11">
-            Defina limites mensais para controlar seu consumo em tempo real e evitar estourar o orçamento.
+            Limites mensais recorrentes para controlar despesas por categoria em tempo real.
           </p>
         </div>
 
@@ -129,7 +128,7 @@ export default function CategoryBudgetsPage() {
           <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Total Orçado</span>
             <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1 font-tnum">{brl(data.summary.totalBudget)}</p>
-            <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Soma dos limites do mês</span>
+            <span className="text-[10px] text-slate-400 font-medium block mt-0.5">Soma dos limites recorrentes</span>
           </div>
 
           <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -165,9 +164,11 @@ export default function CategoryBudgetsPage() {
             return (
               <div
                 key={b.categoryId}
-                className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-4 hover:border-indigo-500/40 transition-all"
+                onClick={() => handleOpenEdit(b)}
+                className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-3 hover:border-indigo-500/40 transition-all cursor-pointer group"
               >
                 <div>
+                  {/* Cabeçalho do Card */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <span
@@ -178,7 +179,10 @@ export default function CategoryBudgetsPage() {
                     </div>
 
                     <button
-                      onClick={() => handleOpenEdit(b)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenEdit(b);
+                      }}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                       title="Editar Teto de Gastos"
                     >
@@ -186,46 +190,48 @@ export default function CategoryBudgetsPage() {
                     </button>
                   </div>
 
+                  {/* Gastos vs Teto */}
                   <div className="mt-3 flex items-baseline justify-between">
                     <span className="text-lg font-black text-slate-900 dark:text-white font-tnum">
                       {brl(b.spentAmount)}
                     </span>
-                    <span className="text-xs font-bold text-slate-400">
-                      {hasLimit ? `de ${brl(b.maxAmount)}` : "Sem teto"}
-                    </span>
+                    {hasLimit ? (
+                      <span className="text-xs font-bold text-slate-400 font-tnum">
+                        / {brl(b.maxAmount)}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
+                        Sem limite
+                      </span>
+                    )}
                   </div>
 
-                  {/* Barra de Progresso Tricolor */}
-                  {hasLimit ? (
-                    <div className="mt-2.5 space-y-1.5">
-                      <div className="w-full h-3 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
-                        <div
-                          className={`h-full transition-all duration-500 rounded-full ${
-                            isExceeded
-                              ? "bg-gradient-to-r from-rose-600 to-red-500 animate-pulse"
-                              : isWarning
-                              ? "bg-gradient-to-r from-amber-500 to-orange-400"
-                              : "bg-gradient-to-r from-emerald-500 to-teal-400"
-                          }`}
-                          style={{ width: `${Math.min(100, b.percentage)}%` }}
-                        />
-                      </div>
+                  {/* Barra de Progresso Sutil com Feedback Imediato de Cores */}
+                  <div className="mt-2.5 space-y-1.5">
+                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                      <div
+                        className={`h-full transition-all duration-500 rounded-full ${
+                          !hasLimit
+                            ? "bg-slate-300 dark:bg-slate-700 opacity-30"
+                            : isExceeded
+                            ? "bg-rose-500 animate-pulse"
+                            : isWarning
+                            ? "bg-amber-500"
+                            : "bg-emerald-500"
+                        }`}
+                        style={{ width: `${hasLimit ? Math.min(100, b.percentage) : 0}%` }}
+                      />
+                    </div>
 
+                    {hasLimit && (
                       <div className="flex items-center justify-between text-[10px] font-bold">
                         <span className={isExceeded ? "text-rose-500" : isWarning ? "text-amber-500" : "text-emerald-500"}>
-                          {isExceeded ? "🚨 Teto Estourado!" : isWarning ? "⚠️ Alerta de Atenção" : "✓ Dentro do limite"}
+                          {isExceeded ? "🚨 Teto Estourado" : isWarning ? "⚠️ Alerta (≥80%)" : "✓ Dentro do teto"}
                         </span>
                         <span className="text-slate-400 font-tnum">{b.percentage}%</span>
                       </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleOpenEdit(b)}
-                      className="mt-3 w-full py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 rounded-xl font-bold text-xs border border-indigo-200/60 dark:border-indigo-800/60 transition-all cursor-pointer"
-                    >
-                      + Definir Teto Mensal
-                    </button>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -233,7 +239,7 @@ export default function CategoryBudgetsPage() {
         </div>
       )}
 
-      {/* Modal de Edição do Teto */}
+      {/* Modal de Edição do Teto Recorrente */}
       {editingBudget && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
@@ -252,7 +258,7 @@ export default function CategoryBudgetsPage() {
             <form onSubmit={handleSaveBudget} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 dark:text-slate-400 block mb-1">
-                  Limite Máximo Mensal (R$)
+                  Limite Máximo Recorrente (R$)
                 </label>
                 <input
                   type="number"
@@ -260,11 +266,11 @@ export default function CategoryBudgetsPage() {
                   min="0"
                   value={editLimitAmount}
                   onChange={e => setEditLimitAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="Ex: 1500.00"
+                  placeholder="Ex: 500.00"
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-indigo-500"
                 />
                 <span className="text-[10px] text-slate-400 block mt-1">
-                  Deixe 0 ou em branco para remover o teto da categoria.
+                  Este teto será aplicado recorrentemente a todos os meses. Deixe em branco ou 0 para remover o teto.
                 </span>
               </div>
 
@@ -281,7 +287,7 @@ export default function CategoryBudgetsPage() {
                   disabled={saving}
                   className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-extrabold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  {saving ? "Salvando..." : "Salvar Teto"}
+                  {saving ? "Salvando..." : "Salvar Teto Recorrente"}
                 </button>
               </div>
             </form>

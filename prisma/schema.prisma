@@ -52,11 +52,12 @@ model Wallet {
 }
 
 model Category {
-  id           String           @id @default(uuid())
-  name         String
-  color        String
-  transactions Transaction[]
-  budgets      CategoryBudget[]
+  id               String           @id @default(uuid())
+  name             String
+  color            String
+  defaultMaxAmount Decimal?
+  transactions     Transaction[]
+  budgets          CategoryBudget[]
 }
 
 enum TransactionType {
