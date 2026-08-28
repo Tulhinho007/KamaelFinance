@@ -1613,6 +1613,7 @@ export default function CartaoDetailPage() {
           type: selectedPurchase.type,
           installmentsCount: selectedPurchase.installmentsCount,
           date: selectedPurchase.date,
+          competenceDate: (selectedPurchase as any).competenceDate || selectedPurchase.date,
           tags: selectedPurchase.tags,
           isRecurring: (selectedPurchase as any).isRecurring,
           recurringDay: (selectedPurchase as any).recurringDay

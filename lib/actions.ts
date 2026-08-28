@@ -207,31 +207,6 @@ export async function getRevenues(month?: number | null | string, year: number =
     orderBy: { date: "asc" }
   });
 
-  // Se não houver receitas cadastradas para o mês selecionado, projeta as receitas recorrentes (ex: Salário) de meses anteriores
-  if (transactions.length === 0) {
-    const fallbackIncomes: any[] = await prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        type: "INCOME",
-        deletedAt: null
-      },
-      include: { wallet: true },
-      orderBy: { date: "desc" },
-      take: 10
-    });
-
-    if (fallbackIncomes.length > 0) {
-      const uniqueMap = new Map<string, any>();
-      fallbackIncomes.forEach(inc => {
-        const key = inc.description.trim().toLowerCase();
-        if (!uniqueMap.has(key)) {
-          uniqueMap.set(key, inc);
-        }
-      });
-      transactions = Array.from(uniqueMap.values());
-    }
-  }
-
   return transactions.map((t: any) => ({
     id: t.id,
     description: t.description,
@@ -1465,7 +1440,9 @@ export async function updateCardPurchase(
 
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/receitas");
   revalidatePath("/dashboard");
+  revalidatePath("/planejamento/calendario");
 }
 
 export async function deleteCardPurchase(id: string) {
