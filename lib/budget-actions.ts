@@ -70,7 +70,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  // 1. Transações do mês filtradas por usuário e período
+  // 1. Transações de despesa do Mês/Ano selecionado
   const transactions = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
@@ -81,17 +81,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
     select: { categoryId: true, amount: true },
   });
 
-  // 2. Tetos específicos cadastrados no banco para M/Y
-  const dbBudgets = await (prisma as any).categoryBudget.findMany({
-    where: { userId, month, year },
-  });
-
-  const budgetMap = new Map<string, number>();
-  dbBudgets.forEach((b: any) => {
-    budgetMap.set(b.categoryId, Number(b.maxAmount));
-  });
-
-  // 3. Mapear gastos por categoria
+  // 2. Mapear gastos por categoria no mês
   const spentMap = new Map<string, number>();
   transactions.forEach(t => {
     if (t.categoryId) {
@@ -100,12 +90,27 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
     }
   });
 
+  // 3. Buscar limites prévios gravados no CategoryBudget para fallback caso defaultMaxAmount não esteja preenchido
+  const dbBudgets = await (prisma as any).categoryBudget.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" }
+  });
+
+  const latestBudgetMap = new Map<string, number>();
+  dbBudgets.forEach((b: any) => {
+    if (!latestBudgetMap.has(b.categoryId)) {
+      latestBudgetMap.set(b.categoryId, Number(b.maxAmount));
+    }
+  });
+
   const result: CategoryBudgetOverview[] = expenseCategories.map(cat => {
     const spentAmount = spentMap.get(cat.id) || 0;
 
-    // Se houver limite pontual para o mês, usa ele; caso contrário usa o defaultMaxAmount recorrente da categoria
-    const monthSpecificMax = budgetMap.get(cat.id);
-    const maxAmount = monthSpecificMax !== undefined ? monthSpecificMax : Number((cat as any).defaultMaxAmount || 0);
+    // Limite Fixo Recorrente da Categoria (com fallback para último teto cadastrado)
+    let maxAmount = Number((cat as any).defaultMaxAmount || 0);
+    if (maxAmount === 0 && latestBudgetMap.has(cat.id)) {
+      maxAmount = latestBudgetMap.get(cat.id) || 0;
+    }
 
     let percentage = 0;
     if (maxAmount > 0) {
@@ -152,7 +157,13 @@ export async function saveCategoryBudgetAction(
 ) {
   const userId = await getActiveUserId();
 
-  // 1. Atualiza/Cria teto pontual no mês
+  // 1. Atualiza o teto padrão recorrente da Categoria (Válido para Todos os Meses)
+  await (prisma.category as any).update({
+    where: { id: categoryId },
+    data: { defaultMaxAmount: maxAmount }
+  });
+
+  // 2. Atualiza/Cria teto na tabela pontual
   await (prisma as any).categoryBudget.upsert({
     where: {
       userId_categoryId_month_year: {
@@ -172,12 +183,6 @@ export async function saveCategoryBudgetAction(
     update: {
       maxAmount,
     },
-  });
-
-  // 2. Atualiza limite padrão recorrente na Categoria
-  await (prisma.category as any).update({
-    where: { id: categoryId },
-    data: { defaultMaxAmount: maxAmount }
   });
 
   revalidatePath("/planejamento/orcamentos");

@@ -86,7 +86,6 @@ export function Sidebar() {
   ];
 
   const conquistasItems = [
-    { href: "/conquistas/desafios", label: "Desafios & Badges", icon: Trophy },
     { href: "/conquistas/score", label: "Score de Saúde", icon: Activity },
   ];
 

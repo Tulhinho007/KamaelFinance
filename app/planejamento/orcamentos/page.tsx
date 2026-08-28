@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Pencil, ArrowLeft, X, Coins, AlertTriangle, CheckCircle2, ShieldCheck
+  Pencil, ArrowLeft, X, Plus, PieChart, AlertTriangle, CheckCircle2
 } from "lucide-react";
 import {
   getCategoryBudgetsOverviewAction,
@@ -77,7 +77,7 @@ export default function CategoryBudgetsPage() {
   ];
 
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none font-sans text-slate-900 dark:text-white">
+    <div className="p-6 md:p-10 max-w-5xl mx-auto flex flex-col gap-8 select-none font-sans text-slate-900 dark:text-white">
 
       {/* Header com Navegação e Seletor de Mês */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
@@ -94,7 +94,7 @@ export default function CategoryBudgetsPage() {
             </h1>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium pl-11">
-            Limites mensais recorrentes para controlar despesas por categoria em tempo real.
+            Limites mensais fixos recorrentes para controlar despesas por categoria em tempo real.
           </p>
         </div>
 
@@ -151,93 +151,108 @@ export default function CategoryBudgetsPage() {
         </div>
       )}
 
-      {/* Grid de Cards de Categorias */}
-      {loading ? (
-        <div className="py-12 text-center text-xs text-slate-400 font-medium">Carregando orçamentos por categoria...</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {data?.budgets.map((b: CategoryBudgetOverview) => {
-            const hasLimit = b.maxAmount > 0;
-            const isExceeded = b.status === "EXCEEDED";
-            const isWarning = b.status === "WARNING";
+      {/* Painel Central Minimalista: Lista de Linhas com Barras Horizontais */}
+      <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+          <h2 className="text-sm font-extrabold text-slate-900 dark:text-white uppercase tracking-wider">
+            Categorias de Despesa ({data?.budgets?.length || 0})
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+            Acompanhe o consumo mensal em relação ao teto fixo recorrente de cada categoria.
+          </p>
+        </div>
 
-            return (
-              <div
-                key={b.categoryId}
-                onClick={() => handleOpenEdit(b)}
-                className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between space-y-3 hover:border-indigo-500/40 transition-all cursor-pointer group"
-              >
-                <div>
-                  {/* Cabeçalho do Card */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="w-3.5 h-3.5 rounded-full shrink-0"
-                        style={{ backgroundColor: b.categoryColor }}
-                      />
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">{b.categoryName}</h3>
-                    </div>
+        {loading ? (
+          <div className="py-12 text-center text-xs text-slate-400 font-medium">Carregando orçamentos por categoria...</div>
+        ) : (
+          <div className="space-y-2.5">
+            {data?.budgets.map((b: CategoryBudgetOverview) => {
+              const hasLimit = b.maxAmount > 0;
+              const isExceeded = b.status === "EXCEEDED";
+              const isWarning = b.status === "WARNING";
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEdit(b);
-                      }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                      title="Editar Teto de Gastos"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Gastos vs Teto */}
-                  <div className="mt-3 flex items-baseline justify-between">
-                    <span className="text-lg font-black text-slate-900 dark:text-white font-tnum">
-                      {brl(b.spentAmount)}
+              return (
+                <div
+                  key={b.categoryId}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 hover:border-indigo-500/30 transition-all group"
+                >
+                  {/* Nome da Categoria + Cor */}
+                  <div className="flex items-center gap-3 w-48 shrink-0">
+                    <span
+                      className="w-3.5 h-3.5 rounded-full shrink-0"
+                      style={{ backgroundColor: b.categoryColor }}
+                    />
+                    <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
+                      {b.categoryName}
                     </span>
-                    {hasLimit ? (
-                      <span className="text-xs font-bold text-slate-400 font-tnum">
-                        / {brl(b.maxAmount)}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400">
-                        Sem limite
-                      </span>
-                    )}
                   </div>
 
-                  {/* Barra de Progresso Sutil com Feedback Imediato de Cores */}
-                  <div className="mt-2.5 space-y-1.5">
-                    <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
-                      <div
-                        className={`h-full transition-all duration-500 rounded-full ${
-                          !hasLimit
-                            ? "bg-slate-300 dark:bg-slate-700 opacity-30"
-                            : isExceeded
-                            ? "bg-rose-500 animate-pulse"
-                            : isWarning
-                            ? "bg-amber-500"
-                            : "bg-emerald-500"
-                        }`}
-                        style={{ width: `${hasLimit ? Math.min(100, b.percentage) : 0}%` }}
-                      />
-                    </div>
-
-                    {hasLimit && (
-                      <div className="flex items-center justify-between text-[10px] font-bold">
-                        <span className={isExceeded ? "text-rose-500" : isWarning ? "text-amber-500" : "text-emerald-500"}>
-                          {isExceeded ? "🚨 Teto Estourado" : isWarning ? "⚠️ Alerta (≥80%)" : "✓ Dentro do teto"}
-                        </span>
-                        <span className="text-slate-400 font-tnum">{b.percentage}%</span>
+                  {/* Central: Barra de Progresso Horizontal */}
+                  {hasLimit ? (
+                    <div className="flex-1 space-y-1 min-w-[160px]">
+                      <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-300/40 dark:border-slate-700/50">
+                        <div
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            isExceeded
+                              ? "bg-rose-500 animate-pulse"
+                              : isWarning
+                              ? "bg-amber-500"
+                              : "bg-emerald-500"
+                          }`}
+                          style={{ width: `${Math.min(100, b.percentage)}%` }}
+                        />
                       </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 min-w-[160px] text-left sm:text-center">
+                      <span className="text-[11px] font-semibold text-slate-400 italic">
+                        Sem limite setado
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Direita: Valores + Porcentagem + Botão Lápis / + Criar Teto */}
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-52 shrink-0">
+                    {hasLimit ? (
+                      <>
+                        <div className="text-right">
+                          <span className="font-black text-xs text-slate-900 dark:text-white font-tnum block">
+                            {brl(b.spentAmount)} / {brl(b.maxAmount)}
+                          </span>
+                          <span className={`text-[10px] font-extrabold ${isExceeded ? "text-rose-500" : isWarning ? "text-amber-500" : "text-emerald-500"}`}>
+                            {b.percentage}% {isExceeded ? "(Estourado)" : isWarning ? "(Alerta)" : "(OK)"}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => handleOpenEdit(b)}
+                          className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0 opacity-80 group-hover:opacity-100"
+                          title="Editar Teto Recorrente"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-black text-xs text-slate-900 dark:text-white font-tnum">
+                          {brl(b.spentAmount)}
+                        </span>
+
+                        <button
+                          onClick={() => handleOpenEdit(b)}
+                          className="px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 font-extrabold text-[11px] border border-indigo-200/60 dark:border-indigo-800/60 hover:bg-indigo-100 transition-all cursor-pointer shrink-0"
+                        >
+                          + Criar teto
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Modal de Edição do Teto Recorrente */}
       {editingBudget && (
@@ -270,7 +285,7 @@ export default function CategoryBudgetsPage() {
                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-xl px-4 py-2.5 text-sm font-bold focus:outline-none focus:border-indigo-500"
                 />
                 <span className="text-[10px] text-slate-400 block mt-1">
-                  Este teto será aplicado recorrentemente a todos os meses. Deixe em branco ou 0 para remover o teto.
+                  Este teto é fixo e recorrente para a categoria. Deixe 0 ou em branco para remover o teto.
                 </span>
               </div>
 
