@@ -555,7 +555,7 @@ export function DashboardOverview() {
 
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-base font-black text-slate-900 dark:text-white leading-none font-tnum tabular-nums">
-                  {brl(data.totalGastosMes != null ? data.totalGastosMes : data.totalGastos)}
+                  {brl(data.categoryBreakdown.reduce((acc: number, curr: any) => acc + Number(curr.total || curr.value || 0), 0))}
                 </span>
                 <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
                   Total Mês
