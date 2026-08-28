@@ -4,10 +4,10 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight,
-  AlertCircle, CheckCircle2, Clock, Sparkles, TrendingDown, TrendingUp,
+  AlertCircle, CheckCircle2, Clock, Sparkles,
   BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
-  HelpCircle, Coins
+  HelpCircle
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -15,7 +15,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
-  getRevenues, getSalaryCycleSummary
+  getSalaryCycleSummary
 } from "@/lib/actions";
 import { getSubscriptionsWithMonthlyStatusAction } from "@/lib/subscription-actions";
 import { getMonthName } from "@/lib/constants";
@@ -381,10 +381,9 @@ export default function DespesasPage() {
     Promise.all([
       getAllCardsOverview(monthParam, selectedYear),
       getSubscriptionsWithMonthlyStatusAction(monthParam, selectedYear),
-      getRevenues(monthParam, selectedYear),
       getPaidInvoicesAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, subsRes, revsRes, paidInvoicesRes]) => {
+      .then(([cardsRes, subsRes, paidInvoicesRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
@@ -397,8 +396,6 @@ export default function DespesasPage() {
           });
         }
 
-        const totalRev = (revsRes || []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-        setTotalReceitaMes(totalRev);
         setLoading(false);
       })
       .catch(err => {
@@ -477,132 +474,6 @@ export default function DespesasPage() {
     : (unifiedPaidInvoices.length > 0 ? 100 : 0);
 
   const proximosVencimentos = pendenteFaturasMes;
-
-  // ── 1. Card 1: Gastos do Mês (Consumo Consolidado: Crédito + Assinaturas) ─────────
-  const creditoMesTotal = totalFaturasMes;
-  const assinaturasMesTotal = subscriptionsSummary.totalMonthlyAmount;
-  const gastosConsumoTotal = creditoMesTotal + assinaturasMesTotal;
-
-  const creditoPago = pagoFaturasMes;
-  const assinaturasPagas = subscriptionsSummary.totalPaidAmount;
-  const gastosConsumoPago = creditoPago + assinaturasPagas;
-
-  const creditoPendente = pendenteFaturasMes;
-  const assinaturasPendentes = subscriptionsSummary.totalPendingAmount;
-  const gastosConsumoPendente = creditoPendente + assinaturasPendentes;
-
-  const pctConsumoQuitado = gastosConsumoTotal > 0
-    ? Math.min(100, Math.round((gastosConsumoPago / gastosConsumoTotal) * 100))
-    : 0;
-
-  // ── 2. Card 2: Saídas da Conta (Débitos e PIX do Mês - Exclusivo Débito/PIX) ───
-  const debitoDiretoMesTotal = accountCards.reduce((s, c) => s + (c.faturaAtual || 0), 0);
-  const saidasContaTotal = debitoDiretoMesTotal;
-
-  const debitoDiretoPago = accountCards.reduce((s, c) => s + ((c as any).faturaPaga || 0), 0);
-  const saidasContaPagas = debitoDiretoPago;
-
-  const debitoDiretoPendente = accountCards.reduce((s, c) => s + ((c as any).faturaPendente || 0), 0);
-  const saidasContaPendentes = debitoDiretoPendente;
-
-  const pctSaidasContaRealizadas = saidasContaTotal > 0
-    ? Math.min(100, Math.round((saidasContaPagas / saidasContaTotal) * 100))
-    : 0;
-
-  // ── 3. Ciclo Salarial / Sobra Prevista ──────────────────────────────────────────
-  const totalCompromissosSalario = gastosConsumoTotal + saidasContaTotal;
-  const totalContasPagas = gastosConsumoPago + saidasContaPagas;
-  const totalContasPendentes = gastosConsumoPendente + saidasContaPendentes;
-
-  // Sobra líquida considera as receitas menos apenas as contas AINDA PENDENTES a pagar
-  const sobraLiquidaSalario = totalContasPendentes === 0
-    ? totalReceitaMes
-    : totalReceitaMes - totalContasPendentes;
-
-  const pctComprometidoSalario = totalReceitaMes > 0
-    ? Math.min(100, Math.round((totalContasPendentes / totalReceitaMes) * 100))
-    : 0;
-
-  // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
-  const openCreditCards = creditCards
-    .filter(c => c.faturaAtual > 0 && !(c as any).isPaid)
-    .map(c => {
-      let daysDiff: number | null = null;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
-      const parts = dateStr.split("/");
-      if (parts.length === 3) {
-        const todayZero = new Date();
-        todayZero.setHours(0, 0, 0, 0);
-        const dueZero = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
-        dueZero.setHours(0, 0, 0, 0);
-        const diffTime = dueZero.getTime() - todayZero.getTime();
-        daysDiff = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      }
-      return { ...c, dateStr, daysDiff };
-    });
-
-  const urgentInvoice = openCreditCards.length > 0
-    ? [...openCreditCards].sort((a, b) => {
-        if (a.daysDiff === null) return 1;
-        if (b.daysDiff === null) return -1;
-        return a.daysDiff - b.daysDiff;
-      })[0]
-    : null;
-
-  const getKpi3Info = () => {
-    if (!urgentInvoice) {
-      return {
-        subtitle: "Todas as faturas do mês estão pagas",
-        badgeText: "✓ Faturas em dia",
-        badgeClass: "text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 border-emerald-200 dark:border-emerald-400/30",
-        amountColor: "text-emerald-600 dark:text-emerald-400",
-        iconColor: "text-emerald-100 dark:text-emerald-900",
-      };
-    }
-
-    const { daysDiff, dateStr } = urgentInvoice;
-
-    if (daysDiff !== null && daysDiff < 0) {
-      const absDays = Math.abs(daysDiff);
-      return {
-        subtitle: `Fatura vencida há ${absDays} dia${absDays > 1 ? "s" : ""} (${dateStr})`,
-        badgeText: `🚨 Vencida em ${dateStr}`,
-        badgeClass: "text-rose-800 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/20 border-rose-200 dark:border-rose-400/30",
-        amountColor: "text-rose-600 dark:text-rose-400",
-        iconColor: "text-rose-100 dark:text-rose-900",
-      };
-    }
-
-    if (daysDiff === 0) {
-      return {
-        subtitle: `Fatura vence HOJE (${dateStr})`,
-        badgeText: "⚠️ Vence Hoje!",
-        badgeClass: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-400/30",
-        amountColor: "text-amber-600 dark:text-amber-400",
-        iconColor: "text-amber-100 dark:text-amber-900",
-      };
-    }
-
-    if (daysDiff !== null && daysDiff <= 7) {
-      return {
-        subtitle: `Fatura vence em ${daysDiff} dia${daysDiff > 1 ? "s" : ""} (${dateStr})`,
-        badgeText: "⚠️ Atenção ao prazo!",
-        badgeClass: "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 border-amber-200 dark:border-amber-400/30",
-        amountColor: "text-amber-600 dark:text-amber-400",
-        iconColor: "text-amber-100 dark:text-amber-900",
-      };
-    }
-
-    return {
-      subtitle: `Vencimento em ${daysDiff} dias (${dateStr})`,
-      badgeText: `✓ Em dia (Falta ${daysDiff} dias)`,
-      badgeClass: "text-indigo-800 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/20 border-indigo-200 dark:border-indigo-400/30",
-      amountColor: "text-indigo-600 dark:text-indigo-400",
-      iconColor: "text-indigo-100 dark:text-indigo-900",
-    };
-  };
-
-  const kpi3 = getKpi3Info();
 
 
 
@@ -826,132 +697,7 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 2.5 RESUMO MENSAL ENXUTO (RECEITA, DESPESAS, SALDO DO MÊS) ─────────── */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        
-        {/* Card 1: Receita do Mês */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-              Receita do Mês
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-extrabold text-slate-900 dark:text-white font-tnum">
-              {brl(totalReceitaMes)}
-            </p>
-          </div>
-        </div>
 
-        {/* Card 2: Despesas do Mês */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-              Despesas do Mês
-            </span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-              <TrendingDown className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 font-tnum">
-              {brl(totalCompromissosSalario)}
-            </p>
-          </div>
-        </div>
-
-        {/* Card 3: Saldo do Mês */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-              Saldo do Mês
-            </span>
-            <div className={`p-2 rounded-xl border ${
-              sobraLiquidaSalario >= 0
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-            }`}>
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className={`text-2xl font-extrabold font-tnum ${
-              sobraLiquidaSalario >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-            }`}>
-              {brl(sobraLiquidaSalario)}
-            </p>
-          </div>
-        </div>
-
-      </section>
-
-      {/* ── SEÇÃO B: LINHA DE 3 CARDS ESSENCIAIS (SALDO TOTAL, GASTO CRÉDITO, PRÓXIMAS FATURAS) ── */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        {/* Card 1: SALDO TOTAL EM CONTA */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
-              SALDO TOTAL EM CONTA
-            </span>
-            <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-              <Building2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-slate-900 dark:text-white font-tnum">
-              {brl(saldoTotalConta)}
-            </p>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
-              Soma do saldo disponível em todas as contas bancárias
-            </span>
-          </div>
-        </div>
-
-        {/* Card 2: TOTAL GASTO NO CRÉDITO (ANO) */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
-              {selectedMonthFilter === null ? "TOTAL GASTO NO CRÉDITO (ANO)" : "TOTAL GASTO NO CRÉDITO (MÊS)"}
-            </span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-              <CreditCard className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-rose-600 dark:text-rose-400 font-tnum">
-              {brl(creditoMesTotal)}
-            </p>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1 truncate max-w-full" title={selectedMonthFilter === null ? `Acumulado nos 12 meses (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})` : `Acumulado na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}>
-              {selectedMonthFilter === null ? `Acumulado nos 12 meses (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})` : `Faturas acumuladas na competência (${creditCards.length === 1 ? "1 cartão" : `${creditCards.length} cartões`})`}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 3: PRÓXIMAS FATURAS A VENCER */}
-        <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest block">
-              PRÓXIMAS FATURAS A VENCER
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 font-tnum">
-              {brl(pendenteFaturasMes)}
-            </p>
-            <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-1">
-              {kpi3.subtitle}
-            </span>
-          </div>
-        </div>
-
-      </section>
 
       {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
       <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
