@@ -299,7 +299,8 @@ export default function CartaoDetailPage() {
   // 1. Compras À Vista (Mês Atual - Exclui parceladas)
   const vistaPurchases = purchasesList.filter((p) => {
     if (!p || p.type !== "vista") return false;
-    const { year, month } = getYearMonth(p.date);
+    const refDateStr = p.competenceDate || p.date;
+    const { year, month } = getYearMonth(refDateStr);
     return year === selectedYear && month === selectedMonth;
   });
 
@@ -309,7 +310,8 @@ export default function CartaoDetailPage() {
   const parceladoPurchasesProcessed = purchasesList
     .filter((p) => {
       if (!p || p.type !== "parcelado") return false;
-      const { year, month } = getYearMonth(p.date);
+      const refDateStr = p.competenceDate || p.date;
+      const { year, month } = getYearMonth(refDateStr);
       return year === selectedYear && month === selectedMonth;
     })
     .map((p) => {
@@ -348,7 +350,8 @@ export default function CartaoDetailPage() {
   // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
   const futureParcelas = purchasesList.filter((p) => {
     if (!p || p.type !== "parcelado") return false;
-    const { year, month } = getYearMonth(p.date);
+    const refDateStr = p.competenceDate || p.date;
+    const { year, month } = getYearMonth(refDateStr);
     const pAbs = year * 12 + (month - 1);
     return pAbs > selectedAbsolute;
   });
@@ -366,7 +369,8 @@ export default function CartaoDetailPage() {
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
   const filteredMonthExpenses = purchasesList.filter(p => {
     if (!p) return false;
-    const { year, month } = getYearMonth(p.date);
+    const refDateStr = p.competenceDate || p.date;
+    const { year, month } = getYearMonth(refDateStr);
     return year === selectedYear && month === selectedMonth;
   });
 
@@ -395,8 +399,9 @@ export default function CartaoDetailPage() {
   const monthExpenseTransactions = (cardData.allTransactions || [])
     .filter(t => t && t.type === "EXPENSE")
     .filter(t => {
-      if (!t || !t.date) return false;
-      const { year, month } = getYearMonth(t.date);
+      if (!t) return false;
+      const refDateStr = t.competenceDate || t.date;
+      const { year, month } = getYearMonth(refDateStr);
       return year === selectedYear && month === selectedMonth;
     });
   const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
