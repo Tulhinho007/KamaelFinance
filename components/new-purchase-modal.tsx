@@ -416,31 +416,31 @@ export function NewPurchaseModal({
           </div>
 
           {/* Campo: Mês de Competência / Referência */}
-          <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+          <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 shadow-xs">
+            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
               <span>Mês de Competência / Referência</span>
-              <span className="text-[10px] text-indigo-500 font-semibold normal-case">(Opcional)</span>
+              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
             </label>
             <div className="grid grid-cols-2 gap-2">
               <select
                 value={formCompetenceMonth}
                 onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
-                className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 cursor-pointer"
+                className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
               >
                 {[
                   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
                   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
                 ].map((m, idx) => (
-                  <option key={idx + 1} value={idx + 1}>{m}</option>
+                  <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{m}</option>
                 ))}
               </select>
               <select
                 value={formCompetenceYear}
                 onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
-                className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 cursor-pointer"
+                className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
               >
                 {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                  <option key={y} value={y}>{y}</option>
+                  <option key={y} value={y} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{y}</option>
                 ))}
               </select>
             </div>
