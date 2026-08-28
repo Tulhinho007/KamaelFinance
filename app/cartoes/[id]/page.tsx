@@ -5,11 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
-  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction, addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
+  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
+  duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
+  addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -805,10 +807,26 @@ export default function CartaoDetailPage() {
                           <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
                           <td className="p-3 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await duplicateExpenseToNextMonthAction(p.id);
+                                    await loadData();
+                                    showAlert(`Lançamento "${p.description}" duplicado para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                                  } catch (err) {
+                                    console.error(err);
+                                    showAlert("Erro ao duplicar lançamento.", { variant: "error" });
+                                  }
+                                }}
+                                title="Duplicar este lançamento para o mês seguinte"
+                                className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                              >
+                                <CopyPlus className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Lançamento">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
+                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Lançamento">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -1416,6 +1434,24 @@ export default function CartaoDetailPage() {
           </div>
 
           <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={async () => {
+                try {
+                  const res = await duplicateBatchExpensesToNextMonthAction(selectedIds);
+                  setSelectedIds([]);
+                  await loadData();
+                  showAlert(`${res.count} ${res.count === 1 ? "lançamento duplicado" : "lançamentos duplicados"} para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                } catch (err) {
+                  console.error("Erro ao duplicar lançamentos:", err);
+                  showAlert("Erro ao duplicar lançamentos para o próximo mês.", { variant: "error" });
+                }
+              }}
+              className="px-4 py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Copiar Selecionados para o Próximo Mês"
+            >
+              <CopyPlus className="w-4 h-4" />
+              Duplicar Selecionados (+1 Mês)
+            </button>
             <button
               onClick={async () => {
                 try {

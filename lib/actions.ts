@@ -1488,6 +1488,94 @@ export async function unmarkBatchTransactionsPaidAction(ids: string[]) {
   return { success: true };
 }
 
+export async function duplicateExpenseToNextMonthAction(expenseId: string) {
+  const original = await prisma.transaction.findUnique({
+    where: { id: expenseId }
+  });
+  if (!original) throw new Error("Lançamento não encontrado.");
+
+  const origDate = new Date(original.date);
+  const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
+
+  const origComp = original.competenceDate ? new Date(original.competenceDate) : origDate;
+  const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
+
+  const newTx = await prisma.transaction.create({
+    data: {
+      walletId: original.walletId,
+      categoryId: original.categoryId,
+      description: original.description,
+      type: original.type,
+      amount: original.amount,
+      date: nextDate,
+      competenceDate: nextComp,
+      status: "PENDING",
+      source: original.source || "MANUAL",
+      tags: original.tags,
+      installmentsCount: original.installmentsCount || null,
+      currentInstallment: original.currentInstallment || null,
+      installmentGroupId: original.installmentGroupId || null
+    } as any
+  });
+
+  const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const newMonthLabel = `${monthShorts[nextComp.getUTCMonth()]}/${nextComp.getUTCFullYear()}`;
+
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/receitas");
+  revalidatePath("/dashboard");
+  revalidatePath("/planejamento/calendario");
+
+  return { success: true, newMonthLabel, id: newTx.id };
+}
+
+export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string[]) {
+  if (!expenseIds || expenseIds.length === 0) return { success: true, count: 0, newMonthLabel: "" };
+
+  const originals = await prisma.transaction.findMany({
+    where: { id: { in: expenseIds }, deletedAt: null }
+  });
+
+  let lastMonthLabel = "";
+  for (const original of originals) {
+    const origDate = new Date(original.date);
+    const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
+
+    const origComp = original.competenceDate ? new Date(original.competenceDate) : origDate;
+    const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
+
+    await prisma.transaction.create({
+      data: {
+        walletId: original.walletId,
+        categoryId: original.categoryId,
+        description: original.description,
+        type: original.type,
+        amount: original.amount,
+        date: nextDate,
+        competenceDate: nextComp,
+        status: "PENDING",
+        source: original.source || "MANUAL",
+        tags: original.tags,
+        installmentsCount: original.installmentsCount || null,
+        currentInstallment: original.currentInstallment || null,
+        installmentGroupId: original.installmentGroupId || null
+      } as any
+    });
+
+    const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    lastMonthLabel = `${monthShorts[nextComp.getUTCMonth()]}/${nextComp.getUTCFullYear()}`;
+  }
+
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/receitas");
+  revalidatePath("/dashboard");
+  revalidatePath("/planejamento/calendario");
+
+  return { success: true, count: originals.length, newMonthLabel: lastMonthLabel };
+}
+
 // ---------- Actions de Ticket Alimentação ----------
 
 export async function getTicketData(month: number, year: number) {

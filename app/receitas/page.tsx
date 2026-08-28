@@ -4,13 +4,14 @@ import React, { useState, useEffect } from "react";
 import {
   Search, Plus, X, Edit2, Trash2, Coins, CheckCircle2, Clock,
   TrendingUp, TrendingDown, FileSpreadsheet, PieChart, Filter,
-  Check, ArrowUpDown, ChevronLeft, ChevronRight, Building2, Wallet
+  Check, ArrowUpDown, ChevronLeft, ChevronRight, Building2, Wallet, CopyPlus
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
-  getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction
+  getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction,
+  duplicateExpenseToNextMonthAction
 } from "@/lib/actions";
 import { parseCurrencyInput } from "@/lib/constants";
 
@@ -692,6 +693,22 @@ export default function ReceitasPage() {
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={async () => {
+                              try {
+                                const res = await duplicateExpenseToNextMonthAction(rev.id);
+                                await loadData();
+                                showAlert(`Receita "${rev.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                              } catch (err) {
+                                console.error(err);
+                                showAlert("Erro ao duplicar receita.", { variant: "error" });
+                              }
+                            }}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                            title="Duplicar para o Mês Seguinte"
+                          >
+                            <CopyPlus className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             onClick={() => openEditModal(rev)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
