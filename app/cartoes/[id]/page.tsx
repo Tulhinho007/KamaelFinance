@@ -296,26 +296,19 @@ export default function CartaoDetailPage() {
     return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
-  // 1. Compras À Vista (Mês Atual - Exclui assinaturas e parceladas)
+  // 1. Compras À Vista (Mês Atual - Exclui parceladas)
   const vistaPurchases = purchasesList.filter((p) => {
-    if (!p || p.type !== "vista" || (p as any).isRecurring) return false;
+    if (!p || p.type !== "vista") return false;
     const { year, month } = getYearMonth(p.date);
     return year === selectedYear && month === selectedMonth;
   });
 
-  // 2. Assinaturas & Custos Recorrentes (Mês Atual)
-  const subscriptionPurchases = purchasesList.filter((p) => {
-    if (!p || !(p as any).isRecurring) return false;
-    const { year, month } = getYearMonth(p.date);
-    return year === selectedYear && month === selectedMonth;
-  });
-
-  // 3. Lançamentos Parcelados (filtrados estritamente pelo mês/ano selecionado)
+  // 2. Lançamentos Parcelados (filtrados estritamente pelo mês/ano selecionado)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
   const parceladoPurchasesProcessed = purchasesList
     .filter((p) => {
-      if (!p || p.type !== "parcelado" || (p as any).isRecurring) return false;
+      if (!p || p.type !== "parcelado") return false;
       const { year, month } = getYearMonth(p.date);
       return year === selectedYear && month === selectedMonth;
     })
@@ -345,12 +338,11 @@ export default function CartaoDetailPage() {
 
   // Cálculos financeiros
   const saldoVista = vistaPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalAssinaturas = subscriptionPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
   const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
   const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
 
-  // Para Cartão de Crédito - Fatura do Mês (À vista + Assinaturas + Parcelas do mês)
-  const impactoMes = saldoVista + totalAssinaturas + totalParceladoMes;
+  // Para Cartão de Crédito - Fatura do Mês (À vista + Parcelas do mês)
+  const impactoMes = saldoVista + totalParceladoMes;
   
   // Recomposição de Limite Disponível:
   // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
@@ -824,110 +816,7 @@ export default function CartaoDetailPage() {
               )}
             </section>
 
-            {/* TABELA 2: Assinaturas & Custos Recorrentes */}
-            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>Assinaturas & Custos Recorrentes</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/10 text-indigo-500 border border-indigo-500/20">
-                      🔄 Recorrente
-                    </span>
-                  </h3>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Serviços de assinatura e débitos recorrentes cobrados mensalmente</p>
-                </div>
-                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-3 py-1 rounded-xl border border-indigo-200 dark:border-indigo-800/80">
-                  Total Assinaturas: {brl(totalAssinaturas)}
-                </span>
-              </div>
 
-              {subscriptionPurchases.length === 0 ? (
-                <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhuma assinatura ativa neste mês.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-3 w-10 text-center">
-                          <input
-                            type="checkbox"
-                            checked={subscriptionPurchases.length > 0 && subscriptionPurchases.every(p => selectedIds.includes(p.id))}
-                            onChange={() => {
-                              const allSelected = subscriptionPurchases.every(p => selectedIds.includes(p.id));
-                              if (allSelected) {
-                                setSelectedIds(prev => prev.filter(id => !subscriptionPurchases.some(p => p.id === id)));
-                              } else {
-                                const newIds = Array.from(new Set([...selectedIds, ...subscriptionPurchases.map(p => p.id)]));
-                                setSelectedIds(newIds);
-                              }
-                            }}
-                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            title="Selecionar Todos"
-                          />
-                        </th>
-                        <th className="p-3">Data</th>
-                        <th className="p-3">Descrição</th>
-                        <th className="p-3">Categoria</th>
-                        <th className="p-3 text-right">Valor Mensal</th>
-                        <th className="p-3 text-center whitespace-nowrap">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {subscriptionPurchases.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                          <td className="p-3 w-10 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(p.id)}
-                              onChange={() => {
-                                setSelectedIds(prev =>
-                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                );
-                              }}
-                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            <div>{formatDateBR(p.date)}</div>
-                            {p.competenceDate && (
-                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                Ref: {(() => {
-                                  const parts = p.competenceDate.split("-");
-                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
-                                })()}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                            <span>{p.description}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 shrink-0">
-                              🔄 Assinatura
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
-                              {p.category}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400">{brl(p.amount)}</td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
 
             {/* TABELA 3: Lançamentos Parcelados */}
             <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">

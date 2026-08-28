@@ -17,7 +17,6 @@ import {
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
   getSalaryCycleSummary
 } from "@/lib/actions";
-import { getSubscriptionsWithMonthlyStatusAction } from "@/lib/subscription-actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
@@ -282,16 +281,7 @@ export default function DespesasPage() {
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
 
-  // Resumo Unificado de Assinaturas
-  const [subscriptionsSummary, setSubscriptionsSummary] = useState<{
-    totalMonthlyAmount: number;
-    totalPaidAmount: number;
-    totalPendingAmount: number;
-  }>({
-    totalMonthlyAmount: 0,
-    totalPaidAmount: 0,
-    totalPendingAmount: 0,
-  });
+
 
   // Previsão do Mês Seguinte (Mês + 1)
   const [nextMonthData, setNextMonthData] = useState<{
@@ -380,22 +370,12 @@ export default function DespesasPage() {
 
     Promise.all([
       getAllCardsOverview(monthParam, selectedYear),
-      getSubscriptionsWithMonthlyStatusAction(monthParam, selectedYear),
       getPaidInvoicesAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, subsRes, paidInvoicesRes]) => {
+      .then(([cardsRes, paidInvoicesRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
-
-        if (subsRes?.summary) {
-          setSubscriptionsSummary({
-            totalMonthlyAmount: subsRes.summary.totalMonthlyAmount || 0,
-            totalPaidAmount: subsRes.summary.totalPaidAmount || 0,
-            totalPendingAmount: subsRes.summary.totalPendingAmount || 0,
-          });
-        }
-
         setLoading(false);
       })
       .catch(err => {

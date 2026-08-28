@@ -56,8 +56,6 @@ export function NewPurchaseModal({
   const [formDate, setFormDate]                   = useState(new Date().toISOString().split("T")[0]);
   const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
   const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
-  const [isSubscription, setIsSubscription]       = useState(false);
-  const [recurringDay, setRecurringDay]             = useState<number>(10);
   const [saving, setSaving]                       = useState(false);
 
   const isEditMode = !!(initialData && initialData.id);
@@ -86,9 +84,6 @@ export function NewPurchaseModal({
               setFormCompetenceMonth(new Date().getMonth() + 1);
               setFormCompetenceYear(new Date().getFullYear());
             }
-
-            setIsSubscription(!!initialData.isRecurring);
-            setRecurringDay(initialData.recurringDay || (initialData.date ? new Date(initialData.date).getDate() : 10));
           } else {
             if (defaultWalletId) {
               setSelectedWalletId(defaultWalletId);
@@ -100,8 +95,6 @@ export function NewPurchaseModal({
             setFormTags("");
             setFormAmount("");
             setFormType("vista");
-            setIsSubscription(false);
-            setRecurringDay(10);
             const todayStr = new Date().toISOString().split("T")[0];
             setFormDate(todayStr);
             const now = new Date();
@@ -150,8 +143,8 @@ export function NewPurchaseModal({
           installments,
           formDate,
           formTags,
-          isSubscription,
-          recurringDay,
+          false,
+          undefined,
           compDateStr
         );
       } else {
@@ -163,8 +156,8 @@ export function NewPurchaseModal({
           installments,
           formDate,
           formTags,
-          isSubscription,
-          recurringDay,
+          false,
+          undefined,
           compDateStr
         );
       }
@@ -370,36 +363,7 @@ export function NewPurchaseModal({
             </div>
           )}
 
-          {/* Checkbox de Assinatura / Gasto Recorrente Mensal */}
-          <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-            <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isSubscription}
-                onChange={e => setIsSubscription(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-              />
-              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                🔄 É uma assinatura / gasto recorrente mensal
-              </span>
-            </label>
 
-            {isSubscription && (
-              <div className="flex flex-col gap-1.5 pl-6 pt-1 border-t border-slate-200 dark:border-slate-800">
-                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Dia do Vencimento Recorrente (1 a 31)
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="31"
-                  value={recurringDay}
-                  onChange={e => setRecurringDay(Number(e.target.value))}
-                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
-                />
-              </div>
-            )}
-          </div>
 
           {/* Campo 7: Data da Compra / Vencimento */}
           <div className="flex flex-col gap-1.5">
