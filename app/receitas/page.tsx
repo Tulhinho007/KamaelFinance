@@ -620,9 +620,9 @@ export default function ReceitasPage() {
                   return (
                     <tr
                       key={rev.id}
-                      className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
+                      className={`transition-colors border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 ${
                         isSelected ? "bg-indigo-50/50 dark:bg-indigo-900/30" :
-                        isReceived ? "bg-emerald-50/30 dark:bg-emerald-500/5" : ""
+                        isReceived ? "bg-emerald-50/30 dark:bg-emerald-500/10" : ""
                       }`}
                     >
                       <td className="px-3 py-3.5 text-center">
@@ -634,7 +634,7 @@ export default function ReceitasPage() {
                         />
                       </td>
 
-                      <td className="px-4 py-3.5 font-semibold text-slate-900 dark:text-white">
+                      <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
                         {rev.description}
                       </td>
 
@@ -644,12 +644,12 @@ export default function ReceitasPage() {
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-1.5 mt-1">
+                      <td className="px-4 py-3.5 text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5 mt-1">
                         <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                         <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-right font-semibold text-slate-600 dark:text-slate-300">
+                      <td className="px-4 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-200">
                         <div>{rev.date.split("-").reverse().join("/")}</div>
                         {rev.competenceDate && (
                           <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
@@ -662,7 +662,7 @@ export default function ReceitasPage() {
                         )}
                       </td>
 
-                      <td className={`px-4 py-3.5 text-right font-bold font-tnum tabular-nums text-sm ${isReceived ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>
+                      <td className={`px-4 py-3.5 text-right font-extrabold font-tnum tabular-nums text-sm ${isReceived ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>
                         {brl(rev.amount)}
                       </td>
 

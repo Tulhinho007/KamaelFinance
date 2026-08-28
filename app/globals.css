@@ -220,7 +220,7 @@ html.dark .divide-slate-200 > * + * { border-color: rgba(30, 41, 59, 0.8) !impor
 /* ─── Tipografia — legibilidade máxima ─── */
 html.dark .text-slate-900,
 html.dark .text-slate-800 {
-  color: #F1F5F9 !important;
+  color: #F8FAFC !important;
 }
 
 html.dark .text-slate-700 {
@@ -229,15 +229,15 @@ html.dark .text-slate-700 {
 
 html.dark .text-slate-600,
 html.dark .text-slate-500 {
-  color: #94A3B8 !important;
+  color: #CBD5E1 !important;
 }
 
 html.dark .text-slate-400 {
-  color: #64748B !important;
+  color: #94A3B8 !important;
 }
 
 html.dark .text-slate-300 {
-  color: #CBD5E1 !important;
+  color: #E2E8F0 !important;
 }
 
 /* Cores coloridas (não mudam em dark — já têm contraste) */
@@ -282,16 +282,57 @@ html.dark select,
 html.dark textarea {
   background-color: #1E293B !important;
   border-color: rgba(51, 65, 85, 0.8) !important;
-  color: #F1F5F9 !important;
+  color: #F8FAFC !important;
+}
+
+html.dark select option,
+html.dark option {
+  background-color: #0F172A !important;
+  color: #F8FAFC !important;
 }
 
 html.dark input::placeholder,
 html.dark textarea::placeholder { color: #64748B !important; }
 
-/* ─── Hover em linhas de tabela ─── */
+/* ─── Tabelas & Células no Dark Mode ─── */
+html.dark table {
+  background-color: transparent !important;
+}
+
+html.dark tr {
+  background-color: transparent;
+  color: #F8FAFC;
+}
+
+html.dark td,
+html.dark th {
+  color: #F8FAFC;
+}
+
+/* Remover fundo branco das linhas e células no Dark Mode */
+html.dark tr.bg-white,
+html.dark tr.bg-slate-50,
+html.dark tr.bg-slate-100,
+html.dark tr.bg-gray-50,
+html.dark tr.bg-gray-100,
+html.dark td.bg-white,
+html.dark td.bg-slate-50,
+html.dark td.bg-slate-100 {
+  background-color: rgba(19, 27, 46, 0.6) !important;
+  color: #F8FAFC !important;
+}
+
+/* Hover unificado em tabelas no Dark Mode */
+html.dark tbody tr:hover,
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
 html.dark .hover\:bg-slate-50\/50:hover,
-html.dark .hover\:bg-slate-50\/70:hover {
-  background-color: rgba(30, 41, 59, 0.4) !important;
+html.dark .hover\:bg-slate-50\/70:hover,
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+  color: #F8FAFC !important;
 }
 
 /* ─── Cabeçalho de tabela ─── */
