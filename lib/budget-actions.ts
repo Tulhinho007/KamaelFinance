@@ -105,7 +105,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
 
     // Se houver limite pontual para o mês, usa ele; caso contrário usa o defaultMaxAmount recorrente da categoria
     const monthSpecificMax = budgetMap.get(cat.id);
-    const maxAmount = monthSpecificMax !== undefined ? monthSpecificMax : Number(cat.defaultMaxAmount || 0);
+    const maxAmount = monthSpecificMax !== undefined ? monthSpecificMax : Number((cat as any).defaultMaxAmount || 0);
 
     let percentage = 0;
     if (maxAmount > 0) {
@@ -175,7 +175,7 @@ export async function saveCategoryBudgetAction(
   });
 
   // 2. Atualiza limite padrão recorrente na Categoria
-  await prisma.category.update({
+  await (prisma.category as any).update({
     where: { id: categoryId },
     data: { defaultMaxAmount: maxAmount }
   });
