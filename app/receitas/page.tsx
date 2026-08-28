@@ -38,7 +38,8 @@ type Revenue = {
   description: string;
   amount: number;
   status?: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD (Data de Recebimento)
+  competenceDate?: string; // YYYY-MM-DD (Mês de Competência)
   category?: string;
   account?: string;
   walletId?: string;
@@ -234,6 +235,8 @@ export default function ReceitasPage() {
   const [formDescription, setFormDescription]     = useState("");
   const [formAmount, setFormAmount]               = useState<string | number>("");
   const [formDate, setFormDate]                   = useState("");
+  const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(selectedMonth);
+  const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(selectedYear);
   const [formWalletId, setFormWalletId]           = useState("");
   const [formSkipDeduction, setFormSkipDeduction] = useState(false);
 
@@ -343,6 +346,8 @@ export default function ReceitasPage() {
     setFormAmount("");
     const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
     setFormDate(defaultDate);
+    setFormCompetenceMonth(selectedMonth);
+    setFormCompetenceYear(selectedYear);
     setFormWalletId(wallets.length > 0 ? wallets[0].id : "");
     setFormSkipDeduction(false);
     setModalType("create");
@@ -356,7 +361,8 @@ export default function ReceitasPage() {
       return;
     }
     try {
-      await createRevenueAction(formDescription, amountNum, formDate, formWalletId || undefined);
+      const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
+      await createRevenueAction(formDescription, amountNum, formDate, formWalletId || undefined, "COMPLETED", compDateStr);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -370,6 +376,15 @@ export default function ReceitasPage() {
     setFormDescription(rev.description);
     setFormAmount(rev.amount);
     setFormDate(rev.date);
+    if (rev.competenceDate) {
+      const parts = rev.competenceDate.split("-");
+      setFormCompetenceYear(Number(parts[0]));
+      setFormCompetenceMonth(Number(parts[1]));
+    } else {
+      const parts = rev.date.split("-");
+      setFormCompetenceYear(Number(parts[0]));
+      setFormCompetenceMonth(Number(parts[1]));
+    }
     setFormWalletId(rev.walletId || (wallets.length > 0 ? wallets[0].id : ""));
     setFormSkipDeduction(false);
     setModalType("edit");
@@ -383,7 +398,8 @@ export default function ReceitasPage() {
       return;
     }
     try {
-      await updateRevenueAction(selectedRevenue.id, formDescription, amountNum, formDate, formWalletId || undefined);
+      const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
+      await updateRevenueAction(selectedRevenue.id, formDescription, amountNum, formDate, formWalletId || undefined, compDateStr);
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -634,7 +650,16 @@ export default function ReceitasPage() {
                       </td>
 
                       <td className="px-4 py-3.5 text-right font-semibold text-slate-600 dark:text-slate-300">
-                        {rev.date.split("-").reverse().join("/")}
+                        <div>{rev.date.split("-").reverse().join("/")}</div>
+                        {rev.competenceDate && (
+                          <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                            Ref: {(() => {
+                              const parts = rev.competenceDate.split("-");
+                              const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                              return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                            })()}
+                          </span>
+                        )}
                       </td>
 
                       <td className={`px-4 py-3.5 text-right font-bold font-tnum tabular-nums text-sm ${isReceived ? "text-emerald-700 dark:text-emerald-400" : "text-slate-900 dark:text-slate-100"}`}>
@@ -777,7 +802,7 @@ export default function ReceitasPage() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data de Recebimento *</label>
                   <input
                     type="date"
                     required
@@ -785,6 +810,40 @@ export default function ReceitasPage() {
                     onChange={(e) => setFormDate(e.target.value)}
                     className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
                   />
+                </div>
+
+                {/* Mês de Competência / Referência */}
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                    <span>Mês de Competência / Referência</span>
+                    <span className="text-[10px] text-indigo-500 font-semibold normal-case">(Opcional)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={formCompetenceMonth}
+                      onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
+                      className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      {[
+                        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                      ].map((m, idx) => (
+                        <option key={idx + 1} value={idx + 1}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={formCompetenceYear}
+                      onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
+                      className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                    Mês/ano a que o valor se refere no relatório (ex: Salário de Agosto recebido em Setembro).
+                  </p>
                 </div>
 
                 {/* Conta de Destino */}

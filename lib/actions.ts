@@ -197,11 +197,11 @@ export async function getRevenues(month?: number | null | string, year: number =
     where: {
       wallet: { userId },
       type: "INCOME",
-      date: {
-        gte: from,
-        lte: to
-      },
-      deletedAt: null
+      deletedAt: null,
+      OR: [
+        { competenceDate: { gte: from, lte: to } },
+        { competenceDate: null, date: { gte: from, lte: to } }
+      ]
     },
     include: { wallet: true },
     orderBy: { date: "asc" }
@@ -238,6 +238,7 @@ export async function getRevenues(month?: number | null | string, year: number =
     amount: Number(t.amount),
     status: t.status || "COMPLETED",
     date: t.date.toISOString().split("T")[0],
+    competenceDate: t.competenceDate ? t.competenceDate.toISOString().split("T")[0] : t.date.toISOString().split("T")[0],
     walletId: t.walletId,
     account: (t.wallet as any)?.bankName || (t.wallet as any)?.title || "",
     walletType: (t.wallet as any)?.walletType
@@ -304,7 +305,8 @@ export async function createRevenueAction(
   amount: number,
   dateStr: string,
   walletId?: string,
-  status: string = "COMPLETED"
+  status: string = "COMPLETED",
+  competenceDateStr?: string
 ) {
   const userId = await getActiveUserId();
   
@@ -338,6 +340,12 @@ export async function createRevenueAction(
   const parts = dateStr.split("-");
   const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
 
+  let competenceDate: Date = date;
+  if (competenceDateStr) {
+    const compParts = competenceDateStr.split("-");
+    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+  }
+
   const transaction = await prisma.transaction.create({
     data: {
       walletId: wallet.id,
@@ -346,6 +354,7 @@ export async function createRevenueAction(
       amount: amount,
       status: status || "COMPLETED",
       date,
+      competenceDate,
       source: "MANUAL"
     }
   });
@@ -360,6 +369,7 @@ export async function createRevenueAction(
     description: transaction.description,
     amount: Number(transaction.amount),
     date: transaction.date.toISOString().split("T")[0],
+    competenceDate: transaction.competenceDate ? transaction.competenceDate.toISOString().split("T")[0] : transaction.date.toISOString().split("T")[0],
     walletId: transaction.walletId
   };
 }
@@ -369,15 +379,23 @@ export async function updateRevenueAction(
   description: string,
   amount: number,
   dateStr: string,
-  walletId?: string
+  walletId?: string,
+  competenceDateStr?: string
 ) {
   const parts = dateStr.split("-");
   const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
 
+  let competenceDate: Date = date;
+  if (competenceDateStr) {
+    const compParts = competenceDateStr.split("-");
+    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+  }
+
   const dataToUpdate: any = {
     description,
     amount: amount,
-    date
+    date,
+    competenceDate
   };
   if (walletId) {
     dataToUpdate.walletId = walletId;
@@ -393,12 +411,12 @@ export async function updateRevenueAction(
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
 
-  revalidatePath("/receitas");
   return {
     id: transaction.id,
     description: transaction.description,
     amount: Number(transaction.amount),
-    date: transaction.date.toISOString().split("T")[0]
+    date: transaction.date.toISOString().split("T")[0],
+    competenceDate: transaction.competenceDate ? transaction.competenceDate.toISOString().split("T")[0] : transaction.date.toISOString().split("T")[0]
   };
 }
 
@@ -2088,7 +2106,11 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     where: {
       wallet: { userId },
       deletedAt: null,
-      date: { gte: from, lte: to }
+      OR: [
+        { type: "EXPENSE", date: { gte: from, lte: to } },
+        { type: "INCOME", competenceDate: { gte: from, lte: to } },
+        { type: "INCOME", competenceDate: null, date: { gte: from, lte: to } }
+      ]
     },
     include: {
       category: true,
