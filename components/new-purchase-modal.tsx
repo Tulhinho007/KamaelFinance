@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, DollarSign, Tag } from "lucide-react";
+import { X, DollarSign, Tag, Edit3, PlusCircle } from "lucide-react";
 import { CATEGORIES, parseCurrencyInput } from "@/lib/constants";
-import { getAllWalletsSimple, createCardPurchase } from "@/lib/actions";
+import { getAllWalletsSimple, createCardPurchase, updateCardPurchase } from "@/lib/actions";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
 type SimpleWallet = {
@@ -13,11 +13,26 @@ type SimpleWallet = {
   walletType: string;
 };
 
+export type ExpenseInitialData = {
+  id?: string;
+  walletId?: string;
+  description?: string;
+  category?: string;
+  amount?: number;
+  type?: "vista" | "parcelado";
+  installmentsCount?: number;
+  date?: string;
+  tags?: string;
+  isRecurring?: boolean;
+  recurringDay?: number;
+};
+
 interface NewPurchaseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   defaultWalletId?: string;
+  initialData?: ExpenseInitialData | null;
 }
 
 export function NewPurchaseModal({
@@ -25,36 +40,60 @@ export function NewPurchaseModal({
   onClose,
   onSuccess,
   defaultWalletId = "",
+  initialData = null,
 }: NewPurchaseModalProps) {
   const { showAlert } = useModal();
-  const [wallets, setWallets]             = useState<SimpleWallet[]>([]);
+  const [wallets, setWallets]                     = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState(defaultWalletId);
-  const [formType, setFormType]           = useState<"vista" | "parcelado">("vista");
-  const [formDescription, setFormDescription] = useState("");
-  const [formCategory, setFormCategory]   = useState("Alimentação");
-  const [formTags, setFormTags]           = useState("");
-  const [formAmount, setFormAmount]       = useState<string | number>("");
+  const [formType, setFormType]                   = useState<"vista" | "parcelado">("vista");
+  const [formDescription, setFormDescription]     = useState("");
+  const [formCategory, setFormCategory]           = useState("Alimentação");
+  const [formTags, setFormTags]                   = useState("");
+  const [formAmount, setFormAmount]               = useState<string | number>("");
   const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
-  const [formDate, setFormDate]           = useState(new Date().toISOString().split("T")[0]);
-  const [isSubscription, setIsSubscription] = useState(false);
-  const [recurringDay, setRecurringDay]     = useState<number>(10);
-  const [saving, setSaving]               = useState(false);
+  const [formDate, setFormDate]                   = useState(new Date().toISOString().split("T")[0]);
+  const [isSubscription, setIsSubscription]       = useState(false);
+  const [recurringDay, setRecurringDay]             = useState<number>(10);
+  const [saving, setSaving]                       = useState(false);
+
+  const isEditMode = !!(initialData && initialData.id);
 
   useEffect(() => {
     if (isOpen) {
       getAllWalletsSimple()
         .then(data => {
           setWallets(data);
-          if (defaultWalletId) {
-            setSelectedWalletId(defaultWalletId);
-          } else if (data.length > 0 && !selectedWalletId) {
-            setSelectedWalletId(data[0].id);
+          if (initialData) {
+            setSelectedWalletId(initialData.walletId || defaultWalletId || (data.length > 0 ? data[0].id : ""));
+            setFormType(initialData.type || (initialData.installmentsCount && initialData.installmentsCount > 1 ? "parcelado" : "vista"));
+            setFormDescription(initialData.description || "");
+            setFormCategory(initialData.category || "Alimentação");
+            setFormTags(initialData.tags || "");
+            setFormAmount(initialData.amount != null ? initialData.amount : "");
+            setFormInstallmentsCount(initialData.installmentsCount || 2);
+            setFormDate(initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+            setIsSubscription(!!initialData.isRecurring);
+            setRecurringDay(initialData.recurringDay || (initialData.date ? new Date(initialData.date).getDate() : 10));
+          } else {
+            if (defaultWalletId) {
+              setSelectedWalletId(defaultWalletId);
+            } else if (data.length > 0 && !selectedWalletId) {
+              setSelectedWalletId(data[0].id);
+            }
+            setFormDescription("");
+            setFormCategory("Alimentação");
+            setFormTags("");
+            setFormAmount("");
+            setFormType("vista");
+            setIsSubscription(false);
+            setRecurringDay(10);
+            setFormDate(new Date().toISOString().split("T")[0]);
           }
         })
         .catch(console.error);
     }
-  }, [isOpen, defaultWalletId]);
+  }, [isOpen, defaultWalletId, initialData]);
 
   if (!isOpen) return null;
 
@@ -82,27 +121,38 @@ export function NewPurchaseModal({
 
     setSaving(true);
     try {
-      await createCardPurchase(
-        selectedWalletId,
-        formDescription,
-        formCategory,
-        totalAmountVal,
-        installments,
-        formDate,
-        formTags,
-        isSubscription,
-        recurringDay
-      );
+      if (isEditMode && initialData?.id) {
+        await updateCardPurchase(
+          initialData.id,
+          selectedWalletId,
+          formDescription,
+          formCategory,
+          totalAmountVal,
+          installments,
+          formDate,
+          formTags,
+          isSubscription,
+          recurringDay
+        );
+      } else {
+        await createCardPurchase(
+          selectedWalletId,
+          formDescription,
+          formCategory,
+          totalAmountVal,
+          installments,
+          formDate,
+          formTags,
+          isSubscription,
+          recurringDay
+        );
+      }
+
       if (onSuccess) onSuccess();
       onClose();
-      // Reset form
-      setFormDescription("");
-      setFormTags("");
-      setFormAmount("");
-      setFormInstallmentAmount("");
     } catch (err) {
       console.error(err);
-      showAlert("Erro ao salvar a despesa. Tente novamente.", { variant: "error" });
+      showAlert(`Erro ao ${isEditMode ? "atualizar" : "salvar"} a despesa. Tente novamente.`, { variant: "error" });
     } finally {
       setSaving(false);
     }
@@ -112,18 +162,22 @@ export function NewPurchaseModal({
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden text-slate-900 dark:text-slate-100">
         
-        {/* Header do Modal */}
+        {/* Header do Modal (Unificado: Novo vs Editar) */}
         <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20 shadow-sm shadow-indigo-500/10">
-              <DollarSign className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              {isEditMode ? (
+                <Edit3 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <DollarSign className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              )}
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-                Lançar Despesa / Compra
+                {isEditMode ? "Editar Despesa / Compra" : "Lançar Despesa / Compra"}
               </h3>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Registre uma nova compra ou débito
+                {isEditMode ? "Atualize os campos e a recorrência da despesa" : "Registre uma nova compra ou débito"}
               </p>
             </div>
           </div>
@@ -136,7 +190,7 @@ export function NewPurchaseModal({
           </button>
         </div>
 
-        {/* Form Body */}
+        {/* Form Body com TODOS os campos compartilhados */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-5 overflow-y-auto max-h-[75vh]">
           
           {/* Campo 1: Selecionar Cartão / Conta */}
@@ -346,7 +400,10 @@ export function NewPurchaseModal({
             disabled={saving}
             className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-2 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase"
           >
-            {saving ? "REGISTRANDO..." : "REGISTRAR COMPRA"}
+            {saving
+              ? (isEditMode ? "SALVANDO..." : "REGISTRANDO...")
+              : (isEditMode ? "SALVAR ALTERAÇÕES" : "REGISTRAR COMPRA")
+            }
           </button>
 
         </form>
@@ -354,3 +411,5 @@ export function NewPurchaseModal({
     </div>
   );
 }
+
+export const ExpenseFormModal = NewPurchaseModal;

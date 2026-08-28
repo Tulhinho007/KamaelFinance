@@ -1247,13 +1247,18 @@ export async function createCardPurchase(
 
 export async function updateCardPurchase(
   id: string,
+  walletId: string,
   description: string,
   category: string,
   amount: number,
   installmentsCount: number | undefined,
   dateStr: string,
-  tags?: string
+  tags?: string,
+  isRecurring?: boolean,
+  recurringDay?: number
 ) {
+  const userId = await getActiveUserId();
+
   let dbCategory = await prisma.category.findFirst({
     where: { name: category }
   });
@@ -1267,21 +1272,83 @@ export async function updateCardPurchase(
   }
 
   const finalTags = extractTags(description, tags);
+  const inputDate = parseInputDate(dateStr);
+  const targetDay = recurringDay || inputDate.getDate();
+
+  const existingTx = await prisma.transaction.findUnique({ where: { id } });
 
   await prisma.transaction.update({
     where: { id },
     data: {
+      walletId,
       description,
       categoryId: dbCategory.id,
       amount,
       installmentsCount,
-      date: parseInputDate(dateStr),
-      tags: finalTags
+      date: inputDate,
+      tags: finalTags,
+      isRecurring: !!isRecurring,
+      recurringDay: isRecurring ? targetDay : null
     } as any
   });
 
+  // Lógica de Gerenciamento da Assinatura / Gasto Recorrente
+  if (isRecurring) {
+    const existingSub = await (prisma as any).subscription.findFirst({
+      where: {
+        userId,
+        OR: [
+          { name: description },
+          { defaultWalletId: walletId, name: existingTx?.description || description }
+        ]
+      }
+    });
+
+    if (existingSub) {
+      await (prisma as any).subscription.update({
+        where: { id: existingSub.id },
+        data: {
+          name: description,
+          amount,
+          dueDay: targetDay,
+          defaultWalletId: walletId,
+          category: dbCategory.name
+        }
+      });
+    } else {
+      await (prisma as any).subscription.create({
+        data: {
+          userId,
+          name: description,
+          amount,
+          dueDay: targetDay,
+          defaultWalletId: walletId,
+          category: dbCategory.name
+        }
+      });
+    }
+  } else {
+    // Se a recorrência for DESATIVADA na edição, remove a assinatura vinculada
+    const existingSub = await (prisma as any).subscription.findFirst({
+      where: {
+        userId,
+        OR: [
+          { name: description },
+          { name: existingTx?.description }
+        ]
+      }
+    });
+
+    if (existingSub) {
+      await (prisma as any).subscription.delete({
+        where: { id: existingSub.id }
+      });
+    }
+  }
+
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteCardPurchase(id: string) {

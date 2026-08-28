@@ -407,39 +407,8 @@ export default function CartaoDetailPage() {
   const openEditModal = (p: Purchase) => {
     const original = purchasesList.find(item => item.id === p.id);
     if (!original) return;
-
     setSelectedPurchase(original);
-    setFormType(original.type);
-    setFormDescription(original.description);
-    setFormCategory(original.category);
-    if (original.type === "vista") {
-      setFormAmount(original.amount);
-      setFormInstallmentAmount(0);
-      setFormInstallmentsCount(2);
-    } else {
-      setFormAmount(0);
-      setFormInstallmentAmount(original.amount);
-      setFormInstallmentsCount(original.installmentsCount || 2);
-    }
-    setFormDate(original.date);
     setModalType("edit");
-  };
-
-  const handlePurchaseEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPurchase || !formDescription || !formDate) return;
-
-    const calculatedAmount = formType === "vista" ? formAmount : formInstallmentAmount;
-    const installments = formType === "parcelado" ? formInstallmentsCount : undefined;
-
-    try {
-      await updateCardPurchase(selectedPurchase.id, formDescription, formCategory, calculatedAmount, installments, formDate);
-      loadData();
-      setModalType(null);
-    } catch (err) {
-      console.error(err);
-      showAlert("Erro ao atualizar lançamento.", { variant: "error" });
-    }
   };
 
   const handleDelete = async () => {
@@ -1380,126 +1349,7 @@ export default function CartaoDetailPage() {
         </div>
       )}
 
-      {/* Modal Editar Lançamento */}
-      {modalType === "edit" && selectedPurchase && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-7 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-800 animate-in zoom-in-95">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white">Editar Lançamento</h3>
-              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handlePurchaseEdit} className="flex flex-col gap-4">
-              {/* Descrição */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Descrição *</label>
-                <input
-                  required
-                  type="text"
-                  value={formDescription}
-                  onChange={e => setFormDescription(e.target.value)}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
 
-              {/* Categoria */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Categoria *</label>
-                <select
-                  value={formCategory}
-                  onChange={e => setFormCategory(e.target.value)}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                >
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Forma de Pagamento (Cartão de Crédito) */}
-              {isCredit && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Forma de Pagamento</label>
-                  <div className="flex gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => setFormType("vista")}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                        formType === "vista"
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      À Vista
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFormType("parcelado")}
-                      className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                        formType === "parcelado"
-                          ? "bg-indigo-600 text-white shadow-sm"
-                          : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      Parcelado
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Valor */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">
-                  {formType === "vista" ? "Valor Total (R$) *" : "Valor da Parcela (R$) *"}
-                </label>
-                <input
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={formType === "vista" ? formAmount : formInstallmentAmount}
-                  onChange={e => formType === "vista" ? setFormAmount(Number(e.target.value)) : setFormInstallmentAmount(Number(e.target.value))}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              {/* Nº de Parcelas */}
-              {isCredit && formType === "parcelado" && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Número de Parcelas *</label>
-                  <select
-                    value={formInstallmentsCount}
-                    onChange={e => setFormInstallmentsCount(Number(e.target.value))}
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {[2,3,4,5,6,7,8,9,10,11,12,18,24].map(n => (
-                      <option key={n} value={n}>{n}x</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Data */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-slate-300 uppercase tracking-wider">Data do Lançamento *</label>
-                <input
-                  required
-                  type="date"
-                  value={formDate}
-                  onChange={e => setFormDate(e.target.value)}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-3 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setModalType(null)} className="px-4 py-2.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer">CANCELAR</button>
-                <button type="submit" className="px-5 py-2.5 text-xs font-extrabold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 cursor-pointer">SALVAR ALTERAÇÕES</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Modal Excluir Lançamento Individual */}
       {modalType === "delete" && selectedPurchase && (
@@ -1611,6 +1461,33 @@ export default function CartaoDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Global Unificado de Lançar / Editar Despesa */}
+      <NewPurchaseModal
+        isOpen={purchaseModalOpen || modalType === "edit"}
+        initialData={modalType === "edit" && selectedPurchase ? {
+          id: selectedPurchase.id,
+          walletId: cardData.walletId,
+          description: selectedPurchase.description,
+          category: selectedPurchase.category,
+          amount: selectedPurchase.amount,
+          type: selectedPurchase.type,
+          installmentsCount: selectedPurchase.installmentsCount,
+          date: selectedPurchase.date,
+          tags: selectedPurchase.tags,
+          isRecurring: (selectedPurchase as any).isRecurring,
+          recurringDay: (selectedPurchase as any).recurringDay
+        } : null}
+        defaultWalletId={cardData.walletId}
+        onClose={() => {
+          setPurchaseModalOpen(false);
+          setModalType(null);
+          setSelectedPurchase(null);
+        }}
+        onSuccess={() => {
+          loadData();
+        }}
+      />
 
     </div>
   );
