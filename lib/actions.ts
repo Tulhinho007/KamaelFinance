@@ -193,7 +193,7 @@ export async function getRevenues(month?: number | null | string, year: number =
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  let transactions = await prisma.transaction.findMany({
+  let transactions: any[] = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       type: "INCOME",
@@ -202,14 +202,14 @@ export async function getRevenues(month?: number | null | string, year: number =
         { competenceDate: { gte: from, lte: to } },
         { competenceDate: null, date: { gte: from, lte: to } }
       ]
-    },
+    } as any,
     include: { wallet: true },
     orderBy: { date: "asc" }
   });
 
   // Se não houver receitas cadastradas para o mês selecionado, projeta as receitas recorrentes (ex: Salário) de meses anteriores
   if (transactions.length === 0) {
-    const fallbackIncomes = await prisma.transaction.findMany({
+    const fallbackIncomes: any[] = await prisma.transaction.findMany({
       where: {
         wallet: { userId },
         type: "INCOME",
@@ -221,7 +221,7 @@ export async function getRevenues(month?: number | null | string, year: number =
     });
 
     if (fallbackIncomes.length > 0) {
-      const uniqueMap = new Map<string, typeof fallbackIncomes[0]>();
+      const uniqueMap = new Map<string, any>();
       fallbackIncomes.forEach(inc => {
         const key = inc.description.trim().toLowerCase();
         if (!uniqueMap.has(key)) {
@@ -232,16 +232,16 @@ export async function getRevenues(month?: number | null | string, year: number =
     }
   }
 
-  return transactions.map(t => ({
+  return transactions.map((t: any) => ({
     id: t.id,
     description: t.description,
     amount: Number(t.amount),
     status: t.status || "COMPLETED",
-    date: t.date.toISOString().split("T")[0],
-    competenceDate: t.competenceDate ? t.competenceDate.toISOString().split("T")[0] : t.date.toISOString().split("T")[0],
+    date: t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : "",
+    competenceDate: t.competenceDate ? (typeof t.competenceDate === "string" ? t.competenceDate.split("T")[0] : new Date(t.competenceDate).toISOString().split("T")[0]) : (t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : ""),
     walletId: t.walletId,
-    account: (t.wallet as any)?.bankName || (t.wallet as any)?.title || "",
-    walletType: (t.wallet as any)?.walletType
+    account: t.wallet?.bankName || t.wallet?.title || "",
+    walletType: t.wallet?.walletType
   }));
 }
 
@@ -346,7 +346,7 @@ export async function createRevenueAction(
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
   }
 
-  const transaction = await prisma.transaction.create({
+  const transaction: any = await prisma.transaction.create({
     data: {
       walletId: wallet.id,
       description,
@@ -356,7 +356,7 @@ export async function createRevenueAction(
       date,
       competenceDate,
       source: "MANUAL"
-    }
+    } as any
   });
 
   revalidatePath("/receitas");
@@ -368,8 +368,8 @@ export async function createRevenueAction(
     id: transaction.id,
     description: transaction.description,
     amount: Number(transaction.amount),
-    date: transaction.date.toISOString().split("T")[0],
-    competenceDate: transaction.competenceDate ? transaction.competenceDate.toISOString().split("T")[0] : transaction.date.toISOString().split("T")[0],
+    date: new Date(transaction.date).toISOString().split("T")[0],
+    competenceDate: transaction.competenceDate ? new Date(transaction.competenceDate).toISOString().split("T")[0] : new Date(transaction.date).toISOString().split("T")[0],
     walletId: transaction.walletId
   };
 }
@@ -401,7 +401,7 @@ export async function updateRevenueAction(
     dataToUpdate.walletId = walletId;
   }
 
-  const transaction = await prisma.transaction.update({
+  const transaction: any = await prisma.transaction.update({
     where: { id },
     data: dataToUpdate
   });
@@ -415,8 +415,8 @@ export async function updateRevenueAction(
     id: transaction.id,
     description: transaction.description,
     amount: Number(transaction.amount),
-    date: transaction.date.toISOString().split("T")[0],
-    competenceDate: transaction.competenceDate ? transaction.competenceDate.toISOString().split("T")[0] : transaction.date.toISOString().split("T")[0]
+    date: new Date(transaction.date).toISOString().split("T")[0],
+    competenceDate: transaction.competenceDate ? new Date(transaction.competenceDate).toISOString().split("T")[0] : new Date(transaction.date).toISOString().split("T")[0]
   };
 }
 
@@ -2102,7 +2102,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   }
 
   // 1. Lançamentos filtrados pelo período (Mês ou Ano)
-  const rangeTransactions = await prisma.transaction.findMany({
+  const rangeTransactions: any[] = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       deletedAt: null,
@@ -2111,7 +2111,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
         { type: "INCOME", competenceDate: { gte: from, lte: to } },
         { type: "INCOME", competenceDate: null, date: { gte: from, lte: to } }
       ]
-    },
+    } as any,
     include: {
       category: true,
       wallet: { select: { walletType: true } }
