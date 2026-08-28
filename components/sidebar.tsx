@@ -8,18 +8,16 @@ import {
   Settings,
   ShieldCheck,
   Target,
-  LayoutGrid,
   TrendingUp,
-  LineChart,
+  CreditCard,
+  PieChart,
+  Calendar,
   Sun,
   Moon,
   Users,
   LogOut,
-  Plane,
-  Repeat,
   Menu,
-  X,
-  Calendar
+  X
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -63,25 +61,35 @@ export function Sidebar() {
 
   const initials = getInitials(userName);
 
-  const mainItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/metas", label: "Metas", icon: Target },
-    { href: "/planejamento", label: "Planejamento", icon: Plane },
-  ];
-
-  const gestaoItems = [
-    { href: "/receitas", label: "Receitas", icon: TrendingUp },
-    { href: "/despesas", label: "Despesas", icon: LayoutGrid },
-    { href: "/investimentos", label: "Investimentos", icon: LineChart },
-  ];
-
-  const planejamentoHabitosItems = [
-    { href: "/planejamento/calendario", label: "Calendário", icon: Calendar },
-    { href: "/planejamento/reserva", label: "Reserva Emergência", icon: ShieldCheck },
+  const menuGroups = [
+    {
+      group: "VISÃO GERAL",
+      items: [
+        { label: "Dashboard", icon: LayoutDashboard, path: "/" },
+        { label: "Reserva de Emergência", icon: ShieldCheck, path: "/planejamento/reserva" },
+        { label: "Metas", icon: Target, path: "/metas" },
+      ],
+    },
+    {
+      group: "GESTÃO FINANCEIRA",
+      items: [
+        { label: "Receitas", icon: TrendingUp, path: "/receitas" },
+        { label: "Despesas & Contas", icon: CreditCard, path: "/despesas" },
+        { label: "Investimentos", icon: PieChart, path: "/investimentos" },
+        { label: "Calendário", icon: Calendar, path: "/planejamento/calendario" },
+      ],
+    },
+    {
+      group: "SISTEMA",
+      items: [
+        { label: "Usuários", icon: Users, path: "/usuarios" },
+        { label: "Configurações", icon: Settings, path: "/configuracoes" },
+      ],
+    },
   ];
 
   const navLink = (href: string, label: string, Icon: React.ElementType) => {
-    const active = pathname === href;
+    const active = pathname === href || (href !== "/" && pathname.startsWith(href));
     return (
       <Link
         key={href}
@@ -111,80 +119,63 @@ export function Sidebar() {
 
   const navigationContent = (
     <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-      {/* Principal */}
-      <div className="space-y-0.5">
-        {sectionLabel("Visão Geral")}
-        {mainItems.map((item) => navLink(item.href, item.label, item.icon))}
-      </div>
-
-      {/* Gestão Financeira */}
-      <div className="space-y-0.5">
-        {sectionLabel("Gestão Financeira")}
-        {gestaoItems.map((item) => navLink(item.href, item.label, item.icon))}
-      </div>
-
-      {/* Planejamento & Hábitos */}
-      <div className="space-y-0.5">
-        {sectionLabel("Planejamento & Hábitos")}
-        {planejamentoHabitosItems.map((item) => navLink(item.href, item.label, item.icon))}
-      </div>
-
-      {/* Preferências e Sistema */}
-      <div className="space-y-0.5">
-        {sectionLabel("Sistema")}
-
-        {/* Toggle Tema */}
-        <button
-          onClick={toggleTheme}
-          className="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-150 cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            {theme === "dark" ? (
-              <Moon className="w-4 h-4 text-indigo-400" />
-            ) : (
-              <Sun className="w-4 h-4 text-amber-500" />
-            )}
-            <span>Tema {theme === "dark" ? "Escuro" : "Claro"}</span>
-          </div>
-          <span
-            className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
-              theme === "dark"
-                ? "bg-indigo-500/15 text-indigo-400"
-                : "bg-amber-100 text-amber-600"
-            }`}
-          >
-            {theme === "dark" ? "Dark" : "Light"}
-          </span>
-        </button>
-
-        {navLink("/usuarios", "Usuários", Users)}
-        {navLink("/configuracoes", "Configurações", Settings)}
-      </div>
+      {menuGroups.map((group) => (
+        <div key={group.group} className="space-y-0.5">
+          {sectionLabel(group.group)}
+          {group.items.map((item) => navLink(item.path, item.label, item.icon))}
+        </div>
+      ))}
     </nav>
   );
 
   const footerProfile = (
-    <div className="p-3 border-t border-slate-100 dark:border-slate-800/70 flex items-center justify-between gap-2">
-      <Link
-        href="/configuracoes"
-        onClick={() => setIsMobileOpen(false)}
-        className="flex-1 min-w-0 flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors duration-150 group"
-      >
-        <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm shadow-indigo-600/30 flex-shrink-0">
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{userName}</p>
-          <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">Conta Executiva</p>
-        </div>
-      </Link>
+    <div className="p-3 border-t border-slate-100 dark:border-slate-800/70 flex flex-col gap-2">
+      {/* Seletor de Tema (Claro/Escuro) no Rodapé */}
       <button
-        onClick={() => logoutAction()}
-        title="Encerrar Sessão (Sair)"
-        className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer flex-shrink-0"
+        onClick={toggleTheme}
+        className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-150 cursor-pointer"
       >
-        <LogOut className="w-4 h-4" />
+        <div className="flex items-center gap-2.5">
+          {theme === "dark" ? (
+            <Moon className="w-4 h-4 text-indigo-400" />
+          ) : (
+            <Sun className="w-4 h-4 text-amber-500" />
+          )}
+          <span>Tema {theme === "dark" ? "Escuro" : "Claro"}</span>
+        </div>
+        <span
+          className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
+            theme === "dark"
+              ? "bg-indigo-500/15 text-indigo-400"
+              : "bg-amber-100 text-amber-600"
+          }`}
+        >
+          {theme === "dark" ? "Dark" : "Light"}
+        </span>
       </button>
+
+      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/50">
+        <Link
+          href="/configuracoes"
+          onClick={() => setIsMobileOpen(false)}
+          className="flex-1 min-w-0 flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors duration-150 group"
+        >
+          <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm shadow-indigo-600/30 flex-shrink-0">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{userName}</p>
+            <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">Conta Executiva</p>
+          </div>
+        </Link>
+        <button
+          onClick={() => logoutAction()}
+          title="Encerrar Sessão (Sair)"
+          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer flex-shrink-0"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 
@@ -233,15 +224,12 @@ export function Sidebar() {
       */}
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          {/* Overlay escuro com desfoque de fundo */}
           <div
             className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
             onClick={() => setIsMobileOpen(false)}
           />
 
-          {/* Container do Drawer */}
           <aside className="relative w-72 max-w-[80vw] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200">
-            {/* Header do Drawer Mobile */}
             <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 dark:border-slate-800/70">
               <div className="flex items-center gap-3">
                 <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-sm shadow-indigo-600/30 flex items-center justify-center">
@@ -265,10 +253,7 @@ export function Sidebar() {
               </button>
             </div>
 
-            {/* Links de navegação */}
             {navigationContent}
-
-            {/* Rodapé de Usuário */}
             {footerProfile}
           </aside>
         </div>
@@ -279,7 +264,6 @@ export function Sidebar() {
         Menu lateral permanente e fixo para monitores e desktops
       */}
       <aside className="hidden lg:flex w-64 bg-white dark:bg-slate-950 border-r border-slate-200/80 dark:border-slate-800/70 h-screen fixed left-0 top-0 flex-col z-30 shadow-[1px_0_12px_rgba(0,0,0,0.03)]">
-        {/* Brand */}
         <div className="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800/70 gap-3">
           <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-sm shadow-indigo-600/30 flex items-center justify-center flex-shrink-0">
             <ShieldCheck className="w-4 h-4" />
@@ -300,4 +284,3 @@ export function Sidebar() {
     </>
   );
 }
-
