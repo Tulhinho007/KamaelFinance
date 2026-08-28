@@ -56,6 +56,17 @@ function isInvoicePaymentTransaction(t: {
   return false;
 }
 
+function isSubscriptionPaymentTransaction(t: {
+  source?: string | null;
+  tags?: string | null;
+  description?: string | null;
+}): boolean {
+  if (t.source === "SUBSCRIPTION") return true;
+  if (t.tags && (t.tags.includes("#assinatura") || t.tags.toLowerCase().includes("assinatura"))) return true;
+  if (t.description && (t.description.toLowerCase().startsWith("assinatura ") || t.description.toLowerCase().includes("assinatura "))) return true;
+  return false;
+}
+
 // ---------- Helper: resolve o ID real do usuário ativo no banco ----------
 
 
@@ -1504,7 +1515,7 @@ export async function getAllCardsOverview(month?: number | null, year: number = 
 
       const filteredTransactions = isCredit
         ? transactions
-        : transactions.filter(t => !isInvoicePaymentTransaction(t));
+        : transactions.filter(t => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
 
       const faturaAtual = filteredTransactions.reduce((s, t) => s + Number(t.amount), 0);
       const faturaPaga = filteredTransactions

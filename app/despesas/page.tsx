@@ -511,9 +511,16 @@ export default function DespesasPage() {
 
   // ── 3. Ciclo Salarial / Sobra Prevista ──────────────────────────────────────────
   const totalCompromissosSalario = gastosConsumoTotal + saidasContaTotal;
-  const sobraLiquidaSalario = totalReceitaMes - totalCompromissosSalario;
+  const totalContasPagas = gastosConsumoPago + saidasContaPagas;
+  const totalContasPendentes = gastosConsumoPendente + saidasContaPendentes;
+
+  // Sobra líquida considera as receitas menos apenas as contas AINDA PENDENTES a pagar
+  const sobraLiquidaSalario = totalContasPendentes === 0
+    ? totalReceitaMes
+    : totalReceitaMes - totalContasPendentes;
+
   const pctComprometidoSalario = totalReceitaMes > 0
-    ? Math.min(100, Math.round((totalCompromissosSalario / totalReceitaMes) * 100))
+    ? Math.min(100, Math.round((totalContasPendentes / totalReceitaMes) * 100))
     : 0;
 
   // ── Análise de urgência do Próximo Vencimento ─────────────────────────────────
@@ -861,20 +868,20 @@ export default function DespesasPage() {
                 </span>
               </div>
 
-              {/* Total de Contas no Ano */}
+              {/* Total de Contas Pendentes a Pagar */}
               <div className="bg-slate-50 dark:bg-slate-900/80 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  {selectedMonthFilter === null ? "(-) Total de Contas no Ano" : "(-) Contas a Pagar no Mês"}
+                  {selectedMonthFilter === null ? "(-) Contas Pendentes no Ano" : "(-) Contas a Pagar no Mês"}
                 </span>
-                <p className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1 font-tnum">
-                  {brl(totalCompromissosSalario)}
+                <p className={`text-2xl font-black mt-1 font-tnum ${totalContasPendentes > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                  {brl(totalContasPendentes)}
                 </p>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
-                  Faturas + Assinaturas + Débitos
+                  {totalContasPendentes > 0 ? "Faturas + Assinaturas + Débitos Pendentes" : `✓ 100% quitadas (${brl(totalContasPagas)} pagos)`}
                 </span>
               </div>
 
-              {/* Sobra Líquida Anual Estimada (Destaque Principal em Verde Esmeralda Grande) */}
+              {/* Sobra Líquida Anual Estimada */}
               <div className={`${sobraLiquidaSalario >= 0 ? "bg-emerald-50/80 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800/60" : "bg-rose-50/80 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800/60"} p-4 rounded-2xl border transition-colors`}>
                 <span className={`text-[10px] font-bold uppercase tracking-wider block ${sobraLiquidaSalario >= 0 ? "text-emerald-800 dark:text-emerald-300" : "text-rose-800 dark:text-rose-300"}`}>
                   {selectedMonthFilter === null ? "(=) Sobra Líquida Anual Estimada" : "(=) Sobra Líquida Real"}
@@ -883,7 +890,7 @@ export default function DespesasPage() {
                   {brl(sobraLiquidaSalario)}
                 </p>
                 <span className={`text-[10px] font-medium block mt-0.5 ${sobraLiquidaSalario >= 0 ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-rose-700/80 dark:text-rose-400/80"}`}>
-                  Receitas (-) Total de Contas
+                  {totalContasPendentes === 0 ? "✓ Sem pendências a pagar neste mês" : "Receitas (-) Contas Pendentes"}
                 </span>
               </div>
 
