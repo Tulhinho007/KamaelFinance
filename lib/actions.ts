@@ -4232,4 +4232,45 @@ export async function getAllTags() {
   return Array.from(tagSet).sort();
 }
 
+// ─── 5. EXPURGO / LIMPEZA DE ASSINATURAS DO BANCO DE DADOS ───────────────────
+
+export async function purgeSubscriptionsDataAction() {
+  const terms = ["Futvolei", "Internet", "Google IA"];
+
+  let totalDeletedTx = 0;
+  let totalDeletedSubs = 0;
+
+  for (const term of terms) {
+    const deletedTx = await prisma.transaction.deleteMany({
+      where: {
+        description: {
+          contains: term,
+          mode: "insensitive"
+        }
+      }
+    });
+    totalDeletedTx += deletedTx.count;
+
+    const deletedSubs = await (prisma as any).subscription.deleteMany({
+      where: {
+        name: {
+          contains: term,
+          mode: "insensitive"
+        }
+      }
+    });
+    totalDeletedSubs += deletedSubs.count;
+  }
+
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+
+  return {
+    success: true,
+    deletedTransactions: totalDeletedTx,
+    deletedSubscriptions: totalDeletedSubs
+  };
+}
+
 
