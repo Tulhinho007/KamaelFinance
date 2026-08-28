@@ -382,7 +382,7 @@ export default function DespesasPage() {
       getAllCardsOverview(monthParam, selectedYear),
       getSubscriptionsWithMonthlyStatusAction(monthParam, selectedYear),
       getRevenues(monthParam, selectedYear),
-      getPaidInvoicesAction(monthParam || (new Date().getMonth() + 1), selectedYear),
+      getPaidInvoicesAction(monthParam, selectedYear),
     ])
       .then(([cardsRes, subsRes, revsRes, paidInvoicesRes]) => {
         if (!active) return;

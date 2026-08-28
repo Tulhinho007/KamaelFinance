@@ -37,6 +37,8 @@ export function NewPurchaseModal({
   const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
   const [formDate, setFormDate]           = useState(new Date().toISOString().split("T")[0]);
+  const [isSubscription, setIsSubscription] = useState(false);
+  const [recurringDay, setRecurringDay]     = useState<number>(10);
   const [saving, setSaving]               = useState(false);
 
   useEffect(() => {
@@ -87,7 +89,9 @@ export function NewPurchaseModal({
         totalAmountVal,
         installments,
         formDate,
-        formTags
+        formTags,
+        isSubscription,
+        recurringDay
       );
       if (onSuccess) onSuccess();
       onClose();
@@ -290,6 +294,37 @@ export function NewPurchaseModal({
               )}
             </div>
           )}
+
+          {/* Checkbox de Assinatura / Gasto Recorrente Mensal */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isSubscription}
+                onChange={e => setIsSubscription(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                🔄 É uma assinatura / gasto recorrente mensal
+              </span>
+            </label>
+
+            {isSubscription && (
+              <div className="flex flex-col gap-1.5 pl-6 pt-1 border-t border-slate-200 dark:border-slate-800">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Dia do Vencimento Recorrente (1 a 31)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={recurringDay}
+                  onChange={e => setRecurringDay(Number(e.target.value))}
+                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Campo 7: Data */}
           <div className="flex flex-col gap-1.5">

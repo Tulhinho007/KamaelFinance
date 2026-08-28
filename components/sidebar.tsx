@@ -75,7 +75,6 @@ export function Sidebar() {
   const gestaoItems = [
     { href: "/receitas", label: "Receitas", icon: TrendingUp },
     { href: "/despesas", label: "Despesas", icon: LayoutGrid },
-    { href: "/assinaturas", label: "Assinaturas", icon: Repeat },
     { href: "/investimentos", label: "Investimentos", icon: LineChart },
   ];
 

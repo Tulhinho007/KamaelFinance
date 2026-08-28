@@ -1150,7 +1150,9 @@ export async function createCardPurchase(
   amount: number,
   installmentsCount: number | undefined,
   dateStr: string,
-  tags?: string
+  tags?: string,
+  isRecurring?: boolean,
+  recurringDay?: number
 ) {
   let dbCategory = await prisma.category.findFirst({
     where: { name: category }
@@ -1164,6 +1166,7 @@ export async function createCardPurchase(
     });
   }
 
+  const userId = await getActiveUserId();
   const finalTags = extractTags(description, tags);
   const initialDate = parseInputDate(dateStr);
   const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
@@ -1210,9 +1213,28 @@ export async function createCardPurchase(
         installmentsCount: 1,
         date: initialDate,
         source: "MANUAL",
-        tags: finalTags
+        tags: finalTags,
+        isRecurring: !!isRecurring,
+        recurringDay: isRecurring ? (recurringDay || initialDate.getDate()) : null
       }
     });
+
+    if (isRecurring) {
+      try {
+        await (prisma as any).subscription.create({
+          data: {
+            userId,
+            name: description,
+            amount,
+            dueDay: recurringDay || initialDate.getDate(),
+            defaultWalletId: walletId,
+            category: dbCategory.name
+          }
+        });
+      } catch (e) {
+        // Ignora erro se registro já existir
+      }
+    }
   }
 
   revalidatePath("/cartoes");

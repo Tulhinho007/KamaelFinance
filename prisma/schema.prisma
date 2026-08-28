@@ -77,6 +77,7 @@ model Transaction {
   date              DateTime
   status            String          @default("COMPLETED")
   isRecurring       Boolean         @default(false)
+  recurringDay      Int?            // Dia de vencimento recorrente mensal (1-31)
   source            String          @default("MANUAL")
   tags              String?         // Tags ou centro de custos (ex: #viagem2026, #reforma)
   deletedAt          DateTime?

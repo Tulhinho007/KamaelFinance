@@ -812,7 +812,14 @@ export default function CartaoDetailPage() {
                             />
                           </td>
                           <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>{p.description}</span>
+                            {((p as any).isRecurring || (p as any).source === "SUBSCRIPTION" || p.description.toLowerCase().includes("assinatura")) && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 shrink-0">
+                                🔄 Assinatura
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3">
                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
                               {p.category}
