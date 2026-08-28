@@ -176,15 +176,18 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 
 // ---------- Actions de Receitas ----------
 
-export async function getRevenues(month?: number | null, year: number = 2026) {
+export async function getRevenues(month?: number | null | string, year: number = 2026) {
   const userId = await getActiveUserId();
   
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+
   let from: Date;
   let to: Date;
 
-  if (month && month >= 1 && month <= 12) {
-    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  if (!isAnnualView) {
+    const numMonth = Number(month);
+    from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
     from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
@@ -1495,9 +1498,10 @@ export async function deleteTicketExpense(id: string) {
 
 // ---------- Actions de Visão Geral de Despesas ----------
 
-export async function getAllCardsOverview(month?: number | null, year: number = 2026) {
+export async function getAllCardsOverview(month?: number | null | string, year: number = 2026) {
   const userId = await getActiveUserId();
 
+  // A lista de Meus Cartões e Contas NUNCA é filtrada por mês/ano na busca de wallets
   const wallets = await prisma.wallet.findMany({
     where: {
       userId,
@@ -1506,18 +1510,21 @@ export async function getAllCardsOverview(month?: number | null, year: number = 
     orderBy: { title: "asc" },
   });
 
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+
   let from: Date;
   let to: Date;
 
-  if (month && month >= 1 && month <= 12) {
-    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  if (!isAnnualView) {
+    const numMonth = Number(month);
+    from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
     from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  const effectiveMonth = month || (new Date().getMonth() + 1);
+  const effectiveMonth = !isAnnualView ? Number(month) : (new Date().getMonth() + 1);
 
   const result = await Promise.all(
     wallets.map(async (w) => {
@@ -1548,7 +1555,7 @@ export async function getAllCardsOverview(month?: number | null, year: number = 
         .reduce((s, t) => s + Number(t.amount), 0);
 
       // Para cartão de crédito: limitTotal é o limite de crédito.
-      // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO no mês M/Y.
+      // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO.
       const limitTotal = isCredit
         ? Number(w.creditLimit || 0)
         : balanceInfo.finalBalance;
@@ -1579,14 +1586,18 @@ export async function getAllCardsOverview(month?: number | null, year: number = 
         year
       );
 
+      const paidWhere: any = { walletId: w.id };
+      if (!isAnnualView) {
+        paidWhere.OR = [
+          { month: Number(month), year },
+          { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
+        ];
+      } else {
+        paidWhere.year = year;
+      }
+
       const paidRecord = await (prisma as any).invoicePayment.findFirst({
-        where: {
-          walletId: w.id,
-          OR: [
-            { month, year },
-            { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
-          ]
-        }
+        where: paidWhere
       });
 
       return {
@@ -1755,8 +1766,10 @@ export async function undoCardInvoicePaymentAction(
   return { success: true };
 }
 
-export async function getPaidInvoicesAction(month?: number | null, year: number = 2026) {
+export async function getPaidInvoicesAction(month?: number | null | string, year: number = 2026) {
   const userId = await getActiveUserId();
+
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
 
   const paidInvoices = await (prisma as any).invoicePayment.findMany({
     where: {
@@ -1769,10 +1782,11 @@ export async function getPaidInvoicesAction(month?: number | null, year: number 
   });
 
   const filtered = paidInvoices.filter((p: any) => {
-    if (month && month >= 1 && month <= 12) {
-      if (p.month === month && p.year === year) return true;
+    if (!isAnnualView) {
+      const numMonth = Number(month);
+      if (p.month === numMonth && p.year === year) return true;
       const paidDate = new Date(p.paidAt);
-      return (paidDate.getUTCMonth() + 1 === month && paidDate.getUTCFullYear() === year);
+      return (paidDate.getUTCMonth() + 1 === numMonth && paidDate.getUTCFullYear() === year);
     } else {
       if (p.year === year) return true;
       const paidDate = new Date(p.paidAt);
