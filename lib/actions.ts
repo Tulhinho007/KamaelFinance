@@ -198,10 +198,7 @@ export async function getRevenues(month?: number | null | string, year: number =
       wallet: { userId },
       type: "INCOME",
       deletedAt: null,
-      OR: [
-        { competenceDate: { gte: from, lte: to } },
-        { competenceDate: null, date: { gte: from, lte: to } }
-      ]
+      date: { gte: from, lte: to }
     } as any,
     include: { wallet: true },
     orderBy: { date: "asc" }
@@ -1497,7 +1494,8 @@ export async function duplicateExpenseToNextMonthAction(expenseId: string) {
   const origDate = new Date(original.date);
   const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
 
-  const origComp = original.competenceDate ? new Date(original.competenceDate) : origDate;
+  const rawComp = (original as any).competenceDate;
+  const origComp = rawComp ? new Date(rawComp) : origDate;
   const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
 
   const newTx = await prisma.transaction.create({
@@ -1542,7 +1540,8 @@ export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string
     const origDate = new Date(original.date);
     const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
 
-    const origComp = original.competenceDate ? new Date(original.competenceDate) : origDate;
+    const rawComp = (original as any).competenceDate;
+    const origComp = rawComp ? new Date(rawComp) : origDate;
     const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
 
     await prisma.transaction.create({
@@ -2187,16 +2186,12 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  // 1. Lançamentos filtrados pelo período (Mês ou Ano)
+  // 1. Lançamentos filtrados pelo período (Mês ou Ano) EXCLUSIVAMENTE por DATA
   const rangeTransactions: any[] = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       deletedAt: null,
-      OR: [
-        { type: "EXPENSE", date: { gte: from, lte: to } },
-        { type: "INCOME", competenceDate: { gte: from, lte: to } },
-        { type: "INCOME", competenceDate: null, date: { gte: from, lte: to } }
-      ]
+      date: { gte: from, lte: to }
     } as any,
     include: {
       category: true,

@@ -298,22 +298,20 @@ export default function CartaoDetailPage() {
     return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
-  // 1. Compras À Vista (Mês Atual - Exclui parceladas)
+  // 1. Compras À Vista (Mês Atual - Exclui parceladas) - Considera EXCLUSIVAMENTE a DATA DO DÉBITO/VENCIMENTO
   const vistaPurchases = purchasesList.filter((p) => {
     if (!p || p.type !== "vista") return false;
-    const refDateStr = p.competenceDate || p.date;
-    const { year, month } = getYearMonth(refDateStr);
+    const { year, month } = getYearMonth(p.date);
     return year === selectedYear && month === selectedMonth;
   });
 
-  // 2. Lançamentos Parcelados (filtrados estritamente pelo mês/ano selecionado)
+  // 2. Lançamentos Parcelados (filtrados estritamente pelo mês/ano da DATA DO DÉBITO)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
   const parceladoPurchasesProcessed = purchasesList
     .filter((p) => {
       if (!p || p.type !== "parcelado") return false;
-      const refDateStr = p.competenceDate || p.date;
-      const { year, month } = getYearMonth(refDateStr);
+      const { year, month } = getYearMonth(p.date);
       return year === selectedYear && month === selectedMonth;
     })
     .map((p) => {
@@ -352,8 +350,7 @@ export default function CartaoDetailPage() {
   // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
   const futureParcelas = purchasesList.filter((p) => {
     if (!p || p.type !== "parcelado") return false;
-    const refDateStr = p.competenceDate || p.date;
-    const { year, month } = getYearMonth(refDateStr);
+    const { year, month } = getYearMonth(p.date);
     const pAbs = year * 12 + (month - 1);
     return pAbs > selectedAbsolute;
   });
@@ -371,8 +368,7 @@ export default function CartaoDetailPage() {
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
   const filteredMonthExpenses = purchasesList.filter(p => {
     if (!p) return false;
-    const refDateStr = p.competenceDate || p.date;
-    const { year, month } = getYearMonth(refDateStr);
+    const { year, month } = getYearMonth(p.date);
     return year === selectedYear && month === selectedMonth;
   });
 
@@ -397,13 +393,12 @@ export default function CartaoDetailPage() {
   const hasInitialBalance = openingBalance > 0 || carryoverBalance > 0;
   const showSaldoInicial = !isPriorToJuly && hasInitialBalance;
 
-  // Cálculo de Total Pago e Total Não Pago (despesas do mês pelo status)
+  // Cálculo de Total Pago e Total Não Pago (despesas do mês pela DATA DO DÉBITO)
   const monthExpenseTransactions = (cardData.allTransactions || [])
     .filter(t => t && t.type === "EXPENSE")
     .filter(t => {
-      if (!t) return false;
-      const refDateStr = t.competenceDate || t.date;
-      const { year, month } = getYearMonth(refDateStr);
+      if (!t || !t.date) return false;
+      const { year, month } = getYearMonth(t.date);
       return year === selectedYear && month === selectedMonth;
     });
   const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);

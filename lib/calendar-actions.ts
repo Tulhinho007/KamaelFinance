@@ -97,10 +97,7 @@ export async function getPaymentCalendarDataAction(month: number, year: number) 
         walletId: c.id,
         type: "EXPENSE",
         deletedAt: null,
-        OR: [
-          { competenceDate: { gte: purchasesFrom, lte: purchasesTo } },
-          { competenceDate: null, date: { gte: purchasesFrom, lte: purchasesTo } }
-        ]
+        date: { gte: purchasesFrom, lte: purchasesTo }
       },
       select: { amount: true }
     });
