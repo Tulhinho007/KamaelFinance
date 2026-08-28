@@ -19,10 +19,7 @@ import {
   Repeat,
   Menu,
   X,
-  PieChart,
-  Calendar,
-  Trophy,
-  Activity
+  Calendar
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -79,13 +76,8 @@ export function Sidebar() {
   ];
 
   const planejamentoHabitosItems = [
-    { href: "/planejamento/orcamentos", label: "Teto de Gastos", icon: PieChart },
     { href: "/planejamento/calendario", label: "Calendário", icon: Calendar },
     { href: "/planejamento/reserva", label: "Reserva Emergência", icon: ShieldCheck },
-  ];
-
-  const conquistasItems = [
-    { href: "/conquistas/score", label: "Score de Saúde", icon: Activity },
   ];
 
   const navLink = (href: string, label: string, Icon: React.ElementType) => {
@@ -135,12 +127,6 @@ export function Sidebar() {
       <div className="space-y-0.5">
         {sectionLabel("Planejamento & Hábitos")}
         {planejamentoHabitosItems.map((item) => navLink(item.href, item.label, item.icon))}
-      </div>
-
-      {/* Engajamento & Conquistas */}
-      <div className="space-y-0.5">
-        {sectionLabel("Gamificação")}
-        {conquistasItems.map((item) => navLink(item.href, item.label, item.icon))}
       </div>
 
       {/* Preferências e Sistema */}
