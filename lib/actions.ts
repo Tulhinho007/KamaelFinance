@@ -795,6 +795,9 @@ export async function getCardData() {
       installmentsCount: p.installmentsCount || undefined,
       currentInstallment: (p as any).currentInstallment || undefined,
       installmentGroupId: (p as any).installmentGroupId || undefined,
+      tags: (p as any).tags || undefined,
+      isRecurring: Boolean((p as any).isRecurring),
+      recurringDay: (p as any).recurringDay || undefined,
       date: p.date.toISOString().split("T")[0]
     }))
   };
@@ -1052,6 +1055,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         currentInstallment: (p as any).currentInstallment || undefined,
         installmentGroupId: (p as any).installmentGroupId || undefined,
         tags: (p as any).tags || undefined,
+        isRecurring: Boolean((p as any).isRecurring),
+        recurringDay: (p as any).recurringDay || undefined,
         date: safeIsoDate(p.date)
       })),
       injections: injections.map(i => ({
@@ -1072,6 +1077,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         status: t.status || "COMPLETED",
         installmentsCount: t.installmentsCount || undefined,
         tags: (t as any).tags || undefined,
+        isRecurring: Boolean((t as any).isRecurring),
+        recurringDay: (t as any).recurringDay || undefined,
         date: safeIsoDate(t.date),
         source: t.source,
       })),
@@ -1206,7 +1213,7 @@ export async function createCardPurchase(
       data: transactionsData,
     });
   } else {
-    await (prisma.transaction as any).create({
+    const newTx = await (prisma.transaction as any).create({
       data: {
         walletId,
         categoryId: dbCategory.id,
@@ -1218,32 +1225,143 @@ export async function createCardPurchase(
         source: "MANUAL",
         tags: finalTags,
         isRecurring: !!isRecurring,
-        recurringDay: isRecurring ? (recurringDay || initialDate.getDate()) : null
+        recurringDay: isRecurring ? (recurringDay || initialDate.getUTCDate()) : null
       }
     });
 
-    if (isRecurring) {
-      try {
-        await (prisma as any).subscription.create({
-          data: {
-            userId,
-            name: description,
-            amount,
-            dueDay: recurringDay || initialDate.getDate(),
-            defaultWalletId: walletId,
-            category: dbCategory.name,
-            createdAt: initialDate
-          }
-        });
-      } catch (e) {
-        // Ignora erro se registro já existir
-      }
-    }
+    await syncRecurringProjections(
+      walletId,
+      description,
+      dbCategory.name,
+      dbCategory.id,
+      amount,
+      initialDate,
+      !!isRecurring,
+      recurringDay || initialDate.getUTCDate(),
+      finalTags
+    );
   }
 
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
+}
+
+async function syncRecurringProjections(
+  walletId: string,
+  description: string,
+  categoryName: string,
+  categoryId: string,
+  amount: number,
+  initialDate: Date,
+  isRecurring: boolean,
+  recurringDay?: number,
+  finalTags?: string | null,
+  previousDescription?: string
+) {
+  const userId = await getActiveUserId();
+  const cleanDescription = description.trim();
+  const targetDay = Math.min(31, Math.max(1, recurringDay || initialDate.getUTCDate() || 10));
+
+  if (!isRecurring) {
+    // 1. Apagar projeções futuras pendentes vinculadas
+    await prisma.transaction.deleteMany({
+      where: {
+        walletId,
+        description: { in: [cleanDescription, previousDescription].filter(Boolean) as string[] },
+        source: "RECURRING_PROJECTION",
+        date: { gt: initialDate },
+        status: { not: "COMPLETED" }
+      }
+    });
+
+    // 2. Apagar o modelo Subscription
+    await (prisma as any).subscription.deleteMany({
+      where: {
+        userId,
+        OR: [
+          { name: cleanDescription },
+          { name: previousDescription || cleanDescription }
+        ]
+      }
+    });
+    return;
+  }
+
+  // 1. Sincronizar model Subscription
+  const existingSub = await (prisma as any).subscription.findFirst({
+    where: {
+      userId,
+      OR: [
+        { name: cleanDescription },
+        { name: previousDescription || cleanDescription }
+      ]
+    }
+  });
+
+  if (existingSub) {
+    await (prisma as any).subscription.update({
+      where: { id: existingSub.id },
+      data: {
+        name: cleanDescription,
+        amount,
+        dueDay: targetDay,
+        defaultWalletId: walletId,
+        category: categoryName
+      }
+    });
+  } else {
+    await (prisma as any).subscription.create({
+      data: {
+        userId,
+        name: cleanDescription,
+        amount,
+        dueDay: targetDay,
+        defaultWalletId: walletId,
+        category: categoryName,
+        createdAt: initialDate
+      }
+    });
+  }
+
+  // 2. Apagar projeções futuras pendentes antigas para re-gerar projeção limpa
+  await prisma.transaction.deleteMany({
+    where: {
+      walletId,
+      description: { in: [cleanDescription, previousDescription].filter(Boolean) as string[] },
+      source: "RECURRING_PROJECTION",
+      date: { gt: initialDate },
+      status: { not: "COMPLETED" }
+    }
+  });
+
+  // 3. Projetar lançamentos automáticos para os próximos 11 meses
+  const initialYear = initialDate.getUTCFullYear();
+  const initialMonth = initialDate.getUTCMonth();
+
+  const futureTransactions = [];
+  for (let step = 1; step <= 11; step++) {
+    const nextDate = new Date(Date.UTC(initialYear, initialMonth + step, targetDay, 12, 0, 0));
+
+    futureTransactions.push({
+      walletId,
+      categoryId,
+      description: cleanDescription,
+      type: "EXPENSE" as const,
+      amount,
+      installmentsCount: 1,
+      date: nextDate,
+      source: "RECURRING_PROJECTION",
+      status: "PENDING",
+      tags: finalTags || null,
+      isRecurring: true,
+      recurringDay: targetDay
+    });
+  }
+
+  await (prisma.transaction as any).createMany({
+    data: futureTransactions
+  });
 }
 
 export async function updateCardPurchase(
@@ -1274,7 +1392,7 @@ export async function updateCardPurchase(
 
   const finalTags = extractTags(description, tags);
   const inputDate = parseInputDate(dateStr);
-  const targetDay = recurringDay || inputDate.getDate();
+  const targetDay = recurringDay || inputDate.getUTCDate();
 
   const existingTx = await prisma.transaction.findUnique({ where: { id } });
 
@@ -1293,60 +1411,18 @@ export async function updateCardPurchase(
     } as any
   });
 
-  // Lógica de Gerenciamento da Assinatura / Gasto Recorrente
-  if (isRecurring) {
-    const existingSub = await (prisma as any).subscription.findFirst({
-      where: {
-        userId,
-        OR: [
-          { name: description },
-          { defaultWalletId: walletId, name: existingTx?.description || description }
-        ]
-      }
-    });
-
-    if (existingSub) {
-      await (prisma as any).subscription.update({
-        where: { id: existingSub.id },
-        data: {
-          name: description,
-          amount,
-          dueDay: targetDay,
-          defaultWalletId: walletId,
-          category: dbCategory.name
-        }
-      });
-    } else {
-      await (prisma as any).subscription.create({
-        data: {
-          userId,
-          name: description,
-          amount,
-          dueDay: targetDay,
-          defaultWalletId: walletId,
-          category: dbCategory.name,
-          createdAt: inputDate
-        }
-      });
-    }
-  } else {
-    // Se a recorrência for DESATIVADA na edição, remove a assinatura vinculada
-    const existingSub = await (prisma as any).subscription.findFirst({
-      where: {
-        userId,
-        OR: [
-          { name: description },
-          { name: existingTx?.description }
-        ]
-      }
-    });
-
-    if (existingSub) {
-      await (prisma as any).subscription.delete({
-        where: { id: existingSub.id }
-      });
-    }
-  }
+  await syncRecurringProjections(
+    walletId,
+    description,
+    dbCategory.name,
+    dbCategory.id,
+    amount,
+    inputDate,
+    !!isRecurring,
+    targetDay,
+    finalTags,
+    existingTx?.description
+  );
 
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
