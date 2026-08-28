@@ -70,7 +70,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
   const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  // 1. Transações de despesa do Mês/Ano selecionado
+  // 1. Transações de despesa do Mês/Ano selecionado (apenas gastos reais do período)
   const transactions = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
@@ -90,7 +90,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
     }
   });
 
-  // 3. Buscar limites prévios gravados no CategoryBudget para fallback caso defaultMaxAmount não esteja preenchido
+  // 3. Fallback: Buscar histórico de limites salvos na tabela CategoryBudget caso cat.budget ainda esteja nulo
   const dbBudgets = await (prisma as any).categoryBudget.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" }
@@ -103,13 +103,25 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
     }
   });
 
-  const result: CategoryBudgetOverview[] = expenseCategories.map(cat => {
+  const result: CategoryBudgetOverview[] = [];
+
+  for (const cat of expenseCategories) {
     const spentAmount = spentMap.get(cat.id) || 0;
 
-    // Limite Fixo Recorrente da Categoria (com fallback para último teto cadastrado)
-    let maxAmount = Number((cat as any).defaultMaxAmount || 0);
+    // O limite 'budget' é FIXO na Categoria (não pertence ao Mês/Ano)
+    let maxAmount = Number((cat as any).budget || (cat as any).defaultMaxAmount || 0);
+
+    // Se o limite estivesse nulo na Categoria mas tiver registro no histórico, salva de forma fixa na Categoria
     if (maxAmount === 0 && latestBudgetMap.has(cat.id)) {
       maxAmount = latestBudgetMap.get(cat.id) || 0;
+      try {
+        await (prisma.category as any).update({
+          where: { id: cat.id },
+          data: { budget: maxAmount, defaultMaxAmount: maxAmount }
+        });
+      } catch (e) {
+        // Ignora erro eventual
+      }
     }
 
     let percentage = 0;
@@ -123,7 +135,7 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
       else if (percentage >= 80) status = "WARNING";
     }
 
-    return {
+    result.push({
       categoryId: cat.id,
       categoryName: cat.name,
       categoryColor: cat.color || "#6366f1",
@@ -131,8 +143,8 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
       maxAmount,
       percentage,
       status,
-    };
-  });
+    });
+  }
 
   const totalSpent = result.reduce((s, r) => s + r.spentAmount, 0);
   const totalBudget = result.reduce((s, r) => s + r.maxAmount, 0);
@@ -152,37 +164,16 @@ export async function getCategoryBudgetsOverviewAction(month: number, year: numb
 export async function saveCategoryBudgetAction(
   categoryId: string,
   maxAmount: number,
-  month: number,
-  year: number
+  month?: number,
+  year?: number
 ) {
-  const userId = await getActiveUserId();
-
-  // 1. Atualiza o teto padrão recorrente da Categoria (Válido para Todos os Meses)
+  // 1. Atualiza diretamente o campo 'budget' e 'defaultMaxAmount' da Categoria (Fixa e Recorrente)
   await (prisma.category as any).update({
     where: { id: categoryId },
-    data: { defaultMaxAmount: maxAmount }
-  });
-
-  // 2. Atualiza/Cria teto na tabela pontual
-  await (prisma as any).categoryBudget.upsert({
-    where: {
-      userId_categoryId_month_year: {
-        userId,
-        categoryId,
-        month,
-        year,
-      },
-    },
-    create: {
-      userId,
-      categoryId,
-      maxAmount,
-      month,
-      year,
-    },
-    update: {
-      maxAmount,
-    },
+    data: {
+      budget: maxAmount,
+      defaultMaxAmount: maxAmount
+    }
   });
 
   revalidatePath("/planejamento/orcamentos");

@@ -57,9 +57,7 @@ export default function CategoryBudgetsPage() {
     try {
       await saveCategoryBudgetAction(
         editingBudget.categoryId,
-        editLimitAmount === "" ? 0 : Number(editLimitAmount),
-        month,
-        year
+        editLimitAmount === "" ? 0 : Number(editLimitAmount)
       );
       await loadData();
       setEditingBudget(null);

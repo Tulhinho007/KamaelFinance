@@ -55,6 +55,7 @@ model Category {
   id               String           @id @default(uuid())
   name             String
   color            String
+  budget           Decimal?
   defaultMaxAmount Decimal?
   transactions     Transaction[]
   budgets          CategoryBudget[]
