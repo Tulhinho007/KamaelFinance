@@ -109,3 +109,38 @@ export async function getEmergencyFundOverviewAction(selectedWalletIds?: string[
     }))
   };
 }
+
+export async function addEmergencyFundAporteAction(input: {
+  amount: number;
+  dateStr: string;
+  walletId: string;
+  description?: string;
+}) {
+  const userId = await getActiveUserId();
+  const date = new Date(input.dateStr);
+
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: input.walletId }
+  });
+
+  if (!wallet) throw new Error("Conta não encontrada");
+
+  await prisma.transaction.create({
+    data: {
+      walletId: input.walletId,
+      type: "INCOME",
+      amount: input.amount,
+      date,
+      description: input.description || "Aporte na Reserva de Emergência",
+      source: "MANUAL",
+      status: "COMPLETED",
+      tags: "#reserva"
+    } as any
+  });
+
+  const { revalidatePath } = await import("next/cache");
+  revalidatePath("/planejamento/reserva");
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
