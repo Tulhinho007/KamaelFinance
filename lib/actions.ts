@@ -1231,7 +1231,8 @@ export async function createCardPurchase(
             amount,
             dueDay: recurringDay || initialDate.getDate(),
             defaultWalletId: walletId,
-            category: dbCategory.name
+            category: dbCategory.name,
+            createdAt: initialDate
           }
         });
       } catch (e) {
@@ -1323,7 +1324,8 @@ export async function updateCardPurchase(
           amount,
           dueDay: targetDay,
           defaultWalletId: walletId,
-          category: dbCategory.name
+          category: dbCategory.name,
+          createdAt: inputDate
         }
       });
     }

@@ -124,7 +124,24 @@ export async function getSubscriptionsWithMonthlyStatusAction(
   let totalPaidAmount = 0;
   let totalPendingAmount = 0;
 
-  const result: SubscriptionWithStatus[] = subscriptions.map((sub: any) => {
+  const result: SubscriptionWithStatus[] = [];
+
+  subscriptions.forEach((sub: any) => {
+    // 1. Filtro estrito de data de criação para evitar projeção fantasma em meses anteriores à criação
+    if (!isAnnualView) {
+      const numMonth = Number(month);
+      const endOfMonth = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+      if (sub.createdAt && new Date(sub.createdAt) > endOfMonth) {
+        // A assinatura foi criada em um mês POSTERIOR ao mês consultado -> Não existia neste mês!
+        return;
+      }
+    } else {
+      const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      if (sub.createdAt && new Date(sub.createdAt) > endOfYear) {
+        return;
+      }
+    }
+
     const amt = Number(sub.amount);
     totalMonthlyAmount += amt;
 
@@ -137,7 +154,7 @@ export async function getSubscriptionsWithMonthlyStatusAction(
       totalPendingAmount += amt;
     }
 
-    return {
+    result.push({
       id: sub.id,
       name: sub.name,
       amount: amt,
@@ -156,7 +173,7 @@ export async function getSubscriptionsWithMonthlyStatusAction(
             transactionId: payment.paymentTransactionId,
           }
         : null
-    };
+    });
   });
 
   return {
