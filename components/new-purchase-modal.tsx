@@ -173,11 +173,11 @@ export function NewPurchaseModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden text-slate-900 dark:text-slate-100">
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg mx-auto flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden max-h-[90vh] text-slate-900 dark:text-slate-100">
         
         {/* Header do Modal (Unificado: Novo vs Editar) */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+        <div className="flex justify-between items-center px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-indigo-600/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20 shadow-sm shadow-indigo-500/10">
               {isEditMode ? (
@@ -205,7 +205,7 @@ export function NewPurchaseModal({
         </div>
 
         {/* Form Body com TODOS os campos compartilhados */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-6 py-5 overflow-y-auto max-h-[75vh]">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 sm:px-6 py-4 sm:py-5 overflow-y-auto max-h-[calc(90vh-90px)]">
           
           {/* Campo 1: Selecionar Cartão / Conta */}
           <div className="flex flex-col gap-1.5">
@@ -385,7 +385,7 @@ export function NewPurchaseModal({
               <span>Mês de Competência / Referência</span>
               <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <select
                 value={formCompetenceMonth}
                 onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}

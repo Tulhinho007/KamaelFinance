@@ -574,10 +574,10 @@ export default function DespesasPage() {
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
+    <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative">
 
       {/* ── 1. HEADER ANUAL & NAVEGAÇÃO ────────────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -595,7 +595,7 @@ export default function DespesasPage() {
         </div>
 
         {/* Seletor de Período no Topo (Navegação Anual + Filtro por Mês) */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           
           {/* Navegador de Ano: [< ANO 2026 >] */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-900 px-2 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -659,18 +659,18 @@ export default function DespesasPage() {
       </div>
 
       {/* ── 2. BOTÕES CTA ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap gap-3 -mt-4">
+      <div className="flex flex-col sm:flex-row flex-wrap gap-3 -mt-4 w-full sm:w-auto">
         <button
           id="btn-adicionar-cartao"
           onClick={openCreate}
-          className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] border border-white/10 cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] border border-white/10 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Adicionar Cartão / Conta
         </button>
         <button
           onClick={() => setPurchaseModalOpen(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Lançar Despesa

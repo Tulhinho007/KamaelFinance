@@ -442,7 +442,7 @@ export default function CartaoDetailPage() {
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
+    <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative">
       
       {/* ── Voltar & Header ─────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-2">
@@ -511,12 +511,12 @@ export default function CartaoDetailPage() {
       </div>
 
       {/* ── Ações no Topo ────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap justify-end gap-3 -mt-4">
+      <div className="flex flex-col sm:flex-row flex-wrap justify-end gap-2.5 -mt-4 w-full sm:w-auto">
         {isCredit ? (
           <>
             <button
               onClick={() => setPurchaseModalOpen(true)}
-              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               + Nova Compra
@@ -524,7 +524,7 @@ export default function CartaoDetailPage() {
 
             <button
               onClick={() => { setFormLimit(""); setModalType("limit"); }}
-              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Settings className="w-4 h-4 text-slate-400" />
               Ajustar Limite
@@ -532,7 +532,7 @@ export default function CartaoDetailPage() {
 
             <button
               onClick={openDatesModal}
-              className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Calendar className="w-4 h-4 text-purple-400" />
               Ajustar Datas
@@ -542,7 +542,7 @@ export default function CartaoDetailPage() {
           <>
             <button 
               onClick={() => { setFormCarga(""); setModalType("carga"); }}
-              className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4 text-white" />
               {isTicket ? "+ ADICIONAR CARGA" : "+ ADICIONAR SALDO"}
@@ -550,7 +550,7 @@ export default function CartaoDetailPage() {
 
             <button 
               onClick={() => { setFormCarga(""); setModalType("cargaRemove"); }}
-              className="px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Minus className="w-4 h-4 text-white" />
               {isTicket ? "- REMOVER CARGA" : "- SUBTRAIR SALDO"}
@@ -558,7 +558,7 @@ export default function CartaoDetailPage() {
 
             <button 
               onClick={() => setPurchaseModalOpen(true)}
-              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4 text-white" />
               + LANÇAR GASTO
@@ -573,7 +573,7 @@ export default function CartaoDetailPage() {
         // ── VISÃO PARA CARTÃO DE CRÉDITO (DARK THEME) ─────────────────────────────────────
         <div className="flex flex-col gap-8">
           
-          <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-stretch w-full">
+          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-stretch w-full">
             {/* Card 1 — LIMITE TOTAL */}
             <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">

@@ -178,10 +178,10 @@ export function DashboardOverview() {
     });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-8 select-none relative font-sans text-slate-900 dark:text-white">
+    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">
       
       {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO FLEXÍVEL (VISÃO ANUAL vs MENSAL) ── */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -310,7 +310,7 @@ export function DashboardOverview() {
       )}
 
       {/* ── 2. CARDS DE MÉTRICAS (APENAS 3 CARDS: RECEITA REAL, TOTAL GASTO, METAS GLOBAIS) ──────── */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         
         {/* KPI 1: RECEITA REAL */}
         <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
@@ -327,7 +327,7 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {brl(data.totalReceitas)}
             </p>
           </div>
@@ -354,7 +354,7 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
+            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
               {brl(data.totalGastos)}
             </p>
           </div>
@@ -381,7 +381,7 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
               {data.metasGlobaisPct}%
             </p>
           </div>
