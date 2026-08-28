@@ -25,6 +25,10 @@ model User {
   goals         Goal[]
   eventProjects EventProject[]
   auditLogs     AuditLog[]
+  categoryBudgets    CategoryBudget[]
+  userChallenges     UserChallenge[]
+  userBadges         UserBadge[]
+  healthScoreHistory HealthScoreHistory[]
 }
 
 model Wallet {
@@ -48,10 +52,11 @@ model Wallet {
 }
 
 model Category {
-  id           String        @id @default(uuid())
+  id           String           @id @default(uuid())
   name         String
   color        String
   transactions Transaction[]
+  budgets      CategoryBudget[]
 }
 
 enum TransactionType {
@@ -286,5 +291,61 @@ model SubscriptionPayment {
   paymentTransactionId String?
 
   @@unique([subscriptionId, month, year])
+}
+
+model CategoryBudget {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  maxAmount   Decimal
+  month       Int
+  year        Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt @default(now())
+
+  @@unique([userId, categoryId, month, year])
+}
+
+model UserChallenge {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challengeCode String
+  title         String
+  targetAmount  Decimal?
+  currentStep   Int       @default(1)
+  totalSteps    Int       @default(52)
+  status        String    @default("ACTIVE")
+  startDate     DateTime  @default(now())
+  completedAt   DateTime?
+  xpEarned      Int       @default(0)
+}
+
+model UserBadge {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeCode   String
+  title       String
+  description String
+  iconName    String
+  unlockedAt  DateTime @default(now())
+
+  @@unique([userId, badgeCode])
+}
+
+model HealthScoreHistory {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score           Int
+  rating          String
+  savingsSubscore Int
+  budgetSubscore  Int
+  reserveSubscore Int
+  debtSubscore    Int
+  calculatedAt    DateTime @default(now())
 }
 

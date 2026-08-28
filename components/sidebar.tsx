@@ -18,7 +18,11 @@ import {
   Plane,
   Repeat,
   Menu,
-  X
+  X,
+  PieChart,
+  Calendar,
+  Trophy,
+  Activity
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -75,6 +79,17 @@ export function Sidebar() {
     { href: "/investimentos", label: "Investimentos", icon: LineChart },
   ];
 
+  const planejamentoHabitosItems = [
+    { href: "/planejamento/orcamentos", label: "Teto de Gastos", icon: PieChart },
+    { href: "/planejamento/calendario", label: "Calendário", icon: Calendar },
+    { href: "/planejamento/reserva", label: "Reserva Emergência", icon: ShieldCheck },
+  ];
+
+  const conquistasItems = [
+    { href: "/conquistas/desafios", label: "Desafios & Badges", icon: Trophy },
+    { href: "/conquistas/score", label: "Score de Saúde", icon: Activity },
+  ];
+
   const navLink = (href: string, label: string, Icon: React.ElementType) => {
     const active = pathname === href;
     return (
@@ -116,6 +131,18 @@ export function Sidebar() {
       <div className="space-y-0.5">
         {sectionLabel("Gestão Financeira")}
         {gestaoItems.map((item) => navLink(item.href, item.label, item.icon))}
+      </div>
+
+      {/* Planejamento & Hábitos */}
+      <div className="space-y-0.5">
+        {sectionLabel("Planejamento & Hábitos")}
+        {planejamentoHabitosItems.map((item) => navLink(item.href, item.label, item.icon))}
+      </div>
+
+      {/* Engajamento & Conquistas */}
+      <div className="space-y-0.5">
+        {sectionLabel("Gamificação")}
+        {conquistasItems.map((item) => navLink(item.href, item.label, item.icon))}
       </div>
 
       {/* Preferências e Sistema */}
