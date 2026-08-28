@@ -2122,24 +2122,42 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
 
   rangeTransactions.forEach((t) => {
     const amt = Number(t.amount);
-    const isRealized = t.status === "COMPLETED" || t.status !== "PENDING";
+    // 1. VALIDAÇÃO ESTRITA DE STATUS: Apenas status COMPLETED ou PAID
+    const isRealized = t.status === "COMPLETED" || t.status === "PAID";
 
     if (t.type === "INCOME") {
       if (isRealized) {
         totalReceitas += amt;
       }
     } else if (t.type === "EXPENSE") {
-      if (t.wallet.walletType !== "TICKET" && isRealized && !isInvoicePaymentTransaction(t)) {
+      // 2. TRATAMENTO DE CARTÃO DE CRÉDITO:
+      // Compras efetuadas no cartão de crédito (walletType === 'CREDIT_CARD') NÃO entram como saídas efetivadas da conta bancária no momento da compra.
+      // Apenas entram despesas de Conta Corrente / Débito ou Pagamento de Fatura realizados.
+      if (isRealized && t.wallet.walletType !== "TICKET" && t.wallet.walletType !== "CREDIT_CARD") {
         totalGastos += amt;
       }
     }
   });
 
-  const balanco = totalReceitas - totalGastos;
-
   // Cartões & Contas Overview (usamos o mês fornecido ou o mês atual)
   const currentMonthNum = month || (new Date().getMonth() + 1);
   const cards = await getAllCardsOverview(currentMonthNum, year);
+
+  // Se houver cartão com fatura quitada sem transação manual em conta corrente, contabiliza o valor pago da fatura
+  cards.forEach((c: any) => {
+    if (c.walletType === "CREDIT_CARD" && c.isPaid) {
+      const alreadyIncluded = rangeTransactions.some(
+        (t) => t.type === "EXPENSE" && (t.status === "COMPLETED" || t.status === "PAID") && isInvoicePaymentTransaction(t) && t.description?.includes(c.title)
+      );
+      if (!alreadyIncluded) {
+        totalGastos += Number(c.paidAmount || c.faturaAtual || 0);
+      }
+    }
+  });
+
+  totalReceitas = Math.max(0, Math.round(totalReceitas * 100) / 100);
+  totalGastos = Math.max(0, Math.round(totalGastos * 100) / 100);
+  const balanco = Math.round((totalReceitas - totalGastos) * 100) / 100;
 
   // Metas Globais (Média ponderada ou percentual acumulado sobre objetivos ativos)
   const goals = await getGoals();
@@ -2148,9 +2166,13 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   const totalObjetivoMetas = activeGoals.reduce((s, g) => s + g.objetivo, 0);
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
-  // Breakdown de Gastos por Categoria no Período Filtrado
+  // Breakdown de Gastos por Categoria no Período Filtrado (Apenas Despesas Efetivadas)
   const monthExpenses = rangeTransactions.filter(
-    (e) => e.type === "EXPENSE" && e.wallet.walletType !== "TICKET" && !isInvoicePaymentTransaction(e)
+    (e) =>
+      e.type === "EXPENSE" &&
+      (e.status === "COMPLETED" || e.status === "PAID") &&
+      e.wallet.walletType !== "TICKET" &&
+      e.wallet.walletType !== "CREDIT_CARD"
   );
 
   const categoryMap: Record<string, { name: string; color: string; total: number }> = {};
@@ -2170,7 +2192,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     categoryBreakdown.push({ name: "Sem gastos", color: "#E2E8F0", total: 0 });
   }
 
-  // Histórico Comparativo (Últimos 7 meses)
+  // Histórico Comparativo (Últimos 7 meses) - Apenas Receitas e Gastos Efetivados em Conta Corrente
   const historyMonths = [];
   const startMonth = currentMonthNum;
   for (let i = 6; i >= 0; i--) {
@@ -2185,23 +2207,25 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
 
     const [mInc, mExp] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { wallet: { userId }, type: "INCOME", date: { gte: mFrom, lte: mTo }, deletedAt: null },
+        where: {
+          wallet: { userId },
+          type: "INCOME",
+          status: { in: ["COMPLETED", "PAID"] },
+          date: { gte: mFrom, lte: mTo },
+          deletedAt: null
+        },
         _sum: { amount: true }
       }),
       prisma.transaction.aggregate({
         where: {
           wallet: {
             userId,
-            walletType: { in: ["CREDIT_CARD", "CONTA_CORRENTE"] }
+            walletType: { notIn: ["CREDIT_CARD", "TICKET"] }
           },
           type: "EXPENSE",
+          status: { in: ["COMPLETED", "PAID"] },
           date: { gte: mFrom, lte: mTo },
-          deletedAt: null,
-          NOT: [
-            { category: { name: { contains: "Pagamento de Fatura", mode: "insensitive" } } },
-            { description: { contains: "Pagamento Fatura", mode: "insensitive" } },
-            { tags: { contains: "pagamentodefatura", mode: "insensitive" } },
-          ],
+          deletedAt: null
         },
         _sum: { amount: true }
       })
