@@ -22,6 +22,7 @@ export type ExpenseInitialData = {
   type?: "vista" | "parcelado";
   installmentsCount?: number;
   date?: string;
+  competenceDate?: string;
   tags?: string;
   isRecurring?: boolean;
   recurringDay?: number;
@@ -53,6 +54,8 @@ export function NewPurchaseModal({
   const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
   const [formDate, setFormDate]                   = useState(new Date().toISOString().split("T")[0]);
+  const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
+  const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
   const [isSubscription, setIsSubscription]       = useState(false);
   const [recurringDay, setRecurringDay]             = useState<number>(10);
   const [saving, setSaving]                       = useState(false);
@@ -73,6 +76,17 @@ export function NewPurchaseModal({
             setFormAmount(initialData.amount != null ? initialData.amount : "");
             setFormInstallmentsCount(initialData.installmentsCount || 2);
             setFormDate(initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+            
+            const refDateStr = initialData.competenceDate || initialData.date;
+            if (refDateStr) {
+              const parts = refDateStr.split("T")[0].split("-");
+              setFormCompetenceYear(Number(parts[0]));
+              setFormCompetenceMonth(Number(parts[1]));
+            } else {
+              setFormCompetenceMonth(new Date().getMonth() + 1);
+              setFormCompetenceYear(new Date().getFullYear());
+            }
+
             setIsSubscription(!!initialData.isRecurring);
             setRecurringDay(initialData.recurringDay || (initialData.date ? new Date(initialData.date).getDate() : 10));
           } else {
@@ -88,7 +102,11 @@ export function NewPurchaseModal({
             setFormType("vista");
             setIsSubscription(false);
             setRecurringDay(10);
-            setFormDate(new Date().toISOString().split("T")[0]);
+            const todayStr = new Date().toISOString().split("T")[0];
+            setFormDate(todayStr);
+            const now = new Date();
+            setFormCompetenceMonth(now.getMonth() + 1);
+            setFormCompetenceYear(now.getFullYear());
           }
         })
         .catch(console.error);
@@ -118,6 +136,7 @@ export function NewPurchaseModal({
     }
 
     const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
+    const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
 
     setSaving(true);
     try {
@@ -132,7 +151,8 @@ export function NewPurchaseModal({
           formDate,
           formTags,
           isSubscription,
-          recurringDay
+          recurringDay,
+          compDateStr
         );
       } else {
         await createCardPurchase(
@@ -144,7 +164,8 @@ export function NewPurchaseModal({
           formDate,
           formTags,
           isSubscription,
-          recurringDay
+          recurringDay,
+          compDateStr
         );
       }
 
@@ -380,10 +401,10 @@ export function NewPurchaseModal({
             )}
           </div>
 
-          {/* Campo 7: Data */}
+          {/* Campo 7: Data da Compra / Vencimento */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              Data da Compra *
+              Data de Vencimento / Pagamento *
             </label>
             <input
               required
@@ -392,6 +413,40 @@ export function NewPurchaseModal({
               onChange={e => setFormDate(e.target.value)}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
             />
+          </div>
+
+          {/* Campo: Mês de Competência / Referência */}
+          <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+              <span>Mês de Competência / Referência</span>
+              <span className="text-[10px] text-indigo-500 font-semibold normal-case">(Opcional)</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={formCompetenceMonth}
+                onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
+                className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 cursor-pointer"
+              >
+                {[
+                  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                ].map((m, idx) => (
+                  <option key={idx + 1} value={idx + 1}>{m}</option>
+                ))}
+              </select>
+              <select
+                value={formCompetenceYear}
+                onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
+                className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 cursor-pointer"
+              >
+                {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+              Mês/ano a que este gasto pertence no relatório DRE (ex: Gasto de Agosto pago em Setembro).
+            </p>
           </div>
 
           {/* Submit */}

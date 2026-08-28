@@ -39,7 +39,10 @@ type Purchase = {
   currentInstallment?: number;
   installmentGroupId?: string | null;
   tags?: string;
+  isRecurring?: boolean;
+  recurringDay?: number;
   date: string;
+  competenceDate?: string;
 };
 
 type TransactionItem = {
@@ -51,6 +54,7 @@ type TransactionItem = {
   status?: string;
   installmentsCount?: number;
   date: string;
+  competenceDate?: string;
   source?: string;
 };
 
@@ -783,7 +787,18 @@ export default function CartaoDetailPage() {
                               className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             />
                           </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            <div>{formatDateBR(p.date)}</div>
+                            {p.competenceDate && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                Ref: {(() => {
+                                  const parts = p.competenceDate.split("-");
+                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                                })()}
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                           <td className="p-3">
                             <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
@@ -872,7 +887,18 @@ export default function CartaoDetailPage() {
                               className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             />
                           </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            <div>{formatDateBR(p.date)}</div>
+                            {p.competenceDate && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                Ref: {(() => {
+                                  const parts = p.competenceDate.split("-");
+                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                                })()}
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                             <span>{p.description}</span>
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 shrink-0">
@@ -962,7 +988,18 @@ export default function CartaoDetailPage() {
                               className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                             />
                           </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateBR(p.date)}</td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            <div>{formatDateBR(p.date)}</div>
+                            {p.competenceDate && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                Ref: {(() => {
+                                  const parts = p.competenceDate.split("-");
+                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                                })()}
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                           <td className="p-3">
                             <span className="bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
@@ -1133,7 +1170,18 @@ export default function CartaoDetailPage() {
                                 className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                               />
                             </td>
-                            <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">{t.date.split("-").reverse().join("/")}</td>
+                            <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
+                              <div>{t.date.split("-").reverse().join("/")}</div>
+                              {t.competenceDate && (
+                                <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                                  Ref: {(() => {
+                                    const parts = t.competenceDate.split("-");
+                                    const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                                    return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                                  })()}
+                                </span>
+                              )}
+                            </td>
                             <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">{t.description}</td>
                             <td className="p-4">
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium uppercase">

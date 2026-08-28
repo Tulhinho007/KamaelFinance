@@ -1075,7 +1075,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         tags: (p as any).tags || undefined,
         isRecurring: Boolean((p as any).isRecurring),
         recurringDay: (p as any).recurringDay || undefined,
-        date: safeIsoDate(p.date)
+        date: safeIsoDate(p.date),
+        competenceDate: safeIsoDate((p as any).competenceDate || p.date)
       })),
       injections: injections.map(i => ({
         id: i.id,
@@ -1098,6 +1099,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         isRecurring: Boolean((t as any).isRecurring),
         recurringDay: (t as any).recurringDay || undefined,
         date: safeIsoDate(t.date),
+        competenceDate: safeIsoDate((t as any).competenceDate || t.date),
         source: t.source,
       })),
     };
@@ -1180,7 +1182,8 @@ export async function createCardPurchase(
   dateStr: string,
   tags?: string,
   isRecurring?: boolean,
-  recurringDay?: number
+  recurringDay?: number,
+  competenceDateStr?: string
 ) {
   let dbCategory = await prisma.category.findFirst({
     where: { name: category }
@@ -1197,6 +1200,13 @@ export async function createCardPurchase(
   const userId = await getActiveUserId();
   const finalTags = extractTags(description, tags);
   const initialDate = parseInputDate(dateStr);
+
+  let competenceDate: Date = initialDate;
+  if (competenceDateStr) {
+    const compParts = competenceDateStr.split("-");
+    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+  }
+
   const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
 
   if (numInstallments > 1) {
@@ -1222,6 +1232,7 @@ export async function createCardPurchase(
         currentInstallment: i,
         installmentGroupId: groupId,
         date: instDate,
+        competenceDate,
         source: "MANUAL",
         tags: finalTags,
       });
@@ -1240,6 +1251,7 @@ export async function createCardPurchase(
         amount,
         installmentsCount: 1,
         date: initialDate,
+        competenceDate,
         source: "MANUAL",
         tags: finalTags,
         isRecurring: !!isRecurring,
@@ -1392,7 +1404,8 @@ export async function updateCardPurchase(
   dateStr: string,
   tags?: string,
   isRecurring?: boolean,
-  recurringDay?: number
+  recurringDay?: number,
+  competenceDateStr?: string
 ) {
   const userId = await getActiveUserId();
 
@@ -1410,6 +1423,13 @@ export async function updateCardPurchase(
 
   const finalTags = extractTags(description, tags);
   const inputDate = parseInputDate(dateStr);
+
+  let competenceDate: Date = inputDate;
+  if (competenceDateStr) {
+    const compParts = competenceDateStr.split("-");
+    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+  }
+
   const targetDay = recurringDay || inputDate.getUTCDate();
 
   const existingTx = await prisma.transaction.findUnique({ where: { id } });
@@ -1423,6 +1443,7 @@ export async function updateCardPurchase(
       amount,
       installmentsCount,
       date: inputDate,
+      competenceDate,
       tags: finalTags,
       isRecurring: !!isRecurring,
       recurringDay: isRecurring ? targetDay : null
