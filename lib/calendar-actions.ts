@@ -45,6 +45,7 @@ export type CalendarEventItem = {
   type: "INVOICE" | "SUBSCRIPTION" | "EXPENSE";
   amount: number;
   dueDay: number;
+  dueDateStr: string;
   isPaid: boolean;
   status: "PAGO" | "PENDENTE" | "VENCIDO";
 };
@@ -69,29 +70,52 @@ export async function getPaymentCalendarDataAction(month: number, year: number) 
   });
   const paidSet = new Set(paidInvoices.map((p: any) => p.walletId));
 
-  const todayDay = new Date().getDate();
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear  = new Date().getFullYear();
+  // Normalizar Data Atual para comparação estrita (00:00:00)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   const events: CalendarEventItem[] = [];
 
-  // 1. Faturas de Cartão
+  // 1. FATURAS DE CARTÃO DE CRÉDITO
+  // O vencimento real da fatura no mês 'month' / 'year' é no dia 'c.vencimento' de 'month'/'year'.
+  // As compras que compõem essa fatura foram efetuadas na competência anterior (month - 1).
+  const purchasesMonth = month === 1 ? 12 : month - 1;
+  const purchasesYear  = month === 1 ? year - 1 : year;
+
+  const purchasesFrom = new Date(Date.UTC(purchasesYear, purchasesMonth - 1, 1, 0, 0, 0));
+  const purchasesTo   = new Date(Date.UTC(purchasesYear, purchasesMonth, 0, 23, 59, 59, 999));
+
   for (const c of creditCards) {
-    const dueDay = c.vencimento || 10;
+    const dueDay = Math.min(31, Math.max(1, c.vencimento || 10));
+    const dueDate = new Date(year, month - 1, dueDay, 0, 0, 0);
+
     const isPaid = paidSet.has(c.id);
 
-    // Calcular fatura do cartão
-    const from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    const to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    // Soma das compras da fatura que vence neste mês selecionado
     const txs = await prisma.transaction.findMany({
-      where: { walletId: c.id, type: "EXPENSE", date: { gte: from, lte: to }, deletedAt: null },
+      where: {
+        walletId: c.id,
+        type: "EXPENSE",
+        deletedAt: null,
+        OR: [
+          { competenceDate: { gte: purchasesFrom, lte: purchasesTo } },
+          { competenceDate: null, date: { gte: purchasesFrom, lte: purchasesTo } }
+        ]
+      },
       select: { amount: true }
     });
     const amt = txs.reduce((s, t) => s + Number(t.amount), 0);
 
     if (amt > 0) {
-      const isPast = (year < currentYear) || (year === currentYear && month < currentMonth) || (year === currentYear && month === currentMonth && dueDay < todayDay);
-      const status = isPaid ? "PAGO" : (isPast ? "VENCIDO" : "PENDENTE");
+      // Regra de Status:
+      // - PAGO: se isPaid === true
+      // - VENCIDO: APENAS se dueDate < today E não foi paga
+      // - PENDENTE (A Vencer): se dueDate >= today E não foi paga
+      const status: "PAGO" | "PENDENTE" | "VENCIDO" = isPaid
+        ? "PAGO"
+        : (dueDate < today ? "VENCIDO" : "PENDENTE");
+
+      const dueDateStr = `${String(dueDay).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
 
       events.push({
         id: `card-${c.id}`,
@@ -99,18 +123,24 @@ export async function getPaymentCalendarDataAction(month: number, year: number) 
         type: "INVOICE",
         amount: amt,
         dueDay,
+        dueDateStr,
         isPaid,
         status
       });
     }
   }
 
-  // 2. Assinaturas
+  // 2. ASSINATURAS
   for (const s of subscriptions) {
     const dueDay = Math.min(31, Math.max(1, s.dueDay || 10));
+    const dueDate = new Date(year, month - 1, dueDay, 0, 0, 0);
+
     const isPaid = s.payments && s.payments.length > 0;
-    const isPast = (year < currentYear) || (year === currentYear && month < currentMonth) || (year === currentYear && month === currentMonth && dueDay < todayDay);
-    const status = isPaid ? "PAGO" : (isPast ? "VENCIDO" : "PENDENTE");
+    const status: "PAGO" | "PENDENTE" | "VENCIDO" = isPaid
+      ? "PAGO"
+      : (dueDate < today ? "VENCIDO" : "PENDENTE");
+
+    const dueDateStr = `${String(dueDay).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
 
     events.push({
       id: `sub-${s.id}`,
@@ -118,6 +148,50 @@ export async function getPaymentCalendarDataAction(month: number, year: number) 
       type: "SUBSCRIPTION",
       amount: Number(s.amount),
       dueDay,
+      dueDateStr,
+      isPaid,
+      status
+    });
+  }
+
+  // 3. DESPESAS DIRETAS (Conta Corrente / Outras Carteiras) com vencimento neste mês
+  const directFrom = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const directTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+  const directExpenses = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+      type: "EXPENSE",
+      date: { gte: directFrom, lte: directTo },
+      deletedAt: null,
+      NOT: [
+        { category: { name: { contains: "Pagamento de Fatura", mode: "insensitive" } } },
+        { description: { contains: "Pagamento Fatura", mode: "insensitive" } },
+        { tags: { contains: "pagamentodefatura", mode: "insensitive" } },
+      ]
+    },
+    include: { wallet: true }
+  });
+
+  for (const exp of directExpenses) {
+    const expDate = new Date(exp.date);
+    const dueDay = expDate.getUTCDate();
+    const dueDate = new Date(year, month - 1, dueDay, 0, 0, 0);
+
+    const isPaid = exp.status === "COMPLETED" || exp.status === "PAID" || exp.status === "pago";
+    const status: "PAGO" | "PENDENTE" | "VENCIDO" = isPaid
+      ? "PAGO"
+      : (dueDate < today ? "VENCIDO" : "PENDENTE");
+
+    const dueDateStr = `${String(dueDay).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`;
+
+    events.push({
+      id: `exp-${exp.id}`,
+      title: exp.description,
+      type: "EXPENSE",
+      amount: Number(exp.amount),
+      dueDay,
+      dueDateStr,
       isPaid,
       status
     });
