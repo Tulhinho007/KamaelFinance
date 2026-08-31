@@ -269,6 +269,9 @@ export default function DespesasPage() {
   const [loading, setLoading]     = useState(true);
   const [selectedHolder, setSelectedHolder] = useState<string>("TODOS");
 
+  // ── Navegação por Abas (Visão Geral / Cartões de Crédito / Contas & Débito) ──
+  const [activeTab, setActiveTab] = useState<"overview" | "credit" | "debit">("overview");
+
   // ── Modais e Abas de Fatura ──────────────────────────────────────────────────
   const [modalMode, setModalMode]           = useState<"create" | "edit" | "delete" | null>(null);
   const [selectedCard, setSelectedCard]     = useState<CardOverview | null>(null);
@@ -519,6 +522,13 @@ export default function DespesasPage() {
       });
       const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
+
+      if (formType === "CREDIT_CARD") {
+        setActiveTab("credit");
+      } else {
+        setActiveTab("debit");
+      }
+
       closeModal();
     } catch (err) {
       console.error(err);
@@ -679,116 +689,203 @@ export default function DespesasPage() {
 
 
 
-      {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART DE CATEGORIAS) ──────── */}
-      <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-xl border border-indigo-200 dark:border-indigo-400/30">
-              <PieChart className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
-              <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Visão consolidada das faturas ativas no mês</p>
+      {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / CONTAS & DÉBITO) ── */}
+      <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-sm">
+        <button
+          type="button"
+          onClick={() => setActiveTab("overview")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "overview"
+              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>Visão Geral</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "overview" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
+            {cards.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("credit")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "credit"
+              ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Cartões de Crédito</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "credit" ? "bg-white/20 text-white" : "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300"}`}>
+            {creditCards.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("debit")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === "debit"
+              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Contas & Débito</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "debit" ? "bg-white/20 text-white" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"}`}>
+            {accountCards.length}
+          </span>
+        </button>
+      </div>
+
+      {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART - EXIBIDO EM VISÃO GERAL E CRÉDITO) ──────── */}
+      {(activeTab === "overview" || activeTab === "credit") && (
+        <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-xl border border-indigo-200 dark:border-indigo-400/30">
+                <PieChart className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
+                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Visão consolidada das faturas ativas no mês</p>
+              </div>
             </div>
           </div>
-        </div>
-        <CategoryDonutChart cards={cards} />
-      </section>
+          <CategoryDonutChart cards={cards} />
+        </section>
+      )}
 
       {/* ── 5. GRID DE CARTÕES E CONTAS COM FILTRO POR TITULAR ──────────────────── */}
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            Meus Cartões e Contas ({filteredCards.length})
-          </h2>
+      {(() => {
+        const displayedCards = activeTab === "credit"
+          ? filteredCards.filter(c => c.walletType === "CREDIT_CARD")
+          : activeTab === "debit"
+          ? filteredCards.filter(c => c.walletType !== "CREDIT_CARD")
+          : filteredCards;
 
-          {/* Filtro Rápido por Titular (Pills) */}
-          {uniqueHolders.length > 0 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-              <span className="text-[10px] font-bold text-slate-400 uppercase mr-1 flex items-center gap-1 shrink-0">
-                <Filter className="w-3 h-3" /> Titular:
-              </span>
-              <button
-                onClick={() => setSelectedHolder("TODOS")}
-                className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
-                  selectedHolder === "TODOS"
-                    ? "bg-indigo-600 text-white shadow-xs"
-                    : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
-                }`}
-              >
-                Todos ({cards.length})
-              </button>
-              {uniqueHolders.map(h => (
-                <button
-                  key={h}
-                  onClick={() => setSelectedHolder(h)}
-                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
-                    selectedHolder === h
-                      ? "bg-indigo-600 text-white shadow-xs"
-                      : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
-                  }`}
-                >
-                  👤 {h}
-                </button>
-              ))}
+        const tabTitle = activeTab === "credit"
+          ? "Meus Cartões de Crédito"
+          : activeTab === "debit"
+          ? "Minhas Contas e Carteiras de Débito"
+          : "Meus Cartões e Contas";
+
+        return (
+          <section className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {tabTitle} ({displayedCards.length})
+              </h2>
+
+              {/* Filtro Rápido por Titular (Pills) */}
+              {uniqueHolders.length > 0 && (
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-1 flex items-center gap-1 shrink-0">
+                    <Filter className="w-3 h-3" /> Titular:
+                  </span>
+                  <button
+                    onClick={() => setSelectedHolder("TODOS")}
+                    className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
+                      selectedHolder === "TODOS"
+                        ? "bg-indigo-600 text-white shadow-xs"
+                        : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
+                    }`}
+                  >
+                    Todos ({cards.length})
+                  </button>
+                  {uniqueHolders.map(h => (
+                    <button
+                      key={h}
+                      onClick={() => setSelectedHolder(h)}
+                      className={`px-3 py-1 rounded-xl text-[10px] font-bold transition-all cursor-pointer shrink-0 ${
+                        selectedHolder === h
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
+                      }`}
+                    >
+                      👤 {h}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="bg-white rounded-[28px] border border-slate-50 h-52 animate-pulse" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {filteredCards.map(card => (
-              <CardTile
-                key={card.id}
-                card={card}
-                selectedMonth={selectedMonthFilter}
-                selectedYear={selectedYear}
-                isPaid={!!(card as any).isPaid}
-                onTogglePaid={(id) => {
-                  if ((card as any).isPaid) {
-                    handleUndoPayment(id, (card as any).billingMonth || selectedMonthFilter || 1, (card as any).billingYear || selectedYear);
-                  } else {
-                    setSelectedPaymentWalletId("NONE");
-                    setPayModalCard({
-                      id,
-                      title: card.title || card.bankName,
-                      amount: card.faturaAtual,
-                      month: (card as any).billingMonth || selectedMonthFilter || 1,
-                      year: (card as any).billingYear || selectedYear,
-                    });
-                  }
-                }}
-                onEdit={openEdit}
-                onDelete={openDelete}
-              />
-            ))}
-
-            {/* Card de Adição */}
-            <button
-              onClick={openCreate}
-              className="group flex flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-slate-200 hover:border-indigo-300 bg-white/40 hover:bg-indigo-50/30 h-52 transition-all duration-300 hover:shadow-[0_10px_30px_rgba(99,102,241,0.08)] cursor-pointer"
-            >
-              <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors duration-300">
-                <Plus className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors duration-300" />
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="bg-white rounded-[28px] border border-slate-50 h-52 animate-pulse" />
+                ))}
               </div>
-              <div className="text-center px-4">
-                <p className="text-xs font-bold text-slate-400 group-hover:text-indigo-500 transition-colors duration-300 leading-relaxed">
-                  Adicionar novo<br/>cartão ou conta bancária
+            ) : displayedCards.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-[#131B2E] rounded-[28px] border border-slate-200 dark:border-slate-800 p-6">
+                <Building2 className="w-8 h-8 text-slate-400 mb-2" />
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  {activeTab === "credit"
+                    ? "Nenhum cartão de crédito cadastrado nesta visualização."
+                    : activeTab === "debit"
+                    ? "Nenhuma conta corrente ou de débito cadastrada nesta visualização."
+                    : "Nenhum cartão ou conta cadastrado."}
                 </p>
+                <button
+                  onClick={openCreate}
+                  className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-500 cursor-pointer"
+                >
+                  + Adicionar Novo Item
+                </button>
               </div>
-            </button>
-          </div>
-        )}
-      </section>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {displayedCards.map(card => (
+                  <CardTile
+                    key={card.id}
+                    card={card}
+                    selectedMonth={selectedMonthFilter}
+                    selectedYear={selectedYear}
+                    isPaid={!!(card as any).isPaid}
+                    onTogglePaid={(id) => {
+                      if ((card as any).isPaid) {
+                        handleUndoPayment(id, (card as any).billingMonth || selectedMonthFilter || 1, (card as any).billingYear || selectedYear);
+                      } else {
+                        setSelectedPaymentWalletId("NONE");
+                        setPayModalCard({
+                          id,
+                          title: card.title || card.bankName,
+                          amount: card.faturaAtual,
+                          month: (card as any).billingMonth || selectedMonthFilter || 1,
+                          year: (card as any).billingYear || selectedYear,
+                        });
+                      }
+                    }}
+                    onEdit={openEdit}
+                    onDelete={openDelete}
+                  />
+                ))}
 
-      {/* ── 6. GESTÃO DE FATURAS DE CARTÃO + BARRA DE PROGRESSO ────────────────── */}
-      <section>
+                {/* Card de Adição */}
+                <button
+                  onClick={openCreate}
+                  className="group flex flex-col items-center justify-center gap-3 rounded-[28px] border-2 border-dashed border-slate-200 hover:border-indigo-300 bg-white/40 hover:bg-indigo-50/30 h-52 transition-all duration-300 hover:shadow-[0_10px_30px_rgba(99,102,241,0.08)] cursor-pointer"
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-slate-100 group-hover:bg-indigo-100 flex items-center justify-center transition-colors duration-300">
+                    <Plus className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition-colors duration-300" />
+                  </div>
+                  <div className="text-center px-4">
+                    <p className="text-xs font-bold text-slate-400 group-hover:text-indigo-500 transition-colors duration-300 leading-relaxed">
+                      Adicionar novo<br/>cartão ou conta bancária
+                    </p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </section>
+        );
+      })()}
+
+      {/* ── 6. GESTÃO DE FATURAS DE CARTÃO (EXIBIDO EM VISÃO GERAL E CRÉDITO) ────────────────── */}
+      {(activeTab === "overview" || activeTab === "credit") && (
+        <section>
         <div className="bg-white rounded-[28px] border border-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col gap-5">
 
           {/* Header da seção + Tabs (A Vencer vs Pagas) */}
@@ -969,6 +1066,7 @@ export default function DespesasPage() {
           )}
         </div>
       </section>
+      )}
 
       {/* ── MODAIS ─────────────────────────────────────────────────────────────── */}
 
