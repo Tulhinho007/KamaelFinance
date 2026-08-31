@@ -19,7 +19,8 @@ import {
   Layers,
   ArrowUpRight,
   ShieldAlert,
-  Zap
+  Zap,
+  HelpCircle
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -40,6 +41,9 @@ export default function OrcamentosPage() {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<MonthlyBudgetOverview | null>(null);
+
+  // Modal Explicativo (Help Modal)
+  const [helpModalOpen, setHelpModalOpen] = useState<boolean>(false);
 
   // Filtros (Padronizado para exibir apenas categorias COM LIMITE por padrao)
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -243,12 +247,22 @@ export default function OrcamentosPage() {
         </div>
       )}
 
-      {/* Header com PeriodHeader */}
+      {/* Header com PeriodHeader e Botão de Ajuda */}
       <PeriodHeader
         title="Orçamento Mensal"
         tagline="Defina tetos de gastos por categoria e monitore o seu limite financeiro."
         badge="PLANEJAMENTO"
-      />
+      >
+        <button
+          type="button"
+          onClick={() => setHelpModalOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+          title="Entenda como funciona o orçamento mensal"
+        >
+          <HelpCircle className="w-3.5 h-3.5 text-indigo-500" />
+          <span>❓ Como funciona?</span>
+        </button>
+      </PeriodHeader>
 
       {loading ? (
         <div className="space-y-6 animate-pulse">
@@ -809,6 +823,130 @@ export default function OrcamentosPage() {
                   {bulkSaving ? "Salvando..." : "Aplicar Limite em Lote"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Explicativo (Help Modal) */}
+      {helpModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl max-w-xl w-full space-y-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            {/* Header do Modal */}
+            <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <HelpCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Como funciona o Orçamento Mensal?
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Entenda como monitorar seus tetos de gastos e manter suas finanças sob controle.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Seção 1: Visão Geral */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                <span>📌</span> Visão Geral (Topo)
+              </h4>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-1">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                    🔵 Limite Total Planejado
+                  </span>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                    Soma de todas as metas/tetos de gastos definidos para o mês corrente.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-1">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 block">
+                    🟣 Gasto Real Atual
+                  </span>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                    Soma de todas as despesas reais registradas no seu extrato no mês.
+                  </p>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-1">
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 block">
+                    🟢 Saldo Restante
+                  </span>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                    Valor total que você ainda pode gastar até o fim do mês sem estourar seu planejamento.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção 2: Status dos Cards de Categoria */}
+            <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <h4 className="text-xs font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🏷️</span> Status dos Cards de Categoria
+              </h4>
+
+              <div className="space-y-2.5">
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/60">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 block">
+                      Dentro do Teto (Verde)
+                    </span>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                      Gastos sob controle. Exibe quanto ainda resta para gastar na categoria.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50/50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/60">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-rose-700 dark:text-rose-300 block">
+                      Excedido (Vermelho)
+                    </span>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                      O limite da categoria foi ultrapassado. Mostra o valor excedido e a porcentagem atingida.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-100/70 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60">
+                  <div className="w-2.5 h-2.5 rounded-full bg-slate-400 mt-1 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                      Sem Limite (Cinza)
+                    </span>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                      Categoria sem valor máximo estipulado. Clique no lápis ✏️ para definir um teto.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Rodapé do Modal */}
+            <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setHelpModalOpen(false)}
+                className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer"
+              >
+                Entendi, fechar
+              </button>
             </div>
           </div>
         </div>

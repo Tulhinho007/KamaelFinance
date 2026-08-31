@@ -9,6 +9,7 @@ type PeriodHeaderProps = {
   title: string;
   tagline?: string;
   badge?: string;
+  children?: React.ReactNode;
 };
 
 const MONTH_NAMES = [
@@ -18,7 +19,7 @@ const MONTH_NAMES = [
 
 const YEARS_LIST = Array.from({ length: 11 }, (_, i) => 2020 + i);
 
-export function PeriodHeader({ title, tagline, badge }: PeriodHeaderProps) {
+export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderProps) {
   const { selectedMonth, selectedYear, prevMonth, nextMonth, setPeriod, goToCurrentMonth } = usePeriod();
   const { theme, toggleTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -63,6 +64,7 @@ export function PeriodHeader({ title, tagline, badge }: PeriodHeaderProps) {
               {badge}
             </span>
           )}
+          {children}
         </div>
         {tagline && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{tagline}</p>}
       </div>
