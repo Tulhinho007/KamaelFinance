@@ -11,7 +11,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -107,6 +107,7 @@ export default function CartaoDetailPage() {
   const [modalType, setModalType]               = useState<"limit" | "edit" | "delete" | "carga" | "cargaRemove" | "cargaSet" | "dates" | null>(null);
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+  const [actionDropdownOpen, setActionDropdownOpen] = useState(false);
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
   const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
@@ -378,7 +379,22 @@ export default function CartaoDetailPage() {
   const openingBalance   = cardData.balanceInfo?.initialBalance ?? (cardData.initialBalance || 0);
   const previousBalance  = cardData.balanceInfo?.previousBalance ?? (openingBalance + carryoverBalance);
   const monthIncome      = cardData.balanceInfo?.monthIncome ?? 0;
-  const totalGastosMes   = cardData.balanceInfo?.monthExpense ?? filteredMonthExpenses.reduce((sum, p) => sum + (p.amount || 0), 0);
+
+  // Cálculo de Total Pago e Total Não Pago (despesas do mês pela DATA DO DÉBITO)
+  const monthExpenseTransactions = (cardData.allTransactions || [])
+    .filter(t => t && t.type === "EXPENSE")
+    .filter(t => {
+      if (!t || !t.date) return false;
+      const { year, month } = getYearMonth(t.date);
+      return year === selectedYear && month === selectedMonth;
+    });
+  const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
+  const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
+  const totalDespesasExtrato = totalPago + totalNaoPago;
+
+  const totalGastosMes = totalDespesasExtrato > 0
+    ? totalDespesasExtrato
+    : (cardData.balanceInfo?.monthExpense ?? filteredMonthExpenses.reduce((sum, p) => sum + (p.amount || 0), 0));
 
   // Total disponível = Saldo acumulado anterior + Receitas do mês atual
   const totalAvailable   = cardData.balanceInfo?.totalAvailable ?? (previousBalance + monthIncome);
@@ -393,17 +409,6 @@ export default function CartaoDetailPage() {
   const isPriorToJuly = selectedYear < 2026 || (selectedYear === 2026 && selectedMonth < 7);
   const hasInitialBalance = openingBalance > 0 || carryoverBalance > 0;
   const showSaldoInicial = !isPriorToJuly && hasInitialBalance;
-
-  // Cálculo de Total Pago e Total Não Pago (despesas do mês pela DATA DO DÉBITO)
-  const monthExpenseTransactions = (cardData.allTransactions || [])
-    .filter(t => t && t.type === "EXPENSE")
-    .filter(t => {
-      if (!t || !t.date) return false;
-      const { year, month } = getYearMonth(t.date);
-      return year === selectedYear && month === selectedMonth;
-    });
-  const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
-  const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
 
   const openEditModal = (p: Purchase) => {
     const original = purchasesList.find(item => item.id === p.id);
@@ -494,18 +499,18 @@ export default function CartaoDetailPage() {
             );
           })()}
           {cardData.holder && (
-            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Titular:</span> {cardData.holder}
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Titular:</span> {cardData.holder}
             </span>
           )}
           {cardData.agencia && (
-            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Agência:</span> {cardData.agencia}
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Agência:</span> {cardData.agencia}
             </span>
           )}
           {cardData.conta && (
-            <span className="text-xs font-black text-slate-200 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full shadow-sm flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">Conta:</span> {cardData.conta}
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Conta:</span> {cardData.conta}
             </span>
           )}
         </div>
@@ -540,31 +545,59 @@ export default function CartaoDetailPage() {
             </button>
           </>
         ) : (
-          <>
+          <div className="relative">
             <button 
-              onClick={() => { setFormCarga(""); setModalType("carga"); }}
-              className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 text-white" />
-              {isTicket ? "+ ADICIONAR CARGA" : "+ ADICIONAR SALDO"}
-            </button>
-
-            <button 
-              onClick={() => { setFormCarga(""); setModalType("cargaRemove"); }}
-              className="w-full sm:w-auto px-5 py-3 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-rose-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Minus className="w-4 h-4 text-white" />
-              {isTicket ? "- REMOVER CARGA" : "- SUBTRAIR SALDO"}
-            </button>
-
-            <button 
-              onClick={() => setPurchaseModalOpen(true)}
+              onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
               className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-white" />
-              + LANÇAR GASTO
+              <Plus className="w-4 h-4" />
+              + Nova Transação
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${actionDropdownOpen ? "rotate-180" : ""}`} />
             </button>
-          </>
+
+            {actionDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+                <button
+                  onClick={() => { setActionDropdownOpen(false); setPurchaseModalOpen(true); }}
+                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                    <Minus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="block font-bold text-slate-900 dark:text-white">Lançar Despesa / Gasto</span>
+                    <span className="block text-[10px] font-normal text-slate-400">Registrar saída da conta</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("carga"); }}
+                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Adicionar Carga" : "Adicionar Saldo / Entrada"}</span>
+                    <span className="block text-[10px] font-normal text-slate-400">Injeção de capital ou salário</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("cargaRemove"); }}
+                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Remover Carga" : "Subtrair / Ajustar Saldo"}</span>
+                    <span className="block text-[10px] font-normal text-slate-400">Ajuste de saldo manual</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -1100,37 +1133,38 @@ export default function CartaoDetailPage() {
                               {brl(t.amount)}
                             </td>
                             <td className="p-4 text-center">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    await toggleTransactionStatusAction(t.id);
-                                    await loadData();
-                                  } catch (err) {
-                                    console.error(err);
-                                  }
-                                }}
-                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${
-                                  isPaid
-                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
-                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20"
-                                }`}
-                                title={isPaid ? "Clique para desmarcar" : "Clique para marcar como pago"}
-                              >
-                                {isPaid ? (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                    <span>Pago</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse" />
-                                    <span>Marcar como PAGO</span>
-                                  </>
-                                )}
-                              </button>
+                              {isPaid ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] font-bold">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  Pago
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-[11px] font-bold">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                  Pendente
+                                </span>
+                              )}
                             </td>
                             <td className="p-4 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await toggleTransactionStatusAction(t.id);
+                                      await loadData();
+                                    } catch (err) {
+                                      console.error(err);
+                                    }
+                                  }}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    isPaid
+                                      ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                      : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                  }`}
+                                  title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </button>
                                 <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
                                   <Edit2 className="w-4 h-4" />
                                 </button>
