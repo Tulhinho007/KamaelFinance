@@ -667,7 +667,7 @@ export async function addAporteAction(goalId: string, amount: number, walletId?:
       date: new Date(),
       amount,
       walletId: walletId || null
-    }
+    } as any
   });
 
   const goal = await prisma.goal.findUnique({
