@@ -29,9 +29,9 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${jakarta.variable} ${inter.variable} h-full antialiased`}
+      className={`dark ${jakarta.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200">
+      <body className="min-h-full flex bg-[#090D16] dark:bg-[#090D16] text-slate-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
           <PeriodProvider>
             <CustomDialogProvider>

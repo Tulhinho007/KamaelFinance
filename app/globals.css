@@ -2,23 +2,23 @@
 
 /* ─── Design Tokens ─── */
 :root {
-  --background: #F4F7F5;
-  --foreground: #0F172A;
-  --surface: #FFFFFF;
-  --surface-raised: #FFFFFF;
-  --border: #E2E8F0;
-  --border-subtle: rgba(226, 232, 240, 0.7);
-  --muted: #64748B;
+  --background: #090D16;
+  --foreground: #F8FAFC;
+  --surface: rgba(18, 24, 38, 0.6);
+  --surface-raised: rgba(26, 34, 52, 0.8);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --muted: #94A3B8;
   --accent: #10B981;
 }
 
 html.dark {
-  --background: #0B0F19;
+  --background: #090D16;
   --foreground: #F8FAFC;
-  --surface: #131B2E;
-  --surface-raised: #1A2236;
-  --border: #1E293B;
-  --border-subtle: rgba(30, 41, 59, 0.6);
+  --surface: rgba(18, 24, 38, 0.6);
+  --surface-raised: rgba(26, 34, 52, 0.8);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-subtle: rgba(255, 255, 255, 0.05);
   --muted: #94A3B8;
   --accent: #10B981;
   color-scheme: dark;
@@ -32,74 +32,116 @@ html.dark {
 
 /* ─── Base ─── */
 body {
-  background-color: var(--background);
-  color: var(--foreground);
+  background-color: #090D16;
+  color: #F8FAFC;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* ══════════════════════════════════════════════
-   CLASSES UTILITÁRIAS DE DESIGN SYSTEM (GLOW & CONTRASTE)
+   CLASSES UTILITÁRIAS DE DESIGN SYSTEM (GLOW & GLASSMORPHISM)
    ══════════════════════════════════════════════ */
 
-/* .card-glow — Superfície responsiva com visual dinâmico em Light Mode (#FFFFFF) e Dark Mode (#131B2E) */
-.card-glow {
-  background-color: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-  border-radius: 28px;
+/* .card-glow & .glass-card — Superfície Glassmorphism com desfoque de fundo e borda translúcida */
+.card-glow, .glass-card {
+  background: rgba(18, 24, 38, 0.6) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  border-radius: 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-html.dark .card-glow {
-  background-color: #131b2e;
-  border: 1px solid #1e293b;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+html.dark .card-glow, html.dark .glass-card {
+  background: rgba(18, 24, 38, 0.6) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
 }
 
-.card-glow:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: scale(1.003);
+.card-glow:hover, .glass-card:hover {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45), 0 0 20px rgba(99, 102, 241, 0.15) !important;
+  transform: translateY(-1px);
 }
 
-html.dark .card-glow:hover {
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow: 0 0 25px rgba(99, 102, 241, 0.2);
+/* Cartão de Crédito Metálico / Holográfico com reflexo dinâmico */
+.credit-card-holographic {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(18, 24, 38, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 16px 40px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.2) !important;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.credit-card-holographic::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 45%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 55%
+  );
+  transform: rotate(30deg);
+  transition: all 0.6s ease;
+  pointer-events: none;
+}
+
+.credit-card-holographic:hover::after {
+  transform: rotate(30deg) translate(20%, 20%);
+}
+
+.credit-card-holographic:hover {
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: 0 20px 45px 0 rgba(0, 0, 0, 0.6), 0 0 25px rgba(99, 102, 241, 0.2) !important;
+  transform: translateY(-2px);
 }
 
 /* .text-secondary-light — Texto de suporte em contraste responsivo */
 .text-secondary-light {
-  color: #64748b;
+  color: #94a3b8 !important;
   font-weight: 600;
 }
 
-html.dark .text-secondary-light {
-  color: #94a3b8 !important;
-}
-
-/* .btn-primary-glow — Botão CTA principal com gradiente roxo/azul e glow em foco */
+/* .btn-primary-glow — Botão CTA principal com gradiente vivo 135deg roxo/indigo e glow no hover */
 .btn-primary-glow {
-  background-image: linear-gradient(to right, #4f46e5, #9333ea, #6366f1);
+  background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
   color: #ffffff !important;
   font-weight: 800;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.4);
   border-radius: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   display: inline-flex;
-  items-center: center;
+  align-items: center;
   justify-content: center;
   gap: 0.5rem;
 }
 
 .btn-primary-glow:hover {
-  background-image: linear-gradient(to right, #6366f1, #a855f7, #4f46e5);
-  box-shadow: 0 15px 30px -5px rgba(168, 85, 247, 0.45);
-  transform: scale(1.02);
+  background-image: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-1px) scale(1.01);
 }
+
+/* ─── Badges com Fundo 15% Opacidade ─── */
+.badge-emerald { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
+.badge-indigo  { background-color: rgba(99, 102, 241, 0.15) !important; color: #818CF8 !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
+.badge-rose    { background-color: rgba(244, 63, 94, 0.15)  !important; color: #FB7185 !important; border: 1px solid rgba(244, 63, 94, 0.25) !important; }
+.badge-amber   { background-color: rgba(245, 158, 11, 0.15) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.25) !important; }
+.badge-purple  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
 
 /* ─── Tabular numbers (valores monetários) ─── */
 .tabular-nums, .font-tnum {
@@ -119,34 +161,42 @@ input[type=number] {
 }
 
 /* ══════════════════════════════════════════════
-   DARK MODE — Sistema de Design Unificado
+   DARK MODE — Sistema de Design Unificado Glassmorphism
    ══════════════════════════════════════════════ */
 
 /* Sidebar */
-html.dark aside {
-  background-color: #0F1724 !important;
-  border-color: rgba(30, 41, 59, 0.7) !important;
+aside, html.dark aside {
+  background-color: rgba(13, 19, 34, 0.85) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.07) !important;
 }
 
 /* Background geral da página */
-html.dark .bg-\[\#F8FAFC\],
-html.dark body {
-  background-color: #080D18 !important;
+.bg-\[\#F8FAFC\], body, html.dark body {
+  background-color: #090D16 !important;
 }
 
 /* ─── Cards / Superfícies ─── */
 html.dark .bg-white,
 html.dark .bg-white\/97,
 html.dark .bg-white\/90,
-html.dark .bg-white\/95 {
-  background-color: #111827 !important;
-  color: #F1F5F9 !important;
+html.dark .bg-white\/95,
+html.dark .bg-slate-900 {
+  background-color: rgba(18, 24, 38, 0.6) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  color: #F8FAFC !important;
 }
 
 /* ─── Superfícies levantadas (modais, dropdowns) ─── */
 html.dark .bg-white.shadow-2xl,
-html.dark .bg-white.rounded-2xl {
-  background-color: #1A2236 !important;
+html.dark .bg-white.rounded-2xl,
+html.dark .bg-slate-900.shadow-2xl {
+  background-color: rgba(22, 30, 48, 0.95) !important;
+  backdrop-filter: blur(20px);
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ─── Fundos neutros e badges pill ─── */
@@ -155,7 +205,7 @@ html.dark .bg-slate-50\/40,
 html.dark .bg-slate-50\/50,
 html.dark .bg-slate-50\/60,
 html.dark .bg-slate-50\/80 {
-  background-color: rgba(30, 41, 59, 0.5) !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
 }
 
 html.dark .bg-slate-100,
@@ -164,17 +214,17 @@ html.dark .bg-slate-100\/80,
 html.dark .bg-slate-200,
 html.dark .bg-slate-200\/80,
 html.dark .bg-slate-300 {
-  background-color: #1E293B !important;
+  background-color: rgba(255, 255, 255, 0.07) !important;
   color: #CBD5E1 !important;
 }
 
-/* ─── Badges coloridos em dark ─── */
-html.dark .bg-indigo-50  { background-color: rgba(99, 102, 241, 0.12) !important; color: #818CF8 !important; }
-html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.12) !important; color: #34D399 !important; }
-html.dark .bg-rose-50    { background-color: rgba(244, 63, 94, 0.12)  !important; color: #FB7185 !important; }
-html.dark .bg-amber-50   { background-color: rgba(245, 158, 11, 0.12) !important; color: #FBBF24 !important; }
-html.dark .bg-violet-50  { background-color: rgba(139, 92, 246, 0.12) !important; color: #A78BFA !important; }
-html.dark .bg-blue-50    { background-color: rgba(59, 130, 246, 0.12) !important; color: #60A5FA !important; }
+/* ─── Badges coloridos em dark (15% de opacidade com bordas sutis) ─── */
+html.dark .bg-indigo-50  { background-color: rgba(99, 102, 241, 0.15) !important; color: #818CF8 !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
+html.dark .bg-emerald-50 { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
+html.dark .bg-rose-50    { background-color: rgba(244, 63, 94, 0.15)  !important; color: #FB7185 !important; border: 1px solid rgba(244, 63, 94, 0.25) !important; }
+html.dark .bg-amber-50   { background-color: rgba(245, 158, 11, 0.15) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.25) !important; }
+html.dark .bg-violet-50  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
+html.dark .bg-blue-50    { background-color: rgba(59, 130, 246, 0.15) !important; color: #60A5FA !important; border: 1px solid rgba(59, 130, 246, 0.25) !important; }
 
 /* ─── Bordas ─── */
 html.dark .border-slate-100,
