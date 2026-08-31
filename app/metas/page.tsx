@@ -28,6 +28,8 @@ type GoalHistoryEntry = {
   id: string;
   date: string;
   amount: number;
+  walletId?: string | null;
+  walletTitle?: string | null;
 };
 
 type Goal = {
@@ -43,6 +45,7 @@ type Goal = {
   completedAt?: string | null;
   walletId?: string | null;
   walletTitle?: string | null;
+  walletBreakdown?: { walletId: string; walletTitle: string; totalAmount: number }[];
   mediaAporteMensal?: number;
   estimatedDateStr?: string;
   paceStatus?: "COMPLETED" | "ADVANCED" | "BEHIND" | "UNKNOWN";
@@ -143,6 +146,7 @@ export default function MetasPage() {
   const [editingAporteId, setEditingAporteId] = useState<string | null>(null);
   const [editAporteVal, setEditAporteVal] = useState<string | number>("");
   const [editAporteDate, setEditAporteDate] = useState("");
+  const [editAporteWalletId, setEditAporteWalletId] = useState("");
 
   // Form Fields State
   const [formTitle, setFormTitle] = useState("");
@@ -153,6 +157,7 @@ export default function MetasPage() {
   const [formIconName, setFormIconName] = useState<"Plane" | "Car" | "Home" | "Target">("Target");
   const [formWalletId, setFormWalletId] = useState("");
   const [formAporteVal, setFormAporteVal] = useState<string | number>("");
+  const [formAporteWalletId, setFormAporteWalletId] = useState("");
 
   // Busca de Metas
   const [searchQuery, setSearchQuery] = useState("");
@@ -272,6 +277,8 @@ export default function MetasPage() {
   const openAporteModal = (goal: Goal) => {
     setSelectedGoal(goal);
     setFormAporteVal("");
+    const defaultWId = goal.walletId || (wallets.length > 0 ? wallets[0].id : "");
+    setFormAporteWalletId(defaultWId);
     setModalType("aporte");
   };
 
@@ -280,6 +287,11 @@ export default function MetasPage() {
     const aporteNum = parseCurrencyInput(formAporteVal);
     if (!selectedGoal || aporteNum <= 0) {
       showAlert("Por favor, informe um valor de aporte válido maior que zero.", { variant: "warning" });
+      return;
+    }
+
+    if (!formAporteWalletId) {
+      showAlert("Por favor, selecione a conta/banco onde o dinheiro foi guardado.", { variant: "warning" });
       return;
     }
 
@@ -292,7 +304,7 @@ export default function MetasPage() {
     const crossedMilestone = milestones.find(m => oldPct < m && newPct >= m);
 
     try {
-      await addAporteAction(selectedGoal.id.toString(), aporteNum);
+      await addAporteAction(selectedGoal.id.toString(), aporteNum, formAporteWalletId);
       await loadAllData();
       setModalType(null);
 
@@ -322,7 +334,7 @@ export default function MetasPage() {
       return;
     }
     try {
-      await updateAporteAction(historyId, amountNum, editAporteDate);
+      await updateAporteAction(historyId, amountNum, editAporteDate, editAporteWalletId);
       setEditingAporteId(null);
       await loadAllData();
       showAlert("Aporte atualizado com sucesso!", { variant: "success" });
@@ -638,12 +650,48 @@ export default function MetasPage() {
                       </span>
                     )}
 
-                    {meta.walletTitle && (
-                      <span className="flex items-center gap-1 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-400/30 px-2.5 py-1 rounded-full truncate max-w-[140px]">
-                        <WalletIcon className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{meta.walletTitle}</span>
-                      </span>
-                    )}
+                    {(() => {
+                      const breakdown = meta.walletBreakdown || [];
+                      if (breakdown.length === 0 && !meta.walletTitle) return null;
+
+                      const primaryTitle = breakdown.length > 0 ? breakdown[0].walletTitle : meta.walletTitle;
+                      const extraCount = breakdown.length > 1 ? breakdown.length - 1 : 0;
+
+                      return (
+                        <div className="relative group/wallet inline-block">
+                          <span className="flex items-center gap-1.5 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-400/30 px-2.5 py-1 rounded-full cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-500/25 transition-all">
+                            <WalletIcon className="w-3 h-3 shrink-0 text-indigo-600 dark:text-indigo-400" />
+                            <span className="truncate max-w-[110px]">{primaryTitle}</span>
+                            {extraCount > 0 && (
+                              <span className="bg-indigo-200/80 dark:bg-indigo-900/80 text-indigo-900 dark:text-indigo-200 px-1.5 py-0.2 rounded-md text-[8.5px] font-black">
+                                +{extraCount} {extraCount === 1 ? "conta" : "contas"}
+                              </span>
+                            )}
+                          </span>
+
+                          {/* Tooltip de Detalhamento Multi-Contas no Hover */}
+                          {extraCount > 0 && (
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/wallet:flex flex-col gap-1.5 p-3 rounded-2xl bg-slate-900 text-white text-xs font-medium shadow-xl border border-slate-700 z-50 w-56 pointer-events-none">
+                              <div className="text-[10px] font-black uppercase text-indigo-400 border-b border-slate-800 pb-1 mb-0.5 flex justify-between">
+                                <span>Distribuição por Banco</span>
+                                <span>Valor</span>
+                              </div>
+                              {breakdown.map((wb, idx) => {
+                                const wbPct = meta.acumulado > 0 ? Math.round((wb.totalAmount / meta.acumulado) * 100) : 0;
+                                return (
+                                  <div key={idx} className="flex justify-between items-center text-[11px]">
+                                    <span className="truncate font-semibold text-slate-200">{wb.walletTitle}</span>
+                                    <span className="font-mono font-bold text-indigo-300 shrink-0 ml-2">
+                                      {brl(wb.totalAmount)} ({wbPct}%)
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Selos de Gamificação / Marcos com Neon Glow (25%, 50%, 75%, 100%) */}
@@ -886,6 +934,23 @@ export default function MetasPage() {
                 <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
                   Fazer aporte financeiro na meta <strong className="text-slate-900 dark:text-white font-black">{selectedGoal.title}</strong>.
                 </p>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Guardado em qual conta? *</label>
+                  <select
+                    required
+                    value={formAporteWalletId}
+                    onChange={(e) => setFormAporteWalletId(e.target.value)}
+                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value="">Selecione a conta / banco onde o dinheiro fica guardado...</option>
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        🏦 {w.bankName || w.title} ({w.walletType}) - Saldo: {brl(w.currentTotal)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
@@ -958,6 +1023,22 @@ export default function MetasPage() {
                             </div>
                           </div>
 
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block mb-1">Conta Bancária</label>
+                            <select
+                              value={editAporteWalletId}
+                              onChange={(e) => setEditAporteWalletId(e.target.value)}
+                              className="w-full text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                            >
+                              <option value="">Selecione a conta...</option>
+                              {wallets.map((w) => (
+                                <option key={w.id} value={w.id}>
+                                  🏦 {w.bankName || w.title}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
                           <div className="flex justify-end gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
                             <button
                               type="button"
@@ -983,9 +1064,15 @@ export default function MetasPage() {
                         key={h.id} 
                         className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 rounded-2xl p-3.5 flex justify-between items-center group transition-colors hover:border-slate-300 dark:hover:border-slate-600"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                           <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{h.date}</span>
+                          {h.walletTitle && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/80">
+                              <WalletIcon className="w-2.5 h-2.5 text-indigo-500" />
+                              {h.walletTitle}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-tnum">{brl(h.amount)}</span>
@@ -998,6 +1085,7 @@ export default function MetasPage() {
                                 setEditingAporteId(h.id);
                                 setEditAporteVal(h.amount.toString());
                                 setEditAporteDate((h as any).rawDate || "");
+                                setEditAporteWalletId(h.walletId || "");
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors cursor-pointer"
                               title="Editar Aporte"

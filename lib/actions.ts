@@ -410,7 +410,10 @@ export async function getGoals() {
   const goals = await prisma.goal.findMany({
     where: { userId },
     include: {
-      history: { orderBy: { date: "asc" } },
+      history: {
+        orderBy: { date: "asc" },
+        include: { wallet: true }
+      },
       wallet: true,
     } as any,
     orderBy: { dataInicio: "asc" }
@@ -480,6 +483,28 @@ export async function getGoals() {
         completedAtStr = new Date().toLocaleDateString("pt-BR");
       }
 
+      // Detalhamento de distribuição de saldos guardados por conta/banco
+      const walletBreakdownMap: Record<string, { walletId: string; walletTitle: string; totalAmount: number }> = {};
+      (g.history || []).forEach((h: any) => {
+        const wId = h.walletId || g.walletId || "default";
+        const wTitle = h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || "Outra Conta";
+        if (!walletBreakdownMap[wId]) {
+          walletBreakdownMap[wId] = { walletId: wId, walletTitle: wTitle, totalAmount: 0 };
+        }
+        walletBreakdownMap[wId].totalAmount += Number(h.amount);
+      });
+
+      // Se não houver histórico mas houver conta padrão definida na meta
+      if (Object.keys(walletBreakdownMap).length === 0 && g.wallet) {
+        walletBreakdownMap[g.walletId] = {
+          walletId: g.walletId,
+          walletTitle: g.wallet.bankName || g.wallet.title,
+          totalAmount: acumulado,
+        };
+      }
+
+      const walletBreakdown = Object.values(walletBreakdownMap).sort((a, b) => b.totalAmount - a.totalAmount);
+
       return {
         id: g.id,
         title: g.title,
@@ -490,17 +515,20 @@ export async function getGoals() {
         pct,
         iconName: g.iconName as "Plane" | "Car" | "Home" | "Target",
         walletId: g.walletId || null,
-        walletTitle: g.wallet?.title || null,
+        walletTitle: g.wallet?.bankName || g.wallet?.title || null,
+        walletBreakdown,
         status,
         completedAt: completedAtStr,
         mediaAporteMensal,
         estimatedDateStr,
         paceStatus,
-        history: g.history.map((h: any) => ({
+        history: (g.history || []).map((h: any) => ({
           id: h.id,
           rawDate: new Date(h.date).toISOString().split("T")[0],
           date: new Date(h.date).toLocaleDateString("pt-BR"),
-          amount: Number(h.amount)
+          amount: Number(h.amount),
+          walletId: h.walletId || g.walletId || null,
+          walletTitle: h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || null,
         }))
       };
     })
@@ -534,7 +562,8 @@ export async function createGoalAction(
       history: acumuladoInicial > 0 ? {
         create: {
           date: new Date(),
-          amount: acumuladoInicial
+          amount: acumuladoInicial,
+          walletId: walletId || null
         }
       } : undefined
     } as any
@@ -619,12 +648,13 @@ export async function getWalletsAction() {
   );
 }
 
-export async function addAporteAction(goalId: string, amount: number) {
+export async function addAporteAction(goalId: string, amount: number, walletId?: string) {
   await prisma.goalHistory.create({
     data: {
       goalId,
       date: new Date(),
-      amount
+      amount,
+      walletId: walletId || null
     }
   });
 
@@ -647,7 +677,7 @@ export async function addAporteAction(goalId: string, amount: number) {
   revalidatePath("/metas");
 }
 
-export async function updateAporteAction(historyId: string, amount: number, dateStr?: string) {
+export async function updateAporteAction(historyId: string, amount: number, dateStr?: string, walletId?: string) {
   const existingHistory = await prisma.goalHistory.findUnique({
     where: { id: historyId },
     select: { goalId: true }
@@ -658,6 +688,9 @@ export async function updateAporteAction(historyId: string, amount: number, date
   const updateData: any = { amount };
   if (dateStr) {
     updateData.date = new Date(dateStr);
+  }
+  if (walletId !== undefined) {
+    updateData.walletId = walletId || null;
   }
 
   await prisma.goalHistory.update({

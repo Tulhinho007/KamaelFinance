@@ -47,6 +47,7 @@ model Wallet {
   creditLimit    Decimal?      // Limite total para cartões de crédito
   transactions   Transaction[]
   goals          Goal[]
+  goalHistories  GoalHistory[]
   invoicePayments InvoicePayment[]
   subscriptions  Subscription[]
 }
@@ -111,6 +112,8 @@ model GoalHistory {
   goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
   date      DateTime
   amount    Decimal
+  walletId  String?
+  wallet    Wallet?  @relation(fields: [walletId], references: [id])
 }
 
 model Investment {
