@@ -7,10 +7,11 @@ import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
   deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
   duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
-  addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction
+  addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction,
+  createRevenueAction
 } from "@/lib/actions";
 import {
-  Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
+  Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
   ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
@@ -251,13 +252,27 @@ export default function CartaoDetailPage() {
     const val = Number(formCarga);
     if (val <= 0) return;
     try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const dateParts = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
+      const dateToUse = (selectedYear && selectedMonth) ? dateParts : todayStr;
+      const originLabel = formCargaOrigin ? `Aporte (${formCargaOrigin})` : "Aporte / Injeção de Saldo";
+
+      await createRevenueAction(
+        originLabel,
+        val,
+        dateToUse,
+        cardData.walletId,
+        "COMPLETED",
+        dateToUse
+      );
       await addTicketCarga(cardData.walletId, val);
       await loadData();
       setModalType(null);
       setFormCarga("");
+      showAlert("Saldo/Entrada adicionado com sucesso!", { variant: "success" });
     } catch (err) {
       console.error(err);
-      showAlert("Erro ao adicionar carga.", { variant: "error" });
+      showAlert("Erro ao adicionar saldo/entrada.", { variant: "error" });
     }
   };
 
@@ -416,6 +431,14 @@ export default function CartaoDetailPage() {
   const openingBalance   = cardData.balanceInfo?.initialBalance ?? (cardData.initialBalance || 0);
   const previousBalance  = cardData.balanceInfo?.previousBalance ?? (openingBalance + carryoverBalance);
   const monthIncome      = cardData.balanceInfo?.monthIncome ?? 0;
+  const totalEntradasMes = (cardData.allTransactions || [])
+    .filter(t => t && t.type === "INCOME")
+    .filter(t => {
+      if (!t || !t.date) return false;
+      const { year, month } = getYearMonth(t.date);
+      return year === selectedYear && month === selectedMonth;
+    })
+    .reduce((s, t) => s + (t.amount || 0), 0);
 
   // Cálculo de Total Pago e Total Não Pago (despesas do mês pela DATA DO DÉBITO)
   const monthExpenseTransactions = (cardData.allTransactions || [])
@@ -1268,11 +1291,11 @@ export default function CartaoDetailPage() {
           </div>
         </div>
       ) : (
-        // ── VISÃO EXECUTIVA DARK GLASSMORPHISM PARA CONTA SANTANDER / BANCOS (4 CARDS DE MÉTRICAS) ──
+        // ── VISÃO EXECUTIVA DARK GLASSMORPHISM PARA CONTA SANTANDER / BANCOS (5 CARDS DE MÉTRICAS) ──
         <div className="flex flex-col gap-8">
           
-          {/* TOPO: 4 CARDS DE MÉTRICAS EM LINHA (MESMA ESTRUTURA DE ASSINATURAS) */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* TOPO: 5 CARDS DE MÉTRICAS EM LINHA (SALDO, ENTRADAS, CONSUMO, PAGO, PENDENTE) */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             
             {/* Card 1: Saldo Disponível */}
             <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
@@ -1288,7 +1311,21 @@ export default function CartaoDetailPage() {
               </div>
             </div>
 
-            {/* Card 2: Consumo no Mês */}
+            {/* Card 2: Entradas no Mês */}
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/30 flex flex-col justify-between shadow-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Entradas no Mês</span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="mt-4">
+                <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">+ {brl(totalEntradasMes)}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Depósitos e receitas creditadas</p>
+              </div>
+            </div>
+
+            {/* Card 3: Consumo no Mês */}
             <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider">Consumo no Mês</span>
@@ -1302,7 +1339,7 @@ export default function CartaoDetailPage() {
               </div>
             </div>
 
-            {/* Card 3: Total Pago */}
+            {/* Card 4: Total Pago */}
             <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/20 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Total Pago</span>
@@ -1315,7 +1352,7 @@ export default function CartaoDetailPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Despesas quitadas no mês</p>
               </div>
             </div>
-            {/* Card 4: Total Pendente */}
+            {/* Card 5: Total Pendente */}
             <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-500/20 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Total Pendente</span>
@@ -1331,16 +1368,16 @@ export default function CartaoDetailPage() {
 
           </section>
 
-          {/* TABELA: EXTRATO DE DESPESAS DA CONTA SANTANDER / BANCO */}
+          {/* TABELA: EXTRATO DA CONTA SANTANDER / BANCO */}
           <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  Extrato de Despesas ({getMonthName(selectedMonth)}/{selectedYear})
+                  <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  Extrato da Conta ({getMonthName(selectedMonth)}/{selectedYear})
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Acompanhe e confirme o pagamento de todas as saídas registradas nesta conta.
+                  Acompanhe e confirme o pagamento de todas as entradas e saídas registradas nesta conta.
                 </p>
               </div>
 
@@ -1352,7 +1389,6 @@ export default function CartaoDetailPage() {
                       type="button"
                       onClick={() => {
                         const monthTransactions = (cardData.allTransactions || [])
-                          .filter((t) => t.type === "EXPENSE")
                           .filter((t) => {
                             const parts = t.date.split("-");
                             return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
@@ -1369,7 +1405,6 @@ export default function CartaoDetailPage() {
                       type="button"
                       onClick={() => {
                         const monthTransactions = (cardData.allTransactions || [])
-                          .filter((t) => t.type === "EXPENSE")
                           .filter((t) => {
                             const parts = t.date.split("-");
                             return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
@@ -1415,7 +1450,6 @@ export default function CartaoDetailPage() {
 
             {(() => {
               const monthTransactions = (cardData.allTransactions || [])
-                .filter((t) => t.type === "EXPENSE")
                 .filter((t) => {
                   const parts = t.date.split("-");
                   return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
@@ -1425,7 +1459,7 @@ export default function CartaoDetailPage() {
                 return (
                   <div className="py-12 flex flex-col items-center justify-center gap-2 text-center border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma despesa registrada para este mês.</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma movimentação registrada para este mês.</p>
                   </div>
                 );
               }
@@ -1464,6 +1498,8 @@ export default function CartaoDetailPage() {
                       {(() => {
                         const renderBankRow = (t: typeof monthTransactions[0]) => {
                           const isPaid = t.status !== "PENDING";
+                          const isIncome = t.type === "INCOME";
+
                           return (
                             <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                               <td className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
@@ -1481,17 +1517,35 @@ export default function CartaoDetailPage() {
                               <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
                                 <div>{t.date.split("-").reverse().join("/")}</div>
                               </td>
-                              <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">{t.description}</td>
+                              <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">
+                                <div className="flex items-center gap-2">
+                                  {isIncome && (
+                                    <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                      <TrendingUp className="w-3.5 h-3.5" />
+                                    </span>
+                                  )}
+                                  <span>{t.description}</span>
+                                </div>
+                              </td>
                               <td className="p-4">
-                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium uppercase">
-                                  {t.category || "Despesa"}
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase ${
+                                  isIncome
+                                    ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+                                }`}>
+                                  {t.category || (isIncome ? "Aporte / Injeção de Saldo" : "Despesa")}
                                 </span>
                               </td>
-                              <td className="p-4 text-right font-bold text-slate-900 dark:text-white text-sm tabular-nums">
-                                {brl(t.amount)}
+                              <td className={`p-4 text-right font-black text-sm tabular-nums ${isIncome ? "text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+                                {isIncome ? `+ ${brl(t.amount)}` : brl(t.amount)}
                               </td>
                               <td className="p-4 text-center">
-                                {isPaid ? (
+                                {isIncome ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 text-[11px] font-bold">
+                                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+                                    Entrada
+                                  </span>
+                                ) : isPaid ? (
                                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] font-bold">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                     Pago
@@ -1505,24 +1559,26 @@ export default function CartaoDetailPage() {
                               </td>
                               <td className="p-4 text-center whitespace-nowrap">
                                 <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                                  <button
-                                    onClick={async () => {
-                                      try {
-                                        await toggleTransactionStatusAction(t.id);
-                                        await loadData();
-                                      } catch (err) {
-                                        console.error(err);
-                                      }
-                                    }}
-                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                      isPaid
-                                        ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                        : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                    }`}
-                                    title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
-                                  >
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  </button>
+                                  {!isIncome && (
+                                    <button
+                                      onClick={async () => {
+                                        try {
+                                          await toggleTransactionStatusAction(t.id);
+                                          await loadData();
+                                        } catch (err) {
+                                          console.error(err);
+                                        }
+                                      }}
+                                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                        isPaid
+                                          ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                          : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                      }`}
+                                      title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
+                                    >
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
                                     <Edit2 className="w-4 h-4" />
                                   </button>
