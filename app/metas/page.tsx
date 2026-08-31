@@ -436,27 +436,27 @@ export default function MetasPage() {
       </div>
 
       {/* ── 3. BANNER PRINCIPAL COM GLOW & GLASSMORPHISM ("HORIZONTE DE CONQUISTAS") ── */}
-      <div className="bg-gradient-to-r from-indigo-50 via-purple-50 to-indigo-50 dark:from-slate-900 dark:via-indigo-950/60 dark:to-slate-900 rounded-[32px] border border-indigo-200 dark:border-indigo-500/30 p-6 md:p-8 shadow-sm dark:shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 rounded-[32px] border border-indigo-500/30 p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
         
         {/* Efeito Glow no Fundo */}
         <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
 
         {/* Gráfico Radial de Progresso Global */}
-        <div className="relative w-28 h-28 flex items-center justify-center bg-white dark:bg-slate-900/90 rounded-2xl border border-indigo-200 dark:border-indigo-500/30 shadow-sm dark:shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
+        <div className="relative w-28 h-28 flex items-center justify-center bg-slate-900/90 rounded-2xl border border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
           <svg className="w-22 h-22 transform -rotate-90">
             <circle
               cx="44"
               cy="44"
               r={radius}
-              className="stroke-slate-200 dark:stroke-slate-800 fill-none"
+              className="stroke-slate-800 fill-none"
               strokeWidth="7"
             />
             <circle
               cx="44"
               cy="44"
               r={radius}
-              className="stroke-indigo-500 dark:stroke-indigo-400 fill-none transition-all duration-700"
+              className="stroke-indigo-400 fill-none transition-all duration-700"
               strokeWidth="7"
               strokeDasharray={circumference}
               strokeDashoffset={strokeDashoffset}
@@ -464,8 +464,8 @@ export default function MetasPage() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-lg font-black text-slate-900 dark:text-white leading-none drop-shadow-sm">{globalPct}%</span>
-            <span className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-300 uppercase tracking-widest mt-1">Global</span>
+            <span className="text-lg font-black text-white leading-none drop-shadow-sm">{globalPct}%</span>
+            <span className="text-[8px] font-extrabold text-indigo-300 uppercase tracking-widest mt-1">Global</span>
           </div>
         </div>
 
@@ -474,41 +474,41 @@ export default function MetasPage() {
           
           <div className="text-center sm:text-left w-full">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="rounded-full bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-800 dark:text-indigo-300 uppercase shadow-xs">
+              <span className="rounded-full bg-indigo-950/60 border border-indigo-800/50 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-300 uppercase shadow-xs">
                 Visão Consolidada
               </span>
-              <span className="text-[10px] font-black text-purple-800 dark:text-purple-300 bg-purple-100 dark:bg-purple-500/20 border border-purple-200 dark:border-purple-400/30 px-3 py-1 rounded-full uppercase">
+              <span className="text-[10px] font-black text-purple-300 bg-purple-950/60 border border-purple-800/50 px-3 py-1 rounded-full uppercase">
                 {activeMetasCount} Meta{activeMetasCount !== 1 ? "s" : ""} Ativa{activeMetasCount !== 1 ? "s" : ""}
               </span>
               {completedMetas.length > 0 && (
-                <span className="text-[10px] font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/30 px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-xs">
-                  <Trophy className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-xs">
+                  <Trophy className="w-3 h-3 text-emerald-400" />
                   {completedMetas.length} Conquista{completedMetas.length > 1 ? "s" : ""} Batida{completedMetas.length > 1 ? "s" : ""} 🎉
                 </span>
               )}
             </div>
             
-            <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
+            <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
 
             {/* 3 KPIs: Total Acumulado, Objetivo Final e Falta Aportar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-100/80 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-white/10">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-950/70 p-4 rounded-2xl border border-white/10">
               
               {/* KPI 1 — Total Acumulado */}
               <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Total Acumulado</span>
-                <span className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Acumulado</span>
+                <span className="text-base font-black text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
               </div>
 
               {/* KPI 2 — Objetivo Final */}
-              <div className="flex flex-col sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Objetivo Final</span>
-                <span className="text-base font-black text-slate-900 dark:text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
+              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Objetivo Final</span>
+                <span className="text-base font-black text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
               </div>
 
               {/* KPI 3 — Falta Aportar */}
-              <div className="flex flex-col sm:border-l sm:border-slate-200 dark:sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Falta Aportar</span>
-                <span className="text-base font-black text-amber-600 dark:text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
+              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
+                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Falta Aportar</span>
+                <span className="text-base font-black text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
               </div>
 
             </div>

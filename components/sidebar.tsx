@@ -134,31 +134,7 @@ export function Sidebar() {
 
   const footerProfile = (
     <div className="p-3 border-t border-slate-100 dark:border-slate-800/70 flex flex-col gap-2">
-      {/* Seletor de Tema (Claro/Escuro) no Rodapé */}
-      <button
-        onClick={toggleTheme}
-        className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 transition-all duration-150 cursor-pointer"
-      >
-        <div className="flex items-center gap-2.5">
-          {theme === "dark" ? (
-            <Moon className="w-4 h-4 text-indigo-400" />
-          ) : (
-            <Sun className="w-4 h-4 text-amber-500" />
-          )}
-          <span>Tema {theme === "dark" ? "Escuro" : "Claro"}</span>
-        </div>
-        <span
-          className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide ${
-            theme === "dark"
-              ? "bg-indigo-500/15 text-indigo-400"
-              : "bg-amber-100 text-amber-600"
-          }`}
-        >
-          {theme === "dark" ? "Dark" : "Light"}
-        </span>
-      </button>
-
-      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/50">
+      <div className="flex items-center justify-between gap-2 pt-1">
         <Link
           href="/configuracoes"
           onClick={() => setIsMobileOpen(false)}
@@ -210,12 +186,6 @@ export function Sidebar() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={toggleTheme}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-500" />}
-          </button>
           <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
             {initials}
           </div>

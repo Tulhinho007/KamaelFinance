@@ -156,14 +156,6 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
       {/* 3. Ações e Status */}
       <div className="hidden sm:flex items-center gap-2">
-        <button 
-          onClick={toggleTheme}
-          title={theme === "dark" ? "Mudar para Modo Claro" : "Mudar para Modo Escuro"}
-          className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-        >
-          {theme === "dark" ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
-        </button>
-
         <button className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-colors cursor-pointer">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full border border-white dark:border-slate-900"></span>
