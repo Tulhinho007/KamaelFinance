@@ -100,6 +100,7 @@ export default function CartaoDetailPage() {
   // Múltipla Seleção (Exclusão em Lote)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+  const [batchActionsModalOpen, setBatchActionsModalOpen] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
 
   // Modais de edição/exclusão/carga/datas
@@ -742,7 +743,7 @@ export default function CartaoDetailPage() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-3 w-10 text-center">
+                        <th className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
                           <input
                             type="checkbox"
                             checked={vistaPurchases.length > 0 && vistaPurchases.every(p => selectedIds.includes(p.id))}
@@ -769,7 +770,7 @@ export default function CartaoDetailPage() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {vistaPurchases.map(p => (
                         <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                          <td className="p-3 w-10 text-center">
+                          <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
                             <input
                               type="checkbox"
                               checked={selectedIds.includes(p.id)}
@@ -1035,7 +1036,7 @@ export default function CartaoDetailPage() {
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-4 w-10 text-center">
+                        <th className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
                           <input
                             type="checkbox"
                             checked={monthTransactions.length > 0 && monthTransactions.every(t => selectedIds.includes(t.id))}
@@ -1065,7 +1066,7 @@ export default function CartaoDetailPage() {
                         const isPaid = t.status !== "PENDING";
                         return (
                           <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                            <td className="p-4 w-10 text-center">
+                            <td className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(t.id)}
@@ -1411,85 +1412,151 @@ export default function CartaoDetailPage() {
         </div>
       )}
 
-      {/* ── BARRA DE AÇÕES EM LOTE (FLOATING ACTION BAR CONTEXTUAL) ───────────────────── */}
+      {/* ── BARRA FLUTUANTE MÍNIMA DE SELEÇÃO EM LOTE ───────────────────── */}
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-slate-700/80 rounded-2xl shadow-2xl px-6 py-3.5 flex items-center gap-6 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center font-black text-xs">
-              {selectedIds.length}
-            </div>
-            <div>
-              <p className="text-xs font-black text-white">
-                {selectedIds.length} {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
-              </p>
-              <p className="text-[10px] text-slate-400 font-bold">
-                Total: <strong className="text-white font-tnum">{brl(selectedTotalAmount)}</strong>
-              </p>
-            </div>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-950/95 border border-slate-700/80 rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md text-white">
+          <div className="text-xs font-bold whitespace-nowrap">
+            <span>
+              {selectedIds.length} {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"}
+            </span>
+            <span className="mx-1.5 text-slate-500">•</span>
+            <span className="text-emerald-400 font-extrabold">{brl(selectedTotalAmount)}</span>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="h-4 w-px bg-slate-700" />
+
+          <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                try {
-                  const res = await duplicateBatchExpensesToNextMonthAction(selectedIds);
-                  setSelectedIds([]);
-                  await loadData();
-                  showAlert(`${res.count} ${res.count === 1 ? "lançamento duplicado" : "lançamentos duplicados"} para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                } catch (err) {
-                  console.error("Erro ao duplicar lançamentos:", err);
-                  showAlert("Erro ao duplicar lançamentos para o próximo mês.", { variant: "error" });
-                }
-              }}
-              className="px-4 py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Copiar Selecionados para o Próximo Mês"
+              onClick={() => setBatchActionsModalOpen(true)}
+              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <CopyPlus className="w-4 h-4" />
-              Duplicar Selecionados (+1 Mês)
+              <Sparkles className="w-3.5 h-3.5" />
+              Ações em Lote
             </button>
-            <button
-              onClick={async () => {
-                try {
-                  await markBatchTransactionsPaidAction(selectedIds);
-                  setSelectedIds([]);
-                  await loadData();
-                } catch (err) {
-                  console.error("Erro ao marcar como pago:", err);
-                }
-              }}
-              className="px-4 py-2 text-xs font-black text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              ✓ Marcar Selecionados como PAGO
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  await unmarkBatchTransactionsPaidAction(selectedIds);
-                  setSelectedIds([]);
-                  await loadData();
-                } catch (err) {
-                  console.error("Erro ao marcar como pendente:", err);
-                }
-              }}
-              className="px-4 py-2 text-xs font-black text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-lg shadow-amber-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <RotateCcw className="w-4 h-4" />
-              ⟲ Marcar como PENDENTE
-            </button>
-            <button
-              onClick={() => setBatchDeleteModalOpen(true)}
-              className="px-4 py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <Trash2 className="w-4 h-4" />
-              Excluir Selecionados
-            </button>
+
             <button
               onClick={() => setSelectedIds([])}
-              className="px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
+              className="text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors px-2 py-1 cursor-pointer underline underline-offset-2"
             >
-              Desmarcar Seleção
+              Desmarcar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DE AÇÕES EM LOTE ─────────────────────────────────────── */}
+      {batchActionsModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  Ações em Lote
+                </h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  {selectedIds.length} {selectedIds.length === 1 ? "item selecionado" : "itens selecionados"} ({brl(selectedTotalAmount)})
+                </p>
+              </div>
+              <button
+                onClick={() => setBatchActionsModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2.5">
+              {/* Botão 1: Duplicar Selecionados (+1 Mês) */}
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await duplicateBatchExpensesToNextMonthAction(selectedIds);
+                    setSelectedIds([]);
+                    setBatchActionsModalOpen(false);
+                    await loadData();
+                    showAlert(`${res.count} ${res.count === 1 ? "lançamento duplicado" : "lançamentos duplicados"} para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                  } catch (err) {
+                    console.error("Erro ao duplicar lançamentos:", err);
+                    showAlert("Erro ao duplicar lançamentos para o próximo mês.", { variant: "error" });
+                  }
+                }}
+                className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-2xl shadow-md shadow-indigo-600/30 flex items-center justify-between transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <CopyPlus className="w-4 h-4 text-indigo-200 group-hover:scale-110 transition-transform" />
+                  <span>Duplicar Selecionados (+1 Mês)</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold bg-indigo-500/30 px-2.5 py-0.5 rounded-full">Atalho</span>
+              </button>
+
+              {/* Botão 2: Marcar como Pago */}
+              <button
+                onClick={async () => {
+                  try {
+                    await markBatchTransactionsPaidAction(selectedIds);
+                    setSelectedIds([]);
+                    setBatchActionsModalOpen(false);
+                    await loadData();
+                  } catch (err) {
+                    console.error("Erro ao marcar como pago:", err);
+                  }
+                }}
+                className="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-2xl shadow-md shadow-emerald-600/30 flex items-center justify-between transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-200 group-hover:scale-110 transition-transform" />
+                  <span>Marcar como Pago</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold bg-emerald-500/30 px-2.5 py-0.5 rounded-full">✓ Liquidar</span>
+              </button>
+
+              {/* Botão 3: Marcar como Pendente */}
+              <button
+                onClick={async () => {
+                  try {
+                    await unmarkBatchTransactionsPaidAction(selectedIds);
+                    setSelectedIds([]);
+                    setBatchActionsModalOpen(false);
+                    await loadData();
+                  } catch (err) {
+                    console.error("Erro ao marcar como pendente:", err);
+                  }
+                }}
+                className="w-full px-4 py-3 bg-amber-500 hover:bg-amber-400 text-white text-xs font-black rounded-2xl shadow-md shadow-amber-500/30 flex items-center justify-between transition-all cursor-pointer group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <RotateCcw className="w-4 h-4 text-amber-100 group-hover:scale-110 transition-transform" />
+                  <span>Marcar como Pendente</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold bg-amber-400/30 px-2.5 py-0.5 rounded-full">⟲ Reverter</span>
+              </button>
+
+              {/* Botão 4: Excluir Selecionados */}
+              <button
+                onClick={() => {
+                  setBatchActionsModalOpen(false);
+                  setBatchDeleteModalOpen(true);
+                }}
+                className="w-full px-4 py-3 border border-rose-500/50 hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-black rounded-2xl transition-all cursor-pointer flex items-center justify-between group mt-1"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Trash2 className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                  <span>Excluir Selecionados</span>
+                </div>
+                <span className="text-[10px] uppercase font-bold bg-rose-500/10 text-rose-500 px-2.5 py-0.5 rounded-full">Remover</span>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setBatchActionsModalOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </div>
       )}
