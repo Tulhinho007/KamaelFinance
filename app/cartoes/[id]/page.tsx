@@ -114,7 +114,26 @@ export default function CartaoDetailPage() {
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   const toggleCategory = (catKey: string) => {
-    setExpandedCategories(prev => ({ ...prev, [catKey]: prev[catKey] === false ? true : false }));
+    setExpandedCategories(prev => ({
+      ...prev,
+      [catKey]: prev[catKey] === true ? false : true
+    }));
+  };
+
+  const expandAllCategories = (catKeys: string[]) => {
+    setExpandedCategories(prev => {
+      const next = { ...prev };
+      catKeys.forEach(k => { next[k] = true; });
+      return next;
+    });
+  };
+
+  const collapseAllCategories = (catKeys: string[]) => {
+    setExpandedCategories(prev => {
+      const next = { ...prev };
+      catKeys.forEach(k => { next[k] = false; });
+      return next;
+    });
   };
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
@@ -782,31 +801,61 @@ export default function CartaoDetailPage() {
                 <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Modo de Exibição das Tabelas</h3>
                 <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Escolha visualizar os lançamentos agrupados por categoria ou em lista completa</p>
               </div>
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grouped")}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    viewMode === "grouped"
-                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <FolderTree className="w-4 h-4" />
-                  <span>Por Categoria</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                    viewMode === "list"
-                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <List className="w-4 h-4" />
-                  <span>Lista Completa</span>
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {viewMode === "grouped" && (
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const vistaKeys = Array.from(new Set(vistaPurchases.map(p => `vista-${p.category || "Outros"}`)));
+                        const subKeys = Array.from(new Set(subscriptionPurchases.map(p => `sub-${p.category || "Outros"}`)));
+                        expandAllCategories([...vistaKeys, ...subKeys]);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
+                      title="Expandir todas as categorias"
+                    >
+                      Expandir Todas ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const vistaKeys = Array.from(new Set(vistaPurchases.map(p => `vista-${p.category || "Outros"}`)));
+                        const subKeys = Array.from(new Set(subscriptionPurchases.map(p => `sub-${p.category || "Outros"}`)));
+                        collapseAllCategories([...vistaKeys, ...subKeys]);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
+                      title="Recolher todas as categorias"
+                    >
+                      Recolher Todas ▲
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grouped")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      viewMode === "grouped"
+                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <FolderTree className="w-4 h-4" />
+                    <span>Por Categoria</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                      viewMode === "list"
+                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <List className="w-4 h-4" />
+                    <span>Lista Completa</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -922,7 +971,7 @@ export default function CartaoDetailPage() {
 
                         return Object.entries(grouped).map(([catName, items]) => {
                           const catKey = `vista-${catName}`;
-                          const isExpanded = expandedCategories[catKey] !== false;
+                          const isExpanded = expandedCategories[catKey] === true;
                           const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
 
                           return (
@@ -1081,7 +1130,7 @@ export default function CartaoDetailPage() {
 
                         return Object.entries(grouped).map(([catName, items]) => {
                           const catKey = `sub-${catName}`;
-                          const isExpanded = expandedCategories[catKey] !== false;
+                          const isExpanded = expandedCategories[catKey] === true;
                           const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
 
                           return (
@@ -1296,31 +1345,71 @@ export default function CartaoDetailPage() {
               </div>
 
               {/* Seletor de Modo de Visualização */}
-              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grouped")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    viewMode === "grouped"
-                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <FolderTree className="w-3.5 h-3.5" />
-                  <span>Por Categoria</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    viewMode === "list"
-                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <List className="w-3.5 h-3.5" />
-                  <span>Lista Completa</span>
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {viewMode === "grouped" && (
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const monthTransactions = (cardData.allTransactions || [])
+                          .filter((t) => t.type === "EXPENSE")
+                          .filter((t) => {
+                            const parts = t.date.split("-");
+                            return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+                          });
+                        const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
+                        expandAllCategories(bankKeys);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
+                      title="Expandir todas as categorias"
+                    >
+                      Expandir Todas ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const monthTransactions = (cardData.allTransactions || [])
+                          .filter((t) => t.type === "EXPENSE")
+                          .filter((t) => {
+                            const parts = t.date.split("-");
+                            return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+                          });
+                        const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
+                        collapseAllCategories(bankKeys);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
+                      title="Recolher todas as categorias"
+                    >
+                      Recolher Todas ▲
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grouped")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      viewMode === "grouped"
+                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <FolderTree className="w-3.5 h-3.5" />
+                    <span>Por Categoria</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      viewMode === "list"
+                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>Lista Completa</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1456,7 +1545,7 @@ export default function CartaoDetailPage() {
                         });
                         return Object.entries(grouped).map(([catName, items]) => {
                           const catKey = `bank-${catName}`;
-                          const isExpanded = expandedCategories[catKey] !== false;
+                          const isExpanded = expandedCategories[catKey] === true;
                           const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
                           return (
                             <React.Fragment key={catKey}>
