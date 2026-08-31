@@ -300,14 +300,23 @@ export default function CartaoDetailPage() {
     return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
-  // 1. Compras À Vista (Mês Atual - Exclui parceladas) - Considera EXCLUSIVAMENTE a DATA DO DÉBITO/VENCIMENTO
+  // 1. Assinaturas & Recorrências (Mês Atual)
+  const subscriptionPurchases = purchasesList.filter((p) => {
+    if (!p) return false;
+    const { year, month } = getYearMonth(p.date);
+    const isSub = !!(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura")));
+    return year === selectedYear && month === selectedMonth && isSub;
+  });
+
+  // 2. Compras À Vista (Mês Atual - Exclui parceladas e assinaturas)
   const vistaPurchases = purchasesList.filter((p) => {
     if (!p || p.type !== "vista") return false;
     const { year, month } = getYearMonth(p.date);
-    return year === selectedYear && month === selectedMonth;
+    const isSub = !!(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura")));
+    return year === selectedYear && month === selectedMonth && !isSub;
   });
 
-  // 2. Lançamentos Parcelados (filtrados estritamente pelo mês/ano da DATA DO DÉBITO)
+  // 3. Lançamentos Parcelados (filtrados estritamente pelo mês/ano da DATA DO DÉBITO)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
   const parceladoPurchasesProcessed = purchasesList
@@ -341,12 +350,13 @@ export default function CartaoDetailPage() {
     });
 
   // Cálculos financeiros
+  const saldoAssinaturas = subscriptionPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
   const saldoVista = vistaPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
   const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
   const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
 
-  // Para Cartão de Crédito - Fatura do Mês (À vista + Parcelas do mês)
-  const impactoMes = saldoVista + totalParceladoMes;
+  // Para Cartão de Crédito - Fatura do Mês (Assinaturas + À vista + Parcelas do mês)
+  const impactoMes = saldoAssinaturas + saldoVista + totalParceladoMes;
   
   // Recomposição de Limite Disponível:
   // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
@@ -868,7 +878,124 @@ export default function CartaoDetailPage() {
               )}
             </section>
 
+            {/* TABELA 2: Assinaturas & Recorrências */}
+            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Assinaturas & Recorrências</h3>
+                  </div>
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Serviços de cobrança recorrente no cartão</p>
+                </div>
+                <span className="text-xs font-black text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-xl border border-purple-200 dark:border-purple-800/60">
+                  Total Assinaturas: {brl(saldoAssinaturas)}
+                </span>
+              </div>
 
+              {subscriptionPurchases.length === 0 ? (
+                <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhuma assinatura ou cobrança recorrente lançada neste mês.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
+                  <table className="w-full text-left text-xs">
+                    <thead>
+                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                        <th className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
+                          <input
+                            type="checkbox"
+                            checked={subscriptionPurchases.length > 0 && subscriptionPurchases.every(p => selectedIds.includes(p.id))}
+                            onChange={() => {
+                              const allSelected = subscriptionPurchases.every(p => selectedIds.includes(p.id));
+                              if (allSelected) {
+                                setSelectedIds(prev => prev.filter(id => !subscriptionPurchases.some(p => p.id === id)));
+                              } else {
+                                const newIds = Array.from(new Set([...selectedIds, ...subscriptionPurchases.map(p => p.id)]));
+                                setSelectedIds(newIds);
+                              }
+                            }}
+                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                            title="Selecionar Todos"
+                          />
+                        </th>
+                        <th className="p-3">Data</th>
+                        <th className="p-3">Descrição</th>
+                        <th className="p-3">Categoria</th>
+                        <th className="p-3 text-right">Valor</th>
+                        <th className="p-3 text-center whitespace-nowrap">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+                      {subscriptionPurchases.map(p => (
+                        <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                          <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(p.id)}
+                              onChange={() => {
+                                setSelectedIds(prev =>
+                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                );
+                              }}
+                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            <div>{formatDateBR(p.date)}</div>
+                            {p.competenceDate && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800">
+                                Ref: {(() => {
+                                  const parts = p.competenceDate.split("-");
+                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
+                                })()}
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                            <span>{p.description}</span>
+                            <span className="inline-flex items-center text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                              Assinatura
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
+                              {p.category}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-black text-purple-600 dark:text-purple-400">{brl(p.amount)}</td>
+                          <td className="p-3 text-center whitespace-nowrap">
+                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await duplicateExpenseToNextMonthAction(p.id);
+                                    await loadData();
+                                    showAlert(`Assinatura "${p.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                                  } catch (err) {
+                                    console.error(err);
+                                    showAlert("Erro ao duplicar assinatura.", { variant: "error" });
+                                  }
+                                }}
+                                title="Duplicar esta assinatura para o mês seguinte"
+                                className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+                              >
+                                <CopyPlus className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Assinatura">
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Assinatura">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
 
             {/* TABELA 3: Lançamentos Parcelados */}
             <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">

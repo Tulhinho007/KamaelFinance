@@ -56,6 +56,7 @@ export function NewPurchaseModal({
   const [formDate, setFormDate]                   = useState(new Date().toISOString().split("T")[0]);
   const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
   const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
+  const [formIsRecurring, setFormIsRecurring]         = useState<boolean>(false);
   const [saving, setSaving]                       = useState(false);
 
   const isEditMode = !!(initialData && initialData.id);
@@ -74,7 +75,8 @@ export function NewPurchaseModal({
             setFormAmount(initialData.amount != null ? initialData.amount : "");
             setFormInstallmentsCount(initialData.installmentsCount || 2);
             setFormDate(initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
-            
+            setFormIsRecurring(!!(initialData.isRecurring || (initialData.tags && initialData.tags.toLowerCase().includes("assinatura"))));
+
             const refDateStr = initialData.competenceDate || initialData.date;
             if (refDateStr) {
               const parts = refDateStr.split("T")[0].split("-");
@@ -95,6 +97,7 @@ export function NewPurchaseModal({
             setFormTags("");
             setFormAmount("");
             setFormType("vista");
+            setFormIsRecurring(false);
             const todayStr = new Date().toISOString().split("T")[0];
             setFormDate(todayStr);
             const now = new Date();
@@ -131,6 +134,11 @@ export function NewPurchaseModal({
     const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
     const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
 
+    let finalTags = formTags;
+    if (formIsRecurring && !finalTags.toLowerCase().includes("assinatura")) {
+      finalTags = finalTags ? `${finalTags}, #assinatura` : "#assinatura";
+    }
+
     setSaving(true);
     try {
       if (isEditMode && initialData?.id) {
@@ -142,8 +150,8 @@ export function NewPurchaseModal({
           totalAmountVal,
           installments,
           formDate,
-          formTags,
-          false,
+          finalTags,
+          formIsRecurring,
           undefined,
           compDateStr
         );
@@ -155,8 +163,8 @@ export function NewPurchaseModal({
           totalAmountVal,
           installments,
           formDate,
-          formTags,
-          false,
+          finalTags,
+          formIsRecurring,
           undefined,
           compDateStr
         );
@@ -278,6 +286,25 @@ export function NewPurchaseModal({
                 className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 pl-10 pr-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
               />
             </div>
+          </div>
+
+          {/* Campo: Marcar como Assinatura / Recorrência */}
+          <div className="flex items-start gap-3 p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl transition-all">
+            <input
+              type="checkbox"
+              id="isRecurringToggle"
+              checked={formIsRecurring}
+              onChange={e => setFormIsRecurring(e.target.checked)}
+              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer mt-0.5"
+            />
+            <label htmlFor="isRecurringToggle" className="cursor-pointer select-none">
+              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                Marcar como Assinatura / Recorrência
+              </span>
+              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-0.5">
+                Despesas recorrentes cobradas mensalmente no cartão (ex: Netflix, Spotify, Internet).
+              </span>
+            </label>
           </div>
 
           {/* Campo 4: Tipo de Lançamento (À Vista vs Parcelado) */}
