@@ -740,8 +740,8 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART - EXIBIDO EM VISÃO GERAL E CRÉDITO) ──────── */}
-      {(activeTab === "overview" || activeTab === "credit") && (
+      {/* ── 4. SEÇÃO DE DISTRIBUIÇÃO GRÁFICA (DONUT CHART - EXIBIDO EXCLUSIVAMENTE EM CRÉDITO) ──────── */}
+      {activeTab === "credit" && (
         <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2">
