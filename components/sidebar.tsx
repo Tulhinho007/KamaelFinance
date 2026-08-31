@@ -10,6 +10,7 @@ import {
   Target,
   TrendingUp,
   CreditCard,
+  Radar,
   PieChart,
   Calendar,
   Sun,
@@ -75,6 +76,7 @@ export function Sidebar() {
       items: [
         { label: "Receitas", icon: TrendingUp, path: "/receitas" },
         { label: "Despesas & Contas", icon: CreditCard, path: "/despesas" },
+        { label: "Radar de Gastos", icon: Radar, path: "/gestao-financeira/radar-gastos" },
         { label: "Investimentos", icon: PieChart, path: "/investimentos" },
         { label: "Calendário", icon: Calendar, path: "/planejamento/calendario" },
       ],

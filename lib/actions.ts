@@ -76,7 +76,7 @@ function isSubscriptionPaymentTransaction(t: {
  * 2. Tenta o DEV_USER_ID do .env se existir no banco.
  * 3. Fallback: primeiro usuário cadastrado.
  */
-async function getActiveUserId(): Promise<string> {
+export async function getActiveUserId(): Promise<string> {
   try {
     const cookieStore = await cookies();
     const sessionVal = cookieStore.get("kamael_session")?.value;
