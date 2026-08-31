@@ -18,7 +18,8 @@ import {
   Filter,
   Layers,
   ArrowUpRight,
-  ShieldAlert
+  ShieldAlert,
+  Zap
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -26,6 +27,7 @@ import {
   getMonthlyBudgetDataAction,
   updateCategoryBudgetAction,
   copyBudgetsFromPreviousMonthAction,
+  batchUpdateCategoryBudgetsAction,
   MonthlyBudgetOverview,
   CategoryBudgetItem
 } from "@/lib/budget-actions";
@@ -39,19 +41,25 @@ export default function OrcamentosPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<MonthlyBudgetOverview | null>(null);
 
-  // Filtros
+  // Filtros (Padronizado para exibir apenas categorias COM LIMITE por padrao)
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<
     "ALL" | "WITH_LIMIT" | "WARNING" | "DANGER" | "NO_LIMIT"
-  >("ALL");
+  >("WITH_LIMIT");
 
-  // State do Modal de Edição de Limite
+  // State do Modal de Edição de Limite Individual
   const [editingCategory, setEditingCategory] =
     useState<CategoryBudgetItem | null>(null);
   const [inputLimit, setInputLimit] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
   const [copying, setCopying] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // State do Modal de Gestão em Lote
+  const [bulkModalOpen, setBulkModalOpen] = useState<boolean>(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
+  const [bulkInputLimit, setBulkInputLimit] = useState<string>("");
+  const [bulkSaving, setBulkSaving] = useState<boolean>(false);
 
   const fetchBudgetData = useCallback(async () => {
     setLoading(true);
@@ -134,20 +142,57 @@ export default function OrcamentosPage() {
     }
   };
 
-  // Filtragem de Categorias
-  const filteredCategories = (data?.categories || []).filter((cat) => {
-    const matchesSearch = cat.categoryName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+  // Handler de Aplicação / Remoção de Limites em Lote
+  const handleBatchSaveBudget = async (maxAmountValue: number) => {
+    if (bulkSelectedIds.length === 0) {
+      alert("Selecione ao menos uma categoria para aplicar as alterações em lote.");
+      return;
+    }
+    setBulkSaving(true);
+    try {
+      const res = await batchUpdateCategoryBudgetsAction({
+        categoryIds: bulkSelectedIds,
+        maxAmount: maxAmountValue,
+        month: selectedMonth,
+        year: selectedYear,
+      });
 
-    let matchesStatus = true;
-    if (statusFilter === "WITH_LIMIT") matchesStatus = cat.budgetLimit > 0;
-    else if (statusFilter === "WARNING") matchesStatus = cat.status === "WARNING";
-    else if (statusFilter === "DANGER") matchesStatus = cat.status === "DANGER";
-    else if (statusFilter === "NO_LIMIT") matchesStatus = cat.status === "NO_LIMIT";
+      if (res.success) {
+        showToast(
+          maxAmountValue > 0
+            ? `Limite de ${brl(maxAmountValue)} aplicado para ${res.count} categorias!`
+            : `Limites de ${res.count} categorias removidos com sucesso.`
+        );
+        setBulkModalOpen(false);
+        setBulkSelectedIds([]);
+        setBulkInputLimit("");
+        await fetchBudgetData();
+      } else {
+        alert(res.error || "Erro ao salvar alterações em lote.");
+      }
+    } catch (err) {
+      console.error("Erro ao salvar em lote:", err);
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
-    return matchesSearch && matchesStatus;
-  });
+  // Filtragem e Ordenação por Gasto Real Decrescente
+  const filteredCategories = (data?.categories || [])
+    .filter((cat) => {
+      const matchesSearch = cat.categoryName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+
+      let matchesStatus = true;
+      if (statusFilter === "WITH_LIMIT") matchesStatus = cat.budgetLimit > 0;
+      else if (statusFilter === "WARNING") matchesStatus = cat.status === "WARNING";
+      else if (statusFilter === "DANGER") matchesStatus = cat.status === "DANGER";
+      else if (statusFilter === "NO_LIMIT") matchesStatus = cat.status === "NO_LIMIT";
+
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => b.spentAmount - a.spentAmount);
 
   const getStatusBadge = (status: CategoryBudgetItem["status"], pct: number) => {
     if (status === "DANGER") {
@@ -289,6 +334,19 @@ export default function OrcamentosPage() {
 
               {/* Botões de Ação Rápida */}
               <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkSelectedIds([]);
+                    setBulkInputLimit("");
+                    setBulkModalOpen(true);
+                  }}
+                  className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300" />
+                  <span>⚡ Gestão em Lote</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleCopyFromPrevious}
@@ -578,6 +636,179 @@ export default function OrcamentosPage() {
               >
                 {saving ? "Salvando..." : "Salvar Teto"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gestão em Lote de Limites */}
+      {bulkModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-lg w-full space-y-5 animate-in fade-in zoom-in-95 duration-150 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20 shrink-0">
+                  <Zap className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                    Gestão em Lote de Tetos de Gastos
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Aplique ou remova limites para múltiplas categorias de uma vez
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setBulkModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+              {/* Seleção Múltipla / Checkbox Header */}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={
+                      (data?.categories || []).length > 0 &&
+                      (data?.categories || []).every((cat) => bulkSelectedIds.includes(cat.categoryId))
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setBulkSelectedIds((data?.categories || []).map((cat) => cat.categoryId));
+                      } else {
+                        setBulkSelectedIds([]);
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span>Selecionar Todas as Categorias ({(data?.categories || []).length})</span>
+                </label>
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                  {bulkSelectedIds.length} selecionadas
+                </span>
+              </div>
+
+              {/* Lista Scrollável de Categorias */}
+              <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                {(data?.categories || []).map((cat) => {
+                  const isChecked = bulkSelectedIds.includes(cat.categoryId);
+                  return (
+                    <label
+                      key={cat.categoryId}
+                      className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer ${
+                        isChecked
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800"
+                          : "bg-white dark:bg-slate-900 border-slate-200/70 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setBulkSelectedIds((prev) => [...prev, cat.categoryId]);
+                            } else {
+                              setBulkSelectedIds((prev) => prev.filter((id) => id !== cat.categoryId));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                        />
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.categoryColor }} />
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{cat.categoryName}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-[10px] font-bold text-slate-400 block">
+                          Teto: {cat.budgetLimit > 0 ? brl(cat.budgetLimit) : "Sem teto"}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Campo para o Novo Teto de Gastos */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
+                  Valor do Teto para as Selecionadas (R$)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                    R$
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50"
+                    value={bulkInputLimit}
+                    onChange={(e) => setBulkInputLimit(e.target.value)}
+                    placeholder="Ex: 500,00"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-extrabold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+
+              {/* Presets Rápidos em Lote */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-400 block">
+                  Atalhos de Valor:
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {[200, 500, 1000, 1500, 2000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setBulkInputLimit(preset.toString())}
+                      className="px-3 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                    >
+                      {brl(preset)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer com Ação 1 (Aplicar Limite) e Ação 2 (Remover Limite em Lote) */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  handleBatchSaveBudget(0);
+                }}
+                disabled={bulkSaving || bulkSelectedIds.length === 0}
+                className="w-full sm:w-auto px-4 py-2.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800/60 text-rose-600 dark:text-rose-400 text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Remover Limite em Lote
+              </button>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => setBulkModalOpen(false)}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const val = parseFloat(bulkInputLimit.replace(",", ".")) || 0;
+                    handleBatchSaveBudget(val);
+                  }}
+                  disabled={bulkSaving || bulkSelectedIds.length === 0}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl shadow-md shadow-indigo-600/30 transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  {bulkSaving ? "Salvando..." : "Aplicar Limite em Lote"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

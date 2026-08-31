@@ -279,3 +279,64 @@ export async function copyBudgetsFromPreviousMonthAction({
     return { success: false, error: "Erro ao copiar orçamentos." };
   }
 }
+
+export async function batchUpdateCategoryBudgetsAction({
+  categoryIds,
+  maxAmount,
+  month,
+  year,
+}: {
+  categoryIds: string[];
+  maxAmount: number;
+  month: number;
+  year: number;
+}) {
+  try {
+    const userId = await getActiveUserId();
+    const amount = Math.max(0, Number(maxAmount));
+
+    if (categoryIds.length === 0) {
+      return { success: false, error: "Nenhuma categoria selecionada." };
+    }
+
+    if (amount === 0) {
+      await prisma.categoryBudget.deleteMany({
+        where: {
+          userId,
+          month,
+          year,
+          categoryId: { in: categoryIds },
+        },
+      });
+    } else {
+      for (const catId of categoryIds) {
+        await prisma.categoryBudget.upsert({
+          where: {
+            userId_categoryId_month_year: {
+              userId,
+              categoryId: catId,
+              month,
+              year,
+            },
+          },
+          create: {
+            userId,
+            categoryId: catId,
+            month,
+            year,
+            maxAmount: amount,
+          },
+          update: {
+            maxAmount: amount,
+          },
+        });
+      }
+    }
+
+    revalidatePath("/gestao-financeira/orcamentos");
+    return { success: true, count: categoryIds.length };
+  } catch (error) {
+    console.error("Erro ao atualizar tetos em lote:", error);
+    return { success: false, error: "Falha ao salvar limites em lote." };
+  }
+}
