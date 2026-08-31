@@ -11,7 +11,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -108,6 +108,14 @@ export default function CartaoDetailPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false);
+
+  // Modo de Visualização (Agrupado por Categoria vs Lista Completa) e Accordion State
+  const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (catKey: string) => {
+    setExpandedCategories(prev => ({ ...prev, [catKey]: prev[catKey] === false ? true : false }));
+  };
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
   const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
@@ -765,8 +773,43 @@ export default function CartaoDetailPage() {
             </div>
           </section>
 
-          {/* DIVISÃO DE TABELAS NO EXTRATO DO CARTÃO DE CRÉDITO (3 TABELAS SEPARADAS) */}
-          <div className="flex flex-col gap-8">
+          {/* DIVISÃO DE TABELAS NO EXTRATO DO CARTÃO DE CRÉDITO */}
+          <div className="flex flex-col gap-6">
+            
+            {/* Barra de Controle de Visualização (Agrupado vs Lista Completa) */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Modo de Exibição das Tabelas</h3>
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Escolha visualizar os lançamentos agrupados por categoria ou em lista completa</p>
+              </div>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grouped")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    viewMode === "grouped"
+                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <FolderTree className="w-4 h-4" />
+                  <span>Por Categoria</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                    viewMode === "list"
+                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <List className="w-4 h-4" />
+                  <span>Lista Completa</span>
+                </button>
+              </div>
+            </div>
+
             {/* TABELA 1: Compras à Vista (Mês Atual) */}
             <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
               <div className="flex justify-between items-center">
@@ -811,67 +854,107 @@ export default function CartaoDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {vistaPurchases.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                          <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(p.id)}
-                              onChange={() => {
-                                setSelectedIds(prev =>
-                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                );
-                              }}
-                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            <div>{formatDateBR(p.date)}</div>
-                            {p.competenceDate && (
-                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                Ref: {(() => {
-                                  const parts = p.competenceDate.split("-");
-                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
-                                })()}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
-                          <td className="p-3">
-                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
-                              {p.category}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const res = await duplicateExpenseToNextMonthAction(p.id);
-                                    await loadData();
-                                    showAlert(`Lançamento "${p.description}" duplicado para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                                  } catch (err) {
-                                    console.error(err);
-                                    showAlert("Erro ao duplicar lançamento.", { variant: "error" });
-                                  }
+                      {(() => {
+                        const renderVistaRow = (p: typeof vistaPurchases[0]) => (
+                          <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                            <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(p.id)}
+                                onChange={() => {
+                                  setSelectedIds(prev =>
+                                    prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                  );
                                 }}
-                                title="Duplicar este lançamento para o mês seguinte"
-                                className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                              <div>{formatDateBR(p.date)}</div>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
+                            <td className="p-3">
+                              <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
+                                {p.category}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
+                            <td className="p-3 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await duplicateExpenseToNextMonthAction(p.id);
+                                      await loadData();
+                                      showAlert(`Lançamento "${p.description}" duplicado para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                                    } catch (err) {
+                                      console.error(err);
+                                      showAlert("Erro ao duplicar lançamento.", { variant: "error" });
+                                    }
+                                  }}
+                                  title="Duplicar este lançamento para o mês seguinte"
+                                  className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                                >
+                                  <CopyPlus className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Lançamento">
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Lançamento">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+
+                        if (viewMode === "list") {
+                          return vistaPurchases.map(renderVistaRow);
+                        }
+
+                        // Modo Agrupado por Categoria
+                        const grouped: Record<string, typeof vistaPurchases> = {};
+                        vistaPurchases.forEach(p => {
+                          const cat = p.category || "Outros";
+                          if (!grouped[cat]) grouped[cat] = [];
+                          grouped[cat].push(p);
+                        });
+
+                        return Object.entries(grouped).map(([catName, items]) => {
+                          const catKey = `vista-${catName}`;
+                          const isExpanded = expandedCategories[catKey] !== false;
+                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
+
+                          return (
+                            <React.Fragment key={catKey}>
+                              <tr
+                                onClick={() => toggleCategory(catKey)}
+                                className="bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-200 dark:border-slate-800 font-bold select-none"
                               >
-                                <CopyPlus className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Lançamento">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Lançamento">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <td colSpan={3} className="p-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="p-1 text-indigo-600 dark:text-indigo-400">
+                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                                    </span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{catName}</span>
+                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                      {items.length} {items.length === 1 ? "compra" : "compras"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-3 uppercase text-[10px] font-semibold text-slate-400">Subtotal Categoria</td>
+                                <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400 text-xs tabular-nums">
+                                  {brl(catTotal)}
+                                </td>
+                                <td className="p-3 text-center text-slate-400 text-[10px] font-medium">
+                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
+                                </td>
+                              </tr>
+                              {isExpanded && items.map(renderVistaRow)}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -925,72 +1008,112 @@ export default function CartaoDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {subscriptionPurchases.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                          <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(p.id)}
-                              onChange={() => {
-                                setSelectedIds(prev =>
-                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                );
-                              }}
-                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            <div>{formatDateBR(p.date)}</div>
-                            {p.competenceDate && (
-                              <span className="inline-block mt-0.5 text-[9px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800">
-                                Ref: {(() => {
-                                  const parts = p.competenceDate.split("-");
-                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
-                                })()}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                            <span>{p.description}</span>
-                            <span className="inline-flex items-center text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
-                              Assinatura
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
-                              {p.category}
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-black text-purple-600 dark:text-purple-400">{brl(p.amount)}</td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button
-                                onClick={async () => {
-                                  try {
-                                    const res = await duplicateExpenseToNextMonthAction(p.id);
-                                    await loadData();
-                                    showAlert(`Assinatura "${p.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                                  } catch (err) {
-                                    console.error(err);
-                                    showAlert("Erro ao duplicar assinatura.", { variant: "error" });
-                                  }
+                      {(() => {
+                        const renderSubRow = (p: typeof subscriptionPurchases[0]) => (
+                          <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                            <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(p.id)}
+                                onChange={() => {
+                                  setSelectedIds(prev =>
+                                    prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
+                                  );
                                 }}
-                                title="Duplicar esta assinatura para o mês seguinte"
-                                className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
+                              <div>{formatDateBR(p.date)}</div>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <span>{p.description}</span>
+                              <span className="inline-flex items-center text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
+                                Assinatura
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
+                                {p.category}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-black text-purple-600 dark:text-purple-400">{brl(p.amount)}</td>
+                            <td className="p-3 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await duplicateExpenseToNextMonthAction(p.id);
+                                      await loadData();
+                                      showAlert(`Assinatura "${p.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
+                                    } catch (err) {
+                                      console.error(err);
+                                      showAlert("Erro ao duplicar assinatura.", { variant: "error" });
+                                    }
+                                  }}
+                                  title="Duplicar esta assinatura para o mês seguinte"
+                                  className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+                                >
+                                  <CopyPlus className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Assinatura">
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Assinatura">
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+
+                        if (viewMode === "list") {
+                          return subscriptionPurchases.map(renderSubRow);
+                        }
+
+                        // Modo Agrupado por Categoria
+                        const grouped: Record<string, typeof subscriptionPurchases> = {};
+                        subscriptionPurchases.forEach(p => {
+                          const cat = p.category || "Outros";
+                          if (!grouped[cat]) grouped[cat] = [];
+                          grouped[cat].push(p);
+                        });
+
+                        return Object.entries(grouped).map(([catName, items]) => {
+                          const catKey = `sub-${catName}`;
+                          const isExpanded = expandedCategories[catKey] !== false;
+                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
+
+                          return (
+                            <React.Fragment key={catKey}>
+                              <tr
+                                onClick={() => toggleCategory(catKey)}
+                                className="bg-purple-50/60 dark:bg-purple-950/40 hover:bg-purple-100/60 dark:hover:bg-purple-900/40 transition-colors cursor-pointer border-b border-purple-100 dark:border-purple-900/50 font-bold select-none"
                               >
-                                <CopyPlus className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Assinatura">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Assinatura">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                <td colSpan={3} className="p-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="p-1 text-purple-600 dark:text-purple-400">
+                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                                    </span>
+                                    <span className="text-xs font-black text-purple-900 dark:text-purple-200 uppercase tracking-wider">{catName}</span>
+                                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-md">
+                                      {items.length} {items.length === 1 ? "assinatura" : "assinaturas"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-3 uppercase text-[10px] font-semibold text-purple-400 dark:text-purple-500">Subtotal Categoria</td>
+                                <td className="p-3 text-right font-black text-purple-700 dark:text-purple-300 text-xs tabular-nums">
+                                  {brl(catTotal)}
+                                </td>
+                                <td className="p-3 text-center text-purple-400 text-[10px] font-medium">
+                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
+                                </td>
+                              </tr>
+                              {isExpanded && items.map(renderSubRow)}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -1143,7 +1266,6 @@ export default function CartaoDetailPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Despesas quitadas no mês</p>
               </div>
             </div>
-
             {/* Card 4: Total Pendente */}
             <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-500/20 flex flex-col justify-between shadow-sm">
               <div className="flex items-center justify-between">
@@ -1160,9 +1282,9 @@ export default function CartaoDetailPage() {
 
           </section>
 
-          {/* TABELA: EXTRATO DE DESPESAS DA CONTA SANTANDER (DARK THEME GLASSMORPHISM) */}
+          {/* TABELA: EXTRATO DE DESPESAS DA CONTA SANTANDER / BANCO */}
           <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -1171,6 +1293,34 @@ export default function CartaoDetailPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Acompanhe e confirme o pagamento de todas as saídas registradas nesta conta.
                 </p>
+              </div>
+
+              {/* Seletor de Modo de Visualização */}
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grouped")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === "grouped"
+                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <FolderTree className="w-3.5 h-3.5" />
+                  <span>Por Categoria</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    viewMode === "list"
+                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Lista Completa</span>
+                </button>
               </div>
             </div>
 
@@ -1222,87 +1372,121 @@ export default function CartaoDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {monthTransactions.map((t) => {
-                        const isPaid = t.status !== "PENDING";
-                        return (
-                          <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                            <td className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(t.id)}
-                                onChange={() => {
-                                  setSelectedIds(prev =>
-                                    prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                  );
-                                }}
-                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              <div>{t.date.split("-").reverse().join("/")}</div>
-                              {t.competenceDate && (
-                                <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                  Ref: {(() => {
-                                    const parts = t.competenceDate.split("-");
-                                    const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                    return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
-                                  })()}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">{t.description}</td>
-                            <td className="p-4">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium uppercase">
-                                {t.category || "Despesa"}
-                              </span>
-                            </td>
-                            <td className="p-4 text-right font-bold text-slate-900 dark:text-white text-sm tabular-nums">
-                              {brl(t.amount)}
-                            </td>
-                            <td className="p-4 text-center">
-                              {isPaid ? (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] font-bold">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                  Pago
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-[11px] font-bold">
-                                  <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                  Pendente
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-4 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      await toggleTransactionStatusAction(t.id);
-                                      await loadData();
-                                    } catch (err) {
-                                      console.error(err);
-                                    }
+                      {(() => {
+                        const renderBankRow = (t: typeof monthTransactions[0]) => {
+                          const isPaid = t.status !== "PENDING";
+                          return (
+                            <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                              <td className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.includes(t.id)}
+                                  onChange={() => {
+                                    setSelectedIds(prev =>
+                                      prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
+                                    );
                                   }}
-                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                    isPaid
-                                      ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                      : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                  }`}
-                                  title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
-                                >
-                                  <CheckCircle2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }} className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                                  className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                <div>{t.date.split("-").reverse().join("/")}</div>
+                              </td>
+                              <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">{t.description}</td>
+                              <td className="p-4">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[10px] font-medium uppercase">
+                                  {t.category || "Despesa"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right font-bold text-slate-900 dark:text-white text-sm tabular-nums">
+                                {brl(t.amount)}
+                              </td>
+                              <td className="p-4 text-center">
+                                {isPaid ? (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] font-bold">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    Pago
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-[11px] font-bold">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                    Pendente
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 text-center whitespace-nowrap">
+                                <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await toggleTransactionStatusAction(t.id);
+                                        await loadData();
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      isPaid
+                                        ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                        : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
+                                    }`}
+                                    title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
+                                  >
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }} className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Excluir">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        };
+                        if (viewMode === "list") {
+                          return monthTransactions.map(renderBankRow);
+                        }
+                        const grouped: Record<string, typeof monthTransactions> = {};
+                        monthTransactions.forEach(t => {
+                          const cat = t.category || "Outros";
+                          if (!grouped[cat]) grouped[cat] = [];
+                          grouped[cat].push(t);
+                        });
+                        return Object.entries(grouped).map(([catName, items]) => {
+                          const catKey = `bank-${catName}`;
+                          const isExpanded = expandedCategories[catKey] !== false;
+                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
+                          return (
+                            <React.Fragment key={catKey}>
+                              <tr
+                                onClick={() => toggleCategory(catKey)}
+                                className="bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-200 dark:border-slate-800 font-bold select-none"
+                              >
+                                <td colSpan={4} className="p-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <span className="p-1 text-indigo-600 dark:text-indigo-400">
+                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
+                                    </span>
+                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{catName}</span>
+                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                      {items.length} {items.length === 1 ? "despesa" : "despesas"}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-right font-black text-indigo-600 dark:text-indigo-400 text-xs tabular-nums">
+                                  {brl(catTotal)}
+                                </td>
+                                <td colSpan={2} className="p-4 text-center text-slate-400 text-[10px] font-medium">
+                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
+                                </td>
+                              </tr>
+                              {isExpanded && items.map(renderBankRow)}
+                            </React.Fragment>
+                          );
+                        });
+                      })()}
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
