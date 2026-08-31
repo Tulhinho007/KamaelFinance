@@ -274,10 +274,17 @@ export default function MetasPage() {
     }
   };
 
+  const depositWallets = wallets.filter(
+    (w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card"
+  );
+
   const openAporteModal = (goal: Goal) => {
     setSelectedGoal(goal);
     setFormAporteVal("");
-    const defaultWId = goal.walletId || (wallets.length > 0 ? wallets[0].id : "");
+    const validWallets = wallets.filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
+    const defaultWId = (goal.walletId && validWallets.some(w => w.id === goal.walletId))
+      ? goal.walletId
+      : (validWallets.length > 0 ? validWallets[0].id : "");
     setFormAporteWalletId(defaultWId);
     setModalType("aporte");
   };
@@ -864,12 +871,12 @@ export default function MetasPage() {
                   <select
                     value={formWalletId}
                     onChange={(e) => setFormWalletId(e.target.value)}
-                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
                     <option value="">Nenhum cofre vinculado (Aportes manuais)</option>
-                    {wallets.map((w) => (
+                    {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
-                        {w.title} ({w.walletType}) - Saldo: {brl(w.currentTotal)}
+                        {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
                       </option>
                     ))}
                   </select>
@@ -941,12 +948,12 @@ export default function MetasPage() {
                     required
                     value={formAporteWalletId}
                     onChange={(e) => setFormAporteWalletId(e.target.value)}
-                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
-                    <option value="">Selecione a conta / banco onde o dinheiro fica guardado...</option>
-                    {wallets.map((w) => (
+                    <option value="">Selecione a conta de saldo / débito onde o dinheiro fica guardado...</option>
+                    {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
-                        🏦 {w.bankName || w.title} ({w.walletType}) - Saldo: {brl(w.currentTotal)}
+                        {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
                       </option>
                     ))}
                   </select>
@@ -1028,12 +1035,12 @@ export default function MetasPage() {
                             <select
                               value={editAporteWalletId}
                               onChange={(e) => setEditAporteWalletId(e.target.value)}
-                              className="w-full text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                              className="w-full truncate pr-10 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 p-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
                             >
                               <option value="">Selecione a conta...</option>
-                              {wallets.map((w) => (
+                              {depositWallets.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                  🏦 {w.bankName || w.title}
+                                  {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
                                 </option>
                               ))}
                             </select>
