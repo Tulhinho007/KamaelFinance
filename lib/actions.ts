@@ -406,133 +406,145 @@ export async function deleteRevenueAction(id: string) {
 // ---------- Actions de Metas ----------
 
 export async function getGoals() {
-  const userId = await getActiveUserId();
-  const goals = await prisma.goal.findMany({
-    where: { userId },
-    include: {
-      history: {
-        orderBy: { date: "asc" },
-        include: { wallet: true }
-      },
-      wallet: true,
-    } as any,
-    orderBy: { dataInicio: "asc" }
-  });
+  try {
+    const userId = await getActiveUserId();
+    const goals = await prisma.goal.findMany({
+      where: { userId },
+      include: {
+        history: {
+          orderBy: { date: "asc" },
+          include: { wallet: true }
+        },
+        wallet: true,
+      } as any,
+      orderBy: { dataInicio: "asc" }
+    });
 
-  const monthNames = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
+    const monthNames = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
 
-  return Promise.all(
-    goals.map(async (g: any) => {
-      let acumulado = Number(g.acumulado);
+    return Promise.all(
+      goals.map(async (g: any) => {
+        let acumulado = Number(g.acumulado || 0);
 
-      // Se a meta estiver vinculada a uma conta/cofre específica, o saldo acumulado reflete o saldo da conta
-      if (g.walletId && g.wallet) {
-        const walletTxs = await prisma.transaction.findMany({
-          where: { walletId: g.walletId, deletedAt: null, status: "COMPLETED" },
-        });
-        const wIncome = walletTxs.filter(t => t.type === "INCOME").reduce((s, t) => s + Number(t.amount), 0);
-        const wExpense = walletTxs.filter(t => t.type === "EXPENSE").reduce((s, t) => s + Number(t.amount), 0);
-        acumulado = Number(g.wallet.initialBalance || 0) + wIncome - wExpense;
-      }
+        // Se a meta estiver vinculada a uma conta/cofre específica, o saldo acumulado reflete o saldo da conta
+        if (g.walletId && g.wallet) {
+          const walletTxs = await prisma.transaction.findMany({
+            where: { walletId: g.walletId, deletedAt: null, status: "COMPLETED" },
+          });
+          const wIncome = walletTxs.filter(t => t.type === "INCOME").reduce((s, t) => s + Number(t.amount), 0);
+          const wExpense = walletTxs.filter(t => t.type === "EXPENSE").reduce((s, t) => s + Number(t.amount), 0);
+          acumulado = Number(g.wallet.initialBalance || 0) + wIncome - wExpense;
+        }
 
-      const objetivo = Number(g.objetivo);
-      const pct = objetivo > 0 ? Math.min(100, Math.round((acumulado / objetivo) * 100)) : 0;
+        const objetivo = Number(g.objetivo || 0);
+        const pct = objetivo > 0 ? Math.min(100, Math.round((acumulado / objetivo) * 100)) : 0;
 
-      // Cálculo de Média Móvel de Aportes Mensais com base no histórico
-      let mediaAporteMensal = 0;
-      let estimatedDateStr = "Aguardando aportes";
-      let paceStatus: "COMPLETED" | "ADVANCED" | "BEHIND" | "UNKNOWN" = "UNKNOWN";
+        // Cálculo de Média Móvel de Aportes Mensais com base no histórico
+        let mediaAporteMensal = 0;
+        let estimatedDateStr = "Aguardando aportes";
+        let paceStatus: "COMPLETED" | "ADVANCED" | "BEHIND" | "UNKNOWN" = "UNKNOWN";
 
-      if (pct >= 100) {
-        paceStatus = "COMPLETED";
-        estimatedDateStr = "Meta Concluída!";
-      } else if (g.history && g.history.length > 0) {
-        const totalAportado = g.history.reduce((s: number, h: any) => s + Number(h.amount), 0);
-        const firstDate = new Date(g.history[0].date);
-        const now = new Date();
-        const diffMonths = Math.max(1, (now.getFullYear() - firstDate.getFullYear()) * 12 + (now.getMonth() - firstDate.getMonth()) + 1);
-        mediaAporteMensal = totalAportado / diffMonths;
+        if (pct >= 100) {
+          paceStatus = "COMPLETED";
+          estimatedDateStr = "Meta Concluída!";
+        } else if (g.history && g.history.length > 0) {
+          const totalAportado = g.history.reduce((s: number, h: any) => s + Number(h.amount || 0), 0);
+          const firstDate = g.history[0]?.date ? new Date(g.history[0].date) : new Date();
+          const now = new Date();
+          const diffMonths = Math.max(1, (now.getFullYear() - firstDate.getFullYear()) * 12 + (now.getMonth() - firstDate.getMonth()) + 1);
+          mediaAporteMensal = totalAportado / diffMonths;
 
-        if (mediaAporteMensal > 0 && acumulado < objetivo) {
-          const remainingAmount = objetivo - acumulado;
-          const monthsNeeded = Math.ceil(remainingAmount / mediaAporteMensal);
-          const targetEstDate = new Date(now.getFullYear(), now.getMonth() + monthsNeeded, 1);
+          if (mediaAporteMensal > 0 && acumulado < objetivo) {
+            const remainingAmount = objetivo - acumulado;
+            const monthsNeeded = Math.ceil(remainingAmount / mediaAporteMensal);
+            const targetEstDate = new Date(now.getFullYear(), now.getMonth() + monthsNeeded, 1);
 
-          estimatedDateStr = `${monthNames[targetEstDate.getMonth()]}/${targetEstDate.getFullYear()}`;
-          const plannedEndDate = new Date(g.dataFim);
+            estimatedDateStr = `${monthNames[targetEstDate.getMonth()]}/${targetEstDate.getFullYear()}`;
+            const plannedEndDate = g.dataFim ? new Date(g.dataFim) : new Date();
 
-          if (targetEstDate <= plannedEndDate) {
-            paceStatus = "ADVANCED";
-          } else {
-            paceStatus = "BEHIND";
+            if (targetEstDate <= plannedEndDate) {
+              paceStatus = "ADVANCED";
+            } else {
+              paceStatus = "BEHIND";
+            }
           }
         }
-      }
 
-      const isCompleted = g.status === "COMPLETED" || pct >= 100;
-      const status = isCompleted ? "COMPLETED" : "ACTIVE";
-      let completedAtStr: string | null = null;
-      if (g.completedAt) {
-        completedAtStr = new Date(g.completedAt).toLocaleDateString("pt-BR");
-      } else if (isCompleted && g.history && g.history.length > 0) {
-        completedAtStr = new Date(g.history[g.history.length - 1].date).toLocaleDateString("pt-BR");
-      } else if (isCompleted) {
-        completedAtStr = new Date().toLocaleDateString("pt-BR");
-      }
-
-      // Detalhamento de distribuição de saldos guardados por conta/banco
-      const walletBreakdownMap: Record<string, { walletId: string; walletTitle: string; totalAmount: number }> = {};
-      (g.history || []).forEach((h: any) => {
-        const wId = h.walletId || g.walletId || "default";
-        const wTitle = h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || "Outra Conta";
-        if (!walletBreakdownMap[wId]) {
-          walletBreakdownMap[wId] = { walletId: wId, walletTitle: wTitle, totalAmount: 0 };
+        const isCompleted = g.status === "COMPLETED" || pct >= 100;
+        const status = isCompleted ? "COMPLETED" : "ACTIVE";
+        let completedAtStr: string | null = null;
+        if (g.completedAt) {
+          completedAtStr = new Date(g.completedAt).toLocaleDateString("pt-BR");
+        } else if (isCompleted && g.history && g.history.length > 0) {
+          const lastHist = g.history[g.history.length - 1];
+          completedAtStr = lastHist?.date ? new Date(lastHist.date).toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR");
+        } else if (isCompleted) {
+          completedAtStr = new Date().toLocaleDateString("pt-BR");
         }
-        walletBreakdownMap[wId].totalAmount += Number(h.amount);
-      });
 
-      // Se não houver histórico mas houver conta padrão definida na meta
-      if (Object.keys(walletBreakdownMap).length === 0 && g.wallet) {
-        walletBreakdownMap[g.walletId] = {
-          walletId: g.walletId,
-          walletTitle: g.wallet.bankName || g.wallet.title,
-          totalAmount: acumulado,
+        // Detalhamento de distribuição de saldos guardados por conta/banco
+        const walletBreakdownMap: Record<string, { walletId: string; walletTitle: string; totalAmount: number }> = {};
+        (g.history || []).forEach((h: any) => {
+          const wId = h.walletId || g.walletId || "default";
+          const wTitle = h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || "Outra Conta";
+          if (!walletBreakdownMap[wId]) {
+            walletBreakdownMap[wId] = { walletId: wId, walletTitle: wTitle, totalAmount: 0 };
+          }
+          walletBreakdownMap[wId].totalAmount += Number(h.amount || 0);
+        });
+
+        // Se não houver histórico mas houver conta padrão definida na meta
+        if (Object.keys(walletBreakdownMap).length === 0 && g.wallet) {
+          walletBreakdownMap[g.walletId] = {
+            walletId: g.walletId,
+            walletTitle: g.wallet.bankName || g.wallet.title,
+            totalAmount: acumulado,
+          };
+        }
+
+        const walletBreakdown = Object.values(walletBreakdownMap).sort((a, b) => b.totalAmount - a.totalAmount);
+
+        const dataInicioStr = g.dataInicio ? new Date(g.dataInicio).toISOString().split("T")[0] : "";
+        const dataFimStr = g.dataFim ? new Date(g.dataFim).toISOString().split("T")[0] : "";
+
+        return {
+          id: g.id,
+          title: g.title,
+          dataInicio: dataInicioStr,
+          dataFim: dataFimStr,
+          acumulado,
+          objetivo,
+          pct,
+          iconName: g.iconName as "Plane" | "Car" | "Home" | "Target",
+          walletId: g.walletId || null,
+          walletTitle: g.wallet?.bankName || g.wallet?.title || null,
+          walletBreakdown,
+          status,
+          completedAt: completedAtStr,
+          mediaAporteMensal,
+          estimatedDateStr,
+          paceStatus,
+          history: (g.history || []).map((h: any) => {
+            const hDate = h.date ? new Date(h.date) : new Date();
+            return {
+              id: h.id,
+              rawDate: hDate.toISOString().split("T")[0],
+              date: hDate.toLocaleDateString("pt-BR"),
+              amount: Number(h.amount || 0),
+              walletId: h.walletId || g.walletId || null,
+              walletTitle: h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || null,
+            };
+          })
         };
-      }
-
-      const walletBreakdown = Object.values(walletBreakdownMap).sort((a, b) => b.totalAmount - a.totalAmount);
-
-      return {
-        id: g.id,
-        title: g.title,
-        dataInicio: g.dataInicio.toISOString().split("T")[0],
-        dataFim: g.dataFim.toISOString().split("T")[0],
-        acumulado,
-        objetivo,
-        pct,
-        iconName: g.iconName as "Plane" | "Car" | "Home" | "Target",
-        walletId: g.walletId || null,
-        walletTitle: g.wallet?.bankName || g.wallet?.title || null,
-        walletBreakdown,
-        status,
-        completedAt: completedAtStr,
-        mediaAporteMensal,
-        estimatedDateStr,
-        paceStatus,
-        history: (g.history || []).map((h: any) => ({
-          id: h.id,
-          rawDate: new Date(h.date).toISOString().split("T")[0],
-          date: new Date(h.date).toLocaleDateString("pt-BR"),
-          amount: Number(h.amount),
-          walletId: h.walletId || g.walletId || null,
-          walletTitle: h.wallet?.bankName || h.wallet?.title || g.wallet?.bankName || g.wallet?.title || null,
-        }))
-      };
-    })
-  );
+      })
+    );
+  } catch (error) {
+    console.error("Erro ao obter metas:", error);
+    return [];
+  }
 }
 
 export async function createGoalAction(
