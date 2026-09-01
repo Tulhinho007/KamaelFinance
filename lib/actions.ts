@@ -4506,4 +4506,196 @@ export async function purgeSubscriptionsDataAction() {
   };
 }
 
+export async function getPaymentHistoryData(month: number, year: number) {
+  const userId = await getActiveUserId();
+
+  const wallets = await prisma.wallet.findMany({
+    where: { userId },
+    orderBy: { title: "asc" },
+  });
+
+  const monthName = getMonthName(month);
+  const periodStr = `${monthName}/${year}`;
+
+  const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+  const monthTransactions = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      date: { gte: startOfMonth, lte: endOfMonth },
+      deletedAt: null,
+    },
+    include: { category: true },
+  });
+
+  const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
+    where: {
+      wallet: { userId },
+      month,
+      year,
+    },
+  });
+  const paidWalletIds = new Set(allPaidInvoices.map((p: any) => p.walletId));
+
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear  = month === 1 ? year - 1 : year;
+  const startOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth - 1, 1, 0, 0, 0));
+  const endOfPrevMonth   = new Date(Date.UTC(prevYear, prevMonth, 0, 23, 59, 59, 999));
+
+  const prevMonthTransactions = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      date: { gte: startOfPrevMonth, lte: endOfPrevMonth },
+      deletedAt: null,
+    },
+  });
+
+  let totalCreditPaid = 0;
+  let totalDebitPix = 0;
+  let totalTickets = 0;
+
+  const historyItems: Array<{
+    id: string;
+    accountName: string;
+    bankName: string;
+    walletType: string;
+    typeLabel: string;
+    periodRef: string;
+    amount: number;
+    status: "PAGO" | "AGUARDANDO PAGAMENTO" | "LIQUIDADO" | "CONCLUÍDO" | "ZERADO";
+    statusColor: "emerald" | "amber" | "slate";
+    detailsUrl: string;
+    cardBrand?: string;
+    lastDigits?: string;
+    holder?: string;
+  }> = [];
+
+  const cardsOverview = await getAllCardsOverview(month, year);
+  const cardsOverviewMap = new Map(cardsOverview.map(c => [c.id, c]));
+
+  for (const w of wallets) {
+    const isCredit = w.walletType === "CREDIT_CARD";
+    const isTicket = w.walletType === "TICKET";
+
+    if (isCredit) {
+      const wOverview = cardsOverviewMap.get(w.id);
+      const invoiceAmount = wOverview ? wOverview.faturaAtual : 0;
+      const isInvoicePaid = wOverview ? !!wOverview.isPaid : paidWalletIds.has(w.id);
+
+      if (isInvoicePaid) {
+        totalCreditPaid += invoiceAmount;
+      }
+
+      historyItems.push({
+        id: w.id,
+        accountName: w.title || w.bankName || "Cartão de Crédito",
+        bankName: w.bankName || "Cartão de Crédito",
+        walletType: "CREDIT_CARD",
+        typeLabel: "Cartão de Crédito",
+        periodRef: periodStr,
+        amount: invoiceAmount,
+        status: isInvoicePaid ? "PAGO" : invoiceAmount <= 0 ? "ZERADO" : "AGUARDANDO PAGAMENTO",
+        statusColor: isInvoicePaid ? "emerald" : invoiceAmount <= 0 ? "slate" : "amber",
+        detailsUrl: `/cartoes/${w.id}`,
+        cardBrand: wOverview?.cardBrand || (w as any).cardBrand || undefined,
+        lastDigits: wOverview?.lastDigits || (w as any).lastDigits || undefined,
+        holder: wOverview?.holder || (w as any).holder || undefined,
+      });
+    } else if (isTicket) {
+      const wExpenses = monthTransactions
+        .filter(t => t.walletId === w.id && t.type === "EXPENSE")
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      totalTickets += wExpenses;
+
+      historyItems.push({
+        id: w.id,
+        accountName: w.title || w.bankName || "Benefício / Ticket",
+        bankName: w.bankName || "Vale Refeição / Benefício",
+        walletType: "TICKET",
+        typeLabel: "Cartão Benefício / Ticket",
+        periodRef: periodStr,
+        amount: wExpenses,
+        status: wExpenses > 0 ? "CONCLUÍDO" : "ZERADO",
+        statusColor: wExpenses > 0 ? "emerald" : "slate",
+        detailsUrl: `/cartoes/${w.id}`,
+        holder: (w as any).holder || undefined,
+      });
+    } else {
+      const wExpenses = monthTransactions
+        .filter(t => t.walletId === w.id && t.type === "EXPENSE")
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      totalDebitPix += wExpenses;
+
+      historyItems.push({
+        id: w.id,
+        accountName: w.title || w.bankName || "Conta Corrente",
+        bankName: w.bankName || "Conta Corrente",
+        walletType: "CONTA_CORRENTE",
+        typeLabel: "Conta Débito / PIX",
+        periodRef: periodStr,
+        amount: wExpenses,
+        status: wExpenses > 0 ? "LIQUIDADO" : "ZERADO",
+        statusColor: wExpenses > 0 ? "emerald" : "slate",
+        detailsUrl: `/cartoes/${w.id}`,
+        holder: (w as any).holder || undefined,
+      });
+    }
+  }
+
+  const totalGeral = totalCreditPaid + totalDebitPix + totalTickets;
+
+  let prevCreditPaid = 0;
+  try {
+    const prevPaidInvoices = await (prisma as any).invoicePayment.findMany({
+      where: { wallet: { userId }, month: prevMonth, year: prevYear },
+    });
+    prevCreditPaid = prevPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
+  } catch (e) {}
+
+  const prevDebitPix = prevMonthTransactions
+    .filter(t => t.type === "EXPENSE")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const prevTotal = prevCreditPaid + prevDebitPix;
+
+  let economyInsight = "";
+  let economyPct = 0;
+  let isEconomyPositive = true;
+
+  if (prevTotal > 0) {
+    const diff = totalGeral - prevTotal;
+    economyPct = Math.abs(Math.round((diff / prevTotal) * 100));
+    if (diff < 0) {
+      isEconomyPositive = true;
+      economyInsight = `Economia de ${economyPct}% em relação a ${getMonthName(prevMonth)}. Ótimo controle de saída!`;
+    } else if (diff > 0) {
+      isEconomyPositive = false;
+      economyInsight = `Aumento de ${economyPct}% em relação a ${getMonthName(prevMonth)}. Monitore despesas variáveis.`;
+    } else {
+      economyInsight = `Mesmo volume de gastos totais de ${getMonthName(prevMonth)}. Padrão mantido.`;
+    }
+  } else {
+    economyInsight = `Acompanhe seus lançamentos mensais para gerar comparativos automáticos de economia.`;
+  }
+
+  return {
+    periodStr,
+    month,
+    year,
+    metrics: {
+      totalCreditPaid,
+      totalDebitPix,
+      totalGeral,
+      economyInsight,
+      economyPct,
+      isEconomyPositive,
+      prevTotal,
+    },
+    items: historyItems,
+  };
+}
+
 

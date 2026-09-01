@@ -18,7 +18,8 @@ import {
   Users,
   LogOut,
   Menu,
-  X
+  X,
+  History
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -76,6 +77,7 @@ export function Sidebar() {
       items: [
         { label: "Receitas", icon: TrendingUp, path: "/receitas" },
         { label: "Despesas & Contas", icon: CreditCard, path: "/despesas" },
+        { label: "Histórico de Pagamentos", icon: History, path: "/historico-pagamentos" },
         { label: "Radar de Gastos", icon: Radar, path: "/gestao-financeira/radar-gastos" },
         { label: "Orçamentos", icon: BarChart3, path: "/gestao-financeira/orcamentos" },
         { label: "Investimentos", icon: PieChart, path: "/investimentos" },
