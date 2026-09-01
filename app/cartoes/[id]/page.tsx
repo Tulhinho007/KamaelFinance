@@ -1367,7 +1367,7 @@ export default function CartaoDetailPage() {
                   <Building2 className="w-5 h-5" />
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="flex-1 flex flex-col justify-end mt-4">
                 <h3 className={`text-2xl md:text-3xl font-black ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{brl(saldoAtualCalculado)}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Balanço consolidado da conta</p>
               </div>
@@ -1381,7 +1381,7 @@ export default function CartaoDetailPage() {
                   <TrendingUp className="w-5 h-5" />
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="flex-1 flex flex-col justify-end mt-4">
                 <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">+ {brl(totalEntradasMes)}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Depósitos e receitas creditadas</p>
               </div>
@@ -1395,7 +1395,7 @@ export default function CartaoDetailPage() {
                   <TrendingDown className="w-5 h-5" />
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="flex-1 flex flex-col justify-end mt-4">
                 <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white">{brl(totalGastosMes)}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Lançamentos debitados no mês</p>
               </div>
@@ -1409,7 +1409,7 @@ export default function CartaoDetailPage() {
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="flex-1 flex flex-col justify-end mt-4">
                 <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400">{brl(totalPago)}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Despesas quitadas no mês</p>
               </div>
@@ -1423,7 +1423,7 @@ export default function CartaoDetailPage() {
                   <Clock className="w-5 h-5" />
                 </div>
               </div>
-              <div className="mt-4">
+              <div className="flex-1 flex flex-col justify-end mt-4">
                 <h3 className="text-2xl md:text-3xl font-black text-amber-600 dark:text-amber-400">{brl(totalNaoPago)}</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Aguardando baixa de pagamento</p>
               </div>

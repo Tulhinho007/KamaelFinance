@@ -910,10 +910,24 @@ export async function calculateAccountBalance(walletId: string, month: number, y
     .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING" && t.walletId === walletId)
     .reduce((s, t) => s + Number(t.amount), 0);
 
+  // 0. Total de transações INCOME históricas na carteira para evitar duplicação com initialBalance caso addTicketCarga tenha rodado no passado
+  const allWalletIncomes = await prisma.transaction.findMany({
+    where: {
+      walletId: walletId,
+      type: "INCOME",
+      deletedAt: null,
+    },
+    select: { amount: true },
+  });
+  const totalWalletIncomes = allWalletIncomes.reduce((s, t) => s + Number(t.amount), 0);
+
+  const rawInitialBalance = Number(wallet.initialBalance || 0);
+  const trueInitialBalance = Math.max(0, rawInitialBalance - totalWalletIncomes);
+
   // Em Julho (1º mês de operação), não existe saldo acumulado anterior
   const carryoverBalance = isFirstMonth ? 0 : (prevIncome - prevExpense);
-  const openingBalance   = isFirstMonth ? Number(wallet.initialBalance || 0) : 0;
-  const previousBalance  = isFirstMonth ? 0 : (carryoverBalance + Number(wallet.initialBalance || 0));
+  const openingBalance   = isFirstMonth ? trueInitialBalance : 0;
+  const previousBalance  = isFirstMonth ? 0 : (carryoverBalance + trueInitialBalance);
 
   // 2. Transações DENTRO do mês selecionado (M/Y)
   const currentMonthTransactions = await prisma.transaction.findMany({
