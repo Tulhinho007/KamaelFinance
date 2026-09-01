@@ -170,7 +170,31 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
     },
   });
 
+  if (data.initialBalance && Number(data.initialBalance) > 0) {
+    let category = await prisma.category.findFirst({
+      where: { name: "Saldo Inicial / Abertura" },
+    });
+    if (!category) {
+      category = await prisma.category.create({
+        data: { name: "Saldo Inicial / Abertura", color: "#10B981" },
+      });
+    }
+
+    await prisma.transaction.create({
+      data: {
+        walletId: wallet.id,
+        description: "Saldo Inicial de Abertura",
+        amount: data.initialBalance,
+        type: "INCOME",
+        status: "COMPLETED",
+        categoryId: category.id,
+        date: new Date(),
+      },
+    });
+  }
+
   revalidatePath("/dashboard");
+  revalidatePath("/cartoes");
   return wallet;
 }
 
@@ -887,76 +911,62 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-  const isFirstMonth = (year === 2026 && month === 7);
-  const startOfAccount = new Date(Date.UTC(2026, 6, 1, 0, 0, 0));
-
-  const isTicket = wallet.walletType === "TICKET";
-
-  // 1. Transações ANTERIORES ao mês atual (apenas a partir de Julho/2026)
-  const previousTransactions = isFirstMonth ? [] : await prisma.transaction.findMany({
-    where: {
-      wallet: { userId: wallet.userId },
-      date: { gte: startOfAccount, lt: startOfMonth },
-      deletedAt: null,
-    },
-    select: { walletId: true, type: true, amount: true, status: true },
-  });
-
-  const prevIncome  = previousTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && t.walletId === walletId)
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  const prevExpense = previousTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING" && t.walletId === walletId)
-    .reduce((s, t) => s + Number(t.amount), 0);
-
-  // 0. Total de transações INCOME históricas na carteira para evitar duplicação com initialBalance caso addTicketCarga tenha rodado no passado
-  const allWalletIncomes = await prisma.transaction.findMany({
+  // Fetch ALL historical non-deleted transactions for this wallet up to endOfMonth
+  const allWalletTransactions = await prisma.transaction.findMany({
     where: {
       walletId: walletId,
-      type: "INCOME",
       deletedAt: null,
+      date: { lte: endOfMonth },
     },
-    select: { amount: true },
-  });
-  const totalWalletIncomes = allWalletIncomes.reduce((s, t) => s + Number(t.amount), 0);
-
-  const rawInitialBalance = Number(wallet.initialBalance || 0);
-  const trueInitialBalance = Math.max(0, rawInitialBalance - totalWalletIncomes);
-
-  // Em Julho (1º mês de operação), não existe saldo acumulado anterior
-  const carryoverBalance = isFirstMonth ? 0 : (prevIncome - prevExpense);
-  const openingBalance   = isFirstMonth ? trueInitialBalance : 0;
-  const previousBalance  = isFirstMonth ? 0 : (carryoverBalance + trueInitialBalance);
-
-  // 2. Transações DENTRO do mês selecionado (M/Y)
-  const currentMonthTransactions = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId: wallet.userId },
-      date: { gte: startOfMonth, lte: endOfMonth },
-      deletedAt: null,
-    },
-    select: { walletId: true, type: true, amount: true, status: true },
+    select: { type: true, amount: true, status: true, date: true },
   });
 
-  const monthIncome = currentMonthTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && t.walletId === walletId)
+  // Calculate historical totals up to endOfMonth
+  const totalEntradasHistoricas = allWalletTransactions
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const monthExpense = currentMonthTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING" && t.walletId === walletId)
+  const totalSaidasHistoricas = allWalletTransactions
+    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  // Total disponível = Saldo de abertura/anterior + Total acumulado de TODAS as receitas do mês
-  const baseBalance = isFirstMonth ? openingBalance : previousBalance;
-  const totalAvailable = baseBalance + monthIncome;
+  // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas)
+  const finalBalance = totalEntradasHistoricas - totalSaidasHistoricas;
 
-  // Saldo Final = Total disponível - Despesas do mês
-  const finalBalance = totalAvailable - monthExpense;
+  // Transações do mês selecionado
+  const monthTransactions = allWalletTransactions.filter((t) => {
+    const d = new Date(t.date);
+    return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month;
+  });
+
+  const monthIncome = monthTransactions
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const monthExpense = monthTransactions
+    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  // Transações anteriores ao mês selecionado
+  const prevTransactions = allWalletTransactions.filter((t) => {
+    const d = new Date(t.date);
+    return d < startOfMonth;
+  });
+
+  const prevIncome = prevTransactions
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const prevExpense = prevTransactions
+    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const previousBalance = prevIncome - prevExpense;
+  const totalAvailable  = previousBalance + monthIncome;
 
   return {
-    initialBalance: openingBalance,
-    carryoverBalance,
+    initialBalance: Number(wallet.initialBalance || 0),
+    carryoverBalance: previousBalance,
     previousBalance,
     totalAvailable,
     monthIncome,
@@ -1045,6 +1055,37 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       include: { category: true },
       orderBy: { date: "asc" }
     });
+
+    // Auditoria de Saldo Inicial: Garante que existas uma transação formal de Abertura de Saldo se initialBalance > 0
+    if (Number(wallet.initialBalance || 0) > 0) {
+      const hasOpeningTx = allTransactions.some(
+        (t) => t.type === "INCOME" && (t.description?.includes("Saldo Inicial") || t.description?.includes("Abertura"))
+      );
+
+      if (!hasOpeningTx) {
+        let category = await prisma.category.findFirst({
+          where: { name: "Saldo Inicial / Abertura" },
+        });
+        if (!category) {
+          category = await prisma.category.create({
+            data: { name: "Saldo Inicial / Abertura", color: "#10B981" },
+          });
+        }
+        const newOpeningTx = await prisma.transaction.create({
+          data: {
+            walletId: wallet.id,
+            description: "Saldo Inicial de Abertura",
+            amount: wallet.initialBalance,
+            type: "INCOME",
+            status: "COMPLETED",
+            categoryId: category.id,
+            date: (wallet as any).createdAt || new Date("2026-07-01T00:00:00Z"),
+          },
+          include: { category: true },
+        });
+        allTransactions.unshift(newOpeningTx);
+      }
+    }
 
     const purchases = allTransactions.filter(t => t.type === "EXPENSE");
     const injections = allTransactions.filter(t => t.type === "INCOME");
@@ -1716,36 +1757,74 @@ export async function saveTicketCarga(walletId: string, carga: number) {
   revalidatePath("/despesas");
 }
 
-export async function addTicketCarga(walletId: string, value: number) {
+export async function addTicketCarga(walletId: string, value: number, month?: number, year?: number, categoryName: string = "Recarga de Saldo") {
   const wallet = await prisma.wallet.findUnique({
     where: { id: walletId }
   });
   if (!wallet) throw new Error("Wallet not found");
-  const current = Number(wallet.initialBalance || 0);
-  
-  await prisma.wallet.update({
-    where: { id: walletId },
-    data: { initialBalance: current + value }
+
+  let category = await prisma.category.findFirst({
+    where: { name: categoryName }
   });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { name: categoryName, color: "#10B981" }
+    });
+  }
+
+  const txDate = (month && year) ? new Date(Date.UTC(year, month - 1, 15, 12, 0, 0)) : new Date();
+
+  await prisma.transaction.create({
+    data: {
+      walletId,
+      description: "Recarga de Saldo",
+      amount: value,
+      type: "INCOME",
+      status: "COMPLETED",
+      categoryId: category.id,
+      date: txDate,
+    }
+  });
+
   revalidatePath("/ticket");
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
-export async function removeTicketCarga(walletId: string, value: number) {
+export async function removeTicketCarga(walletId: string, value: number, month?: number, year?: number) {
   const wallet = await prisma.wallet.findUnique({
     where: { id: walletId }
   });
   if (!wallet) throw new Error("Wallet not found");
-  const current = Number(wallet.initialBalance || 0);
-  
-  await prisma.wallet.update({
-    where: { id: walletId },
-    data: { initialBalance: current - value }
+
+  let category = await prisma.category.findFirst({
+    where: { name: "Ajuste / Retirada de Saldo" }
   });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { name: "Ajuste / Retirada de Saldo", color: "#EF4444" }
+    });
+  }
+
+  const txDate = (month && year) ? new Date(Date.UTC(year, month - 1, 15, 12, 0, 0)) : new Date();
+
+  await prisma.transaction.create({
+    data: {
+      walletId,
+      description: "Ajuste / Retirada de Saldo",
+      amount: value,
+      type: "EXPENSE",
+      status: "COMPLETED",
+      categoryId: category.id,
+      date: txDate,
+    }
+  });
+
   revalidatePath("/ticket");
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
 export async function createTicketExpense(
