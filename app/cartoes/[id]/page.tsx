@@ -265,9 +265,9 @@ export default function CartaoDetailPage() {
     const val = Number(formCarga);
     if (val <= 0) return;
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
-      const dateParts = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
-      const dateToUse = (selectedYear && selectedMonth) ? dateParts : todayStr;
+      const targetYear = formCargaYear || selectedYear;
+      const targetMonth = formCargaMonth || selectedMonth;
+      const dateToUse = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
       const originLabels: Record<string, string> = {
         SALARIO: "Injeção de Capital / Salário",
         RECARGA: "Recarga de Saldo",
@@ -289,7 +289,6 @@ export default function CartaoDetailPage() {
         dateToUse,
         catName
       );
-      await addTicketCarga(cardData.walletId, val);
       await loadData();
       setModalType(null);
       setFormCarga("");
@@ -1516,7 +1515,8 @@ export default function CartaoDetailPage() {
                 .filter((t) => {
                   const parts = t.date.split("-");
                   return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
-                });
+                })
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
               const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
               const totalSaidasExtrato   = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
@@ -1669,6 +1669,8 @@ export default function CartaoDetailPage() {
                         return Object.entries(grouped).map(([catName, items]) => {
                           const catKey = `bank-${catName}`;
                           const isExpanded = expandedCategories[catKey] === true;
+                          const isOnlyIncome = items.every(item => item.type === "INCOME");
+                          const isOnlyExpense = items.every(item => item.type === "EXPENSE");
                           const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
                           return (
                             <React.Fragment key={catKey}>
@@ -1687,8 +1689,8 @@ export default function CartaoDetailPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="p-4 text-right font-black text-indigo-600 dark:text-indigo-400 text-xs tabular-nums">
-                                  {brl(catTotal)}
+                                <td className={`p-4 text-right font-black text-xs tabular-nums ${isOnlyIncome ? "text-emerald-500 dark:text-emerald-400" : isOnlyExpense ? "text-indigo-600 dark:text-indigo-400" : "text-slate-900 dark:text-white"}`}>
+                                  {isOnlyIncome ? `+ ${brl(catTotal)}` : isOnlyExpense ? `- ${brl(catTotal)}` : brl(catTotal)}
                                 </td>
                                 <td colSpan={2} className="p-4 text-center text-slate-400 text-[10px] font-medium">
                                   {isExpanded ? "Recolher ▲" : "Expandir ▼"}

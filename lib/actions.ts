@@ -903,7 +903,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   });
 
   const prevIncome  = previousTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && (isTicket ? t.walletId === walletId : true))
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && t.walletId === walletId)
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const prevExpense = previousTransactions
@@ -926,7 +926,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   });
 
   const monthIncome = currentMonthTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && (isTicket ? t.walletId === walletId : true))
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && t.walletId === walletId)
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const monthExpense = currentMonthTransactions
