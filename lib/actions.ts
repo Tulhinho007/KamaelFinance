@@ -1092,6 +1092,12 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       isPaid:           !!paidRecord,
       paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
       paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
+      allPaidInvoices:  allPaidInvoices.map((p: any) => ({
+        month: p.month,
+        year: p.year,
+        amount: Number(p.amount),
+        paidAt: p.paidAt ? p.paidAt.toISOString() : null
+      })),
       balanceInfo,
       purchases: purchases.map(p => ({
         id: p.id,
@@ -1869,12 +1875,20 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
 
       let limitUsed = 0;
       if (isCredit) {
-        const allExpensesSum = allExpenses.reduce((s, t) => s + Number(t.amount), 0);
         const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
           where: { walletId: w.id }
         });
-        const totalPaymentsSum = allPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
-        limitUsed = Math.max(0, allExpensesSum - totalPaymentsSum);
+        const paidKeys = new Set(allPaidInvoices.map((p: any) => `${p.month}-${p.year}`));
+
+        limitUsed = allExpenses
+          .filter(t => {
+            const dt = new Date(t.date);
+            const m = dt.getUTCMonth() + 1;
+            const y = dt.getUTCFullYear();
+            const isPaid = paidKeys.has(`${m}-${y}`) || t.status === "COMPLETED" || t.status === "PAID" || (t as any).status === "pago";
+            return !isPaid;
+          })
+          .reduce((s, t) => s + Number(t.amount), 0);
       } else {
         limitUsed = balanceInfo.monthExpense;
       }
@@ -2017,6 +2031,22 @@ export async function payCardInvoiceAction(
     },
   });
 
+  // Atualiza todas as transações do mês da fatura para COMPLETED/PAID
+  const invoiceFrom = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const invoiceTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+  await prisma.transaction.updateMany({
+    where: {
+      walletId: cardWalletId,
+      type: "EXPENSE",
+      date: { gte: invoiceFrom, lte: invoiceTo },
+      deletedAt: null,
+    },
+    data: {
+      status: "COMPLETED",
+    },
+  });
+
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
@@ -2058,6 +2088,24 @@ export async function undoCardInvoicePaymentAction(
       data: { deletedAt: new Date() },
     });
   }
+
+  // Atualiza as transações da fatura de volta para PENDING
+  const targetMonth = specificPayment?.month || month;
+  const targetYear  = specificPayment?.year || year;
+  const invoiceFrom = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+  const invoiceTo   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+
+  await prisma.transaction.updateMany({
+    where: {
+      walletId: cardWalletId,
+      type: "EXPENSE",
+      date: { gte: invoiceFrom, lte: invoiceTo },
+      deletedAt: null,
+    },
+    data: {
+      status: "PENDING",
+    },
+  });
 
   await (prisma as any).invoicePayment.delete({
     where: { id: specificPayment.id },

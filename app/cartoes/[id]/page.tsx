@@ -8,7 +8,7 @@ import {
   deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
   duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
   addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction,
-  createRevenueAction
+  createRevenueAction, payCardInvoiceAction, undoCardInvoicePaymentAction, getAllCardsOverview
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
@@ -110,6 +110,12 @@ export default function CartaoDetailPage() {
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false);
 
+  // Modal Pagar Fatura
+  const [payInvoiceModalOpen, setPayInvoiceModalOpen] = useState(false);
+  const [isPayingInvoice, setIsPayingInvoice] = useState(false);
+  const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
+  const [checkingWallets, setCheckingWallets] = useState<Array<{ id: string; title: string; bankName?: string }>>([]);
+
   // Modo de Visualização (Agrupado por Categoria vs Lista Completa) e Accordion State
   const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -178,6 +184,13 @@ export default function CartaoDetailPage() {
         setCardData(data);
       } else {
         setCardData(null);
+      }
+      try {
+        const overview = await getAllCardsOverview(selectedMonth, selectedYear);
+        const checking = overview.filter(c => c.walletType === "CONTA_CORRENTE");
+        setCheckingWallets(checking);
+      } catch (e) {
+        // ignore
       }
     } catch (err) {
       console.error("Erro ao carregar dados do cartão:", err);
@@ -402,22 +415,31 @@ export default function CartaoDetailPage() {
   // Para Cartão de Crédito - Fatura do Mês (Assinaturas + À vista + Parcelas do mês)
   const impactoMes = saldoAssinaturas + saldoVista + totalParceladoMes;
   
-  // Recomposição de Limite Disponível:
-  // Parcelas de Meses Futuros (apenas parcelas cuja data seja estritamente posterior ao mês selecionado)
-  const futureParcelas = purchasesList.filter((p) => {
-    if (!p || p.type !== "parcelado") return false;
-    const { year, month } = getYearMonth(p.date);
-    const pAbs = year * 12 + (month - 1);
-    return pAbs > selectedAbsolute;
-  });
-  const totalParceladoFuturo = futureParcelas.reduce((sum, p) => sum + (p.amount || 0), 0);
+  // Recomposição de Limite Disponível (Global e Cumulativo):
+  const paidInvoiceKeys = new Set<string>();
+  if (cardData && (cardData as any).allPaidInvoices) {
+    ((cardData as any).allPaidInvoices as Array<{ month: number; year: number }>).forEach(p => {
+      paidInvoiceKeys.add(`${p.month}-${p.year}`);
+    });
+  }
+  if ((cardData as any)?.isPaid) {
+    paidInvoiceKeys.add(`${selectedMonth}-${selectedYear}`);
+  }
+
+  // Soma de todos os débitos em aberto no cartão cujas faturas de competência NÃO foram pagas
+  const pendingDebitsSum = purchasesList
+    .filter((p) => {
+      if (!p || !p.amount) return false;
+      const { year: pYear, month: pMonth } = getYearMonth(p.date);
+      const key = `${pMonth}-${pYear}`;
+      const isPaid = paidInvoiceKeys.has(key);
+      return !isPaid;
+    })
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
 
   const isInvoicePaid = !!(cardData as any).isPaid;
-  const paidInvoiceAmount = isInvoicePaid ? ((cardData as any).paidAmount || impactoMes) : 0;
-  
-  const gastosMesCompromissados = Math.max(0, impactoMes - paidInvoiceAmount);
-  const limitCompromised = gastosMesCompromissados + totalParceladoFuturo;
   const creditLimit = cardData.creditLimit || 0;
+  const limitCompromised = pendingDebitsSum;
   const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - limitCompromised));
   const usagePct = creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / creditLimit) * 100)) : 0;
 
@@ -717,29 +739,56 @@ export default function CartaoDetailPage() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
                   Fatura do Mês
                 </span>
+                {(cardData as any).isPaid && (
+                  <button
+                    onClick={async () => {
+                      if (!cardData) return;
+                      try {
+                        await undoCardInvoicePaymentAction(cardData.walletId, selectedMonth, selectedYear);
+                        await loadData();
+                        showAlert("Pagamento de fatura desfeito com sucesso.", { variant: "info" });
+                      } catch (err) {
+                        console.error(err);
+                        showAlert("Erro ao desfazer pagamento.", { variant: "error" });
+                      }
+                    }}
+                    className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                    title="Desfazer Pagamento da Fatura"
+                  >
+                    Desfazer
+                  </button>
+                )}
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
                 <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${impactoMes <= 0 ? "text-slate-900 dark:text-white" : (cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : (cardData as any).isPast ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
-              <div className="h-7 flex items-center w-full">
+              <div className="h-7 flex items-center justify-between w-full gap-2 overflow-hidden">
                 {impactoMes <= 0 ? (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 truncate">
                     Fatura Zerada
                   </span>
                 ) : (cardData as any).isPaid ? (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
-                    ✓ Ciclo liquidado no período
-                  </span>
-                ) : (cardData as any).isPast ? (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-2.5 py-1 rounded-full truncate">
-                    🚨 Fatura Vencida
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" /> ✓ Fatura Paga
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2.5 py-1 rounded-full truncate">
-                    {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Aguardando Pagamento"}
-                  </span>
+                  <div className="flex items-center justify-between w-full gap-1">
+                    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-full truncate ${
+                      (cardData as any).isPast
+                        ? "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800"
+                        : "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800"
+                    }`}>
+                      {(cardData as any).isPast ? "🚨 Fatura Vencida" : ((cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Aguardando Pagamento")}
+                    </span>
+                    <button
+                      onClick={() => setPayInvoiceModalOpen(true)}
+                      className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-xl transition-all shadow-xs cursor-pointer shrink-0"
+                    >
+                      <CheckCircle2 className="w-3 h-3" /> Pagar Fatura
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -2128,6 +2177,96 @@ export default function CartaoDetailPage() {
           loadData();
         }}
       />
+
+      {/* Modal Pagar Fatura */}
+      {payInvoiceModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900 dark:text-white">Pagar Fatura</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    {cardData.title} — {getMonthName(selectedMonth)}/{selectedYear}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPayInvoiceModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Valor Total da Fatura</span>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-tnum">
+                {brl(impactoMes)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Debitar de uma Conta Corrente (Opcional)
+              </label>
+              <select
+                value={selectedPaymentWalletId}
+                onChange={e => setSelectedPaymentWalletId(e.target.value)}
+                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="NONE">Marcação Direta (Sem débito em conta)</option>
+                {checkingWallets.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.bankName || w.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setPayInvoiceModalOpen(false)}
+                className="flex-1 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold text-xs transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isPayingInvoice}
+                onClick={async () => {
+                  if (!cardData) return;
+                  setIsPayingInvoice(true);
+                  try {
+                    await payCardInvoiceAction(
+                      cardData.walletId,
+                      selectedMonth,
+                      selectedYear,
+                      impactoMes,
+                      selectedPaymentWalletId
+                    );
+                    await loadData();
+                    setPayInvoiceModalOpen(false);
+                    showAlert("Fatura marcada como PAGA com sucesso!", { variant: "success" });
+                  } catch (err) {
+                    console.error(err);
+                    showAlert("Erro ao registrar pagamento da fatura.", { variant: "error" });
+                  } finally {
+                    setIsPayingInvoice(false);
+                  }
+                }}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isPayingInvoice ? "Registrando..." : "Confirmar Pagamento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
