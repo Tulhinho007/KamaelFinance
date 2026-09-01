@@ -621,6 +621,36 @@ export default function CartaoDetailPage() {
               + Nova Compra
             </button>
 
+            {isInvoicePaid ? (
+              <button
+                onClick={async () => {
+                  if (!cardData) return;
+                  try {
+                    await undoCardInvoicePaymentAction(cardData.walletId, selectedMonth, selectedYear);
+                    await loadData();
+                    showAlert("Pagamento de fatura desfeito com sucesso.", { variant: "info" });
+                  } catch (err) {
+                    console.error(err);
+                    showAlert("Erro ao desfazer pagamento.", { variant: "error" });
+                  }
+                }}
+                className="w-full sm:w-auto px-5 py-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                title="Clique para desfazer pagamento da fatura"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                Fatura Paga
+              </button>
+            ) : (
+              <button
+                disabled={impactoMes <= 0}
+                onClick={() => setPayInvoiceModalOpen(true)}
+                className="w-full sm:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Pagar Fatura
+              </button>
+            )}
+
             <button
               onClick={() => { setFormLimit(""); setModalType("limit"); }}
               className="w-full sm:w-auto px-5 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-extrabold rounded-2xl transition-all flex items-center justify-center gap-2 cursor-pointer"
@@ -748,56 +778,29 @@ export default function CartaoDetailPage() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
                   Fatura do Mês
                 </span>
-                {(cardData as any).isPaid && (
-                  <button
-                    onClick={async () => {
-                      if (!cardData) return;
-                      try {
-                        await undoCardInvoicePaymentAction(cardData.walletId, selectedMonth, selectedYear);
-                        await loadData();
-                        showAlert("Pagamento de fatura desfeito com sucesso.", { variant: "info" });
-                      } catch (err) {
-                        console.error(err);
-                        showAlert("Erro ao desfazer pagamento.", { variant: "error" });
-                      }
-                    }}
-                    className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
-                    title="Desfazer Pagamento da Fatura"
-                  >
-                    Desfazer
-                  </button>
-                )}
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
                 <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${impactoMes <= 0 ? "text-slate-900 dark:text-white" : (cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : (cardData as any).isPast ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`} title={brl(impactoMes)}>
                   {brl(impactoMes)}
                 </p>
               </div>
-              <div className="h-7 flex items-center justify-between w-full gap-2 overflow-hidden">
+              <div className="h-7 flex items-center w-full overflow-hidden">
                 {impactoMes <= 0 ? (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full border border-slate-200 dark:border-slate-700 truncate">
                     Fatura Zerada
                   </span>
                 ) : (cardData as any).isPaid ? (
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" /> ✓ Fatura Paga
+                    <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" /> ✓ Ciclo liquidado no período
+                  </span>
+                ) : (cardData as any).isPast ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800 px-2.5 py-1 rounded-full truncate">
+                    🚨 Fatura Vencida
                   </span>
                 ) : (
-                  <div className="flex items-center justify-between w-full gap-1">
-                    <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-2.5 py-1 rounded-full truncate ${
-                      (cardData as any).isPast
-                        ? "text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-800"
-                        : "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800"
-                    }`}>
-                      {(cardData as any).isPast ? "🚨 Fatura Vencida" : ((cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Aguardando Pagamento")}
-                    </span>
-                    <button
-                      onClick={() => setPayInvoiceModalOpen(true)}
-                      className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-xl transition-all shadow-xs cursor-pointer shrink-0"
-                    >
-                      <CheckCircle2 className="w-3 h-3" /> Pagar Fatura
-                    </button>
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2.5 py-1 rounded-full truncate">
+                    {(cardData as any).vencimentoStr ? `Vence em ${(cardData as any).vencimentoStr}` : "Aguardando Pagamento"}
+                  </span>
                 )}
               </div>
             </div>

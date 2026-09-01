@@ -1,6 +1,6 @@
 "use server";
 
-import { CATEGORIES, getCategoryColor } from "./constants";
+import { CATEGORIES, getCategoryColor, getMonthName } from "./constants";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
 import { z } from "zod";
@@ -1886,7 +1886,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
             const dt = new Date(t.date);
             const m = dt.getUTCMonth() + 1;
             const y = dt.getUTCFullYear();
-            const isPaid = paidKeys.has(`${m}-${y}`) || t.status === "COMPLETED" || t.status === "PAID" || (t as any).status === "pago";
+            const isPaid = paidKeys.has(`${m}-${y}`);
             return !isPaid;
           })
           .reduce((s, t) => s + Number(t.amount), 0);
@@ -1992,14 +1992,16 @@ export async function payCardInvoiceAction(
       }
 
       const now = new Date();
+      const monthName = getMonthName(month);
       const tx = await prisma.transaction.create({
         data: {
           walletId: paymentWallet.id,
           categoryId: invoiceCat.id,
-          description: `Pagamento Fatura ${card.title} (${String(month).padStart(2, "0")}/${year})`,
+          description: `Pagamento de Fatura - ${card.title || card.bankName} (${monthName}/${year})`,
           type: "EXPENSE",
           amount: amount,
           date: now,
+          competenceDate: now,
           source: "MANUAL",
           tags: "#pagamentodefatura",
         },
