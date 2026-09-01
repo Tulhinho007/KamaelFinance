@@ -2356,17 +2356,25 @@ export async function updateCardAccount(
 }
 
 export async function deleteCardAccount(walletId: string) {
-  // Soft-delete de todas as transações antes de remover a wallet
-  await prisma.transaction.updateMany({
-    where: { walletId, deletedAt: null },
-    data:  { deletedAt: new Date() },
-  });
+  try {
+    await prisma.$transaction([
+      prisma.transaction.deleteMany({ where: { walletId } }),
+      prisma.invoicePayment.deleteMany({ where: { walletId } }),
+      prisma.subscription.updateMany({ where: { defaultWalletId: walletId }, data: { defaultWalletId: null } }),
+      prisma.goalHistory.deleteMany({ where: { walletId } }),
+      prisma.goal.deleteMany({ where: { walletId } }),
+      prisma.wallet.delete({ where: { id: walletId } }),
+    ]);
 
-  await prisma.wallet.delete({
-    where: { id: walletId },
-  });
-
-  revalidatePath("/despesas");
+    revalidatePath("/despesas");
+    revalidatePath("/cartoes");
+    revalidatePath("/dashboard");
+    revalidatePath("/historico-pagamentos");
+    return { success: true };
+  } catch (error) {
+    console.error("Erro ao deletar cartão/carteira:", error);
+    throw error;
+  }
 }
 
 // ---------- Actions de Dashboard Principal ----------
