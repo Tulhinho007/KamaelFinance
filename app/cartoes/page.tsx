@@ -43,7 +43,7 @@ export default function CartoesPage() {
       {/* Header */}
       <div className="flex flex-col gap-2">
         <Link
-          href="/dashboard"
+          href="/"
           className="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 hover:text-indigo-700 w-fit transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Voltar para o Dashboard
