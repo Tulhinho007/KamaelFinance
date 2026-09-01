@@ -13,7 +13,6 @@ import {
   Radar,
   BarChart3,
   PieChart,
-  Calendar,
   Sun,
   Moon,
   Users,
@@ -80,7 +79,6 @@ export function Sidebar() {
         { label: "Radar de Gastos", icon: Radar, path: "/gestao-financeira/radar-gastos" },
         { label: "Orçamentos", icon: BarChart3, path: "/gestao-financeira/orcamentos" },
         { label: "Investimentos", icon: PieChart, path: "/investimentos" },
-        { label: "Calendário", icon: Calendar, path: "/planejamento/calendario" },
       ],
     },
     {

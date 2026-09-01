@@ -278,7 +278,8 @@ export async function createRevenueAction(
   dateStr: string,
   walletId?: string,
   status: string = "COMPLETED",
-  competenceDateStr?: string
+  competenceDateStr?: string,
+  categoryName?: string
 ) {
   const userId = await getActiveUserId();
   
@@ -318,9 +319,20 @@ export async function createRevenueAction(
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
   }
 
+  const catNameToUse = categoryName || "Aporte / Injeção de Saldo";
+  let dbCategory = await prisma.category.findFirst({
+    where: { name: { equals: catNameToUse, mode: "insensitive" } }
+  });
+  if (!dbCategory) {
+    dbCategory = await prisma.category.create({
+      data: { name: catNameToUse, color: "#10B981" }
+    });
+  }
+
   const transaction: any = await prisma.transaction.create({
     data: {
       walletId: wallet.id,
+      categoryId: dbCategory.id,
       description,
       type: "INCOME",
       amount: amount,
@@ -342,7 +354,8 @@ export async function createRevenueAction(
     amount: Number(transaction.amount),
     date: new Date(transaction.date).toISOString().split("T")[0],
     competenceDate: transaction.competenceDate ? new Date(transaction.competenceDate).toISOString().split("T")[0] : new Date(transaction.date).toISOString().split("T")[0],
-    walletId: transaction.walletId
+    walletId: transaction.walletId,
+    categoryId: dbCategory.id
   };
 }
 
@@ -1484,7 +1497,6 @@ export async function updateCardPurchase(
   revalidatePath("/despesas");
   revalidatePath("/receitas");
   revalidatePath("/dashboard");
-  revalidatePath("/planejamento/calendario");
 }
 
 export async function deleteCardPurchase(id: string) {
@@ -1568,7 +1580,6 @@ export async function duplicateExpenseToNextMonthAction(expenseId: string) {
   revalidatePath("/despesas");
   revalidatePath("/receitas");
   revalidatePath("/dashboard");
-  revalidatePath("/planejamento/calendario");
 
   return { success: true, newMonthLabel, id: newTx.id };
 }
@@ -1615,7 +1626,6 @@ export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string
   revalidatePath("/despesas");
   revalidatePath("/receitas");
   revalidatePath("/dashboard");
-  revalidatePath("/planejamento/calendario");
 
   return { success: true, count: originals.length, newMonthLabel: lastMonthLabel };
 }

@@ -256,6 +256,7 @@ export default function CartaoDetailPage() {
       const dateParts = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
       const dateToUse = (selectedYear && selectedMonth) ? dateParts : todayStr;
       const originLabel = formCargaOrigin ? `Aporte (${formCargaOrigin})` : "Aporte / Injeção de Saldo";
+      const catName = formCargaOrigin ? `Aporte (${formCargaOrigin})` : "Aporte / Injeção de Saldo";
 
       await createRevenueAction(
         originLabel,
@@ -263,7 +264,8 @@ export default function CartaoDetailPage() {
         dateToUse,
         cardData.walletId,
         "COMPLETED",
-        dateToUse
+        dateToUse,
+        catName
       );
       await addTicketCarga(cardData.walletId, val);
       await loadData();
@@ -1374,7 +1376,7 @@ export default function CartaoDetailPage() {
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
                   <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  Extrato da Conta ({getMonthName(selectedMonth)}/{selectedYear})
+                  Extrato da Conta (Entradas e Saídas) — {getMonthName(selectedMonth)}/{selectedYear}
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Acompanhe e confirme o pagamento de todas as entradas e saídas registradas nesta conta.
@@ -1454,6 +1456,10 @@ export default function CartaoDetailPage() {
                   const parts = t.date.split("-");
                   return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
                 });
+
+              const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
+              const totalSaidasExtrato   = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
+              const balancoLiquidoExtrato = totalEntradasExtrato - totalSaidasExtrato;
 
               if (monthTransactions.length === 0) {
                 return (
@@ -1536,8 +1542,8 @@ export default function CartaoDetailPage() {
                                   {t.category || (isIncome ? "Aporte / Injeção de Saldo" : "Despesa")}
                                 </span>
                               </td>
-                              <td className={`p-4 text-right font-black text-sm tabular-nums ${isIncome ? "text-emerald-400" : "text-slate-900 dark:text-white"}`}>
-                                {isIncome ? `+ ${brl(t.amount)}` : brl(t.amount)}
+                              <td className={`p-4 text-right font-black text-sm tabular-nums ${isIncome ? "text-emerald-500 dark:text-emerald-400" : "text-purple-600 dark:text-purple-400"}`}>
+                                {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
                               </td>
                               <td className="p-4 text-center">
                                 {isIncome ? (
@@ -1616,7 +1622,7 @@ export default function CartaoDetailPage() {
                                     </span>
                                     <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{catName}</span>
                                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                      {items.length} {items.length === 1 ? "despesa" : "despesas"}
+                                      {items.length} {items.length === 1 ? "movimentação" : "movimentações"}
                                     </span>
                                   </div>
                                 </td>
@@ -1635,13 +1641,25 @@ export default function CartaoDetailPage() {
                     </tbody>
                     <tfoot>
                       <tr className="bg-slate-100 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
-                        <td colSpan={3} className="p-4 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-xs font-bold">
-                          TOTAL CONSUMIDO NO MÊS
+                        <td colSpan={3} className="p-4">
+                          <div className="flex flex-wrap items-center gap-4 text-xs">
+                            <span className="font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">RESUMO DO EXTRATO DO MÊS:</span>
+                            <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400">
+                              <TrendingUp className="w-3.5 h-3.5" /> Entradas: + {brl(totalEntradasExtrato)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 font-black text-rose-600 dark:text-rose-400">
+                              <TrendingDown className="w-3.5 h-3.5" /> Saídas: - {brl(totalSaidasExtrato)}
+                            </span>
+                          </div>
                         </td>
-                        <td className="p-4 text-right font-black text-slate-900 dark:text-white text-base">
-                          {brl(totalGastosMes)}
+                        <td className="p-4 text-right font-black text-sm tabular-nums">
+                          <span className={balancoLiquidoExtrato >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+                            {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
+                          </span>
                         </td>
-                        <td colSpan={2} />
+                        <td colSpan={3} className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase">
+                          Balanço do Período
+                        </td>
                       </tr>
                     </tfoot>
                   </table>
