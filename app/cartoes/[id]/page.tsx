@@ -147,7 +147,7 @@ export default function CartaoDetailPage() {
   const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
   const [formVencimento, setFormVencimento]       = useState<number>(10);
   const [formCarga, setFormCarga] = useState<number | "">("");
-  const [formCargaOrigin, setFormCargaOrigin] = useState<"SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER">("SALARIO");
+  const [formCargaOrigin, setFormCargaOrigin] = useState<"SALARIO" | "RECARGA" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER">("SALARIO");
   const [formCargaMonth, setFormCargaMonth] = useState<number>(selectedMonth);
   const [formCargaYear, setFormCargaYear] = useState<number>(selectedYear);
   const [formType, setFormType] = useState<"vista" | "parcelado">("vista");
@@ -268,8 +268,17 @@ export default function CartaoDetailPage() {
       const todayStr = new Date().toISOString().split("T")[0];
       const dateParts = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
       const dateToUse = (selectedYear && selectedMonth) ? dateParts : todayStr;
-      const originLabel = formCargaOrigin ? `Aporte (${formCargaOrigin})` : "Aporte / Injeção de Saldo";
-      const catName = formCargaOrigin ? `Aporte (${formCargaOrigin})` : "Aporte / Injeção de Saldo";
+      const originLabels: Record<string, string> = {
+        SALARIO: "Injeção de Capital / Salário",
+        RECARGA: "Recarga de Saldo",
+        FREELANCE: "Renda Extra / Freelance",
+        INVESTIMENTO: "Resgate de Investimento",
+        APORTE: "Outra Fonte / Aporte Direto",
+        ROLLOVER: "Saldo do Mês Anterior"
+      };
+      const labelText = originLabels[formCargaOrigin] || "Aporte / Injeção de Saldo";
+      const originLabel = labelText;
+      const catName = labelText;
 
       await createRevenueAction(
         originLabel,
@@ -1765,6 +1774,7 @@ export default function CartaoDetailPage() {
                   className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
                 >
                   <option value="SALARIO">Injeção de Capital / Salário</option>
+                  <option value="RECARGA">Recarga de Saldo</option>
                   <option value="FREELANCE">Renda Extra / Freelance</option>
                   <option value="INVESTIMENTO">Resgate de Investimento</option>
                   <option value="APORTE">Outra Fonte / Aporte Direto</option>

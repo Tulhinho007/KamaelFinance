@@ -953,7 +953,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
 
 export async function addCapitalInjectionAction(input: {
   walletId: string;
-  originType: "SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER";
+  originType: "SALARIO" | "RECARGA" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER";
   amount: number;
   month: number;
   year: number;
@@ -961,6 +961,7 @@ export async function addCapitalInjectionAction(input: {
 }) {
   const originLabels: Record<string, string> = {
     SALARIO: "[Salário]",
+    RECARGA: "[Recarga de Saldo]",
     FREELANCE: "[Renda Extra]",
     INVESTIMENTO: "[Investimento]",
     APORTE: "[Aporte Direto]",
@@ -2182,7 +2183,7 @@ export async function createNewCard(input: {
   limitOrBalance:  number;
   diaFechamento:   number;
   diaVencimento:   number;
-  originType?:     "SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER";
+  originType?:     "SALARIO" | "RECARGA" | "FREELANCE" | "INVESTIMENTO" | "APORTE" | "ROLLOVER";
   targetMonth?:    number;
   targetYear?:     number;
 }) {

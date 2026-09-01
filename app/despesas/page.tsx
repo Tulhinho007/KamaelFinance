@@ -359,7 +359,7 @@ export default function DespesasPage() {
   const [formLimit,       setFormLimit]       = useState<number | "">("");
   const [formDiaFech,     setFormDiaFech]     = useState<number>(1);
   const [formDiaVenc,     setFormDiaVenc]     = useState<number>(10);
-  const [formOrigin,      setFormOrigin]      = useState<"ROLLOVER" | "SALARIO" | "FREELANCE" | "INVESTIMENTO" | "APORTE">("ROLLOVER");
+  const [formOrigin,      setFormOrigin]      = useState<"ROLLOVER" | "SALARIO" | "RECARGA" | "FREELANCE" | "INVESTIMENTO" | "APORTE">("ROLLOVER");
   const [formTargetMonth, setFormTargetMonth] = useState<number>(selectedMonthFilter || (new Date().getMonth() + 1));
   const [formTargetYear,  setFormTargetYear]  = useState<number>(selectedYear);
   const [formSaving,      setFormSaving]      = useState(false);
@@ -1216,6 +1216,7 @@ export default function DespesasPage() {
                     >
                       <option value="ROLLOVER">Saldo do Mês Anterior (Rollover Automático)</option>
                       <option value="SALARIO">Injeção de Capital / Salário</option>
+                      <option value="RECARGA">Recarga de Saldo</option>
                       <option value="FREELANCE">Renda Extra / Freelance</option>
                       <option value="INVESTIMENTO">Resgate de Investimento</option>
                       <option value="APORTE">Outra Fonte / Aporte Direto</option>
