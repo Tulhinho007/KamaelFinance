@@ -1357,13 +1357,13 @@ export default function CartaoDetailPage() {
         <div className="flex flex-col gap-8">
           
           {/* TOPO: 5 CARDS DE MÉTRICAS EM LINHA (SALDO, ENTRADAS, CONSUMO, PAGO, PENDENTE) */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-stretch">
             
             {/* Card 1: Saldo Disponível */}
-            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider">Saldo Disponível</span>
-                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between h-full shadow-sm">
+              <div className="flex items-start justify-between min-h-[44px] gap-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-snug">Saldo Disponível</span>
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
                   <Building2 className="w-5 h-5" />
                 </div>
               </div>
@@ -1374,10 +1374,10 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 2: Entradas no Mês */}
-            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/30 flex flex-col justify-between shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Entradas no Mês</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/30 flex flex-col justify-between h-full shadow-sm">
+              <div className="flex items-start justify-between min-h-[44px] gap-2">
+                <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-snug">Entradas no Mês</span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
                   <TrendingUp className="w-5 h-5" />
                 </div>
               </div>
@@ -1388,10 +1388,10 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 3: Consumo no Mês */}
-            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider">Consumo no Mês</span>
-                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 flex flex-col justify-between h-full shadow-sm">
+              <div className="flex items-start justify-between min-h-[44px] gap-2">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-snug">Consumo no Mês</span>
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
                   <TrendingDown className="w-5 h-5" />
                 </div>
               </div>
@@ -1402,10 +1402,10 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 4: Total Pago */}
-            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/20 flex flex-col justify-between shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Total Pago</span>
-                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-emerald-200 dark:border-emerald-500/20 flex flex-col justify-between h-full shadow-sm">
+              <div className="flex items-start justify-between min-h-[44px] gap-2">
+                <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider leading-snug">Total Pago</span>
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
               </div>
@@ -1414,11 +1414,12 @@ export default function CartaoDetailPage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Despesas quitadas no mês</p>
               </div>
             </div>
+
             {/* Card 5: Total Pendente */}
-            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-500/20 flex flex-col justify-between shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Total Pendente</span>
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+            <div className="card-glow p-5 rounded-2xl bg-white dark:bg-slate-900/60 border border-amber-200 dark:border-amber-500/20 flex flex-col justify-between h-full shadow-sm">
+              <div className="flex items-start justify-between min-h-[44px] gap-2">
+                <span className="text-xs font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider leading-snug">Total Pendente</span>
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
                   <Clock className="w-5 h-5" />
                 </div>
               </div>
