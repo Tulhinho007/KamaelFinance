@@ -2468,6 +2468,163 @@ export async function deleteCardAccount(walletId: string) {
   }
 }
 
+// ---------- Busca de Faturas Pendentes a Vencer (Ordenação Cronológica) ----------
+
+export async function getUpcomingCreditCardBills(userId: string) {
+  // 1. Busca todos os cartões de crédito do usuário
+  const creditCards = await prisma.wallet.findMany({
+    where: {
+      userId,
+      walletType: "CREDIT_CARD",
+    },
+    orderBy: { title: "asc" },
+  });
+
+  if (creditCards.length === 0) return [];
+
+  const cardIds = creditCards.map((c) => c.id);
+
+  // 2. Busca todas as transações de despesa em cartões de crédito não deletadas
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      walletId: { in: cardIds },
+      type: "EXPENSE",
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      walletId: true,
+      amount: true,
+      date: true,
+      status: true,
+    },
+    orderBy: { date: "asc" },
+  });
+
+  // 3. Busca todos os registros de pagamentos de faturas efetuados
+  const paidInvoices = await (prisma as any).invoicePayment.findMany({
+    where: {
+      walletId: { in: cardIds },
+    },
+  });
+
+  // Mapeia os pagamentos efetuados por walletId e competência/vencimento
+  const paidMap = new Map<string, number>();
+  paidInvoices.forEach((p: any) => {
+    const key = `${p.walletId}-${p.month}-${p.year}`;
+    paidMap.set(key, (paidMap.get(key) || 0) + Number(p.amount));
+  });
+
+  // 4. Agrupa transações por cartão e competência (mês e ano da despesa)
+  const invoiceGroups = new Map<string, {
+    card: typeof creditCards[0];
+    month: number;
+    year: number;
+    totalAmount: number;
+  }>();
+
+  transactions.forEach((tx) => {
+    const d = new Date(tx.date);
+    const m = d.getUTCMonth() + 1;
+    const y = d.getUTCFullYear();
+    const groupKey = `${tx.walletId}-${m}-${y}`;
+
+    const existing = invoiceGroups.get(groupKey);
+    const amt = Number(tx.amount);
+
+    if (existing) {
+      existing.totalAmount += amt;
+    } else {
+      const card = creditCards.find((c) => c.id === tx.walletId);
+      if (card) {
+        invoiceGroups.set(groupKey, {
+          card,
+          month: m,
+          year: y,
+          totalAmount: amt,
+        });
+      }
+    }
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pendingBills = [];
+
+  for (const group of Array.from(invoiceGroups.values())) {
+    const { card, month, year, totalAmount } = group;
+    if (totalAmount <= 0) continue;
+
+    // Calcula a data de vencimento da fatura deste mês de competência
+    const dueDateInfo = getInvoiceDueDateInfo(
+      (card as any).diaFechamento ?? 1,
+      card.vencimento ?? 10,
+      month,
+      year
+    );
+
+    // Verifica se essa fatura foi paga (pela competência OU pelo mês de vencimento)
+    const paidByComp = paidMap.get(`${card.id}-${month}-${year}`) || 0;
+    const paidByVenc = paidMap.get(`${card.id}-${dueDateInfo.billingMonth}-${dueDateInfo.billingYear}`) || 0;
+    const totalPaid = Math.max(paidByComp, paidByVenc);
+
+    // Se o valor pago for maior ou igual ao total, consideramos quitada
+    if (totalPaid >= totalAmount) continue;
+
+    const remainingAmount = Math.max(0, totalAmount - totalPaid);
+    if (remainingAmount <= 0) continue;
+
+    const dueDate = new Date(dueDateInfo.dueDate);
+    dueDate.setHours(0, 0, 0, 0);
+
+    const timeDiff = dueDate.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    const isPast = daysDiff < 0;
+
+    let statusLabel = "PENDENTE";
+    let statusBadgeVariant: "overdue" | "urgent" | "pending" = "pending";
+
+    if (isPast) {
+      const daysOverdue = Math.abs(daysDiff);
+      statusLabel = daysOverdue === 1 ? "ATRASADA (1 DIA)" : `ATRASADA (${daysOverdue} DIAS)`;
+      statusBadgeVariant = "overdue";
+    } else if (daysDiff === 0) {
+      statusLabel = "VENCE HOJE";
+      statusBadgeVariant = "urgent";
+    } else if (daysDiff <= 7) {
+      statusLabel = daysDiff === 1 ? "VENCE AMANHÃ" : `VENCE EM ${daysDiff} DIAS`;
+      statusBadgeVariant = "urgent";
+    }
+
+    pendingBills.push({
+      id: `${card.id}-${year}-${month}`,
+      cardId: card.id,
+      title: card.title || card.bankName || "Cartão de Crédito",
+      bankName: card.bankName || card.title,
+      month,
+      year,
+      valor: Math.round(remainingAmount * 100) / 100,
+      vencimento: dueDateInfo.dateStr,
+      dueDate: dueDate.toISOString(),
+      isPast,
+      daysDiff,
+      statusLabel,
+      statusBadgeVariant,
+    });
+  }
+
+  // Ordenação obrigatória pela data de vencimento mais próxima para a mais distante (crescente)
+  pendingBills.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+
+  return pendingBills;
+}
+
+export async function getUpcomingBillsAction() {
+  const userId = await getActiveUserId();
+  return getUpcomingCreditCardBills(userId);
+}
+
 // ---------- Actions de Dashboard Principal ----------
 
 export async function getDashboardOverviewData(year: number, month?: number | null) {
@@ -2644,6 +2801,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     goals,
     categoryBreakdown,
     monthlyHistory: historyMonths,
+    upcomingBills: await getUpcomingCreditCardBills(userId),
   };
 }
 

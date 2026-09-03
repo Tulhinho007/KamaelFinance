@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import {
   Plus, TrendingUp, TrendingDown, DollarSign, Target, CreditCard,
-  Building2, Zap, ChevronRight, CheckCircle2, Clock,
+  Building2, Zap, ChevronRight, CheckCircle2, Clock, AlertCircle,
   Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Tag, Filter, HelpCircle
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
@@ -169,17 +169,17 @@ export function DashboardOverview() {
 
   const today = new Date();
 
-  const upcomingBills = data.cards
+  const upcomingBills: any[] = data.upcomingBills ?? data.cards
     .filter((c: any) => c.walletType === "CREDIT_CARD" && c.faturaAtual > 0 && !c.isPaid)
-    .map((c: any) => {
-      return {
-        id: c.id,
-        title: c.title,
-        valor: c.faturaAtual,
-        vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
-        isPast: !!c.isPast,
-      };
-    });
+    .map((c: any) => ({
+      id: c.id,
+      title: c.title,
+      valor: c.faturaAtual,
+      vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
+      isPast: !!c.isPast,
+      statusLabel: c.isPast ? "VENCIDA" : "PENDENTE",
+      statusBadgeVariant: c.isPast ? "overdue" : "pending",
+    }));
 
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">
@@ -537,9 +537,22 @@ export function DashboardOverview() {
           <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Faturas a Vencer</h3>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  Faturas a Vencer
+                  {upcomingBills.length > 0 && (
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                      {upcomingBills.length}
+                    </span>
+                  )}
+                </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Compromissos pendentes nos próximos dias</p>
               </div>
+              <Link
+                href="/despesas"
+                className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
+              >
+                Ver todas <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {upcomingBills.length === 0 ? (
@@ -549,28 +562,53 @@ export function DashboardOverview() {
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
-                {upcomingBills.map((bill: any) => (
-                  <div key={bill.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${bill.isPast ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"}`}>
-                        <Clock className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-black text-slate-900 dark:text-white">{bill.title}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Vencimento: {bill.vencimento}</p>
-                      </div>
-                    </div>
+                {upcomingBills.map((bill: any) => {
+                  const isOverdue = !!bill.isPast || bill.statusBadgeVariant === "overdue";
+                  const isUrgent = bill.statusBadgeVariant === "urgent" || (!isOverdue && bill.daysDiff !== undefined && bill.daysDiff <= 7);
 
-                    <div className="text-right">
-                      <p className="text-xs font-black text-slate-900 dark:text-white font-tnum tabular-nums">{brl(bill.valor)}</p>
-                      <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 ${
-                        bill.isPast ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                      }`}>
-                        {bill.isPast ? "Vencida" : "Pendente"}
-                      </span>
+                  let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
+                  let iconBgStyle = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300";
+                  let cardBorder = "bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800";
+
+                  if (isOverdue) {
+                    badgeStyle = "bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/40";
+                    iconBgStyle = "bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30";
+                    cardBorder = "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40";
+                  } else if (isUrgent) {
+                    badgeStyle = "bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/40";
+                    iconBgStyle = "bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30";
+                    cardBorder = "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40";
+                  }
+
+                  return (
+                    <div key={bill.id} className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${cardBorder}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBgStyle}`}>
+                          {isOverdue ? <AlertCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <p className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                            {bill.title}
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                            Vencimento: <strong className="font-extrabold text-slate-700 dark:text-slate-300">{bill.vencimento}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className={`text-xs font-black font-tnum tabular-nums ${
+                          isOverdue ? "text-rose-600 dark:text-rose-400" : isUrgent ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
+                        }`}>
+                          {brl(bill.valor)}
+                        </p>
+                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 border ${badgeStyle}`}>
+                          {bill.statusLabel || (isOverdue ? "VENCIDA" : "PENDENTE")}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
