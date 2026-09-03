@@ -106,19 +106,20 @@ export default function PaymentHistoryPage() {
         </div>
       </div>
 
-      {/* ── 2. CARDS DE MÉTRICAS DO TOPO (GRID 4 COLUNAS) ───────────────────── */}
+      {/* ── 2. CARDS DE MÉTRICAS DO TOPO (GRID 3 COLUNAS) ───────────────────── */}
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
             <div key={i} className="bg-white dark:bg-[#131B2E] rounded-2xl h-36 border border-slate-200 dark:border-slate-800 animate-pulse p-5" />
           ))}
         </div>
       ) : (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
           
           {/* Card 1: Total Gastos Pagos Crédito */}
           <div className="card-glow p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 flex flex-col justify-between h-full shadow-sm">
-            <div className="flex items-start justify-between min-h-[44px] gap-2">
+            {/* Topo: Altura mínima fixa para nivelar títulos de 1 ou 2 linhas */}
+            <div className="flex items-start justify-between min-h-[44px] gap-3">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-snug">
                 Total Gastos Pagos Crédito
               </span>
@@ -126,17 +127,26 @@ export default function PaymentHistoryPage() {
                 <CreditCard className="w-5 h-5" />
               </div>
             </div>
-            <div className="mt-4">
+
+            {/* Centro: Valor em destaque na mesma linha de base horizontal */}
+            <div className="py-2 my-auto flex items-center">
               <h3 className="text-2xl md:text-3xl font-black text-purple-600 dark:text-purple-400 tabular-nums">
                 {brl(data?.metrics.totalCreditPaid || 0)}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Faturas de cartão quitadas no mês</p>
+            </div>
+
+            {/* Rodapé: Altura mínima padronizada e ancorado na base */}
+            <div className="min-h-[38px] flex items-center mt-auto border-t border-slate-100 dark:border-slate-800/50 pt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Faturas de cartão quitadas no mês
+              </p>
             </div>
           </div>
 
           {/* Card 2: Total Gastos Débito/PIX */}
           <div className="card-glow p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-emerald-200 dark:border-emerald-500/30 flex flex-col justify-between h-full shadow-sm">
-            <div className="flex items-start justify-between min-h-[44px] gap-2">
+            {/* Topo: Altura mínima fixa para nivelar títulos de 1 ou 2 linhas */}
+            <div className="flex items-start justify-between min-h-[44px] gap-3">
               <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-snug">
                 Total Gastos Débito/PIX
               </span>
@@ -144,17 +154,26 @@ export default function PaymentHistoryPage() {
                 <Building2 className="w-5 h-5" />
               </div>
             </div>
-            <div className="mt-4">
+
+            {/* Centro: Valor em destaque na mesma linha de base horizontal */}
+            <div className="py-2 my-auto flex items-center">
               <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                 {brl(data?.metrics.totalDebitPix || 0)}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Débitos e transações liquidadas no mês</p>
+            </div>
+
+            {/* Rodapé: Altura mínima padronizada e ancorado na base */}
+            <div className="min-h-[38px] flex items-center mt-auto border-t border-slate-100 dark:border-slate-800/50 pt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Débitos e transações liquidadas no mês
+              </p>
             </div>
           </div>
 
           {/* Card 3: Total Gastos Geral */}
           <div className="card-glow p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-indigo-200 dark:border-indigo-500/30 flex flex-col justify-between h-full shadow-sm">
-            <div className="flex items-start justify-between min-h-[44px] gap-2">
+            {/* Topo: Altura mínima fixa para nivelar títulos de 1 ou 2 linhas */}
+            <div className="flex items-start justify-between min-h-[44px] gap-3">
               <span className="text-xs font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-snug">
                 Total Gastos Geral
               </span>
@@ -162,34 +181,18 @@ export default function PaymentHistoryPage() {
                 <Receipt className="w-5 h-5" />
               </div>
             </div>
-            <div className="mt-4">
+
+            {/* Centro: Valor em destaque na mesma linha de base horizontal */}
+            <div className="py-2 my-auto flex items-center">
               <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tabular-nums">
                 {brl(data?.metrics.totalGeral || 0)}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Soma consolidada de saídas liquidadas</p>
             </div>
-          </div>
 
-          {/* Card 4: Sugestões de Economia */}
-          <div className="card-glow p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-amber-200 dark:border-amber-500/30 flex flex-col justify-between h-full shadow-sm">
-            <div className="flex items-start justify-between min-h-[44px] gap-2">
-              <span className="text-xs font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider leading-snug">
-                Sugestões de Economia
-              </span>
-              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            </div>
-            <div className="mt-2">
-              <span className={`inline-block text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full mb-1 border ${
-                data?.metrics.isEconomyPositive
-                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                  : "bg-amber-500/10 border-amber-500/30 text-amber-400"
-              }`}>
-                {data?.metrics.isEconomyPositive ? "Economia Detectada" : "Atenção ao Consumo"}
-              </span>
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-snug">
-                {data?.metrics.economyInsight}
+            {/* Rodapé: Altura mínima padronizada e ancorado na base */}
+            <div className="min-h-[38px] flex items-center mt-auto border-t border-slate-100 dark:border-slate-800/50 pt-2">
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Soma consolidada de saídas liquidadas
               </p>
             </div>
           </div>
