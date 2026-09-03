@@ -1,8 +1,8 @@
 "use client";
-
 import React, { useState, useEffect } from "react";
 import { X, DollarSign, Tag, Edit3, PlusCircle } from "lucide-react";
-import { CATEGORIES, parseCurrencyInput } from "@/lib/constants";
+import { parseCurrencyInput } from "@/lib/constants";
+import { CATEGORIES } from "@/constants/categories";
 import { getAllWalletsSimple, createCardPurchase, updateCardPurchase } from "@/lib/actions";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 

@@ -22,6 +22,7 @@ import {
   Zap,
   HelpCircle
 } from "lucide-react";
+import { CATEGORIES } from "@/constants/categories";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import {
@@ -351,6 +352,20 @@ export default function OrcamentosPage() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (data?.categories && data.categories.length > 0) {
+                      const firstNoLimit = data.categories.find(c => c.budgetLimit === 0) || data.categories[0];
+                      handleOpenEditModal(firstNoLimit);
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs rounded-xl shadow-md shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4 text-white" />
+                  <span>Definir Teto / Categoria</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
                     setBulkSelectedIds([]);
                     setBulkInputLimit("");
                     setBulkModalOpen(true);
@@ -558,20 +573,34 @@ export default function OrcamentosPage() {
 
           <div className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl w-full max-w-md space-y-5 animate-in zoom-in-95 duration-150 z-10">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-1 min-w-0 mr-3">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xs shrink-0 shadow-xs"
                   style={{ backgroundColor: editingCategory.categoryColor }}
                 >
                   <PieChart className="w-5 h-5" />
                 </div>
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                    {editingCategory.categoryName}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">
-                    Definir teto máximo para este mês
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
+                    Categoria
+                  </label>
+                  <select
+                    value={editingCategory.categoryId}
+                    onChange={(e) => {
+                      const selected = (data?.categories || []).find(c => c.categoryId === e.target.value);
+                      if (selected) {
+                        setEditingCategory(selected);
+                        setInputLimit(selected.budgetLimit > 0 ? selected.budgetLimit.toString() : "");
+                      }
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-1.5 font-bold text-slate-900 dark:text-slate-100 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    {(data?.categories || []).map((cat) => (
+                      <option key={cat.categoryId} value={cat.categoryId} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                        {cat.categoryName} {cat.budgetLimit > 0 ? `(Teto: ${brl(cat.budgetLimit)})` : "(Sem teto)"}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

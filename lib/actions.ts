@@ -217,9 +217,20 @@ export async function getRevenues(month?: number | null | string, year: number =
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
+  const BENEFIT_TYPES = [
+    "TICKET", "BENEFICIO", "BENEFÍCIO", 
+    "ticket", "beneficio", "benefício", 
+    "Ticket", "Benefício", "Beneficio"
+  ];
+
   let transactions: any[] = await prisma.transaction.findMany({
     where: {
-      wallet: { userId },
+      wallet: { 
+        userId,
+        walletType: {
+          notIn: BENEFIT_TYPES
+        }
+      },
       type: "INCOME",
       deletedAt: null,
       date: { gte: from, lte: to }
@@ -228,27 +239,37 @@ export async function getRevenues(month?: number | null | string, year: number =
     orderBy: { date: "asc" }
   });
 
-  return transactions.map((t: any) => ({
-    id: t.id,
-    description: t.description,
-    amount: Number(t.amount),
-    status: t.status || "COMPLETED",
-    date: t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : "",
-    competenceDate: t.competenceDate ? (typeof t.competenceDate === "string" ? t.competenceDate.split("T")[0] : new Date(t.competenceDate).toISOString().split("T")[0]) : (t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : ""),
-    walletId: t.walletId,
-    account: t.wallet?.bankName || t.wallet?.title || "",
-    walletType: t.wallet?.walletType
-  }));
+  // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios
+  return transactions
+    .filter((t: any) => {
+      const wType = (t.wallet?.walletType || "").toUpperCase();
+      return !["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+    })
+    .map((t: any) => ({
+      id: t.id,
+      description: t.description,
+      amount: Number(t.amount),
+      status: t.status || "COMPLETED",
+      date: t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : "",
+      competenceDate: t.competenceDate ? (typeof t.competenceDate === "string" ? t.competenceDate.split("T")[0] : new Date(t.competenceDate).toISOString().split("T")[0]) : (t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : ""),
+      walletId: t.walletId,
+      account: t.wallet?.bankName || t.wallet?.title || "",
+      walletType: t.wallet?.walletType,
+      isBeneficio: false
+    }));
 }
 
 export async function getSalaryCycleSummary(month: number, year: number) {
   const userId = await getActiveUserId();
 
-  // 1. Busca contas bancárias/correntes do usuário
+  // 1. Busca contas bancárias/correntes do usuário (exclui TICKET e BENEFÍCIO)
   const bankWallets = await prisma.wallet.findMany({
     where: {
       userId,
-      walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "TICKET"] }
+      walletType: { 
+        in: ["CONTA_CORRENTE", "Conta Corrente"],
+        notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "ticket", "beneficio", "benefício", "Ticket", "Benefício", "Beneficio"]
+      }
     }
   });
 
@@ -1278,6 +1299,8 @@ export async function createCardPurchase(
   competenceDateStr?: string
 ) {
   let dbCategory = await prisma.category.findFirst({
+    where: { name: { equals: category, mode: "insensitive" } }
+  }) || await prisma.category.findFirst({
     where: { name: category }
   });
   if (!dbCategory) {
@@ -1502,6 +1525,8 @@ export async function updateCardPurchase(
   const userId = await getActiveUserId();
 
   let dbCategory = await prisma.category.findFirst({
+    where: { name: { equals: category, mode: "insensitive" } }
+  }) || await prisma.category.findFirst({
     where: { name: category }
   });
   if (!dbCategory) {
@@ -1835,6 +1860,8 @@ export async function createTicketExpense(
   dateStr: string
 ) {
   let dbCategory = await prisma.category.findFirst({
+    where: { name: { equals: category, mode: "insensitive" } }
+  }) || await prisma.category.findFirst({
     where: { name: category }
   });
   if (!dbCategory && category) {
@@ -1868,6 +1895,8 @@ export async function updateTicketExpense(
   dateStr: string
 ) {
   let dbCategory = await prisma.category.findFirst({
+    where: { name: { equals: category, mode: "insensitive" } }
+  }) || await prisma.category.findFirst({
     where: { name: category }
   });
   if (!dbCategory && category) {
@@ -2416,7 +2445,9 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     const isRealized = t.status === "COMPLETED" || t.status === "PAID";
 
     if (t.type === "INCOME") {
-      if (isRealized) {
+      const wType = (t.wallet?.walletType || "").toUpperCase();
+      const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+      if (isRealized && !isBenefit) {
         totalReceitas += amt;
       }
     } else if (t.type === "EXPENSE") {
@@ -2498,7 +2529,12 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     const [mInc, mExp] = await Promise.all([
       prisma.transaction.aggregate({
         where: {
-          wallet: { userId },
+          wallet: { 
+            userId,
+            walletType: { 
+              notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "ticket", "beneficio", "benefício", "Ticket", "Benefício", "Beneficio"]
+            }
+          },
           type: "INCOME",
           status: { in: ["COMPLETED", "PAID"] },
           date: { gte: mFrom, lte: mTo },
@@ -4308,10 +4344,15 @@ export async function getFutureBalanceProjection(days: 30 | 60 = 30) {
   const futureEndDate = new Date(todayEnd);
   futureEndDate.setDate(futureEndDate.getDate() + days);
 
-  // Entradas Previstas: Receitas pendentes ou futuras no período
+  // Entradas Previstas: Receitas pendentes ou futuras no período (exclui cartão e benefícios)
   const futureIncomes = await prisma.transaction.findMany({
     where: {
-      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+      wallet: { 
+        userId, 
+        walletType: { 
+          notIn: ["CREDIT_CARD", "TICKET", "BENEFICIO", "BENEFÍCIO", "ticket", "beneficio", "benefício", "Ticket", "Benefício", "Beneficio"] 
+        } 
+      },
       type: "INCOME",
       deletedAt: null,
       OR: [

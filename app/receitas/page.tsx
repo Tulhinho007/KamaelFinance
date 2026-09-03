@@ -44,6 +44,14 @@ type Revenue = {
   category?: string;
   account?: string;
   walletId?: string;
+  walletType?: string;
+  isBeneficio?: boolean;
+};
+
+const isBenefitWallet = (walletType?: string): boolean => {
+  if (!walletType) return false;
+  const t = walletType.toUpperCase();
+  return t === "TICKET" || t === "BENEFICIO" || t === "BENEFÍCIO";
 };
 
 // Categorias padrão para receitas
@@ -59,7 +67,7 @@ const CATEGORIES_LIST = [
 
 const DESCRIPTIONS_LIST = [
   "Salário",
-  "Vale Refeição / Ticket Alimentação",
+  "Benefício em Conta (Auxílio)",
   "Vale Transporte",
   "Bônus / PLR",
   "Férias",
@@ -263,7 +271,10 @@ export default function ReceitasPage() {
     setCurrentPage(1);
   }, [selectedMonth, selectedYear]);
 
-  const filteredRevenues = revenues.filter((rev) => {
+  // Isolamento estrito de cartões de benefício/ticket da visualização global de receitas
+  const activeRevenues = revenues.filter((rev) => !isBenefitWallet(rev.walletType) && !rev.isBeneficio);
+
+  const filteredRevenues = activeRevenues.filter((rev) => {
     const matchesSearch = rev.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus =
       statusFilter === "ALL" ? true :
@@ -282,11 +293,11 @@ export default function ReceitasPage() {
     currentPage * itemsPerPage
   );
 
-  const totalPrevisto = revenues.reduce((s, r) => s + r.amount, 0);
-  const totalReceived = revenues
+  const totalPrevisto = activeRevenues.reduce((s, r) => s + r.amount, 0);
+  const totalReceived = activeRevenues
     .filter(r => r.status !== "PENDING")
     .reduce((s, r) => s + r.amount, 0);
-  const totalPending  = revenues
+  const totalPending  = activeRevenues
     .filter(r => r.status === "PENDING")
     .reduce((s, r) => s + r.amount, 0);
 
@@ -349,7 +360,8 @@ export default function ReceitasPage() {
     setFormDate(defaultDate);
     setFormCompetenceMonth(selectedMonth);
     setFormCompetenceYear(selectedYear);
-    setFormWalletId(wallets.length > 0 ? wallets[0].id : "");
+    const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
+    setFormWalletId(validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || ""));
     setFormSkipDeduction(false);
     setModalType("create");
   };
@@ -386,7 +398,8 @@ export default function ReceitasPage() {
       setFormCompetenceYear(Number(parts[0]));
       setFormCompetenceMonth(Number(parts[1]));
     }
-    setFormWalletId(rev.walletId || (wallets.length > 0 ? wallets[0].id : ""));
+    const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
+    setFormWalletId(rev.walletId || (validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || "")));
     setFormSkipDeduction(false);
     setModalType("edit");
   };
@@ -479,7 +492,7 @@ export default function ReceitasPage() {
       </section>
 
       {/* ── 3. SEÇÃO DONUT CHART DE FONTES DE RENDA ────────────────────────────── */}
-      <RevenueDonutChart list={revenues} />
+      <RevenueDonutChart list={activeRevenues} />
 
       {/* ── 4. BARRA DE BUSCA, FILTROS E AÇÕES ──────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -878,11 +891,13 @@ export default function ReceitasPage() {
                     <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-500">
                       Selecione a conta de destino...
                     </option>
-                    {wallets.map((w) => (
-                      <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
-                        {formatWalletDropdownLabel(w)}
-                      </option>
-                    ))}
+                    {wallets
+                      .filter((w) => !isBenefitWallet(w.walletType))
+                      .map((w) => (
+                        <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
+                          {formatWalletDropdownLabel(w)}
+                        </option>
+                      ))}
                   </select>
                 </div>
 

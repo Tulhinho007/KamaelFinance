@@ -2,7 +2,7 @@
 
 import { prisma } from "./prisma";
 import { getActiveUserId } from "./actions";
-import { CATEGORIES, getCategoryColor } from "./constants";
+import { CATEGORIES, getCategoryColor } from "@/constants/categories";
 import { revalidatePath } from "next/cache";
 
 export type CategoryBudgetItem = {
@@ -40,7 +40,9 @@ export async function getMonthlyBudgetDataAction({
 
     // Garante que todas as categorias padrão existam no banco
     for (const catName of CATEGORIES) {
-      const exists = await prisma.category.findFirst({ where: { name: catName } });
+      const exists = await prisma.category.findFirst({
+        where: { name: { equals: catName, mode: "insensitive" } },
+      });
       if (!exists) {
         await prisma.category.create({
           data: { name: catName, color: getCategoryColor(catName) },
@@ -61,8 +63,8 @@ export async function getMonthlyBudgetDataAction({
     );
 
     // Transações do mês
-    const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
     const expenses = await prisma.transaction.findMany({
       where: {
@@ -92,13 +94,20 @@ export async function getMonthlyBudgetDataAction({
       return true;
     });
 
+    // Mapeamento por ID e Nome normalizado
+    const categoryNameToId = new Map<string, string>();
+    categories.forEach((c) => {
+      categoryNameToId.set(c.name.toLowerCase().trim(), c.id);
+    });
+
     // Soma de gastos reais por categoria
     const spentMap = new Map<string, number>();
     for (const t of validExpenses) {
-      if (t.categoryId) {
+      const catId = t.categoryId || (t.category?.name ? categoryNameToId.get(t.category.name.toLowerCase().trim()) : undefined);
+      if (catId) {
         spentMap.set(
-          t.categoryId,
-          (spentMap.get(t.categoryId) || 0) + Number(t.amount)
+          catId,
+          (spentMap.get(catId) || 0) + Number(t.amount)
         );
       }
     }

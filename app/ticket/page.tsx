@@ -8,7 +8,7 @@ import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { getTicketData, saveTicketCarga, addTicketCarga, removeTicketCarga, createTicketExpense, updateTicketExpense, deleteTicketExpense, deleteBatchPurchasesAction } from "@/lib/actions";
 
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORIES } from "@/constants/categories";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

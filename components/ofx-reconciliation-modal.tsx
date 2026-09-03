@@ -8,7 +8,7 @@ import {
   getAllWalletsSimple, processOFXImport, bulkClearTransactions,
   createTransactionFromOFX, OFXItem
 } from "@/lib/actions";
-import { CATEGORIES } from "@/lib/constants";
+import { CATEGORIES } from "@/constants/categories";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
