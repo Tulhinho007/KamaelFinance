@@ -1199,6 +1199,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         date: safeIsoDate(i.date),
         source: i.source,
         tags: (i as any).tags || undefined,
+        competenceDate: safeIsoDate((i as any).competenceDate || i.date),
       })),
       allTransactions: allTransactions.map(t => ({
         id: t.id,

@@ -32,6 +32,26 @@ const formatDateBR = (dateStr: string) => {
   return dateStr;
 };
 
+const formatReference = (refDateStr?: string) => {
+  if (!refDateStr) return "";
+  const clean = refDateStr.split("T")[0];
+  const parts = clean.split("-");
+  if (parts.length >= 2) {
+    const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const monthIndex = Number(parts[1]) - 1;
+    return `${monthShorts[monthIndex] || parts[1]}/${parts[0]}`;
+  }
+  return refDateStr;
+};
+
+const isDifferentCompetence = (dateStr?: string, compDateStr?: string) => {
+  if (!dateStr || !compDateStr) return false;
+  const dClean = dateStr.split("T")[0].split("-");
+  const cClean = compDateStr.split("T")[0].split("-");
+  if (dClean.length < 2 || cClean.length < 2) return false;
+  return dClean[0] !== cClean[0] || dClean[1] !== cClean[1];
+};
+
 type Purchase = {
   id: string;
   type: "vista" | "parcelado";
@@ -502,10 +522,10 @@ export default function CartaoDetailPage() {
   const hasInitialBalance = openingBalance > 0 || carryoverBalance > 0;
   const showSaldoInicial = !isPriorToJuly && hasInitialBalance;
 
-  const openEditModal = (p: Purchase) => {
-    const original = purchasesList.find(item => item.id === p.id);
+  const openEditModal = (p: any) => {
+    const original = purchasesList.find(item => item.id === p.id) || (cardData?.allTransactions || []).find(item => item.id === p.id);
     if (!original) return;
-    setSelectedPurchase(original);
+    setSelectedPurchase(original as any);
     setModalType("edit");
   };
 
@@ -1004,7 +1024,16 @@ export default function CartaoDetailPage() {
                               />
                             </td>
                             <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              <div>{formatDateBR(p.date)}</div>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                  {formatDateBR(p.date)}
+                                </span>
+                                {p.competenceDate && isDifferentCompetence(p.date, p.competenceDate) && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                    Ref: {formatReference(p.competenceDate)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                             <td className="p-3">
@@ -1158,7 +1187,16 @@ export default function CartaoDetailPage() {
                               />
                             </td>
                             <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              <div>{formatDateBR(p.date)}</div>
+                              <div className="flex flex-col items-start gap-1">
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                  {formatDateBR(p.date)}
+                                </span>
+                                {p.competenceDate && isDifferentCompetence(p.date, p.competenceDate) && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                    Ref: {formatReference(p.competenceDate)}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                               <span>{p.description}</span>
@@ -1314,16 +1352,16 @@ export default function CartaoDetailPage() {
                             />
                           </td>
                           <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            <div>{formatDateBR(p.date)}</div>
-                            {p.competenceDate && (
-                              <span className="inline-block mt-0.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
-                                Ref: {(() => {
-                                  const parts = p.competenceDate.split("-");
-                                  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                                  return `${monthShorts[Number(parts[1]) - 1]}/${parts[0]}`;
-                                })()}
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                {formatDateBR(p.date)}
                               </span>
-                            )}
+                              {p.competenceDate && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                  Ref: {formatReference(p.competenceDate)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                           <td className="p-3">
@@ -1577,6 +1615,7 @@ export default function CartaoDetailPage() {
                         const renderBankRow = (t: typeof monthTransactions[0]) => {
                           const isPaid = t.status !== "PENDING";
                           const isIncome = t.type === "INCOME";
+                          const hasRef = Boolean(t.competenceDate && isDifferentCompetence(t.date, t.competenceDate));
 
                           return (
                             <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
@@ -1593,7 +1632,16 @@ export default function CartaoDetailPage() {
                                 />
                               </td>
                               <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <div>{t.date.split("-").reverse().join("/")}</div>
+                                <div className="flex flex-col items-start gap-1">
+                                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                    {formatDateBR(t.date)}
+                                  </span>
+                                  {hasRef && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                      Ref: {formatReference(t.competenceDate)}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">
                                 <div className="flex items-center gap-2">
