@@ -330,15 +330,16 @@ export function DashboardOverview() {
       )}
 
       {/* ── 2. CARDS DE MÉTRICAS CONSOLIDADAS DO MÊS (GRID 4 COLUNAS) ──────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         
         {/* KPI 1: RECEITA REAL */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
-          <div>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                RECEITA REAL
-              </span>
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+          {/* Topo: Título e Ícone com altura mínima padronizada */}
+          <div className="flex items-start justify-between min-h-[48px] gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              Receita Real
+            </span>
+            <div className="shrink-0">
               <button
                 onClick={() => setActiveMetricModal("RECEITA_REAL")}
                 className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
@@ -347,25 +348,32 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
-              {brl(data.totalIncomes ?? data.totalReceitas ?? 0)}
-            </p>
           </div>
-          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+
+          {/* Meio: Valor de destaque perfeitamente alinhado na mesma linha de base horizontal */}
+          <div className="py-2 my-auto flex items-center">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums">
+              {brl(data.totalIncomes ?? data.totalReceitas ?? 0)}
+            </span>
+          </div>
+
+          {/* Base: Descrição/Legenda fixada no rodapé */}
+          <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
             <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
-              <ArrowUpRight className="w-3.5 h-3.5" />
+              <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
               Total de entradas registradas
             </span>
           </div>
         </div>
 
         {/* KPI 2: TOTAL GASTO CONSOLIDADO (CRÉDITO + DÉBITO/PIX) */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
-          <div>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                TOTAL GASTO CONSOLIDADO
-              </span>
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+          {/* Topo: Título e Ícone com altura mínima padronizada */}
+          <div className="flex items-start justify-between min-h-[48px] gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              Total Gasto Consolidado
+            </span>
+            <div className="shrink-0">
               <button
                 onClick={() => setActiveMetricModal("TOTAL_GASTO")}
                 className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
@@ -374,11 +382,17 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
-              {brl((data.totalCreditExpenses || 0) + (data.totalDebitExpenses || 0))}
-            </p>
           </div>
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5 text-[11px] font-bold">
+
+          {/* Meio: Valor de destaque perfeitamente alinhado na mesma linha de base horizontal */}
+          <div className="py-2 my-auto flex items-center">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+              {brl((data.totalCreditExpenses || 0) + (data.totalDebitExpenses || 0))}
+            </span>
+          </div>
+
+          {/* Base: Descrição/Legenda fixada no rodapé */}
+          <div className="min-h-[36px] flex items-center justify-between gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold">
             <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-xl">
               <CreditCard className="w-3.5 h-3.5 shrink-0" />
               <span>Crédito: <strong className="font-extrabold">{brl(data.totalCreditExpenses || 0)}</strong></span>
@@ -398,12 +412,13 @@ export function DashboardOverview() {
           const isPositive = saldo >= 0;
 
           return (
-            <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
-              <div>
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                    SALDO CONSOLIDADO
-                  </span>
+            <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+              {/* Topo: Título e Ícone com altura mínima padronizada */}
+              <div className="flex items-start justify-between min-h-[48px] gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+                  Saldo Consolidado
+                </span>
+                <div className="shrink-0">
                   <button
                     onClick={() => setActiveMetricModal("BALANCO_GERAL")}
                     className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
@@ -412,20 +427,26 @@ export function DashboardOverview() {
                     <HelpCircle className="w-4 h-4" />
                   </button>
                 </div>
-                <p className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tight mt-2 font-tnum tabular-nums ${
+              </div>
+
+              {/* Meio: Valor de destaque perfeitamente alinhado na mesma linha de base horizontal */}
+              <div className="py-2 my-auto flex items-center">
+                <span className={`text-2xl sm:text-3xl font-black tracking-tight font-tnum tabular-nums ${
                   isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                 }`}>
                   {brl(saldo)}
-                </p>
+                </span>
               </div>
-              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+
+              {/* Base: Descrição/Legenda fixada no rodapé */}
+              <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs border ${
                   isPositive
                     ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
                     : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800"
                 }`}>
                   {isPositive ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
-                  <span className="truncate">Receitas subtraídas de saídas (Crédito + Débito)</span>
+                  <span className="truncate">Receitas subtraídas de saídas</span>
                 </span>
               </div>
             </div>
@@ -433,12 +454,13 @@ export function DashboardOverview() {
         })()}
 
         {/* KPI 4: METAS GLOBAIS */}
-        <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
-          <div>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                METAS GLOBAIS
-              </span>
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+          {/* Topo: Título e Ícone com altura mínima padronizada */}
+          <div className="flex items-start justify-between min-h-[48px] gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              Metas Globais
+            </span>
+            <div className="shrink-0">
               <button
                 onClick={() => setActiveMetricModal("METAS_GLOBAIS")}
                 className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
@@ -447,16 +469,22 @@ export function DashboardOverview() {
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
-              {data.metasGlobaisPct}%
-            </p>
           </div>
-          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
+
+          {/* Meio: Valor de destaque perfeitamente alinhado na mesma linha de base horizontal */}
+          <div className="py-2 my-auto flex items-center">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums">
+              {data.metasGlobaisPct}%
+            </span>
+          </div>
+
+          {/* Base: Descrição/Legenda fixada no rodapé */}
+          <div className="min-h-[36px] flex flex-col justify-center gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
             <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
               <span>Progresso acumulado</span>
               <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{data.metasGlobaisPct}%</span>
             </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-950 h-2.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
               <div 
                 className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 rounded-full transition-all duration-500" 
                 style={{ width: `${Math.min(100, data.metasGlobaisPct)}%` }} 
