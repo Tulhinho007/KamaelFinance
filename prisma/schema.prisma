@@ -29,6 +29,7 @@ model User {
   userChallenges     UserChallenge[]
   userBadges         UserBadge[]
   healthScoreHistory HealthScoreHistory[]
+  creditPixOperations CreditPixOperation[]
 }
 
 model Wallet {
@@ -50,6 +51,8 @@ model Wallet {
   goalHistories  GoalHistory[]
   invoicePayments InvoicePayment[]
   subscriptions  Subscription[]
+  creditPixSourceOps CreditPixOperation[] @relation("CreditPixSourceCard")
+  creditPixDestOps   CreditPixOperation[] @relation("CreditPixDestAccount")
 }
 
 model Category {
@@ -354,5 +357,30 @@ model HealthScoreHistory {
   reserveSubscore Int
   debtSubscore    Int
   calculatedAt    DateTime @default(now())
+}
+
+model CreditPixOperation {
+  id                  String   @id @default(uuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceCardWalletId  String
+  sourceCardWallet    Wallet   @relation("CreditPixSourceCard", fields: [sourceCardWalletId], references: [id], onDelete: Cascade)
+  destAccountWalletId String
+  destAccountWallet   Wallet   @relation("CreditPixDestAccount", fields: [destAccountWalletId], references: [id], onDelete: Cascade)
+  netAmount           Decimal
+  totalAmount         Decimal
+  feeAmount           Decimal
+  feePercentage       Decimal
+  installmentsCount   Int
+  installmentAmount   Decimal
+  firstBillingMonth   Int
+  firstBillingYear    Int
+  operationDate       DateTime @default(now())
+  installmentGroupId  String   @unique
+  incomeTransactionId String?
+  description         String?
+  status              String   @default("ACTIVE")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt @default(now())
 }
 
