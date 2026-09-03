@@ -358,8 +358,8 @@ export function DashboardOverview() {
           </div>
 
           {/* Base: Descrição/Legenda fixada no rodapé */}
-          <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-            <span className="text-[11px] leading-tight font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
+          <div className="min-h-[58px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+            <span className="text-[11px] leading-tight font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
               <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">Total de entradas registradas</span>
             </span>
@@ -391,15 +391,28 @@ export function DashboardOverview() {
             </span>
           </div>
 
-          {/* Base: Descrição/Legenda fixada no rodapé */}
-          <div className="min-h-[36px] flex items-center justify-between gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold w-full overflow-hidden">
-            <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-xl truncate min-w-0">
-              <CreditCard className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Crédito: <strong className="font-extrabold">{brl(data.totalCreditExpenses || 0)}</strong></span>
+          {/* Base: Linhas individuais para Crédito e Débito sem cortar valores */}
+          <div className="min-h-[58px] flex flex-col justify-center gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
+            {/* Linha Crédito */}
+            <div className="flex items-center justify-between px-2.5 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 text-xs font-medium">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <CreditCard className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                <span className="font-semibold text-[11px]">Crédito:</span>
+              </div>
+              <span className="font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums text-xs">
+                {brl(data.totalCreditExpenses || 0)}
+              </span>
             </div>
-            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2 py-1 rounded-xl truncate min-w-0">
-              <Building2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Débito: <strong className="font-extrabold">{brl(data.totalDebitExpenses || 0)}</strong></span>
+
+            {/* Linha Débito / PIX */}
+            <div className="flex items-center justify-between px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span className="font-semibold text-[11px]">Débito/PIX:</span>
+              </div>
+              <span className="font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums text-xs">
+                {brl(data.totalDebitExpenses || 0)}
+              </span>
             </div>
           </div>
         </div>
@@ -439,8 +452,8 @@ export function DashboardOverview() {
               </div>
 
               {/* Base: Descrição/Legenda fixada no rodapé */}
-              <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-                <span className={`text-[11px] leading-tight font-bold px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 shadow-2xs border max-w-full overflow-hidden ${
+              <div className="min-h-[58px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+                <span className={`text-[11px] leading-tight font-bold px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs border max-w-full overflow-hidden ${
                   isPositive
                     ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
                     : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800"
@@ -479,7 +492,7 @@ export function DashboardOverview() {
           </div>
 
           {/* Base: Descrição/Legenda fixada no rodapé */}
-          <div className="min-h-[36px] flex flex-col justify-center gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
+          <div className="min-h-[58px] flex flex-col justify-center gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
             <div className="flex justify-between text-[10px] font-bold text-slate-500 dark:text-slate-400">
               <span>Progresso acumulado</span>
               <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{data.metasGlobaisPct}%</span>
