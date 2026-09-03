@@ -4705,7 +4705,9 @@ export async function getPaymentHistoryData(month: number, year: number) {
     typeLabel: string;
     periodRef: string;
     amount: number;
-    status: "PAGO" | "AGUARDANDO PAGAMENTO" | "LIQUIDADO" | "CONCLUÍDO" | "ZERADO";
+    paidAmount?: number;
+    pendingAmount?: number;
+    status: "PAGO" | "AGUARDANDO PAGAMENTO" | "LIQUIDADO" | "AGUARDANDO LIQUIDAÇÃO" | "CONCLUÍDO" | "ZERADO";
     statusColor: "emerald" | "amber" | "slate";
     detailsUrl: string;
     cardBrand?: string;
@@ -4737,6 +4739,8 @@ export async function getPaymentHistoryData(month: number, year: number) {
         typeLabel: "Cartão de Crédito",
         periodRef: periodStr,
         amount: invoiceAmount,
+        paidAmount: isInvoicePaid ? invoiceAmount : 0,
+        pendingAmount: isInvoicePaid ? 0 : invoiceAmount,
         status: isInvoicePaid ? "PAGO" : invoiceAmount <= 0 ? "ZERADO" : "AGUARDANDO PAGAMENTO",
         statusColor: isInvoicePaid ? "emerald" : invoiceAmount <= 0 ? "slate" : "amber",
         detailsUrl: `/cartoes/${w.id}`,
@@ -4745,11 +4749,22 @@ export async function getPaymentHistoryData(month: number, year: number) {
         holder: wOverview?.holder || (w as any).holder || undefined,
       });
     } else if (isTicket) {
-      const wExpenses = monthTransactions
-        .filter(t => t.walletId === w.id && t.type === "EXPENSE")
+      const ticketExpensesList = monthTransactions
+        .filter(t => t.walletId === w.id && t.type === "EXPENSE");
+
+      const tExpensesPaid = ticketExpensesList
+        .filter(t => t.status !== "PENDING")
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
-      totalTickets += wExpenses;
+      const tExpensesPending = ticketExpensesList
+        .filter(t => t.status === "PENDING")
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const tExpensesTotal = tExpensesPaid + tExpensesPending;
+
+      totalTickets += tExpensesPaid;
+
+      const hasPending = tExpensesPending > 0;
 
       historyItems.push({
         id: w.id,
@@ -4758,18 +4773,33 @@ export async function getPaymentHistoryData(month: number, year: number) {
         walletType: "TICKET",
         typeLabel: "Cartão Benefício / Ticket",
         periodRef: periodStr,
-        amount: wExpenses,
-        status: wExpenses > 0 ? "CONCLUÍDO" : "ZERADO",
-        statusColor: wExpenses > 0 ? "emerald" : "slate",
+        amount: tExpensesTotal,
+        paidAmount: tExpensesPaid,
+        pendingAmount: tExpensesPending,
+        status: tExpensesTotal <= 0 ? "ZERADO" : (hasPending ? "AGUARDANDO LIQUIDAÇÃO" : "CONCLUÍDO"),
+        statusColor: tExpensesTotal <= 0 ? "slate" : (hasPending ? "amber" : "emerald"),
         detailsUrl: `/cartoes/${w.id}`,
         holder: (w as any).holder || undefined,
       });
     } else {
-      const wExpenses = monthTransactions
-        .filter(t => t.walletId === w.id && t.type === "EXPENSE")
+      // CONTA DÉBITO / PIX / CONTA CORRENTE
+      const wExpensesList = monthTransactions
+        .filter(t => t.walletId === w.id && t.type === "EXPENSE");
+
+      const wExpensesPaid = wExpensesList
+        .filter(t => t.status !== "PENDING")
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
-      totalDebitPix += wExpenses;
+      const wExpensesPending = wExpensesList
+        .filter(t => t.status === "PENDING")
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const wExpensesTotal = wExpensesPaid + wExpensesPending;
+
+      // O card do topo (Total Gastos Débito/PIX) só deve somar o que já foi baixado / liquidado!
+      totalDebitPix += wExpensesPaid;
+
+      const hasPending = wExpensesPending > 0;
 
       historyItems.push({
         id: w.id,
@@ -4778,9 +4808,11 @@ export async function getPaymentHistoryData(month: number, year: number) {
         walletType: "CONTA_CORRENTE",
         typeLabel: "Conta Débito / PIX",
         periodRef: periodStr,
-        amount: wExpenses,
-        status: wExpenses > 0 ? "LIQUIDADO" : "ZERADO",
-        statusColor: wExpenses > 0 ? "emerald" : "slate",
+        amount: wExpensesTotal,
+        paidAmount: wExpensesPaid,
+        pendingAmount: wExpensesPending,
+        status: wExpensesTotal <= 0 ? "ZERADO" : (hasPending ? "AGUARDANDO LIQUIDAÇÃO" : "LIQUIDADO"),
+        statusColor: wExpensesTotal <= 0 ? "slate" : (hasPending ? "amber" : "emerald"),
         detailsUrl: `/cartoes/${w.id}`,
         holder: (w as any).holder || undefined,
       });
@@ -4798,10 +4830,20 @@ export async function getPaymentHistoryData(month: number, year: number) {
   } catch (e) {}
 
   const prevDebitPix = prevMonthTransactions
-    .filter(t => t.type === "EXPENSE")
+    .filter(t => {
+      const w = wallets.find(wall => wall.id === t.walletId);
+      return w?.walletType === "CONTA_CORRENTE" && t.type === "EXPENSE" && t.status !== "PENDING";
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const prevTotal = prevCreditPaid + prevDebitPix;
+  const prevTickets = prevMonthTransactions
+    .filter(t => {
+      const w = wallets.find(wall => wall.id === t.walletId);
+      return w?.walletType === "TICKET" && t.type === "EXPENSE" && t.status !== "PENDING";
+    })
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  const prevTotal = prevCreditPaid + prevDebitPix + prevTickets;
 
   let economyInsight = "";
   let economyPct = 0;

@@ -148,7 +148,7 @@ export default function PaymentHistoryPage() {
               <h3 className="text-2xl md:text-3xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                 {brl(data?.metrics.totalDebitPix || 0)}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Débitos e transações em conta corrente</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Débitos e transações liquidadas no mês</p>
             </div>
           </div>
 
@@ -166,7 +166,7 @@ export default function PaymentHistoryPage() {
               <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-white tabular-nums">
                 {brl(data?.metrics.totalGeral || 0)}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Soma consolidada de todas as saídas</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">Soma consolidada de saídas liquidadas</p>
             </div>
           </div>
 
@@ -313,7 +313,16 @@ export default function PaymentHistoryPage() {
 
                       {/* Total Gasto / Pago */}
                       <td className="p-4 text-right font-black text-sm tabular-nums text-slate-900 dark:text-white">
-                        {brl(item.amount)}
+                        <div>{brl(item.amount)}</div>
+                        {item.pendingAmount && item.pendingAmount > 0 ? (
+                          <div className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 mt-0.5">
+                            {item.paidAmount && item.paidAmount > 0 ? (
+                              <span>{brl(item.paidAmount)} baixado • {brl(item.pendingAmount)} pendente</span>
+                            ) : (
+                              <span>{brl(item.pendingAmount)} pendente</span>
+                            )}
+                          </div>
+                        ) : null}
                       </td>
 
                       {/* Status */}
@@ -329,8 +338,8 @@ export default function PaymentHistoryPage() {
                             {item.status}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/60 border border-slate-700 text-slate-400 text-[11px] font-extrabold">
-                            FATURA ZERADA
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px] font-extrabold">
+                            {item.walletType === "CREDIT_CARD" ? "FATURA ZERADA" : "SEM GASTOS"}
                           </span>
                         )}
                       </td>
