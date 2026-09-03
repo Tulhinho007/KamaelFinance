@@ -106,6 +106,16 @@ export function DashboardOverview() {
     }
   };
 
+  const handleGoToCurrentMonth = () => {
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1;
+    setSelectedDashboardYear(curYear);
+    setSelectedDashboardMonth(curMonth);
+    setViewMode("monthly");
+    setPeriod(curMonth, curYear);
+  };
+
   useEffect(() => {
     loadDashboardData();
     loadTags();
@@ -152,11 +162,11 @@ export function DashboardOverview() {
     return (
       <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 animate-pulse select-none">
         <div className="h-10 bg-slate-200/60 rounded-xl w-64" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <div className="h-32 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
-          <div className="h-32 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
-          <div className="h-32 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
-          <div className="h-32 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="h-36 bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm" />
+          <div className="h-36 bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm" />
+          <div className="h-36 bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm" />
+          <div className="h-36 bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm" />
         </div>
         <div className="h-48 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
       </div>
@@ -252,6 +262,16 @@ export function DashboardOverview() {
             </select>
           )}
 
+          {/* Botão MÊS ATUAL */}
+          <button
+            onClick={handleGoToCurrentMonth}
+            className="px-3.5 py-2 text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+            title="Ir para o Mês Atual"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            MÊS ATUAL
+          </button>
+
           {/* Botões de Ação Rápida */}
           <div className="flex items-center gap-2">
             <button
@@ -309,8 +329,8 @@ export function DashboardOverview() {
         </div>
       )}
 
-      {/* ── 2. CARDS DE MÉTRICAS (APENAS 3 CARDS: RECEITA REAL, TOTAL GASTO, METAS GLOBAIS) ──────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* ── 2. CARDS DE MÉTRICAS CONSOLIDADAS DO MÊS (GRID 4 COLUNAS) ──────── */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* KPI 1: RECEITA REAL */}
         <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
@@ -328,45 +348,91 @@ export function DashboardOverview() {
               </button>
             </div>
             <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
-              {brl(data.totalReceitas)}
+              {brl(data.totalIncomes ?? data.totalReceitas ?? 0)}
             </p>
           </div>
           <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
+            <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              ↗ Total que já entrou
+              Total de entradas registradas
             </span>
           </div>
         </div>
 
-        {/* KPI 2: TOTAL GASTO */}
+        {/* KPI 2: TOTAL GASTO CONSOLIDADO (CRÉDITO + DÉBITO/PIX) */}
         <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                TOTAL GASTO
+                TOTAL GASTO CONSOLIDADO
               </span>
               <button
                 onClick={() => setActiveMetricModal("TOTAL_GASTO")}
                 className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                title="Entender como funciona o cálculo do Total Gasto"
+                title="Entender como funciona o cálculo do Total Gasto Consolidado"
               >
                 <HelpCircle className="w-4 h-4" />
               </button>
             </div>
             <p className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 mt-2 font-tnum tabular-nums">
-              {brl(data.totalGastos)}
+              {brl((data.totalCreditExpenses || 0) + (data.totalDebitExpenses || 0))}
             </p>
           </div>
-          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <span className="text-xs font-black text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 px-3.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
-              <ArrowDownRight className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-              ↘ Total já pago
-            </span>
+          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5 text-[11px] font-bold">
+            <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-xl">
+              <CreditCard className="w-3.5 h-3.5 shrink-0" />
+              <span>Crédito: <strong className="font-extrabold">{brl(data.totalCreditExpenses || 0)}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2 py-1 rounded-xl">
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Débito/PIX: <strong className="font-extrabold">{brl(data.totalDebitExpenses || 0)}</strong></span>
+            </div>
           </div>
         </div>
 
-        {/* KPI 3: METAS GLOBAIS */}
+        {/* KPI 3: SALDO CONSOLIDADO / RESULTADO DO MÊS */}
+        {(() => {
+          const totalIncomes = data.totalIncomes ?? data.totalReceitas ?? 0;
+          const totalSpent = (data.totalCreditExpenses || 0) + (data.totalDebitExpenses || 0);
+          const saldo = totalIncomes - totalSpent;
+          const isPositive = saldo >= 0;
+
+          return (
+            <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
+              <div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                    SALDO CONSOLIDADO
+                  </span>
+                  <button
+                    onClick={() => setActiveMetricModal("BALANCO_GERAL")}
+                    className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    title="Ver detalhes do Saldo Consolidado / Resultado do Mês"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className={`text-xl sm:text-2xl md:text-3xl font-black tracking-tight mt-2 font-tnum tabular-nums ${
+                  isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                }`}>
+                  {brl(saldo)}
+                </p>
+              </div>
+              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs border ${
+                  isPositive
+                    ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
+                    : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800"
+                }`}>
+                  {isPositive ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                  <span className="truncate">Receitas subtraídas de saídas (Crédito + Débito)</span>
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* KPI 4: METAS GLOBAIS */}
         <div className="bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col justify-between group relative">
           <div>
             <div className="flex justify-between items-center">

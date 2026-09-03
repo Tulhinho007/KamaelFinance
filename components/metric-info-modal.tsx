@@ -85,33 +85,34 @@ export function MetricInfoModal({
 
       case "TOTAL_GASTO":
         return {
-          title: "Total Gasto (Efetivado)",
-          badge: "Saídas",
+          title: "Total Gasto Consolidado",
+          badge: "Saídas do Mês",
           badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
           icon: ArrowDownRight,
           iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-          description: "Soma de todas as contas, faturas e compras que você já marcou como PAGAS neste mês.",
+          description: "Visão consolidada de todas as saídas do período: faturas de cartão de crédito somadas aos débitos e PIX em conta corrente.",
           equationSteps: [
-            { label: "Saídas já pagas (Contas e Cartão)", value: brl(totGasto), isNegative: true },
-            { label: "Contas pendentes (a vencer)", value: "Não entram aqui até você pagar", isNeutral: true },
+            { label: "Cartão de Crédito (Fatura)", value: brl(dashboardData?.totalCreditExpenses || 0), isNegative: true },
+            { label: "Débito / PIX (Conta Corrente)", value: brl(dashboardData?.totalDebitExpenses || 0), isNegative: true },
+            { label: "(=) Total Gasto Consolidado", value: brl(totGasto), isBold: true, highlight: "rose" },
           ],
-          auditNote: "Contas que ainda vão vencer ficam guardadas nas previsões e só somam aqui quando você confirmar o pagamento."
+          auditNote: "Combina as compras de cartão e pagamentos em conta corrente para uma visão fiel do seu consumo total."
         };
 
       case "BALANCO_GERAL":
         return {
-          title: "Balanço Geral",
+          title: "Saldo Consolidado / Resultado do Mês",
           badge: balGeral >= 0 ? "Saldo Positivo" : "No Vermelho",
           badgeColor: balGeral >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
           icon: Scale,
           iconBg: balGeral >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-          description: "Receitas que já entraram menos Contas que já foram pagas. Mostra se o seu mês está com sobra ou no vermelho até o momento.",
+          description: "Receitas subtraídas do total de saídas (Crédito + Débito). Mostra se o seu mês fechou com superávit ou déficit financeiro.",
           equationSteps: [
-            { label: "(+) Receitas que já entraram", value: brl(recReal), isPositive: true },
-            { label: "(-) Contas que já foram pagas", value: `-${brl(totGasto)}`, isNegative: true },
-            { label: "(=) Resultado até o momento", value: brl(balGeral), isBold: true, highlight: balGeral >= 0 ? "emerald" : "rose" },
+            { label: "(+) Receitas registradas", value: brl(recReal), isPositive: true },
+            { label: "(-) Total Gasto Consolidado (Crédito + Débito)", value: `-${brl(totGasto)}`, isNegative: true },
+            { label: "(=) Saldo Consolidado", value: brl(balGeral), isBold: true, highlight: balGeral >= 0 ? "emerald" : "rose" },
           ],
-          auditNote: "Se o valor for positivo, você tem sobra em caixa. Se for negativo, gastou mais do que recebeu até agora."
+          auditNote: "Se o valor for positivo, você teve economia e sobra em caixa. Se for negativo, os gastos totais superaram suas receitas."
         };
 
       case "METAS_GLOBAIS":

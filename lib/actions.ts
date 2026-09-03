@@ -2437,25 +2437,30 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   });
 
   let totalReceitas = 0;
-  let totalGastos = 0;
+  let totalCreditExpenses = 0;
+  let totalDebitExpenses = 0;
 
   rangeTransactions.forEach((t) => {
     const amt = Number(t.amount);
-    // 1. VALIDAÇÃO ESTRITA DE STATUS: Apenas status COMPLETED ou PAID
+    // 1. VALIDAÇÃO ESTRITA DE STATUS PARA RECEITAS
     const isRealized = t.status === "COMPLETED" || t.status === "PAID";
+    const wType = (t.wallet?.walletType || "").toUpperCase();
+    const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+    const isCredit = wType === "CREDIT_CARD";
 
     if (t.type === "INCOME") {
-      const wType = (t.wallet?.walletType || "").toUpperCase();
-      const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
       if (isRealized && !isBenefit) {
         totalReceitas += amt;
       }
     } else if (t.type === "EXPENSE") {
-      // 2. TRATAMENTO DE CARTÃO DE CRÉDITO:
-      // Compras efetuadas no cartão de crédito (walletType === 'CREDIT_CARD') NÃO entram como saídas efetivadas da conta bancária no momento da compra.
-      // Apenas entram despesas de Conta Corrente / Débito ou Pagamento de Fatura realizados.
-      if (isRealized && t.wallet.walletType !== "TICKET" && t.wallet.walletType !== "CREDIT_CARD") {
-        totalGastos += amt;
+      if (isCredit) {
+        // Despesas lançadas em cartão de crédito no período
+        totalCreditExpenses += amt;
+      } else if (!isBenefit) {
+        // Despesas em conta corrente / débito / PIX (exclui pagamento de fatura para não duplicar com despesas de crédito)
+        if (!isInvoicePaymentTransaction(t)) {
+          totalDebitExpenses += amt;
+        }
       }
     }
   });
@@ -2464,20 +2469,20 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   const currentMonthNum = month || (new Date().getMonth() + 1);
   const cards = await getAllCardsOverview(currentMonthNum, year);
 
-  // Se houver cartão com fatura quitada sem transação manual em conta corrente, contabiliza o valor pago da fatura
-  cards.forEach((c: any) => {
-    if (c.walletType === "CREDIT_CARD" && c.isPaid) {
-      const alreadyIncluded = rangeTransactions.some(
-        (t) => t.type === "EXPENSE" && (t.status === "COMPLETED" || t.status === "PAID") && isInvoicePaymentTransaction(t) && t.description?.includes(c.title)
-      );
-      if (!alreadyIncluded) {
-        totalGastos += Number(c.paidAmount || c.faturaAtual || 0);
-      }
+  // Se estiver em modo mensal e os cartões tiverem cálculo consolidado de fatura via cards overview
+  if (month) {
+    const creditCardsTotal = cards
+      .filter((c: any) => c.walletType === "CREDIT_CARD")
+      .reduce((s: number, c: any) => s + Number(c.faturaAtual || 0), 0);
+    if (creditCardsTotal > 0 && totalCreditExpenses === 0) {
+      totalCreditExpenses = creditCardsTotal;
     }
-  });
+  }
 
   totalReceitas = Math.max(0, Math.round(totalReceitas * 100) / 100);
-  totalGastos = Math.max(0, Math.round(totalGastos * 100) / 100);
+  totalCreditExpenses = Math.max(0, Math.round(totalCreditExpenses * 100) / 100);
+  totalDebitExpenses = Math.max(0, Math.round(totalDebitExpenses * 100) / 100);
+  const totalGastos = Math.round((totalCreditExpenses + totalDebitExpenses) * 100) / 100;
   const balanco = Math.round((totalReceitas - totalGastos) * 100) / 100;
 
   // Metas Globais (Média ponderada ou percentual acumulado sobre objetivos ativos)
@@ -2567,6 +2572,9 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
 
   return {
     totalReceitas,
+    totalIncomes: totalReceitas,
+    totalCreditExpenses,
+    totalDebitExpenses,
     totalGastos,
     balanco,
     metasGlobaisPct,
