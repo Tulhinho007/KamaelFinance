@@ -359,8 +359,8 @@ export function DashboardOverview() {
 
           {/* Base: Descrição/Legenda fixada no rodapé */}
           <div className="min-h-[58px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-            <span className="text-[11px] leading-tight font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
-              <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
+            <span className="text-[11px] leading-tight font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
+              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
               <span className="truncate">Total de entradas registradas</span>
             </span>
           </div>
@@ -391,26 +391,26 @@ export function DashboardOverview() {
             </span>
           </div>
 
-          {/* Base: Linhas individuais para Crédito e Débito sem cortar valores */}
+          {/* Base: Linhas individuais para Crédito e Débito com alto contraste e legibilidade perfeita */}
           <div className="min-h-[58px] flex flex-col justify-center gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full">
             {/* Linha Crédito */}
-            <div className="flex items-center justify-between px-2.5 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 text-xs font-medium">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <CreditCard className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                <span className="font-semibold text-[11px]">Crédito:</span>
+            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-purple-500/15 border border-purple-500/30 text-xs font-medium">
+              <div className="flex items-center gap-1.5 shrink-0 text-purple-300">
+                <CreditCard className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span className="font-bold text-[11px]">Crédito:</span>
               </div>
-              <span className="font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums text-xs">
+              <span className="font-black text-white font-tnum tabular-nums text-xs">
                 {brl(data.totalCreditExpenses || 0)}
               </span>
             </div>
 
             {/* Linha Débito / PIX */}
-            <div className="flex items-center justify-between px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <span className="font-semibold text-[11px]">Débito/PIX:</span>
+            <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-medium">
+              <div className="flex items-center gap-1.5 shrink-0 text-emerald-300">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="font-bold text-[11px]">Débito/PIX:</span>
               </div>
-              <span className="font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums text-xs">
+              <span className="font-black text-white font-tnum tabular-nums text-xs">
                 {brl(data.totalDebitExpenses || 0)}
               </span>
             </div>
@@ -455,10 +455,10 @@ export function DashboardOverview() {
               <div className="min-h-[58px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
                 <span className={`text-[11px] leading-tight font-bold px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs border max-w-full overflow-hidden ${
                   isPositive
-                    ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
-                    : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800"
+                    ? "text-emerald-300 bg-emerald-500/15 border-emerald-500/30"
+                    : "text-rose-300 bg-rose-500/15 border-rose-500/30"
                 }`}>
-                  {isPositive ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
+                  {isPositive ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
                   <span className="truncate">Receitas subtraídas das saídas</span>
                 </span>
               </div>
