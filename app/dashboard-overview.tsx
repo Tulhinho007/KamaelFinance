@@ -333,7 +333,7 @@ export function DashboardOverview() {
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         
         {/* KPI 1: RECEITA REAL */}
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
           {/* Topo: Título e Ícone com altura mínima padronizada */}
           <div className="flex items-start justify-between min-h-[48px] gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
@@ -358,16 +358,16 @@ export function DashboardOverview() {
           </div>
 
           {/* Base: Descrição/Legenda fixada no rodapé */}
-          <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
-            <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-3 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs">
+          <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+            <span className="text-[11px] leading-tight font-extrabold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
               <ArrowUpRight className="w-3.5 h-3.5 shrink-0" />
-              Total de entradas registradas
+              <span className="truncate">Total de entradas registradas</span>
             </span>
           </div>
         </div>
 
         {/* KPI 2: TOTAL GASTO CONSOLIDADO (CRÉDITO + DÉBITO/PIX) */}
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
           {/* Topo: Título e Ícone com altura mínima padronizada */}
           <div className="flex items-start justify-between min-h-[48px] gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
@@ -392,14 +392,14 @@ export function DashboardOverview() {
           </div>
 
           {/* Base: Descrição/Legenda fixada no rodapé */}
-          <div className="min-h-[36px] flex items-center justify-between gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold">
-            <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-xl">
+          <div className="min-h-[36px] flex items-center justify-between gap-1.5 mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] font-bold w-full overflow-hidden">
+            <div className="flex items-center gap-1 text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 px-2 py-1 rounded-xl truncate min-w-0">
               <CreditCard className="w-3.5 h-3.5 shrink-0" />
-              <span>Crédito: <strong className="font-extrabold">{brl(data.totalCreditExpenses || 0)}</strong></span>
+              <span className="truncate">Crédito: <strong className="font-extrabold">{brl(data.totalCreditExpenses || 0)}</strong></span>
             </div>
-            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2 py-1 rounded-xl">
+            <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2 py-1 rounded-xl truncate min-w-0">
               <Building2 className="w-3.5 h-3.5 shrink-0" />
-              <span>Débito/PIX: <strong className="font-extrabold">{brl(data.totalDebitExpenses || 0)}</strong></span>
+              <span className="truncate">Débito: <strong className="font-extrabold">{brl(data.totalDebitExpenses || 0)}</strong></span>
             </div>
           </div>
         </div>
@@ -412,7 +412,7 @@ export function DashboardOverview() {
           const isPositive = saldo >= 0;
 
           return (
-            <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+            <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
               {/* Topo: Título e Ícone com altura mínima padronizada */}
               <div className="flex items-start justify-between min-h-[48px] gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
@@ -439,14 +439,14 @@ export function DashboardOverview() {
               </div>
 
               {/* Base: Descrição/Legenda fixada no rodapé */}
-              <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800">
-                <span className={`text-[10px] sm:text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 shadow-2xs border ${
+              <div className="min-h-[36px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+                <span className={`text-[11px] leading-tight font-bold px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 shadow-2xs border max-w-full overflow-hidden ${
                   isPositive
                     ? "text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800"
                     : "text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-800"
                 }`}>
                   {isPositive ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
-                  <span className="truncate">Receitas subtraídas de saídas</span>
+                  <span className="truncate">Receitas subtraídas das saídas</span>
                 </span>
               </div>
             </div>
@@ -454,7 +454,7 @@ export function DashboardOverview() {
         })()}
 
         {/* KPI 4: METAS GLOBAIS */}
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm group relative">
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
           {/* Topo: Título e Ícone com altura mínima padronizada */}
           <div className="flex items-start justify-between min-h-[48px] gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
