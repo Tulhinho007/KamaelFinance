@@ -15,7 +15,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
-  getSalaryCycleSummary
+  getSalaryCycleSummary, getRealRevenueAction
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -312,6 +312,7 @@ export default function DespesasPage() {
   const [totalReceitaMes, setTotalReceitaMes] = useState<number>(0);
   const [totalSaldoAnterior, setTotalSaldoAnterior] = useState<number>(0);
   const [showSalaryCycleInfo, setShowSalaryCycleInfo] = useState<boolean>(false);
+  const [realRevenue, setRealRevenue] = useState<number>(0);
 
   const loadPaidInvoices = async () => {
     try {
@@ -381,11 +382,13 @@ export default function DespesasPage() {
     Promise.all([
       getAllCardsOverview(monthParam, selectedYear),
       getPaidInvoicesAction(monthParam, selectedYear),
+      getRealRevenueAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
+        setRealRevenue(revenueRes || 0);
         setLoading(false);
       })
       .catch(err => {
@@ -695,6 +698,36 @@ export default function DespesasPage() {
       </div>
 
 
+
+      {/* ── 2.1. MÉTRICA SUPERIOR: RECEITA REAL ──────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
+          {/* Topo: Título e Ícone */}
+          <div className="flex items-start justify-between min-h-[44px] gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              Receita Real
+            </span>
+            <div className="shrink-0 p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Total de entradas e receitas confirmadas no período">
+              <ArrowUpRight className="w-4 h-4" />
+            </div>
+          </div>
+
+          {/* Meio: Valor em Destaque */}
+          <div className="py-2 my-auto flex items-center">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums">
+              {brl(realRevenue)}
+            </span>
+          </div>
+
+          {/* Base: Badge com seta indicadora */}
+          <div className="min-h-[38px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+            <span className="text-[11px] leading-tight font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
+              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">Total de entradas registradas</span>
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / CONTAS & DÉBITO) ── */}
       <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-sm">

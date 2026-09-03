@@ -2100,6 +2100,45 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
   return result;
 }
 
+export async function getRealRevenueAction(month: number | null | string, year: number = 2026) {
+  const userId = await getActiveUserId();
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+  const monthNum = isAnnualView ? null : Number(month);
+
+  let from: Date;
+  let to: Date;
+
+  if (monthNum) {
+    from = new Date(Date.UTC(year, monthNum - 1, 1, 0, 0, 0));
+    to = new Date(Date.UTC(year, monthNum, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      type: "INCOME",
+      deletedAt: null,
+      date: { gte: from, lte: to },
+    },
+    include: { wallet: true },
+  });
+
+  let total = 0;
+  transactions.forEach((t) => {
+    const isRealized = t.status === "COMPLETED" || t.status === "PAID";
+    const wType = (t.wallet?.walletType || "").toUpperCase();
+    const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+    if (isRealized && !isBenefit) {
+      total += Number(t.amount);
+    }
+  });
+
+  return Math.round(total * 100) / 100;
+}
+
 // ---------- Actions de Pagamento de Faturas ----------
 
 export async function payCardInvoiceAction(
