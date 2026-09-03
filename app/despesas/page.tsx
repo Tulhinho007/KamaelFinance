@@ -41,6 +41,13 @@ type CardOverview = {
   faturaAtual: number;
   vencimento: number;
   color: string;
+  accountExpenses?: number;
+  totalSpentInPeriod?: number;
+  accountIncomes?: number;
+  isAnnualView?: boolean;
+  periodExpenseCount?: number;
+  periodIncomeCount?: number;
+  finalBalance?: number;
 };
 
 type UpcomingBill = {
@@ -1503,6 +1510,10 @@ function CardTile({
     ? { dateStr: (card as any).vencimentoStr }
     : calculateNextDueDate(card.vencimento, selectedMonth || (new Date().getMonth() + 1), selectedYear, isPaid || isZero);
 
+  const isYearlyFilter = selectedMonth === null || selectedMonth === undefined || card.isAnnualView;
+  const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
+  const accountIncomes = card.accountIncomes ?? 0;
+
   return (
     <div className="relative group">
       {/* Card clicável para navegação */}
@@ -1545,18 +1556,41 @@ function CardTile({
             </div>
           </div>
 
-          {/* Centro: Saldo / Limite Disponível */}
-          <div className="z-10 -mt-1">
-            <span className="text-[8px] font-bold text-white/50 uppercase tracking-widest block">
-              {isCredit ? "Disponível" : "Saldo"}
-            </span>
-            <h3 className="text-xl font-black text-white tracking-tight mt-0.5">
-              {brl(isCredit ? card.limitTotal - card.limitUsed : card.limitTotal)}
-            </h3>
-          </div>
+          {/* Centro: Saldo / Limite Disponível & Gasto no Período */}
+          {isCredit ? (
+            <div className="z-10 -mt-1">
+              <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest block">
+                Disponível
+              </span>
+              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5 font-tnum tabular-nums">
+                {brl(card.limitTotal - card.limitUsed)}
+              </h3>
+            </div>
+          ) : (
+            <div className="z-10 my-auto flex flex-col justify-center space-y-1.5">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-white/80 block">
+                  Saldo Atual
+                </span>
+                <p className="text-xl sm:text-2xl font-black tracking-tight text-white font-tnum tabular-nums mt-0.5">
+                  {brl(card.finalBalance ?? card.limitTotal)}
+                </p>
+              </div>
 
-          {/* Base: Fatura + Vencimento + Barra — exclusivo para Cartão de Crédito */}
-          {isCredit && (
+              {/* Bloco dinâmico de gasto conforme o filtro */}
+              <div className="flex items-center justify-between pt-1.5 border-t border-white/15 text-xs">
+                <span className="text-white/80 text-[10px] font-bold uppercase tracking-wider">
+                  {isYearlyFilter ? "Gasto no Ano:" : "Gasto no Mês:"}
+                </span>
+                <span className="font-black text-white text-xs font-tnum tabular-nums">
+                  {brl(accountSpentInPeriod)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Base: Fatura + Vencimento + Barra (Crédito) OU Detalhamento de Saídas/Entradas (Débito/Conta) */}
+          {isCredit ? (
             <div className="z-10 flex flex-col gap-1">
               <div className="flex justify-between items-center text-[9px] font-bold text-white/70">
                 <span>Fatura: <span className="text-white font-black">{brl(card.faturaAtual)}</span></span>
@@ -1584,6 +1618,29 @@ function CardTile({
                   />
                 </div>
                 <span className="text-[8px] font-bold text-white/50">{usagePct}% do limite utilizado</span>
+              </div>
+            </div>
+          ) : (
+            /* Rodapé / Detalhe Adicional para equilibrar perfeitamente o card com o cartão de crédito roxo ao lado */
+            <div className="z-10 flex flex-col gap-1.5 pt-2 border-t border-white/15">
+              <div className="flex justify-between items-center text-[9px] font-bold">
+                <span className="text-white/85">
+                  Saídas: <strong className="text-white font-black">{brl(accountSpentInPeriod)}</strong>
+                </span>
+                <span className="text-emerald-300 font-bold">
+                  Entradas: <strong className="text-white font-black">{brl(accountIncomes)}</strong>
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center text-[8px] font-extrabold text-white/75 uppercase tracking-wider">
+                <span className="bg-white/15 px-2 py-0.5 rounded-full border border-white/20 backdrop-blur-xs">
+                  Ref: {isYearlyFilter ? `${selectedYear}` : `${String(selectedMonth || (new Date().getMonth() + 1)).padStart(2, "0")}/${selectedYear}`}
+                </span>
+                <span>
+                  {card.periodExpenseCount !== undefined
+                    ? `${card.periodExpenseCount} ${card.periodExpenseCount === 1 ? 'saída' : 'saídas'}`
+                    : "Conta Ativa"}
+                </span>
               </div>
             </div>
           )}

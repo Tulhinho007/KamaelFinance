@@ -2019,6 +2019,23 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
 
+      // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
+      // Somar todas as saídas (débitos, PIX, transferências e pagamentos) vinculadas a essa conta registradas no período
+      const accountExpenses = transactions.reduce((s, t) => s + Number(t.amount), 0);
+      const totalSpentInPeriod = accountExpenses;
+
+      // Entradas na conta no período selecionado
+      const periodIncomes = await prisma.transaction.findMany({
+        where: {
+          walletId: w.id,
+          type:     "INCOME",
+          date:     { gte: from, lte: to },
+          deletedAt: null,
+        },
+        select: { amount: true },
+      });
+      const accountIncomes = periodIncomes.reduce((s, t) => s + Number(t.amount), 0);
+
       const dueDateInfo = getInvoiceDueDateInfo(
         (w as any).diaFechamento ?? 1,
         w.vencimento ?? 10,
@@ -2055,6 +2072,12 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         faturaAtual,
         faturaPaga,
         faturaPendente,
+        accountExpenses,
+        totalSpentInPeriod,
+        accountIncomes,
+        isAnnualView,
+        periodExpenseCount: transactions.length,
+        periodIncomeCount:  periodIncomes.length,
         carryoverBalance: balanceInfo.carryoverBalance,
         monthIncome:      balanceInfo.monthIncome,
         monthExpense:     balanceInfo.monthExpense,
@@ -2465,9 +2488,9 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     }
   });
 
-  // Cartões & Contas Overview (usamos o mês fornecido ou o mês atual)
+  // Cartões & Contas Overview (usamos o mês fornecido ou null para visão anual completa)
   const currentMonthNum = month || (new Date().getMonth() + 1);
-  const cards = await getAllCardsOverview(currentMonthNum, year);
+  const cards = await getAllCardsOverview(month ? month : null, year);
 
   // Se estiver em modo mensal e os cartões tiverem cálculo consolidado de fatura via cards overview
   if (month) {

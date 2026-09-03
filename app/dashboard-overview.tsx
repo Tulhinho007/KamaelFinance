@@ -509,14 +509,16 @@ export function DashboardOverview() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {data.cards.map((card: any) => {
             const isCredit = card.walletType === "CREDIT_CARD";
-            const saldoDisp = isCredit ? card.limitTotal - card.limitUsed : card.limitTotal;
+            const saldoDisp = isCredit ? card.limitTotal - card.limitUsed : (card.finalBalance ?? card.limitTotal);
             const Icon = walletIcon(card.walletType);
+            const isYearlyFilter = viewMode === "annual";
+            const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
 
             return (
               <Link
                 key={card.id}
                 href={`/cartoes/${card.id}`}
-                className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between min-h-[140px] group"
+                className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between min-h-[165px] group"
               >
                 <div className="flex justify-between items-start">
                   <div>
@@ -532,13 +534,28 @@ export function DashboardOverview() {
                   </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
                     {isCredit ? "Limite Disponível" : "Saldo Atual"}
                   </span>
                   <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                     {brl(saldoDisp)}
                   </p>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold">
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                    {isCredit
+                      ? "Fatura:"
+                      : isYearlyFilter
+                      ? "Gasto no Ano:"
+                      : "Gasto no Mês:"}
+                  </span>
+                  <span className={`text-xs font-black font-tnum tabular-nums ${
+                    isCredit ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-200"
+                  }`}>
+                    {brl(isCredit ? card.faturaAtual : accountSpentInPeriod)}
+                  </span>
                 </div>
               </Link>
             );
