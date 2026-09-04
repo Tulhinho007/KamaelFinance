@@ -242,12 +242,62 @@ export default function ReceitasPage() {
   const [modalType, setModalType]             = useState<"create" | "edit" | "delete" | null>(null);
 
   const [formDescription, setFormDescription]     = useState("");
+  const [formCategory, setFormCategory]           = useState("Salário");
   const [formAmount, setFormAmount]               = useState<string | number>("");
   const [formDate, setFormDate]                   = useState("");
   const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(selectedMonth);
   const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(selectedYear);
+  const [competenceSuggested, setCompetenceSuggested] = useState(false);
   const [formWalletId, setFormWalletId]           = useState("");
   const [formSkipDeduction, setFormSkipDeduction] = useState(false);
+
+  const checkAndSuggestSalaryCompetence = (dateStr: string, desc: string, cat?: string) => {
+    if (!dateStr) return;
+    const isSalary = (cat && cat.toLowerCase().includes("salário")) ||
+                     (desc && desc.toLowerCase().includes("salário")) ||
+                     (desc && desc.toLowerCase().includes("salario"));
+    
+    if (isSalary) {
+      const parts = dateStr.split("-");
+      if (parts.length >= 3) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (d >= 1 && d <= 10) {
+          let prevMonth = m - 1;
+          let prevYear = y;
+          if (prevMonth < 1) {
+            prevMonth = 12;
+            prevYear = y - 1;
+          }
+          setFormCompetenceMonth(prevMonth);
+          setFormCompetenceYear(prevYear);
+          setCompetenceSuggested(true);
+          return;
+        }
+      }
+    }
+    setCompetenceSuggested(false);
+  };
+
+  const handleDateChange = (val: string) => {
+    setFormDate(val);
+    checkAndSuggestSalaryCompetence(val, formDescription, formCategory);
+  };
+
+  const handleDescriptionChange = (val: string) => {
+    setFormDescription(val);
+    const inferred = getCategoryName(val, formCategory);
+    if (inferred && inferred !== "Outros") {
+      setFormCategory(inferred);
+    }
+    checkAndSuggestSalaryCompetence(formDate, val, inferred || formCategory);
+  };
+
+  const handleCategoryChange = (val: string) => {
+    setFormCategory(val);
+    checkAndSuggestSalaryCompetence(formDate, formDescription, val);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -354,12 +404,20 @@ export default function ReceitasPage() {
   };
 
   const openCreateModal = () => {
-    setFormDescription("");
+    setFormDescription("Salário");
+    setFormCategory("Salário");
     setFormAmount("");
-    const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-01`;
+    const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-05`;
     setFormDate(defaultDate);
-    setFormCompetenceMonth(selectedMonth);
-    setFormCompetenceYear(selectedYear);
+    
+    // Sugere competência do mês trabalhado anterior para salário recebido no dia 5
+    let compM = selectedMonth - 1;
+    let compY = selectedYear;
+    if (compM < 1) { compM = 12; compY = selectedYear - 1; }
+    setFormCompetenceMonth(compM);
+    setFormCompetenceYear(compY);
+    setCompetenceSuggested(true);
+
     const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
     setFormWalletId(validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || ""));
     setFormSkipDeduction(false);
@@ -375,7 +433,17 @@ export default function ReceitasPage() {
     }
     try {
       const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
-      await createRevenueAction(formDescription, amountNum, formDate, formWalletId || undefined, "COMPLETED", compDateStr);
+      await createRevenueAction(
+        formDescription,
+        amountNum,
+        formDate,
+        formWalletId || undefined,
+        "COMPLETED",
+        compDateStr,
+        formCategory,
+        formCompetenceMonth,
+        formCompetenceYear
+      );
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -387,9 +455,13 @@ export default function ReceitasPage() {
   const openEditModal = (rev: Revenue) => {
     setSelectedRevenue(rev);
     setFormDescription(rev.description);
+    setFormCategory(getCategoryName(rev.description, rev.category));
     setFormAmount(rev.amount);
     setFormDate(rev.date);
-    if (rev.competenceDate) {
+    if ((rev as any).competenceMonth && (rev as any).competenceYear) {
+      setFormCompetenceYear(Number((rev as any).competenceYear));
+      setFormCompetenceMonth(Number((rev as any).competenceMonth));
+    } else if (rev.competenceDate) {
       const parts = rev.competenceDate.split("-");
       setFormCompetenceYear(Number(parts[0]));
       setFormCompetenceMonth(Number(parts[1]));
@@ -398,6 +470,7 @@ export default function ReceitasPage() {
       setFormCompetenceYear(Number(parts[0]));
       setFormCompetenceMonth(Number(parts[1]));
     }
+    setCompetenceSuggested(false);
     const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
     setFormWalletId(rev.walletId || (validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || "")));
     setFormSkipDeduction(false);
@@ -413,7 +486,16 @@ export default function ReceitasPage() {
     }
     try {
       const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
-      await updateRevenueAction(selectedRevenue.id, formDescription, amountNum, formDate, formWalletId || undefined, compDateStr);
+      await updateRevenueAction(
+        selectedRevenue.id,
+        formDescription,
+        amountNum,
+        formDate,
+        formWalletId || undefined,
+        compDateStr,
+        formCompetenceMonth,
+        formCompetenceYear
+      );
       await loadData();
       setModalType(null);
     } catch (err) {
@@ -812,53 +894,75 @@ export default function ReceitasPage() {
 
             {(modalType === "create" || modalType === "edit") && (
               <form onSubmit={modalType === "create" ? handleCreate : handleEdit} className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Descrição *</label>
-                  <input
-                    type="text"
-                    list="descricoes-sugestoes"
-                    required
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Selecione ou digite a descrição..."
-                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Descrição *</label>
+                    <input
+                      type="text"
+                      list="descricoes-sugestoes"
+                      required
+                      value={formDescription}
+                      onChange={(e) => handleDescriptionChange(e.target.value)}
+                      placeholder="Ex: Salário Empresa, Adiantamento..."
+                      className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Categoria</label>
+                    <select
+                      value={formCategory}
+                      onChange={(e) => handleCategoryChange(e.target.value)}
+                      className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white cursor-pointer"
+                    >
+                      {CATEGORIES_LIST.map((cat) => (
+                        <option key={cat} value={cat} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor (R$) *</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    required
-                    value={formAmount}
-                    onChange={(e) => setFormAmount(e.target.value)}
-                    placeholder="Ex: 1500 ou 1500,50"
-                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
-                  />
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor (R$) *</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      value={formAmount}
+                      onChange={(e) => setFormAmount(e.target.value)}
+                      placeholder="Ex: 1500 ou 1500,50"
+                      className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                  </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data de Recebimento *</label>
-                  <input
-                    type="date"
-                    required
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
-                  />
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data de Recebimento *</label>
+                    <input
+                      type="date"
+                      required
+                      value={formDate}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                    />
+                  </div>
                 </div>
 
                 {/* Mês de Competência / Referência */}
                 <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 shadow-xs">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
                     <span>Mês de Competência / Referência</span>
-                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Regime de Competência)</span>
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       value={formCompetenceMonth}
-                      onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
+                      onChange={(e) => {
+                        setFormCompetenceMonth(Number(e.target.value));
+                        setCompetenceSuggested(false);
+                      }}
                       className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                     >
                       {[
@@ -870,7 +974,10 @@ export default function ReceitasPage() {
                     </select>
                     <select
                       value={formCompetenceYear}
-                      onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
+                      onChange={(e) => {
+                        setFormCompetenceYear(Number(e.target.value));
+                        setCompetenceSuggested(false);
+                      }}
                       className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
                     >
                       {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
@@ -878,8 +985,13 @@ export default function ReceitasPage() {
                       ))}
                     </select>
                   </div>
+                  {competenceSuggested && (
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold animate-in fade-in">
+                      <span>💡 Salário do 5º dia útil / início do mês: competência sugerida para o mês trabalhado anterior.</span>
+                    </div>
+                  )}
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
-                    Mês/ano a que o valor se refere no relatório (ex: Salário de Agosto recebido em Setembro).
+                    Mês/ano a que a receita pertence no balanço (ex: Salário trabalhado em Agosto e recebido em Setembro confronta com as despesas de Agosto).
                   </p>
                 </div>
 

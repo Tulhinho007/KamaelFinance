@@ -82,6 +82,8 @@ model Transaction {
   amount            Decimal
   date              DateTime
   competenceDate    DateTime?       // Mês de competência/referência (ex: Salário de Agosto recebido em Setembro)
+  competenceMonth   Int?            // Mês a que o valor pertence (1-12)
+  competenceYear    Int?            // Ano de competência (ex: 2026)
   purchaseDate      DateTime?       // Data em que a compra/despesa foi realizada
   paymentDate       DateTime?       // Data de vencimento/liquidação do pagamento
   status            String          @default("COMPLETED")

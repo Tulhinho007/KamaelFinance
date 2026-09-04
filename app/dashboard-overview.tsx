@@ -76,10 +76,54 @@ export function DashboardOverview() {
   const [selectedGoalId, setSelectedGoalId]       = useState("");
 
   // Form states
-  const [revDesc, setRevDesc]     = useState("");
-  const [revAmount, setRevAmount] = useState<number | "">("");
-  const [revDate, setRevDate]     = useState(new Date().toISOString().split("T")[0]);
-  const [savingRev, setSavingRev] = useState(false);
+  const [revDesc, setRevDesc]         = useState("Salário");
+  const [revCategory, setRevCategory] = useState("Salário");
+  const [revAmount, setRevAmount]     = useState<number | "">("");
+  const [revDate, setRevDate]         = useState(new Date().toISOString().split("T")[0]);
+  const [revCompetenceMonth, setRevCompetenceMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
+  const [revCompetenceYear, setRevCompetenceYear]   = useState<number>(() => selectedYear || new Date().getFullYear());
+  const [revCompetenceSuggested, setRevCompetenceSuggested] = useState(false);
+  const [savingRev, setSavingRev]     = useState(false);
+
+  const checkAndSuggestSalaryCompetence = (dateStr: string, desc: string, cat?: string) => {
+    if (!dateStr) return;
+    const isSalary = (cat && cat.toLowerCase().includes("salário")) ||
+                     (desc && desc.toLowerCase().includes("salário")) ||
+                     (desc && desc.toLowerCase().includes("salario"));
+    if (isSalary) {
+      const parts = dateStr.split("-");
+      if (parts.length >= 3) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (d >= 1 && d <= 10) {
+          let prevM = m - 1;
+          let prevY = y;
+          if (prevM < 1) { prevM = 12; prevY = y - 1; }
+          setRevCompetenceMonth(prevM);
+          setRevCompetenceYear(prevY);
+          setRevCompetenceSuggested(true);
+          return;
+        }
+      }
+    }
+    setRevCompetenceSuggested(false);
+  };
+
+  const handleRevDateChange = (val: string) => {
+    setRevDate(val);
+    checkAndSuggestSalaryCompetence(val, revDesc, revCategory);
+  };
+
+  const handleRevDescChange = (val: string) => {
+    setRevDesc(val);
+    checkAndSuggestSalaryCompetence(revDate, val, revCategory);
+  };
+
+  const handleRevCategoryChange = (val: string) => {
+    setRevCategory(val);
+    checkAndSuggestSalaryCompetence(revDate, revDesc, val);
+  };
 
   const [aporteAmount, setAporteAmount] = useState<number | "">("");
   const [savingAporte, setSavingAporte] = useState(false);
@@ -108,19 +152,10 @@ export function DashboardOverview() {
     setLoading(true);
     try {
       const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
-      console.log("[Dashboard Client] Disparando busca de dados:", {
-        year: selectedDashboardYear,
-        month: monthParam,
-        viewMode,
-        tag: selectedTag
-      });
-      const result = await getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag);
-      console.log("[Dashboard Client] Dados brutos recebidos da API:", result);
-      console.log("[Dashboard Client] Dados de 'monthlyHistory' (Evolução Financeira):", result?.monthlyHistory);
-      console.log("[Dashboard Client] Dados de 'categoryBreakdown' (Distribuição por Categoria):", result?.categoryBreakdown);
-      setData(result);
+      const res = await getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag);
+      setData(res);
     } catch (err) {
-      console.error("Erro ao carregar dados do dashboard:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -131,7 +166,7 @@ export function DashboardOverview() {
       const tags = await getAllTags();
       setAvailableTags(tags);
     } catch (err) {
-      console.error("Erro ao carregar tags:", err);
+      console.error(err);
     }
   };
 
@@ -156,10 +191,22 @@ export function DashboardOverview() {
     if (!revDesc || val <= 0 || !revDate) return;
     setSavingRev(true);
     try {
-      await createRevenueAction(revDesc, val, revDate);
+      const compDateStr = `${revCompetenceYear}-${String(revCompetenceMonth).padStart(2, "0")}-01`;
+      await createRevenueAction(
+        revDesc,
+        val,
+        revDate,
+        undefined,
+        "COMPLETED",
+        compDateStr,
+        revCategory,
+        revCompetenceMonth,
+        revCompetenceYear
+      );
       await loadDashboardData();
       setRevenueModalOpen(false);
-      setRevDesc("");
+      setRevDesc("Salário");
+      setRevCategory("Salário");
       setRevAmount("");
     } catch (err) {
       console.error(err);
@@ -734,40 +781,103 @@ export function DashboardOverview() {
               </button>
             </div>
             <form onSubmit={handleRevenueSubmit} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Descrição *</label>
-                <input
-                  required
-                  type="text"
-                  value={revDesc}
-                  onChange={e => setRevDesc(e.target.value)}
-                  placeholder="Ex: Salário, Freelance, Rendimentos..."
-                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Descrição *</label>
+                  <input
+                    required
+                    type="text"
+                    value={revDesc}
+                    onChange={e => handleRevDescChange(e.target.value)}
+                    placeholder="Ex: Salário Empresa, Rendimentos..."
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Categoria</label>
+                  <select
+                    value={revCategory}
+                    onChange={e => handleRevCategoryChange(e.target.value)}
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {["Salário", "Investimentos", "Freelance", "Bônus / PLR", "Benefícios / VR", "Reembolso", "Outros"].map(c => (
+                      <option key={c} value={c} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{c}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valor (R$) *</label>
-                <input
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={revAmount}
-                  onChange={e => setRevAmount(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0.00"
-                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Valor (R$) *</label>
+                  <input
+                    required
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={revAmount}
+                    onChange={e => setRevAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="0.00"
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Data de Recebimento *</label>
+                  <input
+                    required
+                    type="date"
+                    value={revDate}
+                    onChange={e => handleRevDateChange(e.target.value)}
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Data *</label>
-                <input
-                  required
-                  type="date"
-                  value={revDate}
-                  onChange={e => setRevDate(e.target.value)}
-                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                />
+
+              {/* Seletor de Competência */}
+              <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Mês de Competência / Referência</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Regime de Competência)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={revCompetenceMonth}
+                    onChange={(e) => {
+                      setRevCompetenceMonth(Number(e.target.value));
+                      setRevCompetenceSuggested(false);
+                    }}
+                    className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    {[
+                      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                    ].map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={revCompetenceYear}
+                    onChange={(e) => {
+                      setRevCompetenceYear(Number(e.target.value));
+                      setRevCompetenceSuggested(false);
+                    }}
+                    className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                      <option key={y} value={y} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">{y}</option>
+                    ))}
+                  </select>
+                </div>
+                {revCompetenceSuggested && (
+                  <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold animate-in fade-in">
+                    <span>💡 Salário do 5º dia útil / início do mês: competência sugerida para o mês trabalhado anterior.</span>
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                  Mês/ano a que a receita pertence no balanço (ex: Salário trabalhado em Agosto e recebido em Setembro confronta com as despesas de Agosto).
+                </p>
               </div>
+
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button type="button" onClick={() => setRevenueModalOpen(false)} className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
                 <button type="submit" disabled={savingRev} className="px-5 py-2 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/30 cursor-pointer">Salvar Receita</button>

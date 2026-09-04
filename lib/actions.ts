@@ -233,17 +233,44 @@ export async function getRevenues(month?: number | null | string, year: number =
       },
       type: "INCOME",
       deletedAt: null,
-      date: { gte: from, lte: to }
+      ...(!isAnnualView ? {
+        OR: [
+          { competenceMonth: Number(month), competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { competenceMonth: null, competenceDate: null, date: { gte: from, lte: to } }
+        ]
+      } : {
+        OR: [
+          { competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { competenceYear: null, competenceDate: null, date: { gte: from, lte: to } }
+        ]
+      })
     } as any,
     include: { wallet: true },
     orderBy: { date: "asc" }
   });
 
-  // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios
+  // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios e filtragem por competência
   return transactions
     .filter((t: any) => {
       const wType = (t.wallet?.walletType || "").toUpperCase();
-      return !["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+      if (["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+
+      if (!isAnnualView) {
+        const numMonth = Number(month);
+        if (t.competenceMonth != null && t.competenceYear != null) {
+          return t.competenceMonth === numMonth && t.competenceYear === year;
+        }
+        const d = new Date(t.competenceDate || t.date);
+        return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === numMonth;
+      } else {
+        if (t.competenceYear != null) {
+          return t.competenceYear === year;
+        }
+        const d = new Date(t.competenceDate || t.date);
+        return d.getUTCFullYear() === year;
+      }
     })
     .map((t: any) => ({
       id: t.id,
@@ -252,6 +279,8 @@ export async function getRevenues(month?: number | null | string, year: number =
       status: t.status || "COMPLETED",
       date: t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : "",
       competenceDate: t.competenceDate ? (typeof t.competenceDate === "string" ? t.competenceDate.split("T")[0] : new Date(t.competenceDate).toISOString().split("T")[0]) : (t.date ? (typeof t.date === "string" ? t.date.split("T")[0] : new Date(t.date).toISOString().split("T")[0]) : ""),
+      competenceMonth: t.competenceMonth != null ? t.competenceMonth : (t.competenceDate ? new Date(t.competenceDate).getUTCMonth() + 1 : undefined),
+      competenceYear: t.competenceYear != null ? t.competenceYear : (t.competenceDate ? new Date(t.competenceDate).getUTCFullYear() : undefined),
       walletId: t.walletId,
       account: t.wallet?.bankName || t.wallet?.title || "",
       walletType: t.wallet?.walletType,
@@ -324,7 +353,9 @@ export async function createRevenueAction(
   walletId?: string,
   status: string = "COMPLETED",
   competenceDateStr?: string,
-  categoryName?: string
+  categoryName?: string,
+  competenceMonth?: number,
+  competenceYear?: number
 ) {
   const userId = await getActiveUserId();
   
@@ -359,9 +390,16 @@ export async function createRevenueAction(
   const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
 
   let competenceDate: Date = date;
-  if (competenceDateStr) {
+  let compMonth: number = competenceMonth || (date.getUTCMonth() + 1);
+  let compYear: number = competenceYear || date.getUTCFullYear();
+
+  if (competenceMonth && competenceYear) {
+    competenceDate = new Date(Date.UTC(competenceYear, competenceMonth - 1, 1));
+  } else if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
-    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+    compYear = Number(compParts[0]);
+    compMonth = Number(compParts[1]);
+    competenceDate = new Date(Date.UTC(compYear, compMonth - 1, Number(compParts[2] || 1)));
   }
 
   const catNameToUse = categoryName || "Aporte / Injeção de Saldo";
@@ -384,6 +422,8 @@ export async function createRevenueAction(
       status: status || "COMPLETED",
       date,
       competenceDate,
+      competenceMonth: compMonth,
+      competenceYear: compYear,
       source: "MANUAL"
     } as any
   });
@@ -399,6 +439,8 @@ export async function createRevenueAction(
     amount: Number(transaction.amount),
     date: new Date(transaction.date).toISOString().split("T")[0],
     competenceDate: transaction.competenceDate ? new Date(transaction.competenceDate).toISOString().split("T")[0] : new Date(transaction.date).toISOString().split("T")[0],
+    competenceMonth: transaction.competenceMonth || compMonth,
+    competenceYear: transaction.competenceYear || compYear,
     walletId: transaction.walletId,
     categoryId: dbCategory.id
   };
@@ -410,15 +452,24 @@ export async function updateRevenueAction(
   amount: number,
   dateStr: string,
   walletId?: string,
-  competenceDateStr?: string
+  competenceDateStr?: string,
+  competenceMonth?: number,
+  competenceYear?: number
 ) {
   const parts = dateStr.split("-");
   const date = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
 
   let competenceDate: Date = date;
-  if (competenceDateStr) {
+  let compMonth: number = competenceMonth || (date.getUTCMonth() + 1);
+  let compYear: number = competenceYear || date.getUTCFullYear();
+
+  if (competenceMonth && competenceYear) {
+    competenceDate = new Date(Date.UTC(competenceYear, competenceMonth - 1, 1));
+  } else if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
-    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+    compYear = Number(compParts[0]);
+    compMonth = Number(compParts[1]);
+    competenceDate = new Date(Date.UTC(compYear, compMonth - 1, Number(compParts[2] || 1)));
   }
 
   let transaction: any;
@@ -437,7 +488,9 @@ export async function updateRevenueAction(
       description,
       amount: amount,
       date,
-      competenceDate
+      competenceDate,
+      competenceMonth: compMonth,
+      competenceYear: compYear
     };
     if (walletId) {
       dataToUpdate.walletId = walletId;
@@ -1590,27 +1643,41 @@ export async function calculateAccountBalance(walletId: string, month: number, y
         { date: { lte: endOfMonth } }
       ]
     },
-    select: { type: true, amount: true, status: true, date: true, competenceDate: true, purchaseDate: true, paymentDate: true },
+    select: { type: true, amount: true, status: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true, purchaseDate: true, paymentDate: true },
   });
 
-  const getTxRefDate = (t: any) => new Date(t.competenceDate || t.purchaseDate || t.date);
+  const getTxCompetence = (t: any) => {
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      return { month: t.competenceMonth, year: t.competenceYear };
+    }
+    const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+    return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
+  };
 
   // Calculate historical totals up to endOfMonth (baseado na competência)
   const totalEntradasHistoricas = allWalletTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && getTxRefDate(t) <= endOfMonth)
+    .filter((t) => {
+      if (t.type !== "INCOME" || t.status === "PENDING") return false;
+      const comp = getTxCompetence(t);
+      return comp.year < year || (comp.year === year && comp.month <= month);
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const totalSaidasHistoricas = allWalletTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING" && getTxRefDate(t) <= endOfMonth)
+    .filter((t) => {
+      if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
+      const comp = getTxCompetence(t);
+      return comp.year < year || (comp.year === year && comp.month <= month);
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
   // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas)
   const finalBalance = totalEntradasHistoricas - totalSaidasHistoricas;
 
-  // Transações do mês selecionado por competência da compra
+  // Transações do mês selecionado por competência
   const monthTransactions = allWalletTransactions.filter((t) => {
-    const d = getTxRefDate(t);
-    return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month;
+    const comp = getTxCompetence(t);
+    return comp.year === year && comp.month === month;
   });
 
   const monthIncome = monthTransactions
@@ -1621,10 +1688,10 @@ export async function calculateAccountBalance(walletId: string, month: number, y
     .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  // Transações anteriores ao mês selecionado
+  // Transações anteriores ao mês selecionado por competência
   const prevTransactions = allWalletTransactions.filter((t) => {
-    const d = getTxRefDate(t);
-    return d < startOfMonth;
+    const comp = getTxCompetence(t);
+    return comp.year < year || (comp.year === year && comp.month < month);
   });
 
   const prevIncome = prevTransactions
@@ -1843,6 +1910,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         recurringDay: (p as any).recurringDay || undefined,
         date: safeIsoDate(p.date),
         competenceDate: safeIsoDate((p as any).competenceDate || p.date),
+        competenceMonth: (p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined),
+        competenceYear: (p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
         paymentDate: safeIsoDate((p as any).paymentDate || p.date)
       })),
@@ -1855,6 +1924,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         source: i.source,
         tags: (i as any).tags || undefined,
         competenceDate: safeIsoDate((i as any).competenceDate || i.date),
+        competenceMonth: (i as any).competenceMonth || ((i as any).competenceDate ? new Date((i as any).competenceDate).getUTCMonth() + 1 : undefined),
+        competenceYear: (i as any).competenceYear || ((i as any).competenceDate ? new Date((i as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((i as any).purchaseDate || (i as any).competenceDate || i.date),
         paymentDate: safeIsoDate((i as any).paymentDate || i.date)
       })),
@@ -1871,6 +1942,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         recurringDay: (t as any).recurringDay || undefined,
         date: safeIsoDate(t.date),
         competenceDate: safeIsoDate((t as any).competenceDate || t.date),
+        competenceMonth: (t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined),
+        competenceYear: (t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
         paymentDate: safeIsoDate((t as any).paymentDate || t.date),
         source: t.source,
@@ -2019,6 +2092,8 @@ export async function createCardPurchase(
         purchaseDate,
         paymentDate: instPaymentDate,
         competenceDate: instCompetenceDate,
+        competenceMonth: instCompetenceDate.getUTCMonth() + 1,
+        competenceYear: instCompetenceDate.getUTCFullYear(),
         source: "MANUAL",
         tags: finalTags,
       });
@@ -2028,6 +2103,8 @@ export async function createCardPurchase(
       data: transactionsData,
     });
   } else {
+    const compMonth = competenceDate.getUTCMonth() + 1;
+    const compYear = competenceDate.getUTCFullYear();
     const newTx = await (prisma.transaction as any).create({
       data: {
         walletId,
@@ -2040,6 +2117,8 @@ export async function createCardPurchase(
         purchaseDate,
         paymentDate,
         competenceDate,
+        competenceMonth: compMonth,
+        competenceYear: compYear,
         source: "MANUAL",
         tags: finalTags,
         isRecurring: !!isRecurring,
@@ -2239,6 +2318,8 @@ export async function updateCardPurchase(
       purchaseDate,
       paymentDate,
       competenceDate,
+      competenceMonth: competenceDate.getUTCMonth() + 1,
+      competenceYear: competenceDate.getUTCFullYear(),
       tags: finalTags,
       isRecurring: !!isRecurring,
       recurringDay: isRecurring ? targetDay : null
@@ -2646,6 +2727,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
           walletId: w.id,
           type:     "EXPENSE",
           OR: [
+            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
             { competenceDate: { gte: from, lte: to } },
             { purchaseDate: { gte: from, lte: to } },
             { date: { gte: from, lte: to } }
@@ -2657,6 +2739,12 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       });
 
       const transactions = rawTransactions.filter((t) => {
+        if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+          if (!isAnnualView) {
+            return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+          }
+          return (t as any).competenceYear === year;
+        }
         const d = new Date((t as any).competenceDate || (t as any).purchaseDate || t.date);
         return d >= from && d <= to;
       });
@@ -2717,14 +2805,21 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
           walletId: w.id,
           type:     "INCOME",
           OR: [
+            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
             { competenceDate: { gte: from, lte: to } },
             { date: { gte: from, lte: to } }
           ],
           deletedAt: null,
         },
-        select: { amount: true, date: true, competenceDate: true },
+        select: { amount: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true },
       });
       const periodIncomes = rawPeriodIncomes.filter((t) => {
+        if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+          if (!isAnnualView) {
+            return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+          }
+          return (t as any).competenceYear === year;
+        }
         const d = new Date((t as any).competenceDate || t.date);
         return d >= from && d <= to;
       });
@@ -3344,6 +3439,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
       wallet: { userId },
       deletedAt: null,
       OR: [
+        ...(month && month >= 1 && month <= 12 ? [{ competenceMonth: month, competenceYear: year }] : [{ competenceYear: year }]),
         { competenceDate: { gte: from, lte: to } },
         { purchaseDate: { gte: from, lte: to } },
         { date: { gte: from, lte: to } }
@@ -3357,8 +3453,14 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     orderBy: { date: "desc" }
   });
 
-  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob UTC ou horário local de Brasília pela competência
+  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob regime de competência
   const rangeTransactions = rawRangeTransactions.filter((t) => {
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      if (month && month >= 1 && month <= 12) {
+        return t.competenceMonth === month && t.competenceYear === year;
+      }
+      return t.competenceYear === year;
+    }
     const d = new Date(t.competenceDate || t.purchaseDate || t.date);
     const utcYear = d.getUTCFullYear();
     const utcMonth = d.getUTCMonth() + 1;
