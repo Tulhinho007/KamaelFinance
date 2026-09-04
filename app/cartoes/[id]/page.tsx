@@ -1031,18 +1031,31 @@ export default function CartaoDetailPage() {
                             </td>
                             <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
                               <div className="flex flex-col items-start gap-1">
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                  {formatDateBR((p as any).purchaseDate || p.date)}
-                                </span>
-                                {(p as any).paymentDate && (p as any).paymentDate !== ((p as any).purchaseDate || p.date) && (
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                    Venc: {formatDateBR((p as any).paymentDate)}
-                                  </span>
-                                )}
-                                {p.competenceDate && isDifferentCompetence((p as any).purchaseDate || p.date, p.competenceDate) && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                    Ref: {formatReference(p.competenceDate)}
-                                  </span>
+                                {Boolean(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura"))) ? (
+                                  <>
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                      Fatura: {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                      Vence: {formatDateBR((p as any).paymentDate || p.date)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                      {formatDateBR((p as any).purchaseDate || p.date)}
+                                    </span>
+                                    {(p as any).paymentDate && (p as any).paymentDate !== ((p as any).purchaseDate || p.date) && (
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                        Venc: {formatDateBR((p as any).paymentDate)}
+                                      </span>
+                                    )}
+                                    {p.competenceDate && isDifferentCompetence((p as any).purchaseDate || p.date, p.competenceDate) && (
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                        Ref: {formatReference(p.competenceDate)}
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </td>
@@ -1199,14 +1212,12 @@ export default function CartaoDetailPage() {
                             </td>
                             <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
                               <div className="flex flex-col items-start gap-1">
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                  {formatDateBR(p.date)}
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                  Fatura: {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
                                 </span>
-                                {p.competenceDate && isDifferentCompetence(p.date, p.competenceDate) && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                    Ref: {formatReference(p.competenceDate)}
-                                  </span>
-                                )}
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                  Vence: {formatDateBR((p as any).paymentDate || p.date)}
+                                </span>
                               </div>
                             </td>
                             <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
@@ -1644,18 +1655,31 @@ export default function CartaoDetailPage() {
                               </td>
                               <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
                                 <div className="flex flex-col items-start gap-1">
-                                  <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                    {formatDateBR((t as any).purchaseDate || t.date)}
-                                  </span>
-                                  {(t as any).paymentDate && (t as any).paymentDate !== ((t as any).purchaseDate || t.date) && (
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                      Liq: {formatDateBR((t as any).paymentDate)}
-                                    </span>
-                                  )}
-                                  {hasRef && (
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                      Ref: {formatReference(t.competenceDate)}
-                                    </span>
+                                  {Boolean((t as any).isRecurring || ((t as any).tags && (t as any).tags.toLowerCase().includes("assinatura"))) ? (
+                                    <>
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                        Consumo: {formatReference(t.competenceDate || (t as any).purchaseDate || t.date)}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                        Vence: {formatDateBR((t as any).paymentDate || t.date)}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                        {formatDateBR((t as any).purchaseDate || t.date)}
+                                      </span>
+                                      {(t as any).paymentDate && (t as any).paymentDate !== ((t as any).purchaseDate || t.date) && (
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                          Liq: {formatDateBR((t as any).paymentDate)}
+                                        </span>
+                                      )}
+                                      {hasRef && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                          Ref: {formatReference(t.competenceDate)}
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </div>
                               </td>

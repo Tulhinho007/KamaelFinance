@@ -2239,6 +2239,10 @@ async function syncRecurringProjections(
   const futureTransactions = [];
   for (let step = 1; step <= 11; step++) {
     const nextDate = new Date(Date.UTC(initialYear, initialMonth + step, targetDay, 12, 0, 0));
+    const compYear = initialYear + Math.floor((initialMonth + step) / 12);
+    const compMonth = ((initialMonth + step) % 12) + 1;
+    const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 0, 0, 0));
+    const purchDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
     futureTransactions.push({
       walletId,
@@ -2248,6 +2252,11 @@ async function syncRecurringProjections(
       amount,
       installmentsCount: 1,
       date: nextDate,
+      purchaseDate: purchDate,
+      paymentDate: nextDate,
+      competenceDate: compDate,
+      competenceMonth: compMonth,
+      competenceYear: compYear,
       source: "RECURRING_PROJECTION",
       status: "PENDING",
       tags: finalTags || null,

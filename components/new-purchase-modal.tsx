@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, DollarSign, Tag, Edit3, PlusCircle } from "lucide-react";
+import { X, DollarSign, Tag, Edit3, PlusCircle, Calendar, RefreshCw, Sparkles } from "lucide-react";
 import { parseCurrencyInput } from "@/lib/constants";
 import { CATEGORIES } from "@/constants/categories";
 import { getAllWalletsSimple, createCardPurchase, updateCardPurchase } from "@/lib/actions";
@@ -60,9 +60,28 @@ export function NewPurchaseModal({
   const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
   const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
   const [formIsRecurring, setFormIsRecurring]         = useState<boolean>(false);
+  const [userToggledRecurring, setUserToggledRecurring] = useState(false);
   const [saving, setSaving]                       = useState(false);
 
   const isEditMode = !!(initialData && initialData.id);
+
+  // Auto-detecção inteligente de serviços de consumo contínuo / assinaturas
+  const checkAutoDetectRecurring = (desc: string, cat: string) => {
+    if (userToggledRecurring || isEditMode) return;
+    const d = desc.toLowerCase();
+    const c = cat.toLowerCase();
+    const keywords = [
+      "tim", "celpe", "neoenergia", "energia", "internet", "claro", "vivo", "netflix",
+      "spotify", "iptu", "condominio", "condomínio", "água", "agua", "aluguel", "fatura",
+      "streaming", "assinatura", "plano", "gás", "gas", "sanepar", "copasa", "enel",
+      "sabesp", "sem parar", "veloe", "tag", "hbo", "max", "disney", "prime", "amazon prime",
+      "smart fit", "gympass", "totalpass"
+    ];
+    const isMatch = keywords.some(k => d.includes(k)) || c.includes("assinatura") || c.includes("serviço");
+    if (isMatch && !formIsRecurring) {
+      setFormIsRecurring(true);
+    }
+  };
 
   const handlePurchaseDateChange = (val: string) => {
     const oldPurchase = formPurchaseDate;
@@ -85,6 +104,7 @@ export function NewPurchaseModal({
 
   useEffect(() => {
     if (isOpen) {
+      setUserToggledRecurring(false);
       getAllWalletsSimple()
         .then(data => {
           setWallets(data);
@@ -147,9 +167,30 @@ export function NewPurchaseModal({
       showAlert("Por favor, selecione um cartão ou conta.", { variant: "warning" });
       return;
     }
-    if (!formDescription || !formPurchaseDate) {
-      showAlert("Preencha a descrição e a data da compra.", { variant: "warning" });
+    if (!formDescription) {
+      showAlert("Preencha a descrição da despesa.", { variant: "warning" });
       return;
+    }
+
+    const isRecurringMode = formIsRecurring;
+    let effectivePurchaseDate = formPurchaseDate;
+    let effectivePaymentDate = formPaymentDate;
+
+    if (isRecurringMode) {
+      // Normalização: Para faturas de consumo fechado, fixa a data da compra no 1º dia do mês de competência
+      const compPadMonth = String(formCompetenceMonth).padStart(2, "0");
+      effectivePurchaseDate = `${formCompetenceYear}-${compPadMonth}-01`;
+      if (!effectivePaymentDate) {
+        effectivePaymentDate = effectivePurchaseDate;
+      }
+    } else {
+      if (!effectivePurchaseDate) {
+        showAlert("Preencha a data da compra.", { variant: "warning" });
+        return;
+      }
+      if (!effectivePaymentDate) {
+        effectivePaymentDate = effectivePurchaseDate;
+      }
     }
 
     const totalAmountVal = parseCurrencyInput(formAmount);
@@ -158,9 +199,8 @@ export function NewPurchaseModal({
       return;
     }
 
-    const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
+    const installments = (formType === "parcelado" && isCredit && !isRecurringMode) ? formInstallmentsCount : undefined;
     const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
-    const finalPaymentDate = formPaymentDate || formPurchaseDate;
 
     let finalTags = formTags;
     if (formIsRecurring && !finalTags.toLowerCase().includes("assinatura")) {
@@ -177,13 +217,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          finalPaymentDate,
+          effectivePaymentDate,
           finalTags,
           formIsRecurring,
           undefined,
           compDateStr,
-          finalPaymentDate,
-          formPurchaseDate
+          effectivePaymentDate,
+          effectivePurchaseDate
         );
       } else {
         await createCardPurchase(
@@ -192,13 +232,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          finalPaymentDate,
+          effectivePaymentDate,
           finalTags,
           formIsRecurring,
           undefined,
           compDateStr,
-          finalPaymentDate,
-          formPurchaseDate
+          effectivePaymentDate,
+          effectivePurchaseDate
         );
       }
 
@@ -278,8 +318,11 @@ export function NewPurchaseModal({
               required
               type="text"
               value={formDescription}
-              onChange={e => setFormDescription(e.target.value)}
-              placeholder="Ex: Supermercado, Gasolina, Netflix..."
+              onChange={e => {
+                setFormDescription(e.target.value);
+                checkAutoDetectRecurring(e.target.value, formCategory);
+              }}
+              placeholder="Ex: Supermercado, TIM celular, Netflix, Internet..."
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
             />
           </div>
@@ -291,7 +334,10 @@ export function NewPurchaseModal({
             </label>
             <select
               value={formCategory}
-              onChange={e => setFormCategory(e.target.value)}
+              onChange={e => {
+                setFormCategory(e.target.value);
+                checkAutoDetectRecurring(formDescription, e.target.value);
+              }}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm cursor-pointer"
             >
               {CATEGORIES.map(cat => (
@@ -320,21 +366,35 @@ export function NewPurchaseModal({
             </div>
           </div>
 
-          {/* Campo: Marcar como Assinatura / Recorrência */}
-          <div className="flex items-start gap-3 p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl transition-all">
+          {/* Campo: Marcar como Assinatura / Recorrência / Consumo Contínuo */}
+          <div className={`flex items-start gap-3 p-3 rounded-2xl transition-all border ${
+            formIsRecurring 
+              ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 shadow-xs" 
+              : "bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800"
+          }`}>
             <input
               type="checkbox"
               id="isRecurringToggle"
               checked={formIsRecurring}
-              onChange={e => setFormIsRecurring(e.target.checked)}
+              onChange={e => {
+                setUserToggledRecurring(true);
+                setFormIsRecurring(e.target.checked);
+              }}
               className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 cursor-pointer mt-0.5"
             />
             <label htmlFor="isRecurringToggle" className="cursor-pointer select-none">
-              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
-                Marcar como Assinatura / Recorrência
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
+                  Marcar como Assinatura / Consumo Contínuo
+                </span>
+                {formIsRecurring && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
+                    <Sparkles className="w-3 h-3" /> Fatura Fechada
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-0.5">
-                Despesas recorrentes cobradas mensalmente no cartão (ex: Netflix, Spotify, Internet).
+                Para contas mensais (TIM, Celpe, Internet) e assinaturas (Netflix, Spotify) com consumo no mês fechado.
               </span>
             </label>
           </div>
@@ -422,76 +482,143 @@ export function NewPurchaseModal({
             </div>
           )}
 
+          {/* ALTERNÂNCIA DINÂMICA: Consumo Contínuo/Assinatura vs Compra Avulsa */}
+          {formIsRecurring ? (
+            /* MODO ASSINATURA / CONSUMO CONTÍNUO */
+            <div className="flex flex-col gap-3 p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/60 shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  Mês de Consumo / Fatura Referente *
+                </label>
+                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
+                  Mês Fechado (01 a 30/31)
+                </span>
+              </div>
 
-
-          {/* Campos de Data: Data da Compra e Data de Pagamento / Vencimento */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                <span>Data da Compra / Despesa *</span>
-              </label>
-              <input
-                required
-                type="date"
-                value={formPurchaseDate}
-                onChange={e => handlePurchaseDateChange(e.target.value)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
-              />
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                Dia em que o gasto foi feito (define a competência).
-              </span>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                <span>Data de Pagamento / Vencimento</span>
-                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
-              </label>
-              <input
-                type="date"
-                value={formPaymentDate}
-                onChange={e => setFormPaymentDate(e.target.value)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
-              />
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                Dia da liquidação em conta ou fatura.
-              </span>
-            </div>
-          </div>
-
-          {/* Campo: Mês de Competência / Referência */}
-          <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 shadow-xs">
-            <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-              <span>Mês de Competência / Referência</span>
-              <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <select
-                value={formCompetenceMonth}
-                onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
-                className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-              >
-                {[
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  value={formCompetenceMonth}
+                  onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
+                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-xs"
+                >
+                  {[
+                    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                  ].map((m, idx) => (
+                    <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={formCompetenceYear}
+                  onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
+                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-xs"
+                >
+                  {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                    <option key={y} value={y} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium leading-tight">
+                O consumo cobre o mês cheio de <strong>{[
                   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
                   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-                ].map((m, idx) => (
-                  <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{m}</option>
-                ))}
-              </select>
-              <select
-                value={formCompetenceYear}
-                onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
-                className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-              >
-                {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                  <option key={y} value={y} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{y}</option>
-                ))}
-              </select>
+                ][formCompetenceMonth - 1]}/{formCompetenceYear}</strong>. A compra será normalizada automaticamente para o 1º dia do mês.
+              </p>
+
+              {/* Data de Vencimento / Pagamento da fatura */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Data de Vencimento / Pagamento *</span>
+                </label>
+                <input
+                  required
+                  type="date"
+                  value={formPaymentDate}
+                  onChange={e => setFormPaymentDate(e.target.value)}
+                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+                />
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  Dia em que a fatura vence ou foi liquidada no banco/cartão (ex: 10/09/2026).
+                </span>
+              </div>
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
-              Mês/ano a que este gasto pertence no relatório DRE (ex: Gasto de Agosto pago em Setembro).
-            </p>
-          </div>
+          ) : (
+            /* MODO COMPRA PONTUAL AVULSA */
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-200">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                    <span>Data da Compra / Despesa *</span>
+                  </label>
+                  <input
+                    required
+                    type="date"
+                    value={formPurchaseDate}
+                    onChange={e => handlePurchaseDateChange(e.target.value)}
+                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+                  />
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    Dia em que o gasto foi feito.
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                    <span>Data de Pagamento / Vencimento</span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={formPaymentDate}
+                    onChange={e => setFormPaymentDate(e.target.value)}
+                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+                  />
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                    Dia da liquidação em conta ou fatura.
+                  </span>
+                </div>
+              </div>
+
+              {/* Campo: Mês de Competência / Referência */}
+              <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 shadow-xs animate-in fade-in duration-200">
+                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                  <span>Mês de Competência / Referência</span>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <select
+                    value={formCompetenceMonth}
+                    onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
+                    className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                  >
+                    {[
+                      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                    ].map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={formCompetenceYear}
+                    onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
+                    className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
+                      <option key={y} value={y} className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
+                  Mês/ano a que este gasto pertence no relatório DRE (ex: Gasto de Agosto pago em Setembro).
+                </p>
+              </div>
+            </>
+          )}
 
           {/* Submit */}
           <button
