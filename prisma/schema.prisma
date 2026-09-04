@@ -106,17 +106,20 @@ model Goal {
   iconName    String        @default("Target")
   status      String        @default("ACTIVE") // ACTIVE | COMPLETED
   completedAt DateTime?
+  tipo        String        @default("VISUAL") // VISUAL | COFRINHO
+  isRealSaving Boolean      @default(false)
   history     GoalHistory[]
 }
 
 model GoalHistory {
-  id        String   @id @default(uuid())
-  goalId    String
-  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  date      DateTime
-  amount    Decimal
-  walletId  String?
-  wallet    Wallet?  @relation(fields: [walletId], references: [id])
+  id            String   @id @default(uuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  date          DateTime
+  amount        Decimal
+  walletId      String?
+  wallet        Wallet?  @relation(fields: [walletId], references: [id])
+  transactionId String?
 }
 
 model Investment {

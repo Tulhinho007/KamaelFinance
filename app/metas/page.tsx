@@ -30,6 +30,7 @@ type GoalHistoryEntry = {
   amount: number;
   walletId?: string | null;
   walletTitle?: string | null;
+  transactionId?: string | null;
 };
 
 type Goal = {
@@ -41,6 +42,8 @@ type Goal = {
   objetivo: number;
   pct: number;
   iconName: "Plane" | "Car" | "Home" | "Target";
+  tipo?: "VISUAL" | "COFRINHO";
+  isRealSaving?: boolean;
   status?: string;
   completedAt?: string | null;
   walletId?: string | null;
@@ -156,8 +159,10 @@ export default function MetasPage() {
   const [formAcumuladoInicial, setFormAcumuladoInicial] = useState<string | number>("");
   const [formIconName, setFormIconName] = useState<"Plane" | "Car" | "Home" | "Target">("Target");
   const [formWalletId, setFormWalletId] = useState("");
+  const [formTipo, setFormTipo] = useState<"VISUAL" | "COFRINHO">("VISUAL");
   const [formAporteVal, setFormAporteVal] = useState<string | number>("");
   const [formAporteWalletId, setFormAporteWalletId] = useState("");
+  const [formMoveRealBalance, setFormMoveRealBalance] = useState<boolean>(true);
 
   // Busca de Metas
   const [searchQuery, setSearchQuery] = useState("");
@@ -223,6 +228,7 @@ export default function MetasPage() {
     setFormAcumuladoInicial("");
     setFormIconName("Target");
     setFormWalletId("");
+    setFormTipo("VISUAL");
     setModalType("create");
   };
 
@@ -235,8 +241,23 @@ export default function MetasPage() {
       return;
     }
 
+    if (formTipo === "COFRINHO" && !formWalletId) {
+      showAlert("Por favor, selecione uma conta bancária vinculada para o Cofrinho Real.", { variant: "warning" });
+      return;
+    }
+
     try {
-      await createGoalAction(formTitle, formDataInicio, formDataFim, objNum, acumNum, formIconName, formWalletId || undefined);
+      await createGoalAction(
+        formTitle,
+        formDataInicio,
+        formDataFim,
+        objNum,
+        acumNum,
+        formIconName,
+        formWalletId || undefined,
+        formTipo,
+        formTipo === "COFRINHO"
+      );
       await loadAllData();
       setModalType(null);
     } catch (err) {
@@ -253,6 +274,7 @@ export default function MetasPage() {
     setFormObjetivo(goal.objetivo);
     setFormIconName(goal.iconName);
     setFormWalletId(goal.walletId || "");
+    setFormTipo(goal.tipo || (goal.isRealSaving ? "COFRINHO" : "VISUAL"));
     setModalType("edit");
   };
 
@@ -264,8 +286,23 @@ export default function MetasPage() {
       return;
     }
 
+    if (formTipo === "COFRINHO" && !formWalletId) {
+      showAlert("Por favor, selecione uma conta bancária vinculada para o Cofrinho Real.", { variant: "warning" });
+      return;
+    }
+
     try {
-      await updateGoalAction(selectedGoal.id.toString(), formTitle, formDataInicio, formDataFim, objNum, formIconName, formWalletId || undefined);
+      await updateGoalAction(
+        selectedGoal.id.toString(),
+        formTitle,
+        formDataInicio,
+        formDataFim,
+        objNum,
+        formIconName,
+        formWalletId || undefined,
+        formTipo,
+        formTipo === "COFRINHO"
+      );
       await loadAllData();
       setModalType(null);
     } catch (err) {
@@ -286,6 +323,8 @@ export default function MetasPage() {
       ? goal.walletId
       : (validWallets.length > 0 ? validWallets[0].id : "");
     setFormAporteWalletId(defaultWId);
+    const isCofrinho = goal.tipo === "COFRINHO" || !!goal.isRealSaving;
+    setFormMoveRealBalance(isCofrinho);
     setModalType("aporte");
   };
 
@@ -297,8 +336,9 @@ export default function MetasPage() {
       return;
     }
 
-    if (!formAporteWalletId) {
-      showAlert("Por favor, selecione a conta/banco onde o dinheiro foi guardado.", { variant: "warning" });
+    const isCofrinho = selectedGoal.tipo === "COFRINHO" || !!selectedGoal.isRealSaving;
+    if ((isCofrinho || formMoveRealBalance) && !formAporteWalletId) {
+      showAlert("Por favor, selecione a conta/banco de origem para o débito real.", { variant: "warning" });
       return;
     }
 
@@ -311,7 +351,12 @@ export default function MetasPage() {
     const crossedMilestone = milestones.find(m => oldPct < m && newPct >= m);
 
     try {
-      await addAporteAction(selectedGoal.id.toString(), aporteNum, formAporteWalletId);
+      await addAporteAction(
+        selectedGoal.id.toString(),
+        aporteNum,
+        formAporteWalletId || undefined,
+        formMoveRealBalance
+      );
       await loadAllData();
       setModalType(null);
 
@@ -601,6 +646,19 @@ export default function MetasPage() {
                         <p className="text-[9px] font-extrabold text-slate-500 dark:text-slate-300 block mt-0.5">
                           {formatDateDisplay(meta.dataInicio)} a {formatDateDisplay(meta.dataFim)}
                         </p>
+                        <div className="mt-1 flex items-center gap-1">
+                          {meta.tipo === "COFRINHO" || meta.isRealSaving ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 tracking-tight">
+                              <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                              Cofrinho Vinculado {meta.walletTitle ? `à ${meta.walletTitle}` : ""}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 tracking-tight">
+                              <Target className="w-2.5 h-2.5 text-slate-400" />
+                              Meta de Planejamento
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -866,20 +924,68 @@ export default function MetasPage() {
                   />
                 </div>
 
+                {/* Tipo de Meta: Planejamento vs Cofrinho Real */}
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Vincular a Conta/Cofre (Opcional)</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Tipo da Meta *</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormTipo("VISUAL")}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all cursor-pointer ${
+                        formTipo === "VISUAL"
+                          ? "bg-indigo-500/10 border-indigo-500 text-indigo-600 dark:text-indigo-400 font-bold shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <Target className="w-4 h-4" />
+                      <span className="text-[11px] font-bold leading-tight">Planejamento</span>
+                      <span className="text-[9px] opacity-75 leading-none">Marcador visual</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormTipo("COFRINHO")}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all cursor-pointer ${
+                        formTipo === "COFRINHO"
+                          ? "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-emerald-400 font-black shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <Coins className="w-4 h-4" />
+                      <span className="text-[11px] font-bold leading-tight">Cofrinho Real</span>
+                      <span className="text-[9px] opacity-75 leading-none">Movimenta saldo real</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                    <span>{formTipo === "COFRINHO" ? "Conta Bancária Vinculada *" : "Vincular a Conta/Cofre (Opcional)"}</span>
+                    {formTipo === "COFRINHO" && (
+                      <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 lowercase bg-emerald-500/10 px-1.5 py-0.2 rounded">obrigatório</span>
+                    )}
+                  </label>
                   <select
+                    required={formTipo === "COFRINHO"}
                     value={formWalletId}
                     onChange={(e) => setFormWalletId(e.target.value)}
-                    className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    className={`w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-1 cursor-pointer ${
+                      formTipo === "COFRINHO"
+                        ? "border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500"
+                        : "border-slate-300 dark:border-slate-800 focus:border-indigo-500 focus:ring-indigo-500"
+                    }`}
                   >
-                    <option value="">Nenhum cofre vinculado (Aportes manuais)</option>
+                    <option value="">{formTipo === "COFRINHO" ? "Selecione a conta do cofrinho..." : "Nenhum cofre vinculado (Aportes manuais)"}</option>
                     {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
                       </option>
                     ))}
                   </select>
+                  {formTipo === "COFRINHO" && (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Esta conta será debitada quando forem feitos aportes reais neste cofrinho.
+                    </span>
+                  )}
                 </div>
 
                 {modalType === "create" && (
@@ -938,19 +1044,37 @@ export default function MetasPage() {
             {/* Modal Fazer Aporte */}
             {modalType === "aporte" && selectedGoal && (
               <form onSubmit={handleAporte} className="flex flex-col gap-4">
-                <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Fazer aporte financeiro na meta <strong className="text-slate-900 dark:text-white font-black">{selectedGoal.title}</strong>.
-                </p>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Fazer aporte financeiro na meta
+                    </p>
+                    {selectedGoal.tipo === "COFRINHO" || selectedGoal.isRealSaving ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        <Coins className="w-2.5 h-2.5 text-emerald-500" />
+                        Cofrinho Real
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                        <Target className="w-2.5 h-2.5 text-slate-400" />
+                        Planejamento
+                      </span>
+                    )}
+                  </div>
+                  <strong className="text-sm font-black text-slate-900 dark:text-white block">{selectedGoal.title}</strong>
+                </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Guardado em qual conta? *</label>
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
+                    Conta de Origem / Débito *
+                  </label>
                   <select
                     required
                     value={formAporteWalletId}
                     onChange={(e) => setFormAporteWalletId(e.target.value)}
                     className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
-                    <option value="">Selecione a conta de saldo / débito onde o dinheiro fica guardado...</option>
+                    <option value="">Selecione a conta de saldo / débito...</option>
                     {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
@@ -971,13 +1095,35 @@ export default function MetasPage() {
                     className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                   />
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                    Limite máximo restante: {brl(selectedGoal.objetivo - selectedGoal.acumulado)}
+                    Limite máximo restante: {brl(Math.max(0, selectedGoal.objetivo - selectedGoal.acumulado))}
                   </span>
+                </div>
+
+                {/* Opção de Débito Real / Movimentação Financeira */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
+                  <input
+                    id="chk-move-real-balance"
+                    type="checkbox"
+                    checked={formMoveRealBalance}
+                    onChange={(e) => setFormMoveRealBalance(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer accent-emerald-600"
+                  />
+                  <label htmlFor="chk-move-real-balance" className="text-xs flex flex-col gap-0.5 cursor-pointer">
+                    <span className="font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      Movimentar saldo real da conta
+                      {formMoveRealBalance && (
+                        <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded">Ativo</span>
+                      )}
+                    </span>
+                    <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                      Debita o saldo bancário da conta selecionada e registra uma saída/despesa com a tag #cofrinho.
+                    </span>
+                  </label>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-2 cursor-pointer"
+                  className="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-1 cursor-pointer"
                 >
                   CONFIRMAR APORTE
                 </button>
@@ -1078,6 +1224,11 @@ export default function MetasPage() {
                             <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/80">
                               <WalletIcon className="w-2.5 h-2.5 text-indigo-500" />
                               {h.walletTitle}
+                            </span>
+                          )}
+                          {h.transactionId && (
+                            <span className="inline-flex items-center gap-0.5 text-[8.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20" title="Movimentou saldo real da conta">
+                              Débito Real
                             </span>
                           )}
                         </div>
