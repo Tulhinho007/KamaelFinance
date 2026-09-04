@@ -726,7 +726,8 @@ export async function addAporteAction(
   goalId: string,
   amount: number,
   walletId?: string,
-  moveRealBalance: boolean = false
+  moveRealBalance: boolean = true,
+  dateStr?: string
 ) {
   const goal = await prisma.goal.findUnique({
     where: { id: goalId }
@@ -735,23 +736,44 @@ export async function addAporteAction(
   if (!goal) throw new Error("Meta não encontrada.");
 
   const isCofrinho = (goal as any).tipo === "COFRINHO" || !!(goal as any).isRealSaving;
-  const shouldMoveBalance = moveRealBalance || (isCofrinho && moveRealBalance !== false);
+  const resolvedWalletId = walletId || goal.walletId || undefined;
+  const shouldMoveBalance = moveRealBalance !== false && (isCofrinho || !!resolvedWalletId);
 
-  if (shouldMoveBalance && !walletId) {
-    throw new Error("Conta bancária de origem é obrigatória para movimentar o saldo real do cofrinho.");
+  if (isCofrinho && !resolvedWalletId) {
+    throw new Error("Conta bancária vinculada é obrigatória para o Cofrinho.");
+  }
+
+  let aporteDate = new Date();
+  if (dateStr) {
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      aporteDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0));
+    }
   }
 
   await prisma.$transaction(async (tx) => {
     let transactionId: string | null = null;
 
-    if (shouldMoveBalance && walletId) {
-      // Cria a transação de saída/débito da conta bancária de origem
+    if (shouldMoveBalance && resolvedWalletId) {
+      // Garante que a categoria "Cofrinho" exista no sistema
+      let dbCategory = await tx.category.findFirst({
+        where: { name: { equals: "Cofrinho", mode: "insensitive" } }
+      });
+      if (!dbCategory) {
+        dbCategory = await tx.category.create({
+          data: { name: "Cofrinho", color: "#10B981" }
+        });
+      }
+
+      // 1. Cria a transação de Receita/Entrada (INCOME) na conta selecionada
       const newTx = await tx.transaction.create({
         data: {
-          walletId,
-          type: "EXPENSE",
+          walletId: resolvedWalletId,
+          categoryId: dbCategory.id,
+          type: "INCOME",
           amount,
-          date: new Date(),
+          date: aporteDate,
+          competenceDate: aporteDate,
           description: `Aporte Cofrinho: ${goal.title}`,
           status: "COMPLETED",
           tags: "#cofrinho, #meta",
@@ -759,15 +781,23 @@ export async function addAporteAction(
         } as any
       });
       transactionId = newTx.id;
+
+      // 2. Atualiza o saldo real da conta (incrementa)
+      await tx.wallet.update({
+        where: { id: resolvedWalletId },
+        data: {
+          currentBalance: { increment: amount }
+        }
+      }).catch(() => {});
     }
 
     // Registra o aporte no histórico da meta
     await tx.goalHistory.create({
       data: {
         goalId,
-        date: new Date(),
+        date: aporteDate,
         amount,
-        walletId: walletId || null,
+        walletId: resolvedWalletId || null,
         transactionId: transactionId || null,
       } as any
     });
@@ -784,74 +814,132 @@ export async function addAporteAction(
     });
   });
 
-  revalidatePath("/metas");
+  // 3. Invalidação de Cache e Revalidação (Next.js)
   revalidatePath("/dashboard");
+  revalidatePath("/receitas");
   revalidatePath("/despesas");
+  if (resolvedWalletId) {
+    revalidatePath(`/contas/${resolvedWalletId}`);
+  }
+  revalidatePath("/contas");
+  revalidatePath("/metas");
 }
 
 export async function updateAporteAction(historyId: string, amount: number, dateStr?: string, walletId?: string) {
   const existingHistory = await prisma.goalHistory.findUnique({
     where: { id: historyId },
-    select: { goalId: true }
+    select: { goalId: true, transactionId: true, amount: true, walletId: true }
   });
 
   if (!existingHistory) return;
 
-  const updateData: any = { amount };
-  if (dateStr) {
-    updateData.date = new Date(dateStr);
-  }
-  if (walletId !== undefined) {
-    updateData.walletId = walletId || null;
-  }
+  const oldAmount = Number(existingHistory.amount || 0);
+  const diff = amount - oldAmount;
+  const targetWalletId = walletId !== undefined ? (walletId || null) : existingHistory.walletId;
 
-  await prisma.goalHistory.update({
-    where: { id: historyId },
-    data: updateData
-  });
+  await prisma.$transaction(async (tx) => {
+    const updateData: any = { amount };
+    let newDate: Date | undefined;
+    if (dateStr) {
+      const parts = dateStr.split("-");
+      if (parts.length === 3) {
+        newDate = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0));
+        updateData.date = newDate;
+      }
+    }
+    if (walletId !== undefined) {
+      updateData.walletId = walletId || null;
+    }
 
-  const goalId = existingHistory.goalId;
-
-  // Recalcula o acumulado total com base em todo o histórico restante da meta
-  const allHistory = await prisma.goalHistory.findMany({
-    where: { goalId }
-  });
-
-  const goal = await prisma.goal.findUnique({ where: { id: goalId } });
-  if (goal) {
-    const totalAportado = allHistory.reduce((s, h) => s + Number(h.amount), 0);
-    const isCompleted = totalAportado >= Number(goal.objetivo) && Number(goal.objetivo) > 0;
-
-    await prisma.goal.update({
-      where: { id: goalId },
-      data: {
-        acumulado: totalAportado,
-        status: isCompleted ? "COMPLETED" : "ACTIVE",
-        completedAt: isCompleted ? ((goal as any)?.completedAt || new Date()) : null
-      } as any
+    await tx.goalHistory.update({
+      where: { id: historyId },
+      data: updateData
     });
-  }
 
-  revalidatePath("/metas");
+    // Se possui transação vinculada, sincroniza também a transação
+    if (existingHistory.transactionId) {
+      const txUpdateData: any = { amount };
+      if (newDate) {
+        txUpdateData.date = newDate;
+        txUpdateData.competenceDate = newDate;
+      }
+      if (walletId !== undefined && walletId) {
+        txUpdateData.walletId = walletId;
+      }
+      await tx.transaction.update({
+        where: { id: existingHistory.transactionId },
+        data: txUpdateData
+      }).catch(() => {});
+    }
+
+    // Se houve diferença de valor e há conta vinculada, ajusta o saldo
+    if (targetWalletId && diff !== 0) {
+      await tx.wallet.update({
+        where: { id: targetWalletId },
+        data: {
+          currentBalance: { increment: diff }
+        }
+      }).catch(() => {});
+    }
+
+    const goalId = existingHistory.goalId;
+    const allHistory = await tx.goalHistory.findMany({
+      where: { goalId }
+    });
+
+    const goal = await tx.goal.findUnique({ where: { id: goalId } });
+    if (goal) {
+      const totalAportado = allHistory.reduce((s, h) => s + Number(h.amount), 0);
+      const isCompleted = totalAportado >= Number(goal.objetivo) && Number(goal.objetivo) > 0;
+
+      await tx.goal.update({
+        where: { id: goalId },
+        data: {
+          acumulado: totalAportado,
+          status: isCompleted ? "COMPLETED" : "ACTIVE",
+          completedAt: isCompleted ? ((goal as any)?.completedAt || new Date()) : null
+        } as any
+      });
+    }
+  });
+
   revalidatePath("/dashboard");
+  revalidatePath("/receitas");
   revalidatePath("/despesas");
+  if (targetWalletId) {
+    revalidatePath(`/contas/${targetWalletId}`);
+  }
+  revalidatePath("/contas");
+  revalidatePath("/metas");
 }
 
 export async function deleteAporteAction(historyId: string) {
   const existingHistory = await prisma.goalHistory.findUnique({
     where: { id: historyId },
-    select: { goalId: true, transactionId: true }
+    select: { goalId: true, transactionId: true, amount: true, walletId: true }
   });
 
   if (!existingHistory) return;
 
   const goalId = existingHistory.goalId;
+  const aporteAmount = Number(existingHistory.amount || 0);
+  const targetWalletId = existingHistory.walletId;
 
   await prisma.$transaction(async (tx) => {
-    // Se havia uma transação financeira vinculada a este aporte, remove-a para estornar o saldo
+    // 4. Se havia uma transação financeira vinculada a este aporte, remove-a
     if (existingHistory.transactionId) {
       await tx.transaction.delete({
         where: { id: existingHistory.transactionId }
+      }).catch(() => {});
+    }
+
+    // Debita o saldo da conta bancária correspondente (decrement)
+    if (targetWalletId && aporteAmount > 0) {
+      await tx.wallet.update({
+        where: { id: targetWalletId },
+        data: {
+          currentBalance: { decrement: aporteAmount }
+        }
       }).catch(() => {});
     }
 
@@ -880,9 +968,15 @@ export async function deleteAporteAction(historyId: string) {
     }
   });
 
-  revalidatePath("/metas");
+  // Revalidações após exclusão
   revalidatePath("/dashboard");
+  revalidatePath("/receitas");
   revalidatePath("/despesas");
+  if (targetWalletId) {
+    revalidatePath(`/contas/${targetWalletId}`);
+  }
+  revalidatePath("/contas");
+  revalidatePath("/metas");
 }
 
 // ---------- Actions de Cartões e Contas ----------

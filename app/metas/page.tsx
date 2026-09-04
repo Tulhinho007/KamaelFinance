@@ -161,6 +161,7 @@ export default function MetasPage() {
   const [formWalletId, setFormWalletId] = useState("");
   const [formTipo, setFormTipo] = useState<"VISUAL" | "COFRINHO">("VISUAL");
   const [formAporteVal, setFormAporteVal] = useState<string | number>("");
+  const [formAporteDate, setFormAporteDate] = useState("");
   const [formAporteWalletId, setFormAporteWalletId] = useState("");
   const [formMoveRealBalance, setFormMoveRealBalance] = useState<boolean>(true);
 
@@ -318,13 +319,14 @@ export default function MetasPage() {
   const openAporteModal = (goal: Goal) => {
     setSelectedGoal(goal);
     setFormAporteVal("");
+    setFormAporteDate(new Date().toISOString().split("T")[0]);
     const validWallets = wallets.filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
     const defaultWId = (goal.walletId && validWallets.some(w => w.id === goal.walletId))
       ? goal.walletId
       : (validWallets.length > 0 ? validWallets[0].id : "");
     setFormAporteWalletId(defaultWId);
     const isCofrinho = goal.tipo === "COFRINHO" || !!goal.isRealSaving;
-    setFormMoveRealBalance(isCofrinho);
+    setFormMoveRealBalance(isCofrinho || true);
     setModalType("aporte");
   };
 
@@ -338,7 +340,7 @@ export default function MetasPage() {
 
     const isCofrinho = selectedGoal.tipo === "COFRINHO" || !!selectedGoal.isRealSaving;
     if ((isCofrinho || formMoveRealBalance) && !formAporteWalletId) {
-      showAlert("Por favor, selecione a conta/banco de origem para o débito real.", { variant: "warning" });
+      showAlert("Por favor, selecione a conta/banco vinculada para o aporte.", { variant: "warning" });
       return;
     }
 
@@ -355,7 +357,8 @@ export default function MetasPage() {
         selectedGoal.id.toString(),
         aporteNum,
         formAporteWalletId || undefined,
-        formMoveRealBalance
+        formMoveRealBalance,
+        formAporteDate || undefined
       );
       await loadAllData();
       setModalType(null);
@@ -1066,7 +1069,7 @@ export default function MetasPage() {
 
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
-                    Conta de Origem / Débito *
+                    Conta Bancária Vinculada (Entrada) *
                   </label>
                   <select
                     required
@@ -1074,7 +1077,7 @@ export default function MetasPage() {
                     onChange={(e) => setFormAporteWalletId(e.target.value)}
                     className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
                   >
-                    <option value="">Selecione a conta de saldo / débito...</option>
+                    <option value="">Selecione a conta bancária do cofrinho...</option>
                     {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
                         {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
@@ -1082,24 +1085,36 @@ export default function MetasPage() {
                     ))}
                   </select>
                 </div>
-                
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    required
-                    value={formAporteVal}
-                    onChange={(e) => setFormAporteVal(e.target.value)}
-                    placeholder="Ex: 351,33 ou 500"
-                    className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                    Limite máximo restante: {brl(Math.max(0, selectedGoal.objetivo - selectedGoal.acumulado))}
-                  </span>
-                </div>
 
-                {/* Opção de Débito Real / Movimentação Financeira */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Data do Aporte *</label>
+                    <input
+                      type="date"
+                      required
+                      value={formAporteDate}
+                      onChange={(e) => setFormAporteDate(e.target.value)}
+                      className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Valor do Aporte (R$) *</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      required
+                      value={formAporteVal}
+                      onChange={(e) => setFormAporteVal(e.target.value)}
+                      placeholder="Ex: 50,00"
+                      className="rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold -mt-2">
+                  Limite restante: {brl(Math.max(0, selectedGoal.objetivo - selectedGoal.acumulado))}
+                </span>
+
+                {/* Opção de Movimentação Financeira Real */}
                 <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
                   <input
                     id="chk-move-real-balance"
@@ -1116,7 +1131,7 @@ export default function MetasPage() {
                       )}
                     </span>
                     <span className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
-                      Debita o saldo bancário da conta selecionada e registra uma saída/despesa com a tag #cofrinho.
+                      Registra uma receita/entrada no extrato da conta selecionada e credita o saldo real com a categoria Cofrinho.
                     </span>
                   </label>
                 </div>

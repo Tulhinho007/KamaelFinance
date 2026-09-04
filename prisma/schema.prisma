@@ -45,6 +45,7 @@ model Wallet {
   vencimento     Int?          @default(10)
   diaFechamento  Int?          @default(1)
   initialBalance Decimal
+  currentBalance Decimal?      @default(0)
   creditLimit    Decimal?      // Limite total para cartões de crédito
   transactions   Transaction[]
   goals          Goal[]
