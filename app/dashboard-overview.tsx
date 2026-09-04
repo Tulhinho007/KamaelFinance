@@ -232,13 +232,13 @@ export function DashboardOverview() {
         </div>
 
         {/* Controles de Período Flexível (Modo Anual vs Mensal) */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
           
           {/* Toggle de Modo: Anual (Ano Completo) vs Mensal (Por Mês) */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto justify-between sm:justify-start">
             <button
               onClick={() => setViewMode("annual")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 viewMode === "annual"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -248,7 +248,7 @@ export function DashboardOverview() {
             </button>
             <button
               onClick={() => setViewMode("monthly")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 viewMode === "monthly"
                   ? "bg-indigo-600 text-white shadow-xs"
                   : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -258,60 +258,62 @@ export function DashboardOverview() {
             </button>
           </div>
 
-          {/* Seletor de Ano */}
-          <select
-            value={selectedDashboardYear}
-            onChange={(e) => handleYearChange(Number(e.target.value))}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
-          >
-            {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
-              <option key={y} value={y}>Ano {y}</option>
-            ))}
-          </select>
-
-          {/* Seletor de Mês (Visível quando em Modo Mensal) */}
-          {viewMode === "monthly" && (
+          <div className="flex items-center gap-2 flex-1 sm:flex-initial flex-wrap">
+            {/* Seletor de Ano */}
             <select
-              value={selectedDashboardMonth}
-              onChange={(e) => handleMonthChange(Number(e.target.value))}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer animate-in fade-in"
+              value={selectedDashboardYear}
+              onChange={(e) => handleYearChange(Number(e.target.value))}
+              className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer min-w-[90px]"
             >
-              {[
-                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-              ].map((mName, idx) => (
-                <option key={idx + 1} value={idx + 1}>{mName}</option>
+              {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                <option key={y} value={y}>Ano {y}</option>
               ))}
             </select>
-          )}
 
-          {/* Botão MÊS ATUAL */}
-          <button
-            onClick={handleGoToCurrentMonth}
-            className="px-3.5 py-2 text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
-            title="Ir para o Mês Atual"
-          >
-            <Calendar className="w-3.5 h-3.5" />
-            MÊS ATUAL
-          </button>
+            {/* Seletor de Mês (Visível quando em Modo Mensal) */}
+            {viewMode === "monthly" && (
+              <select
+                value={selectedDashboardMonth}
+                onChange={(e) => handleMonthChange(Number(e.target.value))}
+                className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer animate-in fade-in min-w-[100px]"
+              >
+                {[
+                  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                ].map((mName, idx) => (
+                  <option key={idx + 1} value={idx + 1}>{mName}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Botão MÊS ATUAL */}
+            <button
+              onClick={handleGoToCurrentMonth}
+              className="px-3.5 py-2 text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
+              title="Ir para o Mês Atual"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              MÊS ATUAL
+            </button>
+          </div>
 
           {/* Botões de Ação Rápida */}
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full lg:w-auto mt-1 sm:mt-0">
             <button
               onClick={() => setOfxModalOpen(true)}
-              className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+              className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
             >
               <FileText className="w-3.5 h-3.5" /> Conciliação
             </button>
             <button
               onClick={() => setRevenueModalOpen(true)}
-              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
             >
               <Plus className="w-3.5 h-3.5" /> Receita
             </button>
             <button
               onClick={() => setPurchaseModalOpen(true)}
-              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
             >
               <Plus className="w-3.5 h-3.5" /> Despesa
             </button>
@@ -723,8 +725,8 @@ export function DashboardOverview() {
 
       {/* Modal 2: Nova Receita */}
       {revenueModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <h3 className="text-sm font-black text-slate-900 dark:text-white">Lançar Nova Receita</h3>
               <button onClick={() => setRevenueModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer">
@@ -777,8 +779,8 @@ export function DashboardOverview() {
 
       {/* Modal 3: Fazer Aporte em Meta */}
       {aporteModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <h3 className="text-sm font-black text-slate-900 dark:text-white">Efetuar Aporte em Meta</h3>
               <button onClick={() => setAporteModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-white cursor-pointer">
@@ -810,8 +812,8 @@ export function DashboardOverview() {
 
       {/* Modal 4: Histórico Geral Consolidado */}
       {historyModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-slate-900 dark:text-white">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-[95%] sm:w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-white">
             {/* Header Modal */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">

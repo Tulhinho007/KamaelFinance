@@ -182,7 +182,7 @@ export function NewPurchaseModal({
 
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg mx-auto flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden max-h-[90vh] text-slate-900 dark:text-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-[95%] sm:w-full max-w-lg mx-auto flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden max-h-[90vh] text-slate-900 dark:text-slate-100">
         
         {/* Header do Modal (Unificado: Novo vs Editar) */}
         <div className="flex justify-between items-center px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">

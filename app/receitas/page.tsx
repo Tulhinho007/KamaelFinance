@@ -498,8 +498,8 @@ export default function ReceitasPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         
         {/* Busca + Dropdowns */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex items-center">
+        <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 w-full md:w-auto">
+          <div className="relative flex items-center w-full sm:w-auto">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5" />
             <input
               type="text"
@@ -507,14 +507,14 @@ export default function ReceitasPage() {
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               placeholder="Buscar receitas..."
-              className="pl-10 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-white placeholder-slate-400 w-48 sm:w-60 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500"
+              className="pl-10 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-white placeholder-slate-400 w-full sm:w-60 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as any); setCurrentPage(1); }}
-            className="px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
+            className="w-full sm:w-auto px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">Todos os Status</option>
             <option value="RECEIVED">Status: Recebido</option>
@@ -524,7 +524,7 @@ export default function ReceitasPage() {
           <select
             value={categoryFilter}
             onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
-            className="px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
+            className="w-full sm:w-auto px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
           >
             <option value="ALL">Todas as Categorias</option>
             {CATEGORIES_LIST.map(cat => (
@@ -534,7 +534,7 @@ export default function ReceitasPage() {
         </div>
 
         {/* Botão Exportar CSV & Botão Nova Receita */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
           <button
             onClick={() => exportRevenuesCSV(filteredRevenues, selectedMonth, selectedYear)}
             className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-2xl font-extrabold text-xs shadow-2xs transition-all cursor-pointer"
@@ -557,13 +557,13 @@ export default function ReceitasPage() {
 
       {/* ── 5. PAINEL DE AÇÕES EM LOTE (BULK ACTIONS BAR) ──────────────────────── */}
       {selectedIds.length > 0 && (
-        <div className="bg-emerald-950/90 border border-emerald-500/30 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between animate-in fade-in slide-in-from-top-2 duration-150 backdrop-blur-md">
+        <div className="bg-emerald-950/90 border border-emerald-500/30 text-white p-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-150 backdrop-blur-md">
           <span className="text-xs font-black flex items-center gap-2">
             <Check className="w-4 h-4 text-emerald-400" />
             {selectedIds.length} receita(s) selecionada(s)
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleBulkMarkAsReceived}
               className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs"
@@ -580,7 +580,7 @@ export default function ReceitasPage() {
             </button>
             <button
               onClick={() => setSelectedIds([])}
-              className="text-slate-400 hover:text-white p-1 ml-2"
+              className="text-slate-400 hover:text-white p-1 ml-auto sm:ml-2"
               title="Cancelar seleção"
             >
               <X className="w-4 h-4" />
@@ -590,8 +590,8 @@ export default function ReceitasPage() {
       )}
 
       {/* ── 6. TABELA DE RECEITAS REDESENHADA EM .CARD-GLOW ────────────────────── */}
-      <section className="card-glow p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
-        <div className="overflow-x-auto">
+      <section className="card-glow p-4 sm:p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+        <div className="overflow-x-auto w-full max-w-full">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-left text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
@@ -603,13 +603,13 @@ export default function ReceitasPage() {
                     className="rounded border-slate-300 dark:border-slate-700 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3">Descrição</th>
-                <th className="px-4 py-3">Categoria</th>
-                <th className="px-4 py-3">Conta de Destino</th>
-                <th className="px-4 py-3 text-right">Data</th>
-                <th className="px-4 py-3 text-right">Valor</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-center whitespace-nowrap">Ações</th>
+                <th className="px-3 sm:px-4 py-3">Descrição</th>
+                <th className="hidden sm:table-cell px-4 py-3">Categoria</th>
+                <th className="hidden md:table-cell px-4 py-3">Conta de Destino</th>
+                <th className="px-3 sm:px-4 py-3 text-right">Data</th>
+                <th className="px-3 sm:px-4 py-3 text-right">Valor</th>
+                <th className="px-2 sm:px-4 py-3 text-center">Status</th>
+                <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -648,19 +648,26 @@ export default function ReceitasPage() {
                         />
                       </td>
 
-                      <td className="px-4 py-3.5 font-bold text-slate-900 dark:text-white">
-                        {rev.description}
+                      <td className="px-3 sm:px-4 py-3.5 font-bold text-slate-900 dark:text-white">
+                        <div>{rev.description}</div>
+                        <div className="sm:hidden text-[10px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
+                          <span className="font-semibold text-purple-600 dark:text-purple-400">{catName}</span>
+                          <span>•</span>
+                          <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || "Santander"}</span>
+                        </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      <td className="hidden sm:table-cell px-4 py-3.5">
                         <span className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase tracking-wider ${getCategoryBadgeStyle(catName)}`}>
                           {catName}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5 mt-1">
-                        <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                        <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
+                      <td className="hidden md:table-cell px-4 py-3.5 text-slate-700 dark:text-slate-200 font-semibold">
+                        <div className="flex items-center gap-1.5">
+                          <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
+                        </div>
                       </td>
 
                       <td className="px-4 py-3.5 text-right font-semibold text-slate-700 dark:text-slate-200">
@@ -782,11 +789,11 @@ export default function ReceitasPage() {
       {modalType && (
         <div 
           onClick={() => setModalType(null)}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4"
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-[28px] shadow-2xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200"
           >
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">

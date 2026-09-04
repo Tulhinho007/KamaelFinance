@@ -615,7 +615,7 @@ export default function DespesasPage() {
         </div>
 
         {/* Seletor de Período no Topo (Navegação Anual + Filtro por Mês) */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
           {/* Navegador de Ano: [< ANO 2026 >] */}
           <div className="flex items-center bg-slate-100 dark:bg-slate-900 px-2 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -626,7 +626,7 @@ export default function DespesasPage() {
             >
               <Calendar className="w-3.5 h-3.5" />
             </button>
-            <span className="font-black text-xs text-slate-900 dark:text-white px-3 uppercase tracking-wider">
+            <span className="text-xs font-black text-slate-800 dark:text-white px-2 tracking-wider">
               ANO {selectedYear}
             </span>
             <button
@@ -644,7 +644,7 @@ export default function DespesasPage() {
               setSelectedYear(new Date().getFullYear());
               setSelectedMonthFilter(null);
             }}
-            className="px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl font-extrabold text-xs transition-all cursor-pointer"
+            className="px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl font-extrabold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
           >
             ANO ATUAL
           </button>
@@ -669,7 +669,7 @@ export default function DespesasPage() {
 
           <button
             onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonthFilter || 12, selectedYear)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-md transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-md transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Exportar relatório CSV"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
@@ -703,9 +703,9 @@ export default function DespesasPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
           {/* Topo: Título e Ícone */}
-          <div className="flex items-start justify-between min-h-[44px] gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
-              Receita Real
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+              Receita Total Registrada
             </span>
             <div className="shrink-0 p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Total de entradas e receitas confirmadas no período">
               <ArrowUpRight className="w-4 h-4" />
@@ -730,11 +730,11 @@ export default function DespesasPage() {
       </div>
 
       {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / CONTAS & DÉBITO) ── */}
-      <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-2 rounded-2xl shadow-sm">
+      <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-1.5 sm:p-2 rounded-2xl shadow-sm">
         <button
           type="button"
           onClick={() => setActiveTab("overview")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "overview"
               ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -750,7 +750,7 @@ export default function DespesasPage() {
         <button
           type="button"
           onClick={() => setActiveTab("credit")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "credit"
               ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -1011,24 +1011,26 @@ export default function DespesasPage() {
                 {upcomingBills.map(bill => (
                   <div
                     key={bill.id}
-                    className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50/40 hover:bg-slate-50 transition-colors group"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors group"
                   >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      bill.status === "vencido" ? "bg-rose-100 text-rose-500" : "bg-amber-100 text-amber-500"
-                    }`}>
-                      {bill.status === "vencido" ? <AlertCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        bill.status === "vencido" ? "bg-rose-100 text-rose-500 dark:bg-rose-950/60 dark:text-rose-400" : "bg-amber-100 text-amber-500 dark:bg-amber-950/60 dark:text-amber-400"
+                      }`}>
+                        {bill.status === "vencido" ? <AlertCircle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.title || bill.bankName}</p>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Vence em {bill.vencimento}</p>
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-extrabold text-slate-800 truncate">{bill.title || bill.bankName}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Vence em {bill.vencimento}</p>
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-black text-slate-800">{brl(bill.valor)}</p>
-                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full block mt-0.5 ${
-                          bill.status === "vencido" ? "bg-rose-50 text-rose-600 border border-rose-100" : "bg-amber-50 text-amber-600 border border-amber-100"
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{brl(bill.valor)}</p>
+                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 ${
+                          bill.status === "vencido" ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900" : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
                         }`}>
                           {bill.status === "vencido" ? "Vencida" : "Em Aberto"}
                         </span>
@@ -1045,7 +1047,7 @@ export default function DespesasPage() {
                             year: bill.year,
                           });
                         }}
-                        className="flex items-center gap-1 text-[10px] font-black text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                        className="flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
                         title="Efetuar pagamento da fatura"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1067,33 +1069,35 @@ export default function DespesasPage() {
                 {unifiedPaidInvoices.map((paidItem: any) => (
                   <div
                     key={paidItem.id}
-                    className="flex items-center gap-4 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/20 hover:bg-emerald-50/40 transition-colors group"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors group"
                   >
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle2 className="w-5 h-5" />
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{paidItem.cardTitle}</p>
+                        <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                          Pago em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
+                        </p>
+                        <p className="text-[9px] font-medium text-slate-400 truncate">
+                          Débito: {paidItem.paymentWalletTitle}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-extrabold text-slate-800 truncate">{paidItem.cardTitle}</p>
-                      <p className="text-[10px] font-semibold text-emerald-700 mt-0.5">
-                        Pago em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
-                      </p>
-                      <p className="text-[9px] font-medium text-slate-400 truncate">
-                        Débito: {paidItem.paymentWalletTitle}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-black text-slate-800">{brl(paidItem.amount)}</p>
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full block mt-0.5 bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{brl(paidItem.amount)}</p>
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                           PAGO
                         </span>
                       </div>
 
                       <button
                         onClick={() => handleUndoPayment(paidItem.walletId, paidItem.month, paidItem.year)}
-                        className="text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
+                        className="text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 border border-slate-200 dark:border-slate-700 hover:border-rose-200 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
                         title="Desfazer pagamento e reabrir fatura"
                       >
                         Desfazer
@@ -1112,8 +1116,8 @@ export default function DespesasPage() {
 
       {/* Modal Criar / Editar */}
       {(modalMode === "create" || modalMode === "edit") && (
-        <div className="fixed inset-0 bg-slate-900/15 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/97 backdrop-blur-md rounded-[32px] border border-white/80 shadow-2xl w-full max-w-md flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white/97 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] border border-white/80 dark:border-slate-800 shadow-2xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-200">
 
             {/* Header */}
             <div className="flex justify-between items-center px-7 pt-7 pb-5 border-b border-slate-100/60">
@@ -1366,8 +1370,8 @@ export default function DespesasPage() {
 
       {/* Modal Confirmar Exclusão */}
       {modalMode === "delete" && selectedCard && (
-        <div className="fixed inset-0 bg-slate-900/15 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/97 backdrop-blur-md rounded-[32px] border border-white/80 shadow-2xl w-full max-w-sm flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white/97 dark:bg-slate-900/95 backdrop-blur-md rounded-[32px] border border-white/80 dark:border-slate-800 shadow-2xl w-[95%] sm:w-full max-w-sm max-h-[90vh] overflow-y-auto flex flex-col animate-in fade-in zoom-in-95 duration-200">
 
             {/* Header */}
             <div className="flex justify-between items-center px-7 pt-7 pb-5 border-b border-slate-100/60">
@@ -1425,8 +1429,8 @@ export default function DespesasPage() {
 
       {/* Modal Confirmar Pagamento de Fatura com Seleção de Conta */}
       {payModalCard && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">

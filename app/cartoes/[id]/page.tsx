@@ -2077,8 +2077,8 @@ export default function CartaoDetailPage() {
 
       {/* ── MODAL DE AÇÕES EM LOTE ─────────────────────────────────────── */}
       {batchActionsModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
@@ -2194,8 +2194,8 @@ export default function CartaoDetailPage() {
 
       {/* ── MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE EXCLUSÃO EM LOTE ────────────── */}
       {batchDeleteModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-sm max-h-[90vh] overflow-y-auto flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
@@ -2254,8 +2254,8 @@ export default function CartaoDetailPage() {
 
       {/* Modal Pagar Fatura */}
       {payInvoiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">

@@ -64,8 +64,8 @@ export function GoalCelebrationModal({
   const IconComp = data.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-4 animate-in fade-in zoom-in-95 duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden text-center select-none relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-md p-3 sm:p-4 animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto text-center select-none relative">
         
         {/* Banner com gradiente e confetes */}
         <div className={`bg-gradient-to-r ${data.gradient} p-8 text-white flex flex-col items-center relative overflow-hidden`}>

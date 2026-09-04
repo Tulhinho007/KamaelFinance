@@ -451,7 +451,7 @@ export default function MetasPage() {
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 relative select-none">
+    <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 relative select-none">
       
       {/* ── 1. HEADER GLOBAL ─────────────────────────────────────────────────── */}
       <PeriodHeader 
@@ -461,23 +461,23 @@ export default function MetasPage() {
       />
 
       {/* ── 2. BUSCA LOCAL E BOTÃO NOVA META ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         
         {/* Busca por Palavra-chave */}
-        <div className="relative flex items-center">
+        <div className="relative flex items-center w-full sm:w-auto">
           <Search className="w-4 h-4 text-slate-400 absolute left-4" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Buscar metas..."
-            className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs text-slate-800 dark:text-slate-200 w-48 sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
+            className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs text-slate-800 dark:text-slate-200 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
           />
         </div>
 
         <button 
           onClick={openCreateModal}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 hover:scale-[1.02] transition-all font-extrabold text-xs tracking-wider flex items-center justify-center gap-1.5 border border-white/20 cursor-pointer self-start sm:self-auto"
+          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 hover:scale-[1.02] transition-all font-extrabold text-xs tracking-wider flex items-center justify-center gap-1.5 border border-white/20 cursor-pointer w-full sm:w-auto"
         >
           <Plus className="w-4.5 h-4.5 text-white" />
           <span>NOVA META</span>
@@ -485,7 +485,7 @@ export default function MetasPage() {
       </div>
 
       {/* ── 3. BANNER PRINCIPAL COM GLOW & GLASSMORPHISM ("HORIZONTE DE CONQUISTAS") ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 rounded-[32px] border border-indigo-500/30 p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 rounded-[32px] border border-indigo-500/30 p-4 sm:p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
         
         {/* Efeito Glow no Fundo */}
         <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -610,7 +610,7 @@ export default function MetasPage() {
       <section className="flex flex-col gap-4">
         
         {/* Lista de Metas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {loading ? (
             <div className="col-span-1 md:col-span-3 text-center py-12 bg-white dark:bg-slate-900/80 rounded-[28px] border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 font-bold animate-pulse text-xs uppercase tracking-widest shadow-sm">
               Carregando metas do banco de dados...
@@ -856,8 +856,8 @@ export default function MetasPage() {
 
       {/* ── MODAIS INTERATIVOS ───────────────────────────────────────────────── */}
       {modalType && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[28px] shadow-2xl max-w-sm w-full flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-[28px] shadow-2xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 text-slate-900 dark:text-white animate-in fade-in zoom-in-95 duration-200">
             
             {/* Header do Modal */}
             <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">

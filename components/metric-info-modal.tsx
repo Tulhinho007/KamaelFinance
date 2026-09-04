@@ -199,11 +199,11 @@ export function MetricInfoModal({
   const IconComp = content.icon;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col text-slate-900 dark:text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-[95%] sm:w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col text-slate-900 dark:text-white">
         
         {/* Topo do Modal */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+        <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${content.iconBg}`}>
               <IconComp className="w-5 h-5" />
@@ -232,7 +232,7 @@ export function MetricInfoModal({
         </div>
 
         {/* Corpo do Modal */}
-        <div className="p-6 flex flex-col gap-5 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 flex flex-col gap-5 overflow-y-auto">
           
           {/* Container Visual Limpo "COMO É CALCULADO" */}
           <div className="bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
