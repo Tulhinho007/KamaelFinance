@@ -469,7 +469,7 @@ export async function deleteRevenueAction(id: string) {
       if (transaction.walletId && Number(transaction.amount) > 0) {
         await tx.wallet.update({
           where: { id: transaction.walletId },
-          data: { currentBalance: { decrement: transaction.amount } }
+          data: { currentBalance: { decrement: transaction.amount } } as any
         }).catch(() => {});
       }
 
@@ -478,7 +478,7 @@ export async function deleteRevenueAction(id: string) {
         where: {
           OR: [
             ...((transaction as any).goalContributionId ? [{ id: (transaction as any).goalContributionId }] : []),
-            { transactionId: id }
+            { transactionId: id } as any
           ]
         }
       });
@@ -751,13 +751,13 @@ export async function deleteGoalAction(id: string) {
 
     // 1. Localize todos os aportes e transações de receita vinculados a esse cofrinho (goalId)
     const historyTxIds = goal.history
-      .map(h => h.transactionId)
+      .map(h => (h as any).transactionId)
       .filter((tid): tid is string => Boolean(tid));
 
     const linkedTxs = await tx.transaction.findMany({
       where: {
         OR: [
-          { goalId: id },
+          { goalId: id } as any,
           ...(historyTxIds.length > 0 ? [{ id: { in: historyTxIds } }] : []),
           { description: `Aporte Cofrinho: ${goal.title}`, source: "COFRINHO" },
         ]
@@ -770,7 +770,7 @@ export async function deleteGoalAction(id: string) {
         affectedWalletIds.push(transaction.walletId);
         await tx.wallet.update({
           where: { id: transaction.walletId },
-          data: { currentBalance: { decrement: transaction.amount } }
+          data: { currentBalance: { decrement: transaction.amount } } as any
         }).catch(() => {});
       }
     }
@@ -781,13 +781,13 @@ export async function deleteGoalAction(id: string) {
       if (
         h.walletId &&
         Number(h.amount) > 0 &&
-        (!h.transactionId || !handledTxIds.has(h.transactionId)) &&
+        (!(h as any).transactionId || !handledTxIds.has((h as any).transactionId)) &&
         ((goal as any).tipo === "COFRINHO" || (goal as any).isRealSaving)
       ) {
         affectedWalletIds.push(h.walletId);
         await tx.wallet.update({
           where: { id: h.walletId },
-          data: { currentBalance: { decrement: h.amount } }
+          data: { currentBalance: { decrement: h.amount } } as any
         }).catch(() => {});
       }
     }
@@ -930,7 +930,7 @@ export async function addAporteAction(
         where: { id: resolvedWalletId },
         data: {
           currentBalance: { increment: amount }
-        }
+        } as any
       }).catch(() => {});
     }
 
@@ -1005,16 +1005,17 @@ export async function updateAporteAction(historyId: string, amount: number, date
 
     // Localiza a transação vinculada (via transactionId, goalContributionId ou descrição cofrinho)
     let linkedTx: any = null;
-    if (existingHistory.transactionId) {
+    const existingTxId = (existingHistory as any).transactionId;
+    if (existingTxId) {
       linkedTx = await tx.transaction.findUnique({
-        where: { id: existingHistory.transactionId }
+        where: { id: existingTxId }
       });
     }
     if (!linkedTx) {
       linkedTx = await tx.transaction.findFirst({
         where: {
           OR: [
-            { goalContributionId: historyId },
+            { goalContributionId: historyId } as any,
             ...(existingHistory.goal ? [{
               description: `Aporte Cofrinho: ${existingHistory.goal.title}`,
               amount: existingHistory.amount,
@@ -1050,20 +1051,20 @@ export async function updateAporteAction(historyId: string, amount: number, date
         if (diff !== 0) {
           await tx.wallet.update({
             where: { id: targetWalletId },
-            data: { currentBalance: { increment: diff } }
+            data: { currentBalance: { increment: diff } } as any
           }).catch(() => {});
         }
       } else {
         if (oldWalletId && oldAmount > 0) {
           await tx.wallet.update({
             where: { id: oldWalletId },
-            data: { currentBalance: { decrement: oldAmount } }
+            data: { currentBalance: { decrement: oldAmount } } as any
           }).catch(() => {});
         }
         if (targetWalletId && amount > 0) {
           await tx.wallet.update({
             where: { id: targetWalletId },
-            data: { currentBalance: { increment: amount } }
+            data: { currentBalance: { increment: amount } } as any
           }).catch(() => {});
         }
       }
@@ -1073,20 +1074,20 @@ export async function updateAporteAction(historyId: string, amount: number, date
         if (diff !== 0) {
           await tx.wallet.update({
             where: { id: targetWalletId },
-            data: { currentBalance: { increment: diff } }
+            data: { currentBalance: { increment: diff } } as any
           }).catch(() => {});
         }
       } else {
         if (oldWalletId && oldAmount > 0) {
           await tx.wallet.update({
             where: { id: oldWalletId },
-            data: { currentBalance: { decrement: oldAmount } }
+            data: { currentBalance: { decrement: oldAmount } } as any
           }).catch(() => {});
         }
         if (targetWalletId && amount > 0) {
           await tx.wallet.update({
             where: { id: targetWalletId },
-            data: { currentBalance: { increment: amount } }
+            data: { currentBalance: { increment: amount } } as any
           }).catch(() => {});
         }
       }
@@ -1143,16 +1144,17 @@ export async function deleteAporteAction(historyId: string) {
 
     // 1. Localiza a transação vinculada (via transactionId, goalContributionId ou descrição cofrinho)
     let linkedTx: any = null;
-    if (existingHistory.transactionId) {
+    const existingTxId = (existingHistory as any).transactionId;
+    if (existingTxId) {
       linkedTx = await tx.transaction.findUnique({
-        where: { id: existingHistory.transactionId }
+        where: { id: existingTxId }
       });
     }
     if (!linkedTx) {
       linkedTx = await tx.transaction.findFirst({
         where: {
           OR: [
-            { goalContributionId: historyId },
+            { goalContributionId: historyId } as any,
             ...(existingHistory.goal ? [{
               description: `Aporte Cofrinho: ${existingHistory.goal.title}`,
               amount: existingHistory.amount,
@@ -1170,7 +1172,7 @@ export async function deleteAporteAction(historyId: string) {
     if (walletToDecrement && amountToDecrement > 0) {
       await tx.wallet.update({
         where: { id: walletToDecrement },
-        data: { currentBalance: { decrement: amountToDecrement } }
+        data: { currentBalance: { decrement: amountToDecrement } } as any
       }).catch(() => {});
     }
 
