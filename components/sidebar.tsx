@@ -70,7 +70,7 @@ export function Sidebar() {
       items: [
         { label: "Dashboard", icon: LayoutDashboard, path: "/" },
         { label: "Reserva de Emergência", icon: ShieldCheck, path: "/planejamento/reserva" },
-        { label: "Metas", icon: Target, path: "/metas" },
+        { label: "Objetivos & Reservas", icon: Target, path: "/metas" },
       ],
     },
     {

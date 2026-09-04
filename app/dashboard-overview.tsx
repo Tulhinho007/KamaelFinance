@@ -667,8 +667,8 @@ export function DashboardOverview() {
           <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Metas de Investimento</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acompanhamento dos objetivos financeiros</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Objetivos & Reservas</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acompanhamento dos objetivos e cofrinhos</p>
               </div>
               <Link href="/metas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300">
                 Ver todas
