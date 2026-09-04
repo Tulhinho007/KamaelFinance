@@ -442,8 +442,9 @@ export default function MetasPage() {
     if (!selectedGoal) return;
     try {
       await deleteGoalAction(selectedGoal.id.toString());
-      setMetas(prev => prev.filter(m => m.id !== selectedGoal.id));
       setModalType(null);
+      await loadAllData();
+      showAlert("Meta e movimentações estornadas com sucesso!", { variant: "success" });
     } catch (err) {
       console.error(err);
       showAlert("Erro ao excluir meta do banco de dados.", { variant: "error" });

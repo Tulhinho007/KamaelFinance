@@ -91,6 +91,9 @@ model Transaction {
   installmentsCount  Int?            // Quantidade total de parcelas se for compra parcelada
   currentInstallment Int?            // Número da parcela atual (ex: 1, 2, 3)
   installmentGroupId String?         // ID do grupo de parcelas para vinculação
+  goalId             String?
+  goal               Goal?           @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  goalContributionId String?
 }
 
 model Goal {
@@ -110,6 +113,7 @@ model Goal {
   tipo        String        @default("VISUAL") // VISUAL | COFRINHO
   isRealSaving Boolean      @default(false)
   history     GoalHistory[]
+  transactions Transaction[]
 }
 
 model GoalHistory {
