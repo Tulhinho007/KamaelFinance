@@ -430,15 +430,21 @@ export default function EmergencyFundPage() {
 
               {/* Preview e feedback visual */}
               {aporteAmount && Number(aporteAmount) > 0 && data && (
-                <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/40 rounded-2xl border border-emerald-100 dark:border-emerald-800/60 space-y-1 text-xs">
-                  <span className="font-bold text-emerald-700 dark:text-emerald-300 block">
+                <div className="p-3.5 sm:p-4 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-200/80 dark:border-emerald-500/20 space-y-1.5 text-xs transition-all">
+                  <span className="font-semibold text-emerald-800 dark:text-emerald-400 block text-xs tracking-tight">
                     Impacto Instantâneo no Fundo:
                   </span>
-                  <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                    Novo Patrimônio: <strong>{brl(data.totalLiquidity + Number(aporteAmount))}</strong>
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px] flex justify-between items-center">
+                    <span>Novo Patrimônio:</span>
+                    <strong className="text-slate-900 dark:text-white font-bold font-tnum tabular-nums">
+                      {brl(data.totalLiquidity + Number(aporteAmount))}
+                    </strong>
                   </p>
-                  <p className="text-slate-600 dark:text-slate-300 text-[11px]">
-                    Novos Meses de Cobertura: <strong>{data.monthlyAverageCost > 0 ? (Math.round(((data.totalLiquidity + Number(aporteAmount)) / data.monthlyAverageCost) * 10) / 10) : 0} meses</strong>
+                  <p className="text-slate-600 dark:text-slate-300 text-[11px] flex justify-between items-center">
+                    <span>Novos Meses de Cobertura:</span>
+                    <strong className="text-slate-900 dark:text-white font-bold font-tnum tabular-nums">
+                      {data.monthlyAverageCost > 0 ? (Math.round(((data.totalLiquidity + Number(aporteAmount)) / data.monthlyAverageCost) * 10) / 10) : 0} meses
+                    </strong>
                   </p>
                 </div>
               )}
