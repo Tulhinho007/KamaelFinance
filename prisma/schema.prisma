@@ -82,6 +82,8 @@ model Transaction {
   amount            Decimal
   date              DateTime
   competenceDate    DateTime?       // Mês de competência/referência (ex: Salário de Agosto recebido em Setembro)
+  purchaseDate      DateTime?       // Data em que a compra/despesa foi realizada
+  paymentDate       DateTime?       // Data de vencimento/liquidação do pagamento
   status            String          @default("COMPLETED")
   isRecurring       Boolean         @default(false)
   recurringDay      Int?            // Dia de vencimento recorrente mensal (1-31)

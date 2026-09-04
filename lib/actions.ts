@@ -1584,26 +1584,32 @@ export async function calculateAccountBalance(walletId: string, month: number, y
     where: {
       walletId: walletId,
       deletedAt: null,
-      date: { lte: endOfMonth },
+      OR: [
+        { competenceDate: { lte: endOfMonth } },
+        { purchaseDate: { lte: endOfMonth } },
+        { date: { lte: endOfMonth } }
+      ]
     },
-    select: { type: true, amount: true, status: true, date: true },
+    select: { type: true, amount: true, status: true, date: true, competenceDate: true, purchaseDate: true, paymentDate: true },
   });
 
-  // Calculate historical totals up to endOfMonth
+  const getTxRefDate = (t: any) => new Date(t.competenceDate || t.purchaseDate || t.date);
+
+  // Calculate historical totals up to endOfMonth (baseado na competência)
   const totalEntradasHistoricas = allWalletTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
+    .filter((t) => t.type === "INCOME" && t.status !== "PENDING" && getTxRefDate(t) <= endOfMonth)
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const totalSaidasHistoricas = allWalletTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
+    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING" && getTxRefDate(t) <= endOfMonth)
     .reduce((s, t) => s + Number(t.amount), 0);
 
   // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas)
   const finalBalance = totalEntradasHistoricas - totalSaidasHistoricas;
 
-  // Transações do mês selecionado
+  // Transações do mês selecionado por competência da compra
   const monthTransactions = allWalletTransactions.filter((t) => {
-    const d = new Date(t.date);
+    const d = getTxRefDate(t);
     return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === month;
   });
 
@@ -1617,7 +1623,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
 
   // Transações anteriores ao mês selecionado
   const prevTransactions = allWalletTransactions.filter((t) => {
-    const d = new Date(t.date);
+    const d = getTxRefDate(t);
     return d < startOfMonth;
   });
 
@@ -1836,7 +1842,9 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         isRecurring: Boolean((p as any).isRecurring),
         recurringDay: (p as any).recurringDay || undefined,
         date: safeIsoDate(p.date),
-        competenceDate: safeIsoDate((p as any).competenceDate || p.date)
+        competenceDate: safeIsoDate((p as any).competenceDate || p.date),
+        purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
+        paymentDate: safeIsoDate((p as any).paymentDate || p.date)
       })),
       injections: injections.map(i => ({
         id: i.id,
@@ -1847,6 +1855,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         source: i.source,
         tags: (i as any).tags || undefined,
         competenceDate: safeIsoDate((i as any).competenceDate || i.date),
+        purchaseDate: safeIsoDate((i as any).purchaseDate || (i as any).competenceDate || i.date),
+        paymentDate: safeIsoDate((i as any).paymentDate || i.date)
       })),
       allTransactions: allTransactions.map(t => ({
         id: t.id,
@@ -1861,6 +1871,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         recurringDay: (t as any).recurringDay || undefined,
         date: safeIsoDate(t.date),
         competenceDate: safeIsoDate((t as any).competenceDate || t.date),
+        purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
+        paymentDate: safeIsoDate((t as any).paymentDate || t.date),
         source: t.source,
       })),
     };
@@ -1944,7 +1956,9 @@ export async function createCardPurchase(
   tags?: string,
   isRecurring?: boolean,
   recurringDay?: number,
-  competenceDateStr?: string
+  competenceDateStr?: string,
+  paymentDateStr?: string,
+  purchaseDateStr?: string
 ) {
   let dbCategory = await prisma.category.findFirst({
     where: { name: { equals: category, mode: "insensitive" } }
@@ -1962,9 +1976,13 @@ export async function createCardPurchase(
 
   const userId = await getActiveUserId();
   const finalTags = extractTags(description, tags);
-  const initialDate = parseInputDate(dateStr);
+  
+  // Data em que a compra/despesa foi realizada
+  const purchaseDate = purchaseDateStr ? parseInputDate(purchaseDateStr) : parseInputDate(dateStr);
+  // Data de vencimento / liquidação do pagamento
+  const paymentDate = paymentDateStr ? parseInputDate(paymentDateStr) : (purchaseDateStr ? parseInputDate(dateStr) : purchaseDate);
 
-  let competenceDate: Date = initialDate;
+  let competenceDate: Date = purchaseDate;
   if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
@@ -1979,8 +1997,11 @@ export async function createCardPurchase(
 
     const transactionsData = [];
     for (let i = 1; i <= numInstallments; i++) {
-      const instDate = new Date(initialDate);
-      instDate.setMonth(instDate.getMonth() + (i - 1));
+      const instPaymentDate = new Date(paymentDate);
+      instPaymentDate.setMonth(instPaymentDate.getMonth() + (i - 1));
+
+      const instCompetenceDate = new Date(competenceDate);
+      instCompetenceDate.setMonth(instCompetenceDate.getMonth() + (i - 1));
 
       const instAmount = i === 1 ? baseInstallment + remainder : baseInstallment;
       const instDesc = `${description} (${i}/${numInstallments})`;
@@ -1994,8 +2015,10 @@ export async function createCardPurchase(
         installmentsCount: numInstallments,
         currentInstallment: i,
         installmentGroupId: groupId,
-        date: instDate,
-        competenceDate,
+        date: instPaymentDate,
+        purchaseDate,
+        paymentDate: instPaymentDate,
+        competenceDate: instCompetenceDate,
         source: "MANUAL",
         tags: finalTags,
       });
@@ -2013,12 +2036,14 @@ export async function createCardPurchase(
         type: "EXPENSE",
         amount,
         installmentsCount: 1,
-        date: initialDate,
+        date: paymentDate,
+        purchaseDate,
+        paymentDate,
         competenceDate,
         source: "MANUAL",
         tags: finalTags,
         isRecurring: !!isRecurring,
-        recurringDay: isRecurring ? (recurringDay || initialDate.getUTCDate()) : null
+        recurringDay: isRecurring ? (recurringDay || paymentDate.getUTCDate()) : null
       }
     });
 
@@ -2028,9 +2053,9 @@ export async function createCardPurchase(
       dbCategory.name,
       dbCategory.id,
       amount,
-      initialDate,
+      paymentDate,
       !!isRecurring,
-      recurringDay || initialDate.getUTCDate(),
+      recurringDay || paymentDate.getUTCDate(),
       finalTags
     );
   }
@@ -2168,7 +2193,9 @@ export async function updateCardPurchase(
   tags?: string,
   isRecurring?: boolean,
   recurringDay?: number,
-  competenceDateStr?: string
+  competenceDateStr?: string,
+  paymentDateStr?: string,
+  purchaseDateStr?: string
 ) {
   const userId = await getActiveUserId();
 
@@ -2187,15 +2214,16 @@ export async function updateCardPurchase(
   }
 
   const finalTags = extractTags(description, tags);
-  const inputDate = parseInputDate(dateStr);
+  const purchaseDate = purchaseDateStr ? parseInputDate(purchaseDateStr) : parseInputDate(dateStr);
+  const paymentDate = paymentDateStr ? parseInputDate(paymentDateStr) : (purchaseDateStr ? parseInputDate(dateStr) : purchaseDate);
 
-  let competenceDate: Date = inputDate;
+  let competenceDate: Date = purchaseDate;
   if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
   }
 
-  const targetDay = recurringDay || inputDate.getUTCDate();
+  const targetDay = recurringDay || paymentDate.getUTCDate();
 
   const existingTx = await prisma.transaction.findUnique({ where: { id } });
 
@@ -2207,7 +2235,9 @@ export async function updateCardPurchase(
       categoryId: dbCategory.id,
       amount,
       installmentsCount,
-      date: inputDate,
+      date: paymentDate,
+      purchaseDate,
+      paymentDate,
       competenceDate,
       tags: finalTags,
       isRecurring: !!isRecurring,
@@ -2221,7 +2251,7 @@ export async function updateCardPurchase(
     dbCategory.name,
     dbCategory.id,
     amount,
-    inputDate,
+    paymentDate,
     !!isRecurring,
     targetDay,
     finalTags,
@@ -2611,15 +2641,24 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const isCredit = w.walletType === "CREDIT_CARD";
       const balanceInfo = await calculateAccountBalance(w.id, effectiveMonth, year);
 
-      const transactions = await prisma.transaction.findMany({
+      const rawTransactions = await prisma.transaction.findMany({
         where: {
           walletId: w.id,
           type:     "EXPENSE",
-          date:     { gte: from, lte: to },
+          OR: [
+            { competenceDate: { gte: from, lte: to } },
+            { purchaseDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ],
           deletedAt: null,
         },
         include: { category: true },
         orderBy: { date: "asc" },
+      });
+
+      const transactions = rawTransactions.filter((t) => {
+        const d = new Date((t as any).competenceDate || (t as any).purchaseDate || t.date);
+        return d >= from && d <= to;
       });
 
       const filteredTransactions = isCredit
@@ -2668,19 +2707,26 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
 
       // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
-      // Somar todas as saídas (débitos, PIX, transferências e pagamentos) vinculadas a essa conta registradas no período
+      // Somar todas as saídas vinculadas a essa conta registradas no período
       const accountExpenses = transactions.reduce((s, t) => s + Number(t.amount), 0);
       const totalSpentInPeriod = accountExpenses;
 
       // Entradas na conta no período selecionado
-      const periodIncomes = await prisma.transaction.findMany({
+      const rawPeriodIncomes = await prisma.transaction.findMany({
         where: {
           walletId: w.id,
           type:     "INCOME",
-          date:     { gte: from, lte: to },
+          OR: [
+            { competenceDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ],
           deletedAt: null,
         },
-        select: { amount: true },
+        select: { amount: true, date: true, competenceDate: true },
+      });
+      const periodIncomes = rawPeriodIncomes.filter((t) => {
+        const d = new Date((t as any).competenceDate || t.date);
+        return d >= from && d <= to;
       });
       const accountIncomes = periodIncomes.reduce((s, t) => s + Number(t.amount), 0);
 
@@ -3292,12 +3338,16 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
   }
 
-  // 1. Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais
+  // 1. Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
   const rawRangeTransactions: any[] = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       deletedAt: null,
-      date: { gte: from, lte: to },
+      OR: [
+        { competenceDate: { gte: from, lte: to } },
+        { purchaseDate: { gte: from, lte: to } },
+        { date: { gte: from, lte: to } }
+      ],
       ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
     } as any,
     include: {
@@ -3307,9 +3357,9 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     orderBy: { date: "desc" }
   });
 
-  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob UTC ou horário local de Brasília
+  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob UTC ou horário local de Brasília pela competência
   const rangeTransactions = rawRangeTransactions.filter((t) => {
-    const d = new Date(t.date);
+    const d = new Date(t.competenceDate || t.purchaseDate || t.date);
     const utcYear = d.getUTCFullYear();
     const utcMonth = d.getUTCMonth() + 1;
     const brt = new Date(d.getTime() - 3 * 3600 * 1000);

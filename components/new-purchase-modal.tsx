@@ -22,6 +22,8 @@ export type ExpenseInitialData = {
   type?: "vista" | "parcelado";
   installmentsCount?: number;
   date?: string;
+  purchaseDate?: string;
+  paymentDate?: string;
   competenceDate?: string;
   tags?: string;
   isRecurring?: boolean;
@@ -53,13 +55,33 @@ export function NewPurchaseModal({
   const [formAmount, setFormAmount]               = useState<string | number>("");
   const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
-  const [formDate, setFormDate]                   = useState(new Date().toISOString().split("T")[0]);
+  const [formPurchaseDate, setFormPurchaseDate]   = useState(new Date().toISOString().split("T")[0]);
+  const [formPaymentDate, setFormPaymentDate]     = useState(new Date().toISOString().split("T")[0]);
   const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
   const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
   const [formIsRecurring, setFormIsRecurring]         = useState<boolean>(false);
   const [saving, setSaving]                       = useState(false);
 
   const isEditMode = !!(initialData && initialData.id);
+
+  const handlePurchaseDateChange = (val: string) => {
+    const oldPurchase = formPurchaseDate;
+    setFormPurchaseDate(val);
+    if (!formPaymentDate || formPaymentDate === oldPurchase) {
+      setFormPaymentDate(val);
+    }
+    if (val) {
+      const parts = val.split("-");
+      if (parts.length >= 2) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        if (!isNaN(y) && !isNaN(m)) {
+          setFormCompetenceYear(y);
+          setFormCompetenceMonth(m);
+        }
+      }
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -74,10 +96,14 @@ export function NewPurchaseModal({
             setFormTags(initialData.tags || "");
             setFormAmount(initialData.amount != null ? initialData.amount : "");
             setFormInstallmentsCount(initialData.installmentsCount || 2);
-            setFormDate(initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+            
+            const purchaseD = initialData.purchaseDate ? initialData.purchaseDate.split("T")[0] : (initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+            const paymentD = initialData.paymentDate ? initialData.paymentDate.split("T")[0] : (initialData.date ? initialData.date.split("T")[0] : purchaseD);
+            setFormPurchaseDate(purchaseD);
+            setFormPaymentDate(paymentD);
             setFormIsRecurring(!!(initialData.isRecurring || (initialData.tags && initialData.tags.toLowerCase().includes("assinatura"))));
 
-            const refDateStr = initialData.competenceDate || initialData.date;
+            const refDateStr = initialData.competenceDate || initialData.purchaseDate || initialData.date;
             if (refDateStr) {
               const parts = refDateStr.split("T")[0].split("-");
               setFormCompetenceYear(Number(parts[0]));
@@ -99,7 +125,8 @@ export function NewPurchaseModal({
             setFormType("vista");
             setFormIsRecurring(false);
             const todayStr = new Date().toISOString().split("T")[0];
-            setFormDate(todayStr);
+            setFormPurchaseDate(todayStr);
+            setFormPaymentDate(todayStr);
             const now = new Date();
             setFormCompetenceMonth(now.getMonth() + 1);
             setFormCompetenceYear(now.getFullYear());
@@ -120,7 +147,7 @@ export function NewPurchaseModal({
       showAlert("Por favor, selecione um cartão ou conta.", { variant: "warning" });
       return;
     }
-    if (!formDescription || !formDate) {
+    if (!formDescription || !formPurchaseDate) {
       showAlert("Preencha a descrição e a data da compra.", { variant: "warning" });
       return;
     }
@@ -133,6 +160,7 @@ export function NewPurchaseModal({
 
     const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
     const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
+    const finalPaymentDate = formPaymentDate || formPurchaseDate;
 
     let finalTags = formTags;
     if (formIsRecurring && !finalTags.toLowerCase().includes("assinatura")) {
@@ -149,11 +177,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          formDate,
+          finalPaymentDate,
           finalTags,
           formIsRecurring,
           undefined,
-          compDateStr
+          compDateStr,
+          finalPaymentDate,
+          formPurchaseDate
         );
       } else {
         await createCardPurchase(
@@ -162,11 +192,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          formDate,
+          finalPaymentDate,
           finalTags,
           formIsRecurring,
           undefined,
-          compDateStr
+          compDateStr,
+          finalPaymentDate,
+          formPurchaseDate
         );
       }
 
@@ -392,18 +424,39 @@ export function NewPurchaseModal({
 
 
 
-          {/* Campo 7: Data da Compra / Vencimento */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              Data de Vencimento / Pagamento *
-            </label>
-            <input
-              required
-              type="date"
-              value={formDate}
-              onChange={e => setFormDate(e.target.value)}
-              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
-            />
+          {/* Campos de Data: Data da Compra e Data de Pagamento / Vencimento */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                <span>Data da Compra / Despesa *</span>
+              </label>
+              <input
+                required
+                type="date"
+                value={formPurchaseDate}
+                onChange={e => handlePurchaseDateChange(e.target.value)}
+                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+              />
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                Dia em que o gasto foi feito (define a competência).
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                <span>Data de Pagamento / Vencimento</span>
+                <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold normal-case">(Opcional)</span>
+              </label>
+              <input
+                type="date"
+                value={formPaymentDate}
+                onChange={e => setFormPaymentDate(e.target.value)}
+                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+              />
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                Dia da liquidação em conta ou fatura.
+              </span>
+            </div>
           </div>
 
           {/* Campo: Mês de Competência / Referência */}

@@ -385,29 +385,35 @@ export default function CartaoDetailPage() {
     return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
-  // 1. Assinaturas & Recorrências (Mês Atual)
+  const getCompetenceYearMonth = (item: any) => {
+    if (!item) return { year: 0, month: 0 };
+    const ref = item.competenceDate || item.purchaseDate || item.date;
+    return getYearMonth(ref);
+  };
+
+  // 1. Assinaturas & Recorrências (Mês Atual por Competência)
   const subscriptionPurchases = purchasesList.filter((p) => {
     if (!p) return false;
-    const { year, month } = getYearMonth(p.date);
+    const { year, month } = getCompetenceYearMonth(p);
     const isSub = !!(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura")));
     return year === selectedYear && month === selectedMonth && isSub;
   });
 
-  // 2. Compras À Vista (Mês Atual - Exclui parceladas e assinaturas)
+  // 2. Compras À Vista (Mês Atual por Competência - Exclui parceladas e assinaturas)
   const vistaPurchases = purchasesList.filter((p) => {
     if (!p || p.type !== "vista") return false;
-    const { year, month } = getYearMonth(p.date);
+    const { year, month } = getCompetenceYearMonth(p);
     const isSub = !!(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura")));
     return year === selectedYear && month === selectedMonth && !isSub;
   });
 
-  // 3. Lançamentos Parcelados (filtrados estritamente pelo mês/ano da DATA DO DÉBITO)
+  // 3. Lançamentos Parcelados (filtrados estritamente pelo mês/ano de competência)
   const selectedAbsolute = selectedYear * 12 + (selectedMonth - 1);
 
   const parceladoPurchasesProcessed = purchasesList
     .filter((p) => {
       if (!p || p.type !== "parcelado") return false;
-      const { year, month } = getYearMonth(p.date);
+      const { year, month } = getCompetenceYearMonth(p);
       return year === selectedYear && month === selectedMonth;
     })
     .map((p) => {
@@ -474,7 +480,7 @@ export default function CartaoDetailPage() {
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
   const filteredMonthExpenses = purchasesList.filter(p => {
     if (!p) return false;
-    const { year, month } = getYearMonth(p.date);
+    const { year, month } = getCompetenceYearMonth(p);
     return year === selectedYear && month === selectedMonth;
   });
 
@@ -486,18 +492,18 @@ export default function CartaoDetailPage() {
   const totalEntradasMes = (cardData.allTransactions || [])
     .filter(t => t && t.type === "INCOME")
     .filter(t => {
-      if (!t || !t.date) return false;
-      const { year, month } = getYearMonth(t.date);
+      if (!t) return false;
+      const { year, month } = getCompetenceYearMonth(t);
       return year === selectedYear && month === selectedMonth;
     })
     .reduce((s, t) => s + (t.amount || 0), 0);
 
-  // Cálculo de Total Pago e Total Não Pago (despesas do mês pela DATA DO DÉBITO)
+  // Cálculo de Total Pago e Total Não Pago (despesas do mês por competência)
   const monthExpenseTransactions = (cardData.allTransactions || [])
     .filter(t => t && t.type === "EXPENSE")
     .filter(t => {
-      if (!t || !t.date) return false;
-      const { year, month } = getYearMonth(t.date);
+      if (!t) return false;
+      const { year, month } = getCompetenceYearMonth(t);
       return year === selectedYear && month === selectedMonth;
     });
   const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
@@ -1026,9 +1032,14 @@ export default function CartaoDetailPage() {
                             <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
                               <div className="flex flex-col items-start gap-1">
                                 <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                  {formatDateBR(p.date)}
+                                  {formatDateBR((p as any).purchaseDate || p.date)}
                                 </span>
-                                {p.competenceDate && isDifferentCompetence(p.date, p.competenceDate) && (
+                                {(p as any).paymentDate && (p as any).paymentDate !== ((p as any).purchaseDate || p.date) && (
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                    Venc: {formatDateBR((p as any).paymentDate)}
+                                  </span>
+                                )}
+                                {p.competenceDate && isDifferentCompetence((p as any).purchaseDate || p.date, p.competenceDate) && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
                                     Ref: {formatReference(p.competenceDate)}
                                   </span>
@@ -1501,8 +1512,8 @@ export default function CartaoDetailPage() {
                       onClick={() => {
                         const monthTransactions = (cardData.allTransactions || [])
                           .filter((t) => {
-                            const parts = t.date.split("-");
-                            return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+                            const { year, month } = getCompetenceYearMonth(t);
+                            return year === selectedYear && month === selectedMonth;
                           });
                         const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
                         expandAllCategories(bankKeys);
@@ -1517,8 +1528,8 @@ export default function CartaoDetailPage() {
                       onClick={() => {
                         const monthTransactions = (cardData.allTransactions || [])
                           .filter((t) => {
-                            const parts = t.date.split("-");
-                            return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+                            const { year, month } = getCompetenceYearMonth(t);
+                            return year === selectedYear && month === selectedMonth;
                           });
                         const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
                         collapseAllCategories(bankKeys);
@@ -1562,10 +1573,10 @@ export default function CartaoDetailPage() {
             {(() => {
               const monthTransactions = (cardData.allTransactions || [])
                 .filter((t) => {
-                  const parts = t.date.split("-");
-                  return Number(parts[0]) === selectedYear && Number(parts[1]) === selectedMonth;
+                  const { year, month } = getCompetenceYearMonth(t);
+                  return year === selectedYear && month === selectedMonth;
                 })
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                .sort((a, b) => new Date((a as any).purchaseDate || a.date).getTime() - new Date((b as any).purchaseDate || b.date).getTime());
 
               const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
               const totalSaidasExtrato   = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
@@ -1634,8 +1645,13 @@ export default function CartaoDetailPage() {
                               <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
                                 <div className="flex flex-col items-start gap-1">
                                   <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                    {formatDateBR(t.date)}
+                                    {formatDateBR((t as any).purchaseDate || t.date)}
                                   </span>
+                                  {(t as any).paymentDate && (t as any).paymentDate !== ((t as any).purchaseDate || t.date) && (
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                      Liq: {formatDateBR((t as any).paymentDate)}
+                                    </span>
+                                  )}
                                   {hasRef && (
                                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
                                       Ref: {formatReference(t.competenceDate)}
@@ -1793,14 +1809,6 @@ export default function CartaoDetailPage() {
       )}
 
       {/* ── MODAIS ─────────────────────────────────────────────────────────────── */}
-
-      {/* Modal Global: Lançar Despesa */}
-      <NewPurchaseModal
-        isOpen={purchaseModalOpen}
-        defaultWalletId={cardId}
-        onClose={() => setPurchaseModalOpen(false)}
-        onSuccess={loadData}
-      />
 
       {/* Modal Adicionar Saldo / Injeção de Capital Flexível */}
       {modalType === "carga" && (
@@ -2236,6 +2244,8 @@ export default function CartaoDetailPage() {
           type: selectedPurchase.type,
           installmentsCount: selectedPurchase.installmentsCount,
           date: selectedPurchase.date,
+          purchaseDate: (selectedPurchase as any).purchaseDate || selectedPurchase.date,
+          paymentDate: (selectedPurchase as any).paymentDate || selectedPurchase.date,
           competenceDate: (selectedPurchase as any).competenceDate || selectedPurchase.date,
           tags: selectedPurchase.tags,
           isRecurring: (selectedPurchase as any).isRecurring,
