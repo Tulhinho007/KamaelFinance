@@ -59,8 +59,8 @@ export function DashboardOverview() {
   const [data, setData] = useState<any>(null);
 
   const [viewMode, setViewMode] = useState<"annual" | "monthly">("annual");
-  const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(2026);
-  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(() => selectedYear || new Date().getFullYear());
+  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
 
   // Tags, Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
   const [ofxModalOpen, setOfxModalOpen] = useState(false);
@@ -84,11 +84,40 @@ export function DashboardOverview() {
   const [aporteAmount, setAporteAmount] = useState<number | "">("");
   const [savingAporte, setSavingAporte] = useState(false);
 
+  // Sincronização se o período mudar externamente (via PeriodContext)
+  useEffect(() => {
+    if (selectedYear && selectedYear !== selectedDashboardYear) {
+      setSelectedDashboardYear(selectedYear);
+    }
+    if (selectedMonth && selectedMonth !== selectedDashboardMonth) {
+      setSelectedDashboardMonth(selectedMonth);
+    }
+  }, [selectedMonth, selectedYear]);
+
+  const handleYearChange = (newYear: number) => {
+    setSelectedDashboardYear(newYear);
+    setPeriod(selectedDashboardMonth, newYear);
+  };
+
+  const handleMonthChange = (newMonth: number) => {
+    setSelectedDashboardMonth(newMonth);
+    setPeriod(newMonth, selectedDashboardYear);
+  };
+
   const loadDashboardData = async () => {
     setLoading(true);
     try {
       const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
-      const result = await getDashboardOverviewData(selectedDashboardYear, monthParam);
+      console.log("[Dashboard Client] Disparando busca de dados:", {
+        year: selectedDashboardYear,
+        month: monthParam,
+        viewMode,
+        tag: selectedTag
+      });
+      const result = await getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag);
+      console.log("[Dashboard Client] Dados brutos recebidos da API:", result);
+      console.log("[Dashboard Client] Dados de 'monthlyHistory' (Evolução Financeira):", result?.monthlyHistory);
+      console.log("[Dashboard Client] Dados de 'categoryBreakdown' (Distribuição por Categoria):", result?.categoryBreakdown);
       setData(result);
     } catch (err) {
       console.error("Erro ao carregar dados do dashboard:", err);
@@ -119,7 +148,7 @@ export function DashboardOverview() {
   useEffect(() => {
     loadDashboardData();
     loadTags();
-  }, [viewMode, selectedDashboardYear, selectedDashboardMonth]);
+  }, [viewMode, selectedDashboardYear, selectedDashboardMonth, selectedTag]);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,7 +204,7 @@ export function DashboardOverview() {
       id: c.id,
       title: c.title,
       valor: c.faturaAtual,
-      vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonth).padStart(2, "0")}/${selectedYear}`,
+      vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`,
       isPast: !!c.isPast,
       statusLabel: c.isPast ? "VENCIDA" : "PENDENTE",
       statusBadgeVariant: c.isPast ? "overdue" : "pending",
@@ -232,7 +261,7 @@ export function DashboardOverview() {
           {/* Seletor de Ano */}
           <select
             value={selectedDashboardYear}
-            onChange={(e) => setSelectedDashboardYear(Number(e.target.value))}
+            onChange={(e) => handleYearChange(Number(e.target.value))}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
           >
             {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
@@ -244,7 +273,7 @@ export function DashboardOverview() {
           {viewMode === "monthly" && (
             <select
               value={selectedDashboardMonth}
-              onChange={(e) => setSelectedDashboardMonth(Number(e.target.value))}
+              onChange={(e) => handleMonthChange(Number(e.target.value))}
               className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer animate-in fade-in"
             >
               {[
@@ -402,7 +431,11 @@ export function DashboardOverview() {
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Evolução Financeira</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Comparativo de entradas vs. saídas nos últimos 7 meses</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  {viewMode === "annual"
+                    ? `Comparativo de receitas vs. gastos no ano de ${selectedDashboardYear}`
+                    : `Comparativo de receitas vs. gastos nos últimos 7 meses até ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+                </p>
               </div>
             </div>
 
@@ -468,64 +501,81 @@ export function DashboardOverview() {
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Distribuição por Categoria</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Divisão dos gastos consolidados do mês</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  {viewMode === "annual"
+                    ? `Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`
+                    : `Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+                </p>
               </div>
             </div>
 
-            <div className="w-full h-[220px] relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={data.categoryBreakdown}
-                    dataKey="total"
-                    nameKey="name"
-                    innerRadius={60}
-                    outerRadius={82}
-                    paddingAngle={4}
-                    cornerRadius={5}
-                  >
-                    {data.categoryBreakdown.map((entry: any, i: number) => (
-                      <Cell key={i} fill={entry.color || "#6366F1"} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
+            {(() => {
+              const activeCategories = (data.categoryBreakdown || []).filter((c: any) => Number(c.total || c.value || 0) > 0);
+              const totalCatSum = activeCategories.reduce((acc: number, curr: any) => acc + Number(curr.total || curr.value || 0), 0);
+              const pieData = activeCategories.length > 0 ? activeCategories : [{ name: "Sem gastos", total: 1, color: "#94a3b8" }];
 
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-base font-black text-slate-900 dark:text-white leading-none font-tnum tabular-nums">
-                  {brl(data.categoryBreakdown.reduce((acc: number, curr: any) => acc + Number(curr.total || curr.value || 0), 0))}
-                </span>
-                <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
-                  Total Mês
-                </span>
-              </div>
-            </div>
+              return (
+                <>
+                  <div className="w-full h-[220px] relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          dataKey="total"
+                          nameKey="name"
+                          innerRadius={60}
+                          outerRadius={82}
+                          paddingAngle={activeCategories.length > 1 ? 4 : 0}
+                          cornerRadius={5}
+                        >
+                          {pieData.map((entry: any, i: number) => (
+                            <Cell key={i} fill={entry.color || "#6366F1"} />
+                          ))}
+                        </Pie>
+                        {activeCategories.length > 0 && <Tooltip content={<CustomTooltip />} />}
+                      </PieChart>
+                    </ResponsiveContainer>
 
-            {/* Legenda distribuída com porcentagens 100% exatas */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
-              {(() => {
-                const totalCatSum = data.categoryBreakdown.reduce((sum: number, c: any) => sum + Number(c.total), 0);
-                return data.categoryBreakdown.map((c: any) => {
-                  const pct = totalCatSum > 0 ? ((Number(c.total) / totalCatSum) * 100).toFixed(1) : "0.0";
-                  return (
-                    <div
-                      key={c.name}
-                      className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950/60 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
-                        <span className="truncate">{c.name}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 font-tnum tabular-nums">
-                        <span>{brl(c.total)}</span>
-                        <span className="text-[10px] font-black text-slate-500 dark:text-slate-500">({pct}%)</span>
-                      </div>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <span className="text-base font-black text-slate-900 dark:text-white leading-none font-tnum tabular-nums">
+                        {brl(totalCatSum)}
+                      </span>
+                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
+                        {viewMode === "annual" ? "Total Ano" : "Total Mês"}
+                      </span>
                     </div>
-                  );
-                });
-              })()}
-            </div>
+                  </div>
+
+                  {/* Legenda distribuída com porcentagens 100% exatas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    {activeCategories.length === 0 ? (
+                      <div className="col-span-1 sm:col-span-2 text-center py-4 text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                        Nenhum gasto registrado para o período selecionado.
+                      </div>
+                    ) : (
+                      activeCategories.map((c: any) => {
+                        const pct = totalCatSum > 0 ? ((Number(c.total) / totalCatSum) * 100).toFixed(1) : "0.0";
+                        return (
+                          <div
+                            key={c.name}
+                            className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950/60 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
+                              <span className="truncate">{c.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 font-tnum tabular-nums">
+                              <span>{brl(Number(c.total))}</span>
+                              <span className="text-[10px] font-black text-slate-500 dark:text-slate-500">({pct}%)</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
         </div>

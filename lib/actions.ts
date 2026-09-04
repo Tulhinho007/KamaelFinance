@@ -2628,41 +2628,63 @@ export async function getUpcomingBillsAction() {
 
 // ---------- Actions de Dashboard Principal ----------
 
-export async function getDashboardOverviewData(year: number, month?: number | null) {
+export async function getDashboardOverviewData(year: number, month?: number | null, tag?: string | null) {
   const userId = await getActiveUserId();
+
+  console.log("[getDashboardOverviewData] Início da busca:", { userId, year, month, tag });
 
   let from: Date;
   let to: Date;
 
+  // Buffer de 24h para cobrir variações de fuso horário (ex: UTC-3 vs UTC)
   if (month && month >= 1 && month <= 12) {
-    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    from = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    to   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
   } else {
-    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
   }
 
-  // 1. Lançamentos filtrados pelo período (Mês ou Ano) EXCLUSIVAMENTE por DATA
-  const rangeTransactions: any[] = await prisma.transaction.findMany({
+  // 1. Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais
+  const rawRangeTransactions: any[] = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
       deletedAt: null,
-      date: { gte: from, lte: to }
+      date: { gte: from, lte: to },
+      ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
     } as any,
     include: {
       category: true,
-      wallet: { select: { walletType: true } }
+      wallet: { select: { walletType: true, title: true } }
     },
     orderBy: { date: "desc" }
   });
+
+  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob UTC ou horário local de Brasília
+  const rangeTransactions = rawRangeTransactions.filter((t) => {
+    const d = new Date(t.date);
+    const utcYear = d.getUTCFullYear();
+    const utcMonth = d.getUTCMonth() + 1;
+    const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+    const brtYear = brt.getUTCFullYear();
+    const brtMonth = brt.getUTCMonth() + 1;
+
+    if (month && month >= 1 && month <= 12) {
+      return (utcYear === year && utcMonth === month) || (brtYear === year && brtMonth === month);
+    }
+    return utcYear === year || brtYear === year;
+  });
+
+  console.log(`[getDashboardOverviewData] Transações brutas: ${rawRangeTransactions.length}, filtradas no período: ${rangeTransactions.length}`);
 
   let totalReceitas = 0;
   let totalCreditExpenses = 0;
   let totalDebitExpenses = 0;
 
   rangeTransactions.forEach((t) => {
-    const amt = Number(t.amount);
-    // 1. VALIDAÇÃO ESTRITA DE STATUS PARA RECEITAS
+    const amt = Number(t.amount || 0);
+    if (isNaN(amt) || amt <= 0) return;
+
     const isRealized = t.status === "COMPLETED" || t.status === "PAID";
     const wType = (t.wallet?.walletType || "").toUpperCase();
     const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
@@ -2712,83 +2734,144 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   const totalObjetivoMetas = activeGoals.reduce((s, g) => s + g.objetivo, 0);
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
-  // Breakdown de Gastos por Categoria no Período Filtrado (Apenas Despesas Efetivadas)
+  // 2. Breakdown de Gastos por Categoria no Período Filtrado
+  // Inclui despesas em cartão de crédito e contas/débito, excluindo apenas pagamentos de fatura
   const monthExpenses = rangeTransactions.filter(
     (e) =>
       e.type === "EXPENSE" &&
-      (e.status === "COMPLETED" || e.status === "PAID") &&
-      e.wallet.walletType !== "TICKET" &&
-      e.wallet.walletType !== "CREDIT_CARD"
+      !isInvoicePaymentTransaction(e)
   );
 
-  const categoryMap: Record<string, { name: string; color: string; total: number }> = {};
-  const DEFAULT_COLORS = ["#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", "#6366F1", "#64748B"];
+  console.log(`[getDashboardOverviewData] Despesas para Distribuição por Categoria: ${monthExpenses.length}`);
 
-  monthExpenses.forEach((exp, idx) => {
-    const catName = exp.category?.name || "Outros";
-    const catColor = exp.category?.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length];
+  const categoryMap: Record<string, { name: string; color: string; total: number }> = {};
+
+  monthExpenses.forEach((exp) => {
+    const rawAmt = Number(exp.amount || 0);
+    const amt = isNaN(rawAmt) ? 0 : Math.max(0, rawAmt);
+    if (amt <= 0) return;
+
+    const catName = exp.category?.name?.trim() || "Outros";
+    const catColor = exp.category?.color || getCategoryColor(catName);
+
     if (!categoryMap[catName]) {
       categoryMap[catName] = { name: catName, color: catColor, total: 0 };
     }
-    categoryMap[catName].total += Number(exp.amount);
+    categoryMap[catName].total = Math.round((categoryMap[catName].total + amt) * 100) / 100;
   });
 
-  const categoryBreakdown = Object.values(categoryMap);
+  const categoryBreakdown = Object.values(categoryMap).sort((a, b) => b.total - a.total);
   if (categoryBreakdown.length === 0) {
-    categoryBreakdown.push({ name: "Sem gastos", color: "#E2E8F0", total: 0 });
+    categoryBreakdown.push({ name: "Sem gastos", color: "#94A3B8", total: 0 });
   }
 
-  // Histórico Comparativo (Últimos 7 meses) - Apenas Receitas e Gastos Efetivados em Conta Corrente
-  const historyMonths = [];
-  const startMonth = currentMonthNum;
-  for (let i = 6; i >= 0; i--) {
-    let m = startMonth - i;
-    let y = year;
-    if (m <= 0) {
-      m += 12;
-      y -= 1;
+  // 3. Histórico Comparativo ("Evolução Financeira")
+  // No modo anual: exibe todos os 12 meses do ano selecionado.
+  // No modo mensal: exibe os últimos 7 meses até o mês selecionado.
+  const MONTH_NAMES_SHORT = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
+
+  let histFrom: Date;
+  let histTo: Date;
+
+  if (!month) {
+    histFrom = new Date(Date.UTC(year, 0, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    histTo   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
+  } else {
+    let startM = month - 6;
+    let startY = year;
+    if (startM <= 0) {
+      startM += 12;
+      startY -= 1;
     }
-    const mFrom = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
-    const mTo   = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
-
-    const [mInc, mExp] = await Promise.all([
-      prisma.transaction.aggregate({
-        where: {
-          wallet: { 
-            userId,
-            walletType: { 
-              notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "ticket", "beneficio", "benefício", "Ticket", "Benefício", "Beneficio"]
-            }
-          },
-          type: "INCOME",
-          status: { in: ["COMPLETED", "PAID"] },
-          date: { gte: mFrom, lte: mTo },
-          deletedAt: null
-        },
-        _sum: { amount: true }
-      }),
-      prisma.transaction.aggregate({
-        where: {
-          wallet: {
-            userId,
-            walletType: { notIn: ["CREDIT_CARD", "TICKET"] }
-          },
-          type: "EXPENSE",
-          status: { in: ["COMPLETED", "PAID"] },
-          date: { gte: mFrom, lte: mTo },
-          deletedAt: null
-        },
-        _sum: { amount: true }
-      })
-    ]);
-
-    const monthLabel = mFrom.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "").toUpperCase();
-    historyMonths.push({
-      month: monthLabel,
-      receitas: Number(mInc._sum.amount || 0),
-      gastos: Number(mExp._sum.amount || 0),
-    });
+    histFrom = new Date(Date.UTC(startY, startM - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    histTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
   }
+
+  const histTransactionsRaw = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      deletedAt: null,
+      date: { gte: histFrom, lte: histTo },
+      ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
+    },
+    include: {
+      wallet: { select: { walletType: true } },
+      category: true
+    }
+  });
+
+  const historyMonths: { month: string; receitas: number; gastos: number }[] = [];
+
+  if (!month) {
+    // Visão Anual: 12 meses (JAN a DEZ)
+    for (let m = 1; m <= 12; m++) {
+      const label = MONTH_NAMES_SHORT[m - 1];
+      const mTx = histTransactionsRaw.filter((t) => {
+        const d = new Date(t.date);
+        const utcYear = d.getUTCFullYear();
+        const utcMonth = d.getUTCMonth() + 1;
+        const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+        const brtYear = brt.getUTCFullYear();
+        const brtMonth = brt.getUTCMonth() + 1;
+        return (utcYear === year && utcMonth === m) || (brtYear === year && brtMonth === m);
+      });
+
+      const mInc = mTx
+        .filter((t) => t.type === "INCOME" && (t.status === "COMPLETED" || t.status === "PAID") && !["TICKET", "BENEFICIO", "BENEFÍCIO"].includes((t.wallet?.walletType || "").toUpperCase()))
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      const mExp = mTx
+        .filter((t) => t.type === "EXPENSE" && !isInvoicePaymentTransaction(t))
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      historyMonths.push({
+        month: label,
+        receitas: Math.round(mInc * 100) / 100,
+        gastos: Math.round(mExp * 100) / 100,
+      });
+    }
+  } else {
+    // Visão Mensal: 7 meses até o mês selecionado
+    for (let i = 6; i >= 0; i--) {
+      let m = month - i;
+      let y = year;
+      if (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
+      const label = MONTH_NAMES_SHORT[m - 1];
+      const mTx = histTransactionsRaw.filter((t) => {
+        const d = new Date(t.date);
+        const utcYear = d.getUTCFullYear();
+        const utcMonth = d.getUTCMonth() + 1;
+        const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+        const brtYear = brt.getUTCFullYear();
+        const brtMonth = brt.getUTCMonth() + 1;
+        return (utcYear === y && utcMonth === m) || (brtYear === y && brtMonth === m);
+      });
+
+      const mInc = mTx
+        .filter((t) => t.type === "INCOME" && (t.status === "COMPLETED" || t.status === "PAID") && !["TICKET", "BENEFICIO", "BENEFÍCIO"].includes((t.wallet?.walletType || "").toUpperCase()))
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      const mExp = mTx
+        .filter((t) => t.type === "EXPENSE" && !isInvoicePaymentTransaction(t))
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+      historyMonths.push({
+        month: label,
+        receitas: Math.round(mInc * 100) / 100,
+        gastos: Math.round(mExp * 100) / 100,
+      });
+    }
+  }
+
+  console.log("[getDashboardOverviewData] Concluído:", {
+    totalReceitas,
+    totalGastos,
+    categoryBreakdownCount: categoryBreakdown.length,
+    monthlyHistory: historyMonths
+  });
 
   return {
     totalReceitas,
