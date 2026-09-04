@@ -1395,85 +1395,85 @@ export default function CartaoDetailPage() {
         <div className="flex flex-col gap-8">
           
           {/* TOPO: 5 CARDS DE MÉTRICAS EM LINHA (SALDO, ENTRADAS, CONSUMO, PAGO, PENDENTE) */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
 
             {/* Card 1: Saldo Disponível */}
-            <div className="card-glow flex flex-col justify-between h-[155px] p-5 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm">
-              <div className="flex items-start justify-between h-[44px] gap-2">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight max-w-[110px]">Saldo Disponível</span>
-                <div className="shrink-0 w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Building2 className="w-4 h-4" />
+            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight">Saldo Disponível</span>
+                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center h-[48px]">
-                <h3 className={`text-2xl md:text-3xl font-black tracking-tight leading-none tabular-nums whitespace-nowrap ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{brl(saldoAtualCalculado)}</h3>
+              <div className="flex items-center my-0.5">
+                <h3 className={`text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{brl(saldoAtualCalculado)}</h3>
               </div>
-              <div className="h-[18px]">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none truncate">Balanço consolidado da conta</p>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Balanço consolidado da conta</p>
               </div>
             </div>
 
             {/* Card 2: Entradas no Mês */}
-            <div className="card-glow flex flex-col justify-between h-[155px] p-5 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/30 shadow-sm">
-              <div className="flex items-start justify-between h-[44px] gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-tight max-w-[110px]">Entradas no Mês</span>
-                <div className="shrink-0 w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <TrendingUp className="w-4 h-4" />
+            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/30 shadow-sm gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-tight">Entradas no Mês</span>
+                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center h-[48px]">
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{`+ ${brl(totalEntradasMes)}`}</h3>
+              <div className="flex items-center my-0.5">
+                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{`+ ${brl(totalEntradasMes)}`}</h3>
               </div>
-              <div className="h-[18px]">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none truncate">Depósitos e receitas creditadas</p>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Depósitos e receitas creditadas</p>
               </div>
             </div>
 
             {/* Card 3: Consumo no Mês */}
-            <div className="card-glow flex flex-col justify-between h-[155px] p-5 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm">
-              <div className="flex items-start justify-between h-[44px] gap-2">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight max-w-[110px]">Consumo no Mês</span>
-                <div className="shrink-0 w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                  <TrendingDown className="w-4 h-4" />
+            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight">Consumo no Mês</span>
+                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                  <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center h-[48px]">
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-none tabular-nums whitespace-nowrap text-slate-900 dark:text-white">{brl(totalGastosMes)}</h3>
+              <div className="flex items-center my-0.5">
+                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-slate-900 dark:text-white">{brl(totalGastosMes)}</h3>
               </div>
-              <div className="h-[18px]">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none truncate">Lançamentos debitados no mês</p>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Lançamentos debitados no mês</p>
               </div>
             </div>
 
             {/* Card 4: Total Pago */}
-            <div className="card-glow flex flex-col justify-between h-[155px] p-5 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/20 shadow-sm">
-              <div className="flex items-start justify-between h-[44px] gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider leading-tight max-w-[110px]">Total Pago</span>
-                <div className="shrink-0 w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="w-4 h-4" />
+            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/20 shadow-sm gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider leading-tight">Total Pago</span>
+                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center h-[48px]">
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{brl(totalPago)}</h3>
+              <div className="flex items-center my-0.5">
+                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{brl(totalPago)}</h3>
               </div>
-              <div className="h-[18px]">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none truncate">Despesas quitadas no mês</p>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Despesas quitadas no mês</p>
               </div>
             </div>
 
             {/* Card 5: Total Pendente */}
-            <div className="card-glow flex flex-col justify-between h-[155px] p-5 rounded-2xl bg-white dark:bg-[#111625] border border-amber-200 dark:border-amber-500/20 shadow-sm">
-              <div className="flex items-start justify-between h-[44px] gap-2">
-                <span className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider leading-tight max-w-[110px]">Total Pendente</span>
-                <div className="shrink-0 w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                  <Clock className="w-4 h-4" />
+            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-amber-200 dark:border-amber-500/20 shadow-sm gap-1.5">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider leading-tight">Total Pendente</span>
+                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center h-[48px]">
-                <h3 className="text-2xl md:text-3xl font-black tracking-tight leading-none tabular-nums whitespace-nowrap text-amber-600 dark:text-amber-400">{brl(totalNaoPago)}</h3>
+              <div className="flex items-center my-0.5">
+                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-amber-600 dark:text-amber-400">{brl(totalNaoPago)}</h3>
               </div>
-              <div className="h-[18px]">
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none truncate">Aguardando baixa de pagamento</p>
+              <div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Aguardando pagamento</p>
               </div>
             </div>
 
