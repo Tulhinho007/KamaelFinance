@@ -103,13 +103,13 @@ export function Sidebar() {
         onClick={() => setIsMobileOpen(false)}
         className={`flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 ${
           active
-            ? "bg-emerald-50 dark:bg-indigo-600 text-emerald-800 dark:text-white border border-emerald-200/90 dark:border-transparent font-black shadow-2xs dark:shadow-indigo-600/30"
-            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 font-semibold"
+            ? "bg-slate-100 dark:bg-indigo-600 text-slate-950 dark:text-white border border-slate-200/90 dark:border-transparent font-bold shadow-xs dark:shadow-indigo-600/30"
+            : "text-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-950 dark:hover:text-slate-100 font-semibold"
         }`}
       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 transition-colors ${
-            active ? "text-emerald-600 dark:text-indigo-200" : "text-slate-400 dark:text-slate-500"
+            active ? "text-indigo-600 dark:text-indigo-200" : "text-slate-400 dark:text-slate-500"
           }`}
         />
         <span>{label}</span>
@@ -136,11 +136,11 @@ export function Sidebar() {
 
   const footerProfile = (
     <div className="p-3 border-t border-slate-100 dark:border-slate-800/70 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 pt-1">
+      <div className="flex items-center justify-between gap-1.5 pt-1">
         <Link
           href="/configuracoes"
           onClick={() => setIsMobileOpen(false)}
-          className="flex-1 min-w-0 flex items-center gap-3 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors duration-150 group"
+          className="flex-1 min-w-0 flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors duration-150 group"
         >
           <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm shadow-indigo-600/30 flex-shrink-0">
             {initials}
@@ -150,6 +150,13 @@ export function Sidebar() {
             <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 truncate">Conta Executiva</p>
           </div>
         </Link>
+        <button
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Alternar para Modo Claro" : "Alternar para Modo Escuro"}
+          className="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer flex-shrink-0"
+        >
+          {theme === "dark" ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+        </button>
         <button
           onClick={() => logoutAction()}
           title="Encerrar Sessão (Sair)"

@@ -618,7 +618,7 @@ export default function DespesasPage() {
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
           
           {/* Navegador de Ano: [< ANO 2026 >] */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-900 px-2 py-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="flex items-center bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <button
               onClick={() => setSelectedYear(prev => prev - 1)}
               className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
@@ -644,7 +644,7 @@ export default function DespesasPage() {
               setSelectedYear(new Date().getFullYear());
               setSelectedMonthFilter(null);
             }}
-            className="px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 rounded-xl font-extrabold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 dark:bg-indigo-950/60 dark:border-indigo-800/60 dark:text-indigo-300 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
           >
             ANO ATUAL
           </button>
@@ -656,7 +656,7 @@ export default function DespesasPage() {
               const val = e.target.value;
               setSelectedMonthFilter(val === "" ? null : Number(val));
             }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
           >
             <option value="">Todos os Meses (Visão Anual)</option>
             {[
@@ -669,10 +669,10 @@ export default function DespesasPage() {
 
           <button
             onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonthFilter || 12, selectedYear)}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3.5 py-2 rounded-xl font-extrabold text-xs shadow-md transition-all cursor-pointer whitespace-nowrap shrink-0"
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Exportar relatório CSV"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             <span>Exportar</span>
           </button>
         </div>
@@ -683,29 +683,27 @@ export default function DespesasPage() {
         <button
           id="btn-adicionar-cartao"
           onClick={openCreate}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] border border-white/10 cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.01] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Adicionar Cartão / Conta
         </button>
         <button
           onClick={() => setPurchaseModalOpen(true)}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/30 text-white px-5 py-3 rounded-2xl font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01] cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           Lançar Despesa
         </button>
       </div>
 
-
-
-      {/* ── 2.1. MÉTRICA SUPERIOR: RECEITA REAL ──────────────────────────── */}
+      {/* ── 2.1. MÉTRICA SUPERIOR: SALDO DISPONÍVEL / RECEITA REAL ──────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden group relative">
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden group relative">
           {/* Topo: Título e Ícone */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              Receita Total Registrada
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Saldo Disponível
             </span>
             <div className="shrink-0 p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Total de entradas e receitas confirmadas no período">
               <ArrowUpRight className="w-4 h-4" />
@@ -714,17 +712,18 @@ export default function DespesasPage() {
 
           {/* Meio: Valor em Destaque */}
           <div className="py-2 my-auto flex items-center">
-            <span className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums">
+            <h2 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white font-tnum tabular-nums">
               {brl(realRevenue)}
-            </span>
+            </h2>
           </div>
 
-          {/* Base: Badge com seta indicadora */}
-          <div className="min-h-[38px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-            <span className="text-[11px] leading-tight font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden">
-              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate">Total de entradas registradas</span>
-            </span>
+          {/* Base: Indicador Verde */}
+          <div className="min-h-[36px] flex items-center mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
+            <p className="text-green-600 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1.5">
+              <ArrowUpRight className="w-3.5 h-3.5" />
+              <span>+ {brl(realRevenue)}</span>
+              <span className="text-slate-400 font-normal">Entradas no Mês</span>
+            </p>
           </div>
         </div>
       </div>
