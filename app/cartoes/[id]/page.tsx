@@ -895,6 +895,8 @@ export default function CartaoDetailPage() {
               competenceDate?: string;
               subtype: "vista" | "parcelado" | "assinatura";
               installmentLabel?: string;
+              installmentsCount?: number;
+              currentInstallment?: number;
             };
 
             const allCreditEntries: CreditEntry[] = [
@@ -905,6 +907,8 @@ export default function CartaoDetailPage() {
                 purchaseDate: (p as any).purchaseDate,
                 competenceDate: (p as any).competenceDate,
                 installmentLabel: `${p.currentInstallment}/${p.installmentsCount}`,
+                installmentsCount: p.installmentsCount,
+                currentInstallment: p.currentInstallment,
               })),
             ].sort((a, b) => {
               const da = new Date((a.purchaseDate || a.competenceDate || a.date).split("T")[0]).getTime();
@@ -997,14 +1001,25 @@ export default function CartaoDetailPage() {
                             </div>
                             {/* Descrição + Categoria */}
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {entry.description}
-                                {entry.installmentLabel && (
-                                  <span className="ml-1.5 text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md">
-                                    {entry.installmentLabel}
-                                  </span>
-                                )}
-                              </p>
+                              {(() => {
+                                const match = entry.description.match(/\((\d+)\/(\d+)\)/);
+                                const cleanDesc = entry.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
+                                const currInst = (entry as any).currentInstallment || (match ? Number(match[1]) : null);
+                                const totalInst = entry.installmentsCount || (match ? Number(match[2]) : null);
+                                const displayLabel = entry.installmentLabel || (currInst && totalInst ? `${currInst}/${totalInst}` : null);
+                                return (
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                      {cleanDesc}
+                                    </p>
+                                    {displayLabel && (
+                                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                                        Parcela {displayLabel}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{entry.category}</p>
                             </div>
                             {/* Valor */}
@@ -1237,18 +1252,44 @@ export default function CartaoDetailPage() {
                                     onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(i => i !== t.id) : [...prev, t.id])}
                                     className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 text-indigo-600 accent-indigo-600 cursor-pointer flex-shrink-0" />
                                   {/* Ícone entrada/saída */}
-                                  <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
-                                    isIncome ? "bg-emerald-100 dark:bg-emerald-500/10" : "bg-rose-100 dark:bg-rose-500/10"
-                                  }`}>
-                                    {isIncome
-                                      ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                      : <TrendingDown className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
-                                  </div>
-                                  {/* Descrição + Categoria */}
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{t.description}</p>
-                                    <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{t.category}</p>
-                                  </div>
+                                  {(() => {
+                                    const isInstallment = !isIncome && ((t.installmentsCount && t.installmentsCount > 1) || (t as any).currentInstallment != null || /\(\d+\/\d+\)/.test(t.description));
+                                    const match = t.description.match(/\((\d+)\/(\d+)\)/);
+                                    const currInst = (t as any).currentInstallment || (match ? Number(match[1]) : null);
+                                    const totalInst = t.installmentsCount || (match ? Number(match[2]) : null);
+                                    const installmentLabel = currInst && totalInst ? `${currInst}/${totalInst}` : null;
+                                    const cleanDesc = t.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
+
+                                    return (
+                                      <>
+                                        <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
+                                          isIncome ? "bg-emerald-100 dark:bg-emerald-500/10" :
+                                          isInstallment ? "bg-amber-100 dark:bg-amber-500/10" :
+                                          "bg-rose-100 dark:bg-rose-500/10"
+                                        }`}>
+                                          {isIncome
+                                            ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            : isInstallment
+                                            ? <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                            : <TrendingDown className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
+                                        </div>
+                                        {/* Descrição + Categoria */}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                              {cleanDesc}
+                                            </p>
+                                            {installmentLabel && (
+                                              <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                                                Parcela {installmentLabel}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{t.category}</p>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
                                   {/* Valor */}
                                   <span className={`text-sm font-black tabular-nums whitespace-nowrap flex-shrink-0 ${
                                     isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"

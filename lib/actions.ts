@@ -1937,6 +1937,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         amount: Number(t.amount || 0),
         status: t.status || "COMPLETED",
         installmentsCount: t.installmentsCount || undefined,
+        currentInstallment: (t as any).currentInstallment || undefined,
+        installmentGroupId: (t as any).installmentGroupId || undefined,
         tags: (t as any).tags || undefined,
         isRecurring: Boolean((t as any).isRecurring),
         recurringDay: (t as any).recurringDay || undefined,
@@ -2000,12 +2002,21 @@ function parseInputDate(dateStr: string): Date {
   if (!dateStr) return new Date();
   if (dateStr.includes("-")) {
     const parts = dateStr.split("-");
-    return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])));
+    return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), 12, 0, 0));
   } else if (dateStr.includes("/")) {
     const parts = dateStr.split("/");
-    return new Date(Date.UTC(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0])));
+    return new Date(Date.UTC(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 12, 0, 0));
   }
   return new Date(dateStr);
+}
+
+function addMonthsUTC(baseDate: Date, monthsToAdd: number): Date {
+  const year = baseDate.getUTCFullYear();
+  const month = baseDate.getUTCMonth();
+  const day = baseDate.getUTCDate();
+  const daysInTargetMonth = new Date(Date.UTC(year, month + monthsToAdd + 1, 0)).getUTCDate();
+  const targetDay = Math.min(day, daysInTargetMonth);
+  return new Date(Date.UTC(year, month + monthsToAdd, targetDay, 12, 0, 0));
 }
 
 function extractTags(description: string, explicitTags?: string): string | null {
@@ -2058,26 +2069,25 @@ export async function createCardPurchase(
   let competenceDate: Date = purchaseDate;
   if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
-    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
+    competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1), 12, 0, 0));
   }
 
   const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
 
   if (numInstallments > 1) {
     const groupId = crypto.randomUUID();
+    const cleanDesc = description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
     const baseInstallment = Math.floor((amount / numInstallments) * 100) / 100;
     const remainder = Math.round((amount - baseInstallment * numInstallments) * 100) / 100;
 
     const transactionsData = [];
     for (let i = 1; i <= numInstallments; i++) {
-      const instPaymentDate = new Date(paymentDate);
-      instPaymentDate.setMonth(instPaymentDate.getMonth() + (i - 1));
-
-      const instCompetenceDate = new Date(competenceDate);
-      instCompetenceDate.setMonth(instCompetenceDate.getMonth() + (i - 1));
+      const instPaymentDate = addMonthsUTC(paymentDate, i - 1);
+      const instCompetenceDate = addMonthsUTC(competenceDate, i - 1);
+      const instPurchaseDate = addMonthsUTC(purchaseDate, i - 1);
 
       const instAmount = i === 1 ? baseInstallment + remainder : baseInstallment;
-      const instDesc = `${description} (${i}/${numInstallments})`;
+      const instDesc = `${cleanDesc} (${i}/${numInstallments})`;
 
       transactionsData.push({
         walletId,
@@ -2089,7 +2099,7 @@ export async function createCardPurchase(
         currentInstallment: i,
         installmentGroupId: groupId,
         date: instPaymentDate,
-        purchaseDate,
+        purchaseDate: instPurchaseDate,
         paymentDate: instPaymentDate,
         competenceDate: instCompetenceDate,
         competenceMonth: instCompetenceDate.getUTCMonth() + 1,

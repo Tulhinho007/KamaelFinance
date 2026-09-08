@@ -118,7 +118,7 @@ export function NewPurchaseModal({
       return;
     }
 
-    const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
+    const installments = formType === "parcelado" && formInstallmentsCount > 1 ? formInstallmentsCount : undefined;
     const parts = formPurchaseDate.split("-");
     const compDateStr = parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined;
     const effectiveDate = formPurchaseDate;
