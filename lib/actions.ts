@@ -126,7 +126,7 @@ export async function createTransaction(input: z.infer<typeof createTransactionS
       type: data.type,
       amount: data.amount,
       date: data.date,
-      isRecurring: data.isRecurring,
+      isRecurring: false,
       source: "MANUAL",
     },
   });
@@ -1637,6 +1637,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
     where: {
       walletId: walletId,
       deletedAt: null,
+      source: { not: "RECURRING_PROJECTION" },
       OR: [
         { competenceDate: { lte: endOfMonth } },
         { purchaseDate: { lte: endOfMonth } },
@@ -1791,7 +1792,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     const allTransactions = await prisma.transaction.findMany({
       where: {
         walletId: wallet.id,
-        deletedAt: null
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" }
       },
       include: { category: true },
       orderBy: { date: "asc" }
@@ -2131,8 +2133,8 @@ export async function createCardPurchase(
         competenceYear: compYear,
         source: "MANUAL",
         tags: finalTags,
-        isRecurring: !!isRecurring,
-        recurringDay: isRecurring ? (recurringDay || paymentDate.getUTCDate()) : null
+        isRecurring: false,
+        recurringDay: null
       }
     });
 
@@ -2143,8 +2145,8 @@ export async function createCardPurchase(
       dbCategory.id,
       amount,
       paymentDate,
-      !!isRecurring,
-      recurringDay || paymentDate.getUTCDate(),
+      false,
+      undefined,
       finalTags
     );
   }
@@ -2157,46 +2159,29 @@ export async function createCardPurchase(
 async function syncRecurringProjections(
   walletId: string,
   description: string,
-  categoryName: string,
-  categoryId: string,
-  amount: number,
-  initialDate: Date,
-  isRecurring: boolean,
-  recurringDay?: number,
-  finalTags?: string | null,
+  _categoryName?: string,
+  _categoryId?: string,
+  _amount?: number,
+  _initialDate?: Date,
+  _isRecurring?: boolean,
+  _recurringDay?: number,
+  _finalTags?: string | null,
   previousDescription?: string
 ) {
   const userId = await getActiveUserId();
   const cleanDescription = description.trim();
-  const targetDay = Math.min(31, Math.max(1, recurringDay || initialDate.getUTCDate() || 10));
 
-  if (!isRecurring) {
-    // 1. Apagar projeções futuras pendentes vinculadas
-    await prisma.transaction.deleteMany({
-      where: {
-        walletId,
-        description: { in: [cleanDescription, previousDescription].filter(Boolean) as string[] },
-        source: "RECURRING_PROJECTION",
-        date: { gt: initialDate },
-        status: { not: "COMPLETED" }
-      }
-    });
+  // 1. Apagar quaisquer projeções futuras vinculadas a esta descrição
+  await prisma.transaction.deleteMany({
+    where: {
+      walletId,
+      description: { in: [cleanDescription, previousDescription].filter(Boolean) as string[] },
+      source: "RECURRING_PROJECTION"
+    }
+  });
 
-    // 2. Apagar o modelo Subscription
-    await (prisma as any).subscription.deleteMany({
-      where: {
-        userId,
-        OR: [
-          { name: cleanDescription },
-          { name: previousDescription || cleanDescription }
-        ]
-      }
-    });
-    return;
-  }
-
-  // 1. Sincronizar model Subscription
-  const existingSub = await (prisma as any).subscription.findFirst({
+  // 2. Apagar do modelo Subscription
+  await (prisma as any).subscription.deleteMany({
     where: {
       userId,
       OR: [
@@ -2206,78 +2191,8 @@ async function syncRecurringProjections(
     }
   });
 
-  if (existingSub) {
-    await (prisma as any).subscription.update({
-      where: { id: existingSub.id },
-      data: {
-        name: cleanDescription,
-        amount,
-        dueDay: targetDay,
-        defaultWalletId: walletId,
-        category: categoryName
-      }
-    });
-  } else {
-    await (prisma as any).subscription.create({
-      data: {
-        userId,
-        name: cleanDescription,
-        amount,
-        dueDay: targetDay,
-        defaultWalletId: walletId,
-        category: categoryName,
-        createdAt: initialDate
-      }
-    });
-  }
-
-  // 2. Apagar projeções futuras pendentes antigas para re-gerar projeção limpa
-  await prisma.transaction.deleteMany({
-    where: {
-      walletId,
-      description: { in: [cleanDescription, previousDescription].filter(Boolean) as string[] },
-      source: "RECURRING_PROJECTION",
-      date: { gt: initialDate },
-      status: { not: "COMPLETED" }
-    }
-  });
-
-  // 3. Projetar lançamentos automáticos para os próximos 11 meses
-  const initialYear = initialDate.getUTCFullYear();
-  const initialMonth = initialDate.getUTCMonth();
-
-  const futureTransactions = [];
-  for (let step = 1; step <= 11; step++) {
-    const nextDate = new Date(Date.UTC(initialYear, initialMonth + step, targetDay, 12, 0, 0));
-    const compYear = initialYear + Math.floor((initialMonth + step) / 12);
-    const compMonth = ((initialMonth + step) % 12) + 1;
-    const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 0, 0, 0));
-    const purchDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
-
-    futureTransactions.push({
-      walletId,
-      categoryId,
-      description: cleanDescription,
-      type: "EXPENSE" as const,
-      amount,
-      installmentsCount: 1,
-      date: nextDate,
-      purchaseDate: purchDate,
-      paymentDate: nextDate,
-      competenceDate: compDate,
-      competenceMonth: compMonth,
-      competenceYear: compYear,
-      source: "RECURRING_PROJECTION",
-      status: "PENDING",
-      tags: finalTags || null,
-      isRecurring: true,
-      recurringDay: targetDay
-    });
-  }
-
-  await (prisma.transaction as any).createMany({
-    data: futureTransactions
-  });
+  // OBS: Projeção automática de meses futuros foi desativada.
+  // Toda despesa criada ou editada é estritamente pontual (mês único).
 }
 
 export async function updateCardPurchase(
@@ -2289,8 +2204,8 @@ export async function updateCardPurchase(
   installmentsCount: number | undefined,
   dateStr: string,
   tags?: string,
-  isRecurring?: boolean,
-  recurringDay?: number,
+  _isRecurring?: boolean,
+  _recurringDay?: number,
   competenceDateStr?: string,
   paymentDateStr?: string,
   purchaseDateStr?: string
@@ -2321,8 +2236,6 @@ export async function updateCardPurchase(
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
   }
 
-  const targetDay = recurringDay || paymentDate.getUTCDate();
-
   const existingTx = await prisma.transaction.findUnique({ where: { id } });
 
   await prisma.transaction.update({
@@ -2340,8 +2253,8 @@ export async function updateCardPurchase(
       competenceMonth: competenceDate.getUTCMonth() + 1,
       competenceYear: competenceDate.getUTCFullYear(),
       tags: finalTags,
-      isRecurring: !!isRecurring,
-      recurringDay: isRecurring ? targetDay : null
+      isRecurring: false,
+      recurringDay: null
     } as any
   });
 
@@ -2352,8 +2265,8 @@ export async function updateCardPurchase(
     dbCategory.id,
     amount,
     paymentDate,
-    !!isRecurring,
-    targetDay,
+    false,
+    undefined,
     finalTags,
     existingTx?.description
   );
@@ -2381,6 +2294,41 @@ export async function deleteBatchPurchasesAction(ids: string[]) {
   });
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+}
+
+export async function cleanFutureRecurringProjectionsAction() {
+  const userId = await getActiveUserId();
+
+  const deleteResult = await prisma.transaction.deleteMany({
+    where: {
+      source: "RECURRING_PROJECTION"
+    }
+  });
+
+  const updateResult = await prisma.transaction.updateMany({
+    where: {
+      isRecurring: true
+    },
+    data: {
+      isRecurring: false,
+      recurringDay: null
+    }
+  });
+
+  await (prisma as any).subscription.deleteMany({
+    where: { userId }
+  });
+
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/receitas");
+  revalidatePath("/dashboard");
+
+  return {
+    success: true,
+    deletedCount: deleteResult.count,
+    updatedCount: updateResult.count
+  };
 }
 
 export async function markBatchTransactionsPaidAction(ids: string[]) {
@@ -2745,6 +2693,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         where: {
           walletId: w.id,
           type:     "EXPENSE",
+          source:   { not: "RECURRING_PROJECTION" },
           OR: [
             ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
             { competenceDate: { gte: from, lte: to } },
@@ -2787,7 +2736,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         : balanceInfo.finalBalance;
 
       const allExpenses = await prisma.transaction.findMany({
-        where: { walletId: w.id, type: "EXPENSE", deletedAt: null },
+        where: { walletId: w.id, type: "EXPENSE", deletedAt: null, source: { not: "RECURRING_PROJECTION" } },
       });
 
       let limitUsed = 0;

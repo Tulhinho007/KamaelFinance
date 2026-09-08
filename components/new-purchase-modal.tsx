@@ -122,7 +122,7 @@ export function NewPurchaseModal({
     const parts = formPurchaseDate.split("-");
     const compDateStr = parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined;
     const effectiveDate = formPurchaseDate;
-    const isRecurring = Boolean(initialData?.isRecurring);
+    const isRecurring = false;
     const finalTags = initialData?.tags || "";
 
     setSaving(true);
@@ -137,7 +137,7 @@ export function NewPurchaseModal({
           installments,
           effectiveDate,
           finalTags,
-          isRecurring,
+          false,
           undefined,
           compDateStr,
           effectiveDate,

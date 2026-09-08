@@ -232,7 +232,7 @@ export default function CartaoDetailPage() {
   const isTicket = cardData.walletType === "TICKET";
 
   // Cálculos do Ticket
-  const purchasesList = cardData.purchases || [];
+  const purchasesList = (cardData.purchases || []).filter(p => (p as any).source !== "RECURRING_PROJECTION");
   const totalUtilizadoTicket = purchasesList.reduce((acc, p) => acc + (p?.amount || 0), 0);
   const saldoDisponivelTicket = cardData.initialBalance || 0;
   const saldoAtualTicket      = saldoDisponivelTicket - totalUtilizadoTicket;
@@ -481,7 +481,7 @@ export default function CartaoDetailPage() {
   const previousBalance  = cardData.balanceInfo?.previousBalance ?? (openingBalance + carryoverBalance);
   const monthIncome      = cardData.balanceInfo?.monthIncome ?? 0;
   const totalEntradasMes = (cardData.allTransactions || [])
-    .filter(t => t && t.type === "INCOME")
+    .filter(t => t && t.type === "INCOME" && (t as any).source !== "RECURRING_PROJECTION")
     .filter(t => {
       if (!t) return false;
       const { year, month } = getCompetenceYearMonth(t);
@@ -491,7 +491,7 @@ export default function CartaoDetailPage() {
 
   // Cálculo de Total Pago e Total Não Pago (despesas do mês por competência)
   const monthExpenseTransactions = (cardData.allTransactions || [])
-    .filter(t => t && t.type === "EXPENSE")
+    .filter(t => t && t.type === "EXPENSE" && (t as any).source !== "RECURRING_PROJECTION")
     .filter(t => {
       if (!t) return false;
       const { year, month } = getCompetenceYearMonth(t);
@@ -1168,6 +1168,7 @@ export default function CartaoDetailPage() {
             {(() => {
               const monthTransactions = (cardData.allTransactions || [])
                 .filter((t) => {
+                  if ((t as any).source === "RECURRING_PROJECTION") return false;
                   const { year, month } = getCompetenceYearMonth(t);
                   return year === selectedYear && month === selectedMonth;
                 })
