@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, DollarSign, Edit3, PlusCircle, Calendar, RefreshCw, Sparkles, ChevronDown } from "lucide-react";
+import { X, DollarSign, Edit3 } from "lucide-react";
 import { parseCurrencyInput } from "@/lib/constants";
 import { CATEGORIES } from "@/constants/categories";
 import { getAllWalletsSimple, createCardPurchase, updateCardPurchase } from "@/lib/actions";
@@ -46,67 +46,20 @@ export function NewPurchaseModal({
   initialData = null,
 }: NewPurchaseModalProps) {
   const { showAlert } = useModal();
-  const [wallets, setWallets]                     = useState<SimpleWallet[]>([]);
+  const [wallets, setWallets] = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState(defaultWalletId);
-  const [formType, setFormType]                   = useState<"vista" | "parcelado">("vista");
-  const [formDescription, setFormDescription]     = useState("");
-  const [formCategory, setFormCategory]           = useState("Alimentação");
-  const [formAmount, setFormAmount]               = useState<string | number>("");
-  const [formInstallmentAmount, setFormInstallmentAmount] = useState<number | "">(""); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [formType, setFormType] = useState<"vista" | "parcelado">("vista");
+  const [formDescription, setFormDescription] = useState("");
+  const [formCategory, setFormCategory] = useState("Alimentação");
+  const [formAmount, setFormAmount] = useState<string | number>("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
-  const [formPurchaseDate, setFormPurchaseDate]   = useState(new Date().toISOString().split("T")[0]);
-  const [formPaymentDate, setFormPaymentDate]     = useState(new Date().toISOString().split("T")[0]);
-  const [formCompetenceMonth, setFormCompetenceMonth] = useState<number>(new Date().getMonth() + 1);
-  const [formCompetenceYear, setFormCompetenceYear]   = useState<number>(new Date().getFullYear());
-  const [formIsRecurring, setFormIsRecurring]         = useState<boolean>(false);
-  const [userToggledRecurring, setUserToggledRecurring] = useState(false);
-  const [saving, setSaving]                       = useState(false);
-  const [accordionOpen, setAccordionOpen]         = useState(false);
+  const [formPurchaseDate, setFormPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [saving, setSaving] = useState(false);
 
   const isEditMode = !!(initialData && initialData.id);
 
-  // Auto-detecção inteligente de serviços de consumo contínuo / assinaturas
-  const checkAutoDetectRecurring = (desc: string, cat: string) => {
-    if (userToggledRecurring || isEditMode) return;
-    const d = desc.toLowerCase();
-    const c = cat.toLowerCase();
-    const keywords = [
-      "tim", "celpe", "neoenergia", "energia", "internet", "claro", "vivo", "netflix",
-      "spotify", "iptu", "condominio", "condomínio", "água", "agua", "aluguel", "fatura",
-      "streaming", "assinatura", "plano", "gás", "gas", "sanepar", "copasa", "enel",
-      "sabesp", "sem parar", "veloe", "tag", "hbo", "max", "disney", "prime", "amazon prime",
-      "smart fit", "gympass", "totalpass"
-    ];
-    const isMatch = keywords.some(k => d.includes(k)) || c.includes("assinatura") || c.includes("serviço");
-    if (isMatch && !formIsRecurring) {
-      setFormIsRecurring(true);
-      setAccordionOpen(true); // abre accordion para mostrar campo recorrência
-    }
-  };
-
-  const handlePurchaseDateChange = (val: string) => {
-    const oldPurchase = formPurchaseDate;
-    setFormPurchaseDate(val);
-    if (!formPaymentDate || formPaymentDate === oldPurchase) {
-      setFormPaymentDate(val);
-    }
-    if (val) {
-      const parts = val.split("-");
-      if (parts.length >= 2) {
-        const y = Number(parts[0]);
-        const m = Number(parts[1]);
-        if (!isNaN(y) && !isNaN(m)) {
-          setFormCompetenceYear(y);
-          setFormCompetenceMonth(m);
-        }
-      }
-    }
-  };
-
   useEffect(() => {
     if (isOpen) {
-      setUserToggledRecurring(false);
-      setAccordionOpen(false);
       getAllWalletsSimple()
         .then(data => {
           setWallets(data);
@@ -118,23 +71,10 @@ export function NewPurchaseModal({
             setFormAmount(initialData.amount != null ? initialData.amount : "");
             setFormInstallmentsCount(initialData.installmentsCount || 2);
             
-            const purchaseD = initialData.purchaseDate ? initialData.purchaseDate.split("T")[0] : (initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
-            const paymentD = initialData.paymentDate ? initialData.paymentDate.split("T")[0] : (initialData.date ? initialData.date.split("T")[0] : purchaseD);
+            const purchaseD = initialData.purchaseDate
+              ? initialData.purchaseDate.split("T")[0]
+              : (initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
             setFormPurchaseDate(purchaseD);
-            setFormPaymentDate(paymentD);
-            const isRec = !!(initialData.isRecurring || (initialData.tags && initialData.tags.toLowerCase().includes("assinatura")));
-            setFormIsRecurring(isRec);
-            if (isRec) setAccordionOpen(true);
-
-            const refDateStr = initialData.competenceDate || initialData.purchaseDate || initialData.date;
-            if (refDateStr) {
-              const parts = refDateStr.split("T")[0].split("-");
-              setFormCompetenceYear(Number(parts[0]));
-              setFormCompetenceMonth(Number(parts[1]));
-            } else {
-              setFormCompetenceMonth(new Date().getMonth() + 1);
-              setFormCompetenceYear(new Date().getFullYear());
-            }
           } else {
             if (defaultWalletId) {
               setSelectedWalletId(defaultWalletId);
@@ -145,13 +85,7 @@ export function NewPurchaseModal({
             setFormCategory("Alimentação");
             setFormAmount("");
             setFormType("vista");
-            setFormIsRecurring(false);
-            const todayStr = new Date().toISOString().split("T")[0];
-            setFormPurchaseDate(todayStr);
-            setFormPaymentDate(todayStr);
-            const now = new Date();
-            setFormCompetenceMonth(now.getMonth() + 1);
-            setFormCompetenceYear(now.getFullYear());
+            setFormPurchaseDate(new Date().toISOString().split("T")[0]);
           }
         })
         .catch(console.error);
@@ -169,29 +103,13 @@ export function NewPurchaseModal({
       showAlert("Por favor, selecione um cartão ou conta.", { variant: "warning" });
       return;
     }
-    if (!formDescription) {
+    if (!formDescription.trim()) {
       showAlert("Preencha a descrição da despesa.", { variant: "warning" });
       return;
     }
-
-    const isRecurringMode = formIsRecurring;
-    let effectivePurchaseDate = formPurchaseDate;
-    let effectivePaymentDate = formPaymentDate;
-
-    if (isRecurringMode) {
-      const compPadMonth = String(formCompetenceMonth).padStart(2, "0");
-      effectivePurchaseDate = `${formCompetenceYear}-${compPadMonth}-01`;
-      if (!effectivePaymentDate) {
-        effectivePaymentDate = effectivePurchaseDate;
-      }
-    } else {
-      if (!effectivePurchaseDate) {
-        showAlert("Preencha a data da compra.", { variant: "warning" });
-        return;
-      }
-      if (!effectivePaymentDate) {
-        effectivePaymentDate = effectivePurchaseDate;
-      }
+    if (!formPurchaseDate) {
+      showAlert("Preencha a data da despesa.", { variant: "warning" });
+      return;
     }
 
     const totalAmountVal = parseCurrencyInput(formAmount);
@@ -200,12 +118,12 @@ export function NewPurchaseModal({
       return;
     }
 
-    const installments = (formType === "parcelado" && isCredit && !isRecurringMode) ? formInstallmentsCount : undefined;
-    const compDateStr = `${formCompetenceYear}-${String(formCompetenceMonth).padStart(2, "0")}-01`;
-
-    // Tags geradas automaticamente — campo não mais preenchido pelo usuário
-    let finalTags = "";
-    if (formIsRecurring) finalTags = "#assinatura";
+    const installments = (formType === "parcelado" && isCredit) ? formInstallmentsCount : undefined;
+    const parts = formPurchaseDate.split("-");
+    const compDateStr = parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined;
+    const effectiveDate = formPurchaseDate;
+    const isRecurring = Boolean(initialData?.isRecurring);
+    const finalTags = initialData?.tags || "";
 
     setSaving(true);
     try {
@@ -217,13 +135,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          effectivePaymentDate,
+          effectiveDate,
           finalTags,
-          formIsRecurring,
+          isRecurring,
           undefined,
           compDateStr,
-          effectivePaymentDate,
-          effectivePurchaseDate
+          effectiveDate,
+          effectiveDate
         );
       } else {
         await createCardPurchase(
@@ -232,13 +150,13 @@ export function NewPurchaseModal({
           formCategory,
           totalAmountVal,
           installments,
-          effectivePaymentDate,
+          effectiveDate,
           finalTags,
-          formIsRecurring,
+          false,
           undefined,
           compDateStr,
-          effectivePaymentDate,
-          effectivePurchaseDate
+          effectiveDate,
+          effectiveDate
         );
       }
 
@@ -252,14 +170,9 @@ export function NewPurchaseModal({
     }
   };
 
-  const MONTH_NAMES = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-  ];
-
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-[95%] sm:w-full max-w-lg mx-auto flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden max-h-[90vh] text-slate-900 dark:text-slate-100">
+      <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-[95%] sm:w-full max-w-md mx-auto flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden text-slate-900 dark:text-slate-100">
         
         {/* Header */}
         <div className="flex justify-between items-center px-5 sm:px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800/80">
@@ -285,7 +198,7 @@ export function NewPurchaseModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-5 sm:px-6 py-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-5 sm:px-6 py-5">
           
           {/* 1. Conta / Cartão */}
           <div className="flex flex-col gap-1.5">
@@ -314,10 +227,7 @@ export function NewPurchaseModal({
               required
               type="text"
               value={formDescription}
-              onChange={e => {
-                setFormDescription(e.target.value);
-                checkAutoDetectRecurring(e.target.value, formCategory);
-              }}
+              onChange={e => setFormDescription(e.target.value)}
               placeholder="Ex: Supermercado"
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
             />
@@ -328,10 +238,7 @@ export function NewPurchaseModal({
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Categoria</label>
             <select
               value={formCategory}
-              onChange={e => {
-                setFormCategory(e.target.value);
-                checkAutoDetectRecurring(formDescription, e.target.value);
-              }}
+              onChange={e => setFormCategory(e.target.value)}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm cursor-pointer"
             >
               {CATEGORIES.map(cat => (
@@ -343,35 +250,33 @@ export function NewPurchaseModal({
           </div>
 
           {/* 4. Forma de Pagamento */}
-          {!formIsRecurring && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Forma de Pagamento</label>
-              <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setFormType("vista")}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    formType === "vista"
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                  }`}
-                >
-                  À Vista
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormType("parcelado")}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                    formType === "parcelado"
-                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-                  }`}
-                >
-                  Parcelado
-                </button>
-              </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Forma de Pagamento</label>
+            <div className="flex gap-1.5 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setFormType("vista")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formType === "vista"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                }`}
+              >
+                À Vista
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormType("parcelado")}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                  formType === "parcelado"
+                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                }`}
+              >
+                Parcelado
+              </button>
             </div>
-          )}
+          </div>
 
           {/* 5. Valor */}
           <div className="flex flex-col gap-1.5">
@@ -383,12 +288,12 @@ export function NewPurchaseModal({
               value={formAmount}
               onChange={e => setFormAmount(e.target.value)}
               placeholder="0,00"
-              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-3 text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-sm font-bold text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm"
             />
           </div>
 
           {/* Parcelamento */}
-          {formType === "parcelado" && !formIsRecurring && (
+          {formType === "parcelado" && (
             <div className="flex flex-col gap-2 p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">Parcelas</label>
@@ -413,164 +318,23 @@ export function NewPurchaseModal({
             </div>
           )}
 
-          {/* 6. Data da Compra (modo normal, visível por padrão) */}
-          {!formIsRecurring && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Data</label>
-              <input
-                required
-                type="date"
-                value={formPurchaseDate}
-                onChange={e => handlePurchaseDateChange(e.target.value)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
-              />
-            </div>
-          )}
-
-          {/* Accordion "Mais opções" */}
-          <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setAccordionOpen(!accordionOpen)}
-              className={`w-full flex items-center justify-between px-4 py-3 text-xs font-semibold transition-colors cursor-pointer ${
-                accordionOpen || formIsRecurring
-                  ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300"
-                  : "bg-slate-50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                {formIsRecurring && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/60 px-2 py-0.5 rounded-full">
-                    <Sparkles className="w-3 h-3" /> Assinatura ativa
-                  </span>
-                )}
-                {!formIsRecurring && "Mais opções"}
-              </span>
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${accordionOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {(accordionOpen || formIsRecurring) && (
-              <div className="flex flex-col gap-4 px-4 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20 animate-in fade-in duration-150">
-
-                {/* Assinatura / Recorrência */}
-                <div className={`flex items-start gap-3 p-3 rounded-xl transition-all border ${
-                  formIsRecurring
-                    ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800"
-                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-                }`}>
-                  <input
-                    type="checkbox"
-                    id="isRecurringToggle"
-                    checked={formIsRecurring}
-                    onChange={e => {
-                      setUserToggledRecurring(true);
-                      setFormIsRecurring(e.target.checked);
-                    }}
-                    className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 cursor-pointer mt-0.5"
-                  />
-                  <label htmlFor="isRecurringToggle" className="cursor-pointer select-none">
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 block">
-                      Assinatura / Consumo Contínuo
-                    </span>
-                    <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 block mt-0.5">
-                      Netflix, Spotify, TIM, conta de energia, etc.
-                    </span>
-                  </label>
-                </div>
-
-                {/* Conteúdo condicional: Modo Assinatura */}
-                {formIsRecurring ? (
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                        Mês de Referência
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={formCompetenceMonth}
-                        onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                      >
-                        {MONTH_NAMES.map((m, idx) => (
-                          <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-900">{m}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={formCompetenceYear}
-                        onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
-                        className="w-full rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                      >
-                        {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 pt-2 border-t border-indigo-100 dark:border-indigo-900/40">
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Data de Vencimento</label>
-                      <input
-                        type="date"
-                        value={formPaymentDate}
-                        onChange={e => setFormPaymentDate(e.target.value)}
-                        className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  /* Modo compra avulsa: campos opcionais */
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Data de Liquidação
-                        <span className="text-[10px] text-slate-400 font-normal ml-1">(opcional)</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formPaymentDate}
-                        onChange={e => setFormPaymentDate(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                        Mês de Competência
-                        <span className="text-[10px] text-slate-400 font-normal ml-1">(opcional)</span>
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <select
-                          value={formCompetenceMonth}
-                          onChange={(e) => setFormCompetenceMonth(Number(e.target.value))}
-                          className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-                        >
-                          {MONTH_NAMES.map((m, idx) => (
-                            <option key={idx + 1} value={idx + 1} className="bg-white dark:bg-slate-800">{m}</option>
-                          ))}
-                        </select>
-                        <select
-                          value={formCompetenceYear}
-                          onChange={(e) => setFormCompetenceYear(Number(e.target.value))}
-                          className="w-full rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-xs font-semibold text-slate-900 dark:text-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
-                        >
-                          {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(y => (
-                            <option key={y} value={y}>{y}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+          {/* 6. Data da Compra */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Data</label>
+            <input
+              required
+              type="date"
+              value={formPurchaseDate}
+              onChange={e => setFormPurchaseDate(e.target.value)}
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+            />
           </div>
 
           {/* Submit */}
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase"
+            className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-6 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase"
           >
             {saving
               ? (isEditMode ? "SALVANDO..." : "REGISTRANDO...")
