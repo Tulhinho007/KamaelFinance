@@ -103,13 +103,13 @@ export function Sidebar() {
         onClick={() => setIsMobileOpen(false)}
         className={`flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 ${
           active
-            ? "bg-slate-100 dark:bg-indigo-600 text-slate-950 dark:text-white border border-slate-200/90 dark:border-transparent font-bold shadow-xs dark:shadow-indigo-600/30"
-            : "text-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-950 dark:hover:text-slate-100 font-semibold"
+            ? "bg-indigo-600 text-white border border-transparent font-bold shadow-sm shadow-indigo-600/20"
+            : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100 font-semibold"
         }`}
       >
         <Icon
           className={`w-4 h-4 flex-shrink-0 transition-colors ${
-            active ? "text-indigo-600 dark:text-indigo-200" : "text-slate-400 dark:text-slate-500"
+            active ? "text-white" : "text-slate-400 dark:text-slate-500"
           }`}
         />
         <span>{label}</span>

@@ -2,13 +2,13 @@
 
 /* ─── Design Tokens ─── */
 :root {
-  --background: #F1F5F9;
-  --foreground: #0F172A;
+  --background: #F9FAFB;
+  --foreground: #1F2937;
   --surface: #FFFFFF;
   --surface-raised: #FFFFFF;
-  --border: #E2E8F0;
-  --border-subtle: #F1F5F9;
-  --muted: #64748B;
+  --border: #E5E7EB;
+  --border-subtle: #F3F4F6;
+  --muted: #6B7280;
   --accent: #10B981;
   color-scheme: light;
 }
@@ -41,15 +41,15 @@ body {
 }
 
 /* ══════════════════════════════════════════════
-   CLASSES UTILITÁRIAS DE DESIGN SYSTEM (GLOW & GLASSMORPHISM)
+   CLASSES UTILITÁRIAS DE DESIGN SYSTEM (LIGHT MODE)
    ══════════════════════════════════════════════ */
 
 /* .card-glow & .glass-card — Superfície com sombra suave e borda sutil */
 .card-glow, .glass-card {
   background: #FFFFFF !important;
-  border: 1px solid rgba(226, 232, 240, 0.8) !important;
-  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.04) !important;
-  border-radius: 24px;
+  border: 1px solid #E5E7EB !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+  border-radius: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -62,7 +62,7 @@ html.dark .card-glow, html.dark .glass-card {
 }
 
 .card-glow:hover, .glass-card:hover {
-  box-shadow: 0 10px 25px 0 rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08), 0 2px 4px 0 rgba(0, 0, 0, 0.06) !important;
   transform: translateY(-1px);
 }
 
@@ -71,13 +71,8 @@ html.dark .card-glow:hover, html.dark .glass-card:hover {
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45), 0 0 20px rgba(99, 102, 241, 0.15) !important;
 }
 
-/* Cartão de Crédito Metálico / Holográfico com reflexo dinâmico */
+/* Cartão de Crédito — fundo sempre colorido (roxo/vermelho), texto branco */
 .credit-card-holographic {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 100%), rgba(18, 24, 38, 0.85) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 16px 40px 0 rgba(0, 0, 0, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.2) !important;
   position: relative;
   overflow: hidden;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -93,7 +88,7 @@ html.dark .card-glow:hover, html.dark .glass-card:hover {
   background: linear-gradient(
     45deg,
     transparent 45%,
-    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.1) 50%,
     transparent 55%
   );
   transform: rotate(30deg);
@@ -106,25 +101,28 @@ html.dark .card-glow:hover, html.dark .glass-card:hover {
 }
 
 .credit-card-holographic:hover {
-  border-color: rgba(255, 255, 255, 0.25) !important;
-  box-shadow: 0 20px 45px 0 rgba(0, 0, 0, 0.6), 0 0 25px rgba(99, 102, 241, 0.2) !important;
   transform: translateY(-2px);
+  box-shadow: 0 20px 45px 0 rgba(0, 0, 0, 0.25) !important;
 }
 
-/* .text-secondary-light — Texto de suporte em contraste responsivo */
+/* .text-secondary-light — Texto de suporte */
 .text-secondary-light {
-  color: #94a3b8 !important;
+  color: #6B7280 !important;
   font-weight: 600;
 }
 
-/* .btn-primary-glow — Botão CTA principal com gradiente vivo 135deg roxo/indigo e glow no hover */
+html.dark .text-secondary-light {
+  color: #94a3b8 !important;
+}
+
+/* .btn-primary-glow — Botão CTA principal com gradiente roxo/indigo */
 .btn-primary-glow {
   background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
   color: #ffffff !important;
   font-weight: 800;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.4);
-  border-radius: 16px;
+  box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.35);
+  border-radius: 12px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   display: inline-flex;
@@ -135,16 +133,22 @@ html.dark .card-glow:hover, html.dark .glass-card:hover {
 
 .btn-primary-glow:hover {
   background-image: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
-  box-shadow: 0 0 20px rgba(99, 102, 241, 0.4) !important;
+  box-shadow: 0 8px 20px -2px rgba(99, 102, 241, 0.45) !important;
   transform: translateY(-1px) scale(1.01);
 }
 
-/* ─── Badges com Fundo 15% Opacidade ─── */
-.badge-emerald { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
-.badge-indigo  { background-color: rgba(99, 102, 241, 0.15) !important; color: #818CF8 !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
-.badge-rose    { background-color: rgba(244, 63, 94, 0.15)  !important; color: #FB7185 !important; border: 1px solid rgba(244, 63, 94, 0.25) !important; }
-.badge-amber   { background-color: rgba(245, 158, 11, 0.15) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.25) !important; }
-.badge-purple  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
+/* ─── Badges Light Mode (contraste otimizado) ─── */
+.badge-emerald { background-color: rgba(16, 185, 129, 0.10) !important; color: #065F46 !important; border: 1px solid rgba(16, 185, 129, 0.20) !important; }
+.badge-indigo  { background-color: rgba(99, 102, 241, 0.10) !important; color: #3730A3 !important; border: 1px solid rgba(99, 102, 241, 0.20) !important; }
+.badge-rose    { background-color: rgba(244, 63, 94, 0.10)  !important; color: #9F1239 !important; border: 1px solid rgba(244, 63, 94, 0.20) !important; }
+.badge-amber   { background-color: rgba(245, 158, 11, 0.10) !important; color: #92400E !important; border: 1px solid rgba(245, 158, 11, 0.20) !important; }
+.badge-purple  { background-color: rgba(139, 92, 246, 0.10) !important; color: #4C1D95 !important; border: 1px solid rgba(139, 92, 246, 0.20) !important; }
+
+html.dark .badge-emerald { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
+html.dark .badge-indigo  { background-color: rgba(99, 102, 241, 0.15) !important; color: #818CF8 !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
+html.dark .badge-rose    { background-color: rgba(244, 63, 94, 0.15)  !important; color: #FB7185 !important; border: 1px solid rgba(244, 63, 94, 0.25) !important; }
+html.dark .badge-amber   { background-color: rgba(245, 158, 11, 0.15) !important; color: #FBBF24 !important; border: 1px solid rgba(245, 158, 11, 0.25) !important; }
+html.dark .badge-purple  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
 
 /* ─── Tabular numbers (valores monetários) ─── */
 .tabular-nums, .font-tnum {
@@ -164,23 +168,31 @@ input[type=number] {
 }
 
 /* ══════════════════════════════════════════════
-   DARK MODE — Sistema de Design Unificado Glassmorphism
+   SIDEBAR — Light Mode padrão
    ══════════════════════════════════════════════ */
 
-/* Sidebar */
-aside, html.dark aside {
-  background-color: rgba(13, 19, 34, 0.85) !important;
+aside {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+}
+
+html.dark aside {
+  background-color: rgba(13, 19, 34, 0.95) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-color: rgba(255, 255, 255, 0.07) !important;
 }
 
-/* Background geral da página */
-.bg-\[\#F8FAFC\], body, html.dark body {
+/* ══════════════════════════════════════════════
+   DARK MODE — Sistema de Design Unificado Glassmorphism
+   ══════════════════════════════════════════════ */
+
+/* Background geral da página — SOMENTE em dark mode */
+html.dark body {
   background-color: #090D16 !important;
 }
 
-/* ─── Cards / Superfícies ─── */
+/* ─── Cards / Superfícies em dark ─── */
 html.dark .bg-white,
 html.dark .bg-white\/97,
 html.dark .bg-white\/90,
@@ -193,7 +205,7 @@ html.dark .bg-slate-900 {
   color: #F8FAFC !important;
 }
 
-/* ─── Superfícies levantadas (modais, dropdowns) ─── */
+/* ─── Superfícies levantadas (modais, dropdowns) em dark ─── */
 html.dark .bg-white.shadow-2xl,
 html.dark .bg-white.rounded-2xl,
 html.dark .bg-slate-900.shadow-2xl {
@@ -202,7 +214,7 @@ html.dark .bg-slate-900.shadow-2xl {
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* ─── Fundos neutros e badges pill ─── */
+/* ─── Fundos neutros e badges pill em dark ─── */
 html.dark .bg-slate-50,
 html.dark .bg-slate-50\/40,
 html.dark .bg-slate-50\/50,
@@ -229,7 +241,7 @@ html.dark .bg-amber-50   { background-color: rgba(245, 158, 11, 0.15) !important
 html.dark .bg-violet-50  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
 html.dark .bg-blue-50    { background-color: rgba(59, 130, 246, 0.15) !important; color: #60A5FA !important; border: 1px solid rgba(59, 130, 246, 0.25) !important; }
 
-/* ─── Bordas ─── */
+/* ─── Bordas em dark ─── */
 html.dark .border-slate-100,
 html.dark .border-slate-200\/80,
 html.dark .border-slate-200,
@@ -237,7 +249,7 @@ html.dark .border-slate-300 {
   border-color: rgba(30, 41, 59, 0.8) !important;
 }
 
-/* Bordas brancas — são as mais problemáticas em dark: ficam muito fortes */
+/* Bordas brancas em dark */
 html.dark .border-white,
 html.dark .border-white\/10,
 html.dark .border-white\/20,
@@ -252,7 +264,7 @@ html.dark .border-white\/95 {
   border-color: rgba(30, 41, 59, 0.6) !important;
 }
 
-/* Bordas coloridas de accent */
+/* Bordas coloridas de accent em dark */
 html.dark .border-indigo-100,
 html.dark .border-indigo-100\/50,
 html.dark .border-indigo-200 {
@@ -266,11 +278,11 @@ html.dark .border-rose-200     { border-color: rgba(244, 63, 94, 0.25)  !importa
 html.dark .border-amber-200\/60,
 html.dark .border-amber-200    { border-color: rgba(245, 158, 11, 0.25) !important; }
 
-/* ─── Divisores ─── */
+/* ─── Divisores em dark ─── */
 html.dark .divide-slate-100 > * + * { border-color: rgba(30, 41, 59, 0.6) !important; }
 html.dark .divide-slate-200 > * + * { border-color: rgba(30, 41, 59, 0.8) !important; }
 
-/* ─── Tipografia — legibilidade máxima ─── */
+/* ─── Tipografia em dark — legibilidade máxima ─── */
 html.dark .text-slate-900,
 html.dark .text-slate-800 {
   color: #F8FAFC !important;
@@ -293,7 +305,7 @@ html.dark .text-slate-300 {
   color: #E2E8F0 !important;
 }
 
-/* Cores coloridas (não mudam em dark — já têm contraste) */
+/* Cores coloridas em dark (não mudam — já têm contraste) */
 html.dark .text-emerald-600  { color: #34D399 !important; }
 html.dark .text-emerald-700  { color: #10B981 !important; }
 html.dark .text-rose-600     { color: #FB7185 !important; }
@@ -304,12 +316,12 @@ html.dark .text-amber-600    { color: #F59E0B !important; }
 html.dark .text-violet-600   { color: #A78BFA !important; }
 
 /* ─── Variantes com opacidade — legibilidade em dark ─── */
-html.dark [class*="text-emerald-"][class*="\/"] { color: #34D399 !important; }
-html.dark [class*="text-rose-"][class*="\/"]    { color: #FDA4AF !important; }
-html.dark [class*="text-indigo-"][class*="\/"]  { color: #818CF8 !important; }
-html.dark [class*="text-amber-"][class*="\/"]   { color: #FBBF24 !important; }
+html.dark [class*="text-emerald-"][class*="/"] { color: #34D399 !important; }
+html.dark [class*="text-rose-"][class*="/"]    { color: #FDA4AF !important; }
+html.dark [class*="text-indigo-"][class*="/"]  { color: #818CF8 !important; }
+html.dark [class*="text-amber-"][class*="/"]   { color: #FBBF24 !important; }
 
-/* ─── Fundos coloridos com opacidade (rodapés e overlays dos cards) ─── */
+/* ─── Fundos coloridos com opacidade em dark ─── */
 html.dark .bg-emerald-100\/60,
 html.dark .bg-emerald-100\/40,
 html.dark .bg-emerald-100   { background-color: rgba(16, 185, 129, 0.15) !important; }
@@ -324,12 +336,12 @@ html.dark .bg-emerald-50\/20 { background-color: rgba(16, 185, 129, 0.06) !impor
 html.dark .bg-rose-50\/20,
 html.dark .bg-rose-50\/30    { background-color: rgba(244, 63, 94, 0.06) !important; }
 
-/* Bordas coloridas com opacidade */
+/* Bordas coloridas com opacidade em dark */
 html.dark .border-emerald-300\/60,
 html.dark .border-emerald-300 { border-color: rgba(16, 185, 129, 0.3) !important; }
 html.dark .border-rose-200\/60  { border-color: rgba(244, 63, 94, 0.3) !important; }
 
-/* ─── Inputs & Selects ─── */
+/* ─── Inputs & Selects em dark ─── */
 html.dark input,
 html.dark select,
 html.dark textarea {
@@ -347,7 +359,7 @@ html.dark option {
 html.dark input::placeholder,
 html.dark textarea::placeholder { color: #64748B !important; }
 
-/* ─── Tabelas & Células no Dark Mode ─── */
+/* ─── Tabelas & Células em dark ─── */
 html.dark table {
   background-color: transparent !important;
 }
@@ -362,7 +374,7 @@ html.dark th {
   color: #F8FAFC;
 }
 
-/* Remover fundo branco das linhas e células no Dark Mode */
+/* Remover fundo branco das linhas e células em dark */
 html.dark tr.bg-white,
 html.dark tr.bg-slate-50,
 html.dark tr.bg-slate-100,
@@ -375,7 +387,7 @@ html.dark td.bg-slate-100 {
   color: #F8FAFC !important;
 }
 
-/* Hover unificado em tabelas no Dark Mode */
+/* Hover em tabelas em dark */
 html.dark tbody tr:hover,
 html.dark .hover\:bg-white:hover,
 html.dark .hover\:bg-slate-50:hover,
@@ -388,7 +400,7 @@ html.dark .hover\:bg-gray-100:hover {
   color: #F8FAFC !important;
 }
 
-/* ─── Cabeçalho de tabela ─── */
+/* ─── Cabeçalho de tabela em dark ─── */
 html.dark .bg-slate-50\/80 {
   background-color: rgba(15, 23, 42, 0.6) !important;
 }
