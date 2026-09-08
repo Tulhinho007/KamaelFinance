@@ -21,7 +21,8 @@ import {
   X,
   History,
   Zap,
-  Wrench
+  Wrench,
+  Plane
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -70,6 +71,7 @@ export function Sidebar() {
       group: "VISÃO GERAL",
       items: [
         { label: "Dashboard", icon: LayoutDashboard, path: "/" },
+        { label: "Planejamento de Viagens", icon: Plane, path: "/planejamento" },
         { label: "Reserva de Emergência", icon: ShieldCheck, path: "/planejamento/reserva" },
         { label: "Objetivos & Reservas", icon: Target, path: "/metas" },
       ],
@@ -96,7 +98,12 @@ export function Sidebar() {
   ];
 
   const navLink = (href: string, label: string, Icon: React.ElementType) => {
-    const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+    const active =
+      pathname === href ||
+      (href !== "/" &&
+        (href === "/planejamento"
+          ? pathname.startsWith("/planejamento") && !pathname.startsWith("/planejamento/reserva")
+          : pathname.startsWith(href)));
     return (
       <Link
         key={href}
