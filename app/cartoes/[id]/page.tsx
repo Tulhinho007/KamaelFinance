@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight, Check
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -123,6 +123,7 @@ export default function CartaoDetailPage() {
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
   const [batchActionsModalOpen, setBatchActionsModalOpen] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Modais de edição/exclusão/carga/datas
   const [modalType, setModalType]               = useState<"limit" | "edit" | "delete" | "carga" | "cargaRemove" | "cargaSet" | "dates" | null>(null);
@@ -351,6 +352,19 @@ export default function CartaoDetailPage() {
     } catch (err) {
       console.error(err);
       showAlert("Erro ao salvar datas do cartão.", { variant: "error" });
+    }
+  };
+
+  const togglePaymentStatus = async (id: string) => {
+    setTogglingId(id);
+    try {
+      await toggleTransactionStatusAction(id);
+      await loadData();
+    } catch (err) {
+      console.error("Erro ao alternar status do pagamento:", err);
+      showAlert("Erro ao alternar status do pagamento.", { variant: "error" });
+    } finally {
+      setTogglingId(null);
     }
   };
   
@@ -1026,18 +1040,18 @@ export default function CartaoDetailPage() {
                             <span className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums whitespace-nowrap flex-shrink-0">
                               - {brl(entry.amount)}
                             </span>
-                            {/* Ações hover */}
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                            {/* Ações (Sempre Visíveis) */}
+                            <div className="flex items-center gap-1.5 shrink-0">
                               <button onClick={async () => { try { const res = await duplicateExpenseToNextMonthAction(entry.id); await loadData(); showAlert(`"${entry.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" }); } catch(e) { showAlert("Erro ao duplicar.", { variant: "error" }); } }}
-                                className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Duplicar">
+                                className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0" title="Duplicar">
                                 <CopyPlus className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => openEditModal(entry as any)}
-                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
+                                className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0" title="Editar">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => { setSelectedPurchase(entry as any); setModalType("delete"); }}
-                                className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
+                                className="p-1.5 bg-rose-50/50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 border border-rose-200/60 dark:border-rose-900/40 rounded-xl text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer shrink-0" title="Excluir">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
@@ -1290,28 +1304,52 @@ export default function CartaoDetailPage() {
                                       </>
                                     );
                                   })()}
-                                  {/* Valor */}
-                                  <span className={`text-sm font-black tabular-nums whitespace-nowrap flex-shrink-0 ${
-                                    isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"
-                                  }`}>
-                                    {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
-                                  </span>
-                                  {/* Ações hover */}
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
-                                    {!isIncome && (
-                                      <button
-                                        onClick={async () => { try { await toggleTransactionStatusAction(t.id); await loadData(); } catch(e) { console.error(e); } }}
-                                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${ isPaid ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" }`}
-                                        title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}>
-                                        <CheckCircle2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                    <button onClick={() => openEditModal(t as any)}
-                                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
+                                  {/* Área Direita: [ Valor ] [ Botão Status (Pill) ] [ Lápis Editar ] [ Lixeira Excluir ] */}
+                                  <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
+                                    {/* Valor */}
+                                    <span className={`text-sm font-black tabular-nums whitespace-nowrap ${
+                                      isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
+                                    }`}>
+                                      {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
+                                    </span>
+
+                                    {/* Botão de Status (Pill Alternável) */}
+                                    <button
+                                      type="button"
+                                      disabled={togglingId === t.id}
+                                      onClick={() => togglePaymentStatus(t.id)}
+                                      title={isPaid ? "Clique para marcar como Pendente" : (isIncome ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
+                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer select-none shrink-0 shadow-2xs hover:brightness-95 active:scale-95 ${
+                                        isPaid
+                                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
+                                          : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60"
+                                      } ${togglingId === t.id ? "opacity-60 cursor-wait" : ""}`}
+                                    >
+                                      {isPaid ? (
+                                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                                      ) : (
+                                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 stroke-[2.5]" />
+                                      )}
+                                      <span>{isIncome ? (isPaid ? "Recebido" : "Pendente") : (isPaid ? "Pago" : "Pendente")}</span>
+                                    </button>
+
+                                    {/* Botão Editar (Sempre Visível) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => openEditModal(t as any)}
+                                      className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0"
+                                      title="Editar lançamento"
+                                    >
                                       <Edit2 className="w-3.5 h-3.5" />
                                     </button>
-                                    <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }}
-                                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
+
+                                    {/* Botão Excluir (Sempre Visível) */}
+                                    <button
+                                      type="button"
+                                      onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }}
+                                      className="p-1.5 bg-rose-50/50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 border border-rose-200/60 dark:border-rose-900/40 rounded-xl text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer shrink-0"
+                                      title="Excluir lançamento"
+                                    >
                                       <Trash2 className="w-3.5 h-3.5" />
                                     </button>
                                   </div>
