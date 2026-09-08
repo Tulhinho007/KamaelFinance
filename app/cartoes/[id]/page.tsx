@@ -136,32 +136,9 @@ export default function CartaoDetailPage() {
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [checkingWallets, setCheckingWallets] = useState<Array<{ id: string; title: string; bankName?: string }>>([]);
 
-  // Modo de Visualização (Agrupado por Categoria vs Lista Completa) e Accordion State
-  const [viewMode, setViewMode] = useState<"grouped" | "list">("grouped");
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
-
-  const toggleCategory = (catKey: string) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [catKey]: prev[catKey] === true ? false : true
-    }));
-  };
-
-  const expandAllCategories = (catKeys: string[]) => {
-    setExpandedCategories(prev => {
-      const next = { ...prev };
-      catKeys.forEach(k => { next[k] = true; });
-      return next;
-    });
-  };
-
-  const collapseAllCategories = (catKeys: string[]) => {
-    setExpandedCategories(prev => {
-      const next = { ...prev };
-      catKeys.forEach(k => { next[k] = false; });
-      return next;
-    });
-  };
+  // Filtro de fluxo (Todas | Entradas | Saídas)
+  const [flowFilter, setFlowFilter] = useState<"all" | "income" | "expense">("all");
+  const [bankFlowFilter, setBankFlowFilter] = useState<"all" | "income" | "expense">("all");
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
   const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
@@ -903,485 +880,170 @@ export default function CartaoDetailPage() {
             </div>
           </section>
 
-          {/* DIVISÃO DE TABELAS NO EXTRATO DO CARTÃO DE CRÉDITO */}
-          <div className="flex flex-col gap-6">
-            
-            {/* Barra de Controle de Visualização (Agrupado vs Lista Completa) */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-sm">
-              <div>
-                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Modo de Exibição das Tabelas</h3>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Escolha visualizar os lançamentos agrupados por categoria ou em lista completa</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {viewMode === "grouped" && (
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const vistaKeys = Array.from(new Set(vistaPurchases.map(p => `vista-${p.category || "Outros"}`)));
-                        const subKeys = Array.from(new Set(subscriptionPurchases.map(p => `sub-${p.category || "Outros"}`)));
-                        expandAllCategories([...vistaKeys, ...subKeys]);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                      title="Expandir todas as categorias"
-                    >
-                      Expandir Todas ▼
+          {/* EXTRATO CRONOLÓGICO — CARTÃO DE CRÉDITO */}
+          {(() => {
+            // Unifica todas as compras do mês em um único array
+            type CreditEntry = {
+              id: string;
+              description: string;
+              category: string;
+              amount: number;
+              tags?: string;
+              isRecurring?: boolean;
+              date: string;
+              purchaseDate?: string;
+              competenceDate?: string;
+              subtype: "vista" | "parcelado" | "assinatura";
+              installmentLabel?: string;
+            };
+
+            const allCreditEntries: CreditEntry[] = [
+              ...vistaPurchases.map(p => ({ ...p, subtype: "vista" as const, purchaseDate: (p as any).purchaseDate, competenceDate: (p as any).competenceDate })),
+              ...subscriptionPurchases.map(p => ({ ...p, subtype: "assinatura" as const, purchaseDate: (p as any).purchaseDate, competenceDate: (p as any).competenceDate })),
+              ...parceladoPurchasesProcessed.map(p => ({
+                ...p, subtype: "parcelado" as const,
+                purchaseDate: (p as any).purchaseDate,
+                competenceDate: (p as any).competenceDate,
+                installmentLabel: `${p.currentInstallment}/${p.installmentsCount}`,
+              })),
+            ].sort((a, b) => {
+              const da = new Date((a.purchaseDate || a.competenceDate || a.date).split("T")[0]).getTime();
+              const db = new Date((b.purchaseDate || b.competenceDate || b.date).split("T")[0]).getTime();
+              return db - da; // mais recente primeiro
+            });
+
+            const totalEntradas = 0; // cartão crédito só tem saídas
+            const totalSaidas = allCreditEntries.reduce((s, e) => s + e.amount, 0);
+            const entradasCount = 0;
+            const saidasCount = allCreditEntries.length;
+
+            const filtered = allCreditEntries; // no CC só existem saídas
+
+            // Agrupamento por data
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            const formatDayLabel = (dateStr: string) => {
+              const d = new Date(dateStr.split("T")[0] + "T12:00:00");
+              d.setHours(0, 0, 0, 0);
+              if (d.getTime() === today.getTime()) return "Hoje";
+              if (d.getTime() === yesterday.getTime()) return "Ontem";
+              const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+              return `${String(d.getDate()).padStart(2, "0")} de ${months[d.getMonth()]}`;
+            };
+
+            const groupedByDay: Record<string, { label: string; entries: CreditEntry[] }> = {};
+            filtered.forEach(entry => {
+              const rawDate = (entry.purchaseDate || entry.competenceDate || entry.date).split("T")[0];
+              const label = formatDayLabel(rawDate);
+              if (!groupedByDay[rawDate]) groupedByDay[rawDate] = { label, entries: [] };
+              groupedByDay[rawDate].entries.push(entry);
+            });
+
+            const dayGroups = Object.entries(groupedByDay).sort(([a], [b]) => b.localeCompare(a));
+
+            return (
+              <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-xl overflow-hidden">
+                {/* Header */}
+                <div className="px-5 pt-5 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Extrato da Fatura</h3>
+                  {/* Abas de fluxo */}
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                    <button type="button" onClick={() => setFlowFilter("all")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ flowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                      Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const vistaKeys = Array.from(new Set(vistaPurchases.map(p => `vista-${p.category || "Outros"}`)));
-                        const subKeys = Array.from(new Set(subscriptionPurchases.map(p => `sub-${p.category || "Outros"}`)));
-                        collapseAllCategories([...vistaKeys, ...subKeys]);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                      title="Recolher todas as categorias"
-                    >
-                      Recolher Todas ▲
+                    <button type="button" onClick={() => setFlowFilter("expense")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ flowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                      Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
                     </button>
                   </div>
-                )}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("grouped")}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                      viewMode === "grouped"
-                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    <FolderTree className="w-4 h-4" />
-                    <span>Por Categoria</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                      viewMode === "list"
-                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                    <span>Lista Completa</span>
-                  </button>
                 </div>
-              </div>
-            </div>
 
-            {/* TABELA 1: Compras à Vista (Mês Atual) */}
-            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Compras à Vista (Mês Atual)</h3>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Lançamentos pontuais no cartão</p>
-                </div>
-                <span className="text-xs font-black text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-950 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                  Total À Vista: {brl(saldoVista)}
-                </span>
-              </div>
-
-              {vistaPurchases.length === 0 ? (
-                <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhuma compra à vista neste mês.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                          <input
-                            type="checkbox"
-                            checked={vistaPurchases.length > 0 && vistaPurchases.every(p => selectedIds.includes(p.id))}
-                            onChange={() => {
-                              const allSelected = vistaPurchases.every(p => selectedIds.includes(p.id));
-                              if (allSelected) {
-                                setSelectedIds(prev => prev.filter(id => !vistaPurchases.some(p => p.id === id)));
-                              } else {
-                                const newIds = Array.from(new Set([...selectedIds, ...vistaPurchases.map(p => p.id)]));
-                                setSelectedIds(newIds);
-                              }
-                            }}
-                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            title="Selecionar Todos"
-                          />
-                        </th>
-                        <th className="p-3">Data</th>
-                        <th className="p-3">Descrição</th>
-                        <th className="p-3">Categoria</th>
-                        <th className="p-3 text-right">Valor</th>
-                        <th className="p-3 text-center whitespace-nowrap">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {(() => {
-                        const renderVistaRow = (p: typeof vistaPurchases[0]) => (
-                          <tr key={p.id} className={`group hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                            <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(p.id)}
-                                onChange={() => {
-                                  setSelectedIds(prev =>
-                                    prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                  );
-                                }}
-                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                              {Boolean(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura"))) ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                  {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
-                                </span>
-                              ) : (
-                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                  {formatDateBR((p as any).purchaseDate || p.date)}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
-                            <td className="p-3">
-                              <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
-                                {p.category}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
-                            <td className="p-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await duplicateExpenseToNextMonthAction(p.id);
-                                      await loadData();
-                                      showAlert(`Lançamento "${p.description}" duplicado para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                                    } catch (err) {
-                                      console.error(err);
-                                      showAlert("Erro ao duplicar lançamento.", { variant: "error" });
-                                    }
-                                  }}
-                                  title="Duplicar para o mês seguinte"
-                                  className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                                >
-                                  <CopyPlus className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-
-                        if (viewMode === "list") {
-                          return vistaPurchases.map(renderVistaRow);
-                        }
-
-                        // Modo Agrupado por Categoria
-                        const grouped: Record<string, typeof vistaPurchases> = {};
-                        vistaPurchases.forEach(p => {
-                          const cat = p.category || "Outros";
-                          if (!grouped[cat]) grouped[cat] = [];
-                          grouped[cat].push(p);
-                        });
-
-                        return Object.entries(grouped).map(([catName, items]) => {
-                          const catKey = `vista-${catName}`;
-                          const isExpanded = expandedCategories[catKey] === true;
-                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
-
-                          return (
-                            <React.Fragment key={catKey}>
-                              <tr
-                                onClick={() => toggleCategory(catKey)}
-                                className="bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-200 dark:border-slate-800 font-bold select-none"
-                              >
-                                <td colSpan={3} className="p-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="p-1 text-indigo-600 dark:text-indigo-400">
-                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
-                                    </span>
-                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{catName}</span>
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                      {items.length} {items.length === 1 ? "compra" : "compras"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="p-3 uppercase text-[10px] font-semibold text-slate-400">Subtotal</td>
-                                <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400 text-xs tabular-nums">
-                                  {brl(catTotal)}
-                                </td>
-                                <td className="p-3" />
-                              </tr>
-                              {isExpanded && items.map(renderVistaRow)}
-                            </React.Fragment>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            {/* TABELA 2: Assinaturas & Recorrências */}
-            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <RotateCcw className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                    <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Assinaturas & Recorrências</h3>
+                {filtered.length === 0 ? (
+                  <div className="py-12 flex flex-col items-center gap-2 text-center">
+                    <CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                    <p className="text-xs font-semibold text-slate-400">Nenhum lançamento neste mês.</p>
                   </div>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Serviços de cobrança recorrente no cartão</p>
-                </div>
-                <span className="text-xs font-black text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-3 py-1 rounded-xl border border-purple-200 dark:border-purple-800/60">
-                  Total Assinaturas: {brl(saldoAssinaturas)}
-                </span>
-              </div>
-
-              {subscriptionPurchases.length === 0 ? (
-                <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhuma assinatura ou cobrança recorrente lançada neste mês.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                          <input
-                            type="checkbox"
-                            checked={subscriptionPurchases.length > 0 && subscriptionPurchases.every(p => selectedIds.includes(p.id))}
-                            onChange={() => {
-                              const allSelected = subscriptionPurchases.every(p => selectedIds.includes(p.id));
-                              if (allSelected) {
-                                setSelectedIds(prev => prev.filter(id => !subscriptionPurchases.some(p => p.id === id)));
-                              } else {
-                                const newIds = Array.from(new Set([...selectedIds, ...subscriptionPurchases.map(p => p.id)]));
-                                setSelectedIds(newIds);
-                              }
-                            }}
-                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            title="Selecionar Todos"
-                          />
-                        </th>
-                        <th className="p-3">Data</th>
-                        <th className="p-3">Descrição</th>
-                        <th className="p-3">Categoria</th>
-                        <th className="p-3 text-right">Valor</th>
-                        <th className="p-3 text-center whitespace-nowrap">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {(() => {
-                        const renderSubRow = (p: typeof subscriptionPurchases[0]) => (
-                          <tr key={p.id} className={`group hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                            <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.includes(p.id)}
-                                onChange={() => {
-                                  setSelectedIds(prev =>
-                                    prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                  );
-                                }}
-                                className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                              />
-                            </td>
-                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
-                              </span>
-                            </td>
-                            <td className="p-3 font-semibold text-slate-900 dark:text-white">
-                              {p.description}
-                            </td>
-                            <td className="p-3">
-                              <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
-                                {p.category}
-                              </span>
-                            </td>
-                            <td className="p-3 text-right font-black text-purple-600 dark:text-purple-400">{brl(p.amount)}</td>
-                            <td className="p-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-                                <button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await duplicateExpenseToNextMonthAction(p.id);
-                                      await loadData();
-                                      showAlert(`Assinatura "${p.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                                    } catch (err) {
-                                      console.error(err);
-                                      showAlert("Erro ao duplicar assinatura.", { variant: "error" });
-                                    }
-                                  }}
-                                  title="Duplicar para o mês seguinte"
-                                  className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
-                                >
-                                  <CopyPlus className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-
-                        if (viewMode === "list") {
-                          return subscriptionPurchases.map(renderSubRow);
-                        }
-
-                        // Modo Agrupado por Categoria
-                        const grouped: Record<string, typeof subscriptionPurchases> = {};
-                        subscriptionPurchases.forEach(p => {
-                          const cat = p.category || "Outros";
-                          if (!grouped[cat]) grouped[cat] = [];
-                          grouped[cat].push(p);
-                        });
-
-                        return Object.entries(grouped).map(([catName, items]) => {
-                          const catKey = `sub-${catName}`;
-                          const isExpanded = expandedCategories[catKey] === true;
-                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
-
-                          return (
-                            <React.Fragment key={catKey}>
-                              <tr
-                                onClick={() => toggleCategory(catKey)}
-                                className="bg-purple-50/60 dark:bg-purple-950/40 hover:bg-purple-100/60 dark:hover:bg-purple-900/40 transition-colors cursor-pointer border-b border-purple-100 dark:border-purple-900/50 font-bold select-none"
-                              >
-                                <td colSpan={3} className="p-3">
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="p-1 text-purple-600 dark:text-purple-400">
-                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
-                                    </span>
-                                    <span className="text-xs font-black text-purple-900 dark:text-purple-200 uppercase tracking-wider">{catName}</span>
-                                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900 px-2 py-0.5 rounded-md">
-                                      {items.length} {items.length === 1 ? "assinatura" : "assinaturas"}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="p-3 uppercase text-[10px] font-semibold text-purple-400 dark:text-purple-500">Subtotal</td>
-                                <td className="p-3 text-right font-black text-purple-700 dark:text-purple-300 text-xs tabular-nums">
-                                  {brl(catTotal)}
-                                </td>
-                                <td className="p-3 text-center text-purple-400 text-[10px] font-medium">
-                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
-                                </td>
-                              </tr>
-                              {isExpanded && items.map(renderSubRow)}
-                            </React.Fragment>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            {/* TABELA 3: Lançamentos Parcelados */}
-            <section className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Lançamentos Parcelados</h3>
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Parcelas ativas cobradas no mês selecionado</p>
-                </div>
-                <span className="text-xs font-black text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-950 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                  Dívida Restante: {brl(dividaParcelada)}
-                </span>
-              </div>
-
-              {parceladoPurchasesProcessed.length === 0 ? (
-                <p className="text-xs font-semibold text-slate-500 py-6 text-center">Nenhum parcelamento ativo neste mês.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-3 w-10 text-center">
-                          <input
-                            type="checkbox"
-                            checked={parceladoPurchasesProcessed.length > 0 && parceladoPurchasesProcessed.every(p => selectedIds.includes(p.id))}
-                            onChange={() => {
-                              const allSelected = parceladoPurchasesProcessed.every(p => selectedIds.includes(p.id));
-                              if (allSelected) {
-                                setSelectedIds(prev => prev.filter(id => !parceladoPurchasesProcessed.some(p => p.id === id)));
-                              } else {
-                                const newIds = Array.from(new Set([...selectedIds, ...parceladoPurchasesProcessed.map(p => p.id)]));
-                                setSelectedIds(newIds);
-                              }
-                            }}
-                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            title="Selecionar Todos"
-                          />
-                        </th>
-                        <th className="p-3">Data</th>
-                        <th className="p-3">Descrição</th>
-                        <th className="p-3">Parcela</th>
-                        <th className="p-3 text-right">Valor Parcela</th>
-                        <th className="p-3 text-right">Dívida Restante</th>
-                        <th className="p-3 text-center whitespace-nowrap">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {parceladoPurchasesProcessed.map(p => (
-                        <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                          <td className="p-3 w-10 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.includes(p.id)}
-                              onChange={() => {
-                                setSelectedIds(prev =>
-                                  prev.includes(p.id) ? prev.filter(id => id !== p.id) : [...prev, p.id]
-                                );
-                              }}
-                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                            <div className="flex flex-col items-start gap-1">
-                              <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                {formatDateBR(p.date)}
-                              </span>
-                              {p.competenceDate && (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                  Ref: {formatReference(p.competenceDate)}
-                                </span>
-                              )}
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {dayGroups.map(([dateKey, { label, entries }]) => (
+                      <div key={dateKey}>
+                        {/* Separador de Dia */}
+                        <div className="px-5 py-2 bg-slate-50/80 dark:bg-slate-900/60 flex items-center justify-between">
+                          <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
+                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tabular-nums">
+                            - {brl(entries.reduce((s, e) => s + e.amount, 0))}
+                          </span>
+                        </div>
+                        {/* Linhas do dia */}
+                        {entries.map(entry => (
+                          <div key={entry.id} className={`group flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${ selectedIds.includes(entry.id) ? "bg-indigo-50 dark:bg-indigo-500/5" : "" }`}>
+                            {/* Checkbox */}
+                            <input type="checkbox" checked={selectedIds.includes(entry.id)}
+                              onChange={() => setSelectedIds(prev => prev.includes(entry.id) ? prev.filter(i => i !== entry.id) : [...prev, entry.id])}
+                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 text-indigo-600 accent-indigo-600 cursor-pointer flex-shrink-0" />
+                            {/* Ícone de tipo */}
+                            <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
+                              entry.subtype === "assinatura" ? "bg-purple-100 dark:bg-purple-500/10" :
+                              entry.subtype === "parcelado" ? "bg-amber-100 dark:bg-amber-500/10" :
+                              "bg-rose-100 dark:bg-rose-500/10"
+                            }`}>
+                              {entry.subtype === "assinatura" ? <RotateCcw className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> :
+                               entry.subtype === "parcelado" ? <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> :
+                               <CreditCard className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
                             </div>
-                          </td>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
-                          <td className="p-3">
-                            <span className="bg-amber-100 dark:bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20 px-2.5 py-0.5 rounded-full text-[10px] font-bold">
-                              {p.currentInstallment} / {p.installmentsCount}
+                            {/* Descrição + Categoria */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {entry.description}
+                                {entry.installmentLabel && (
+                                  <span className="ml-1.5 text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md">
+                                    {entry.installmentLabel}
+                                  </span>
+                                )}
+                              </p>
+                              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{entry.category}</p>
+                            </div>
+                            {/* Valor */}
+                            <span className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums whitespace-nowrap flex-shrink-0">
+                              - {brl(entry.amount)}
                             </span>
-                          </td>
-                          <td className="p-3 text-right font-bold text-slate-900 dark:text-white">{brl(p.amount)}</td>
-                          <td className="p-3 text-right font-medium text-slate-600 dark:text-slate-400">{brl(p.remainingDebt)}</td>
-                          <td className="p-3 text-center whitespace-nowrap">
-                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                            {/* Ações hover */}
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                              <button onClick={async () => { try { const res = await duplicateExpenseToNextMonthAction(entry.id); await loadData(); showAlert(`"${entry.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" }); } catch(e) { showAlert("Erro ao duplicar.", { variant: "error" }); } }}
+                                className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Duplicar">
+                                <CopyPlus className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openEditModal(entry as any)}
+                                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
-                              <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors">
+                              <button onClick={() => { setSelectedPurchase(entry as any); setModalType("delete"); }}
+                                className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-          </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Rodapé de resumo */}
+                {filtered.length > 0 && (
+                  <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 flex flex-wrap items-center gap-x-5 gap-y-1">
+                    <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Resumo</span>
+                    <span className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums">Saídas: - {brl(totalSaidas)}</span>
+                    <span className="ml-auto text-xs font-black text-slate-800 dark:text-slate-200 tabular-nums">Fatura: {brl(impactoMes)}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         // ── VISÃO EXECUTIVA DARK GLASSMORPHISM PARA CONTA SANTANDER / BANCOS (5 CARDS DE MÉTRICAS) ──
@@ -1472,331 +1134,167 @@ export default function CartaoDetailPage() {
 
           </section>
 
-          {/* TABELA: EXTRATO DA CONTA SANTANDER / BANCO */}
-          <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm dark:shadow-xl space-y-5">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div>
-                <h2 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
-                  <Building2 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  Extrato da Conta (Entradas e Saídas) — {getMonthName(selectedMonth)}/{selectedYear}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Acompanhe e confirme o pagamento de todas as entradas e saídas registradas nesta conta.
-                </p>
-              </div>
-
-              {/* Seletor de Modo de Visualização */}
-              <div className="flex flex-wrap items-center gap-2">
-                {viewMode === "grouped" && (
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const monthTransactions = (cardData.allTransactions || [])
-                          .filter((t) => {
-                            const { year, month } = getCompetenceYearMonth(t);
-                            return year === selectedYear && month === selectedMonth;
-                          });
-                        const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
-                        expandAllCategories(bankKeys);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                      title="Expandir todas as categorias"
-                    >
-                      Expandir Todas ▼
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const monthTransactions = (cardData.allTransactions || [])
-                          .filter((t) => {
-                            const { year, month } = getCompetenceYearMonth(t);
-                            return year === selectedYear && month === selectedMonth;
-                          });
-                        const bankKeys = Array.from(new Set(monthTransactions.map(t => `bank-${t.category || "Outros"}`)));
-                        collapseAllCategories(bankKeys);
-                      }}
-                      className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 transition-all cursor-pointer"
-                      title="Recolher todas as categorias"
-                    >
-                      Recolher Todas ▲
-                    </button>
-                  </div>
-                )}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("grouped")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                      viewMode === "grouped"
-                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    <FolderTree className="w-3.5 h-3.5" />
-                    <span>Por Categoria</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                      viewMode === "list"
-                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-md"
-                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                    }`}
-                  >
-                    <List className="w-3.5 h-3.5" />
-                    <span>Lista Completa</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
+          {/* EXTRATO CRONOLÓGICO — CONTA BANCÁRIA */}
+          <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-xl overflow-hidden">
             {(() => {
               const monthTransactions = (cardData.allTransactions || [])
                 .filter((t) => {
                   const { year, month } = getCompetenceYearMonth(t);
                   return year === selectedYear && month === selectedMonth;
                 })
-                .sort((a, b) => new Date((a as any).purchaseDate || a.date).getTime() - new Date((b as any).purchaseDate || b.date).getTime());
+                .sort((a, b) => {
+                  const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
+                  const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
+                  return db - da;
+                });
 
               const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
-              const totalSaidasExtrato   = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
+              const totalSaidasExtrato = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
               const balancoLiquidoExtrato = totalEntradasExtrato - totalSaidasExtrato;
+              const entradasCount = monthTransactions.filter(t => t.type === "INCOME").length;
+              const saidasCount = monthTransactions.filter(t => t.type === "EXPENSE").length;
 
-              if (monthTransactions.length === 0) {
-                return (
-                  <div className="py-12 flex flex-col items-center justify-center gap-2 text-center border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/40">
-                    <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
-                    <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma movimentação registrada para este mês.</p>
-                  </div>
-                );
-              }
+              const filtered = bankFlowFilter === "all" ? monthTransactions
+                : bankFlowFilter === "income" ? monthTransactions.filter(t => t.type === "INCOME")
+                : monthTransactions.filter(t => t.type === "EXPENSE");
+
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const yesterday = new Date(today);
+              yesterday.setDate(yesterday.getDate() - 1);
+
+              const formatDayLabel = (dateStr: string) => {
+                const d = new Date(dateStr.split("T")[0] + "T12:00:00");
+                d.setHours(0, 0, 0, 0);
+                if (d.getTime() === today.getTime()) return "Hoje";
+                if (d.getTime() === yesterday.getTime()) return "Ontem";
+                const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+                return `${String(d.getDate()).padStart(2, "0")} de ${months[d.getMonth()]}`;
+              };
+
+              const groupedByDay: Record<string, { label: string; entries: typeof monthTransactions }> = {};
+              filtered.forEach(t => {
+                const rawDate = ((t as any).purchaseDate || t.date).split("T")[0];
+                const label = formatDayLabel(rawDate);
+                if (!groupedByDay[rawDate]) groupedByDay[rawDate] = { label, entries: [] };
+                groupedByDay[rawDate].entries.push(t);
+              });
+              const dayGroups = Object.entries(groupedByDay).sort(([a], [b]) => b.localeCompare(a));
 
               return (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
-                        <th className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                          <input
-                            type="checkbox"
-                            checked={monthTransactions.length > 0 && monthTransactions.every(t => selectedIds.includes(t.id))}
-                            onChange={() => {
-                              const allSelected = monthTransactions.every(t => selectedIds.includes(t.id));
-                              if (allSelected) {
-                                setSelectedIds(prev => prev.filter(id => !monthTransactions.some(t => t.id === id)));
-                              } else {
-                                const newIds = Array.from(new Set([...selectedIds, ...monthTransactions.map(t => t.id)]));
-                                setSelectedIds(newIds);
-                              }
-                            }}
-                            className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                            title="Selecionar Todos"
-                          />
-                        </th>
-                        <th className="p-4">Data</th>
-                        <th className="p-4">Descrição</th>
-                        <th className="p-4">Categoria</th>
-                        <th className="p-4 text-right">Valor</th>
-                        <th className="p-4 text-center">Status / Pagamento</th>
-                        <th className="p-4 text-center whitespace-nowrap">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
-                      {(() => {
-                        const renderBankRow = (t: typeof monthTransactions[0]) => {
-                          const isPaid = t.status !== "PENDING";
-                          const isIncome = t.type === "INCOME";
-                          const hasRef = Boolean(t.competenceDate && isDifferentCompetence(t.date, t.competenceDate));
+                <>
+                  {/* Header */}
+                  <div className="px-5 pt-5 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
+                    </h2>
+                    {/* Abas de fluxo */}
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                      <button type="button" onClick={() => setBankFlowFilter("all")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                        Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{monthTransactions.length}</span>
+                      </button>
+                      <button type="button" onClick={() => setBankFlowFilter("income")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "income" ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                        Entradas <span className="text-[10px] font-black opacity-60 ml-0.5">{entradasCount}</span>
+                      </button>
+                      <button type="button" onClick={() => setBankFlowFilter("expense")}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                        Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
+                      </button>
+                    </div>
+                  </div>
 
-                          return (
-                            <tr key={t.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
-                              <td className="p-4 w-[45px] min-w-[45px] max-w-[45px] text-center">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIds.includes(t.id)}
-                                  onChange={() => {
-                                    setSelectedIds(prev =>
-                                      prev.includes(t.id) ? prev.filter(id => id !== t.id) : [...prev, t.id]
-                                    );
-                                  }}
-                                  className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
-                                />
-                              </td>
-                              <td className="p-4 text-xs font-medium text-slate-600 dark:text-slate-300">
-                                <div className="flex flex-col items-start gap-1">
-                                  {Boolean((t as any).isRecurring || ((t as any).tags && (t as any).tags.toLowerCase().includes("assinatura"))) ? (
-                                    <>
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                        Consumo: {formatReference(t.competenceDate || (t as any).purchaseDate || t.date)}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                        Vence: {formatDateBR((t as any).paymentDate || t.date)}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                        {formatDateBR((t as any).purchaseDate || t.date)}
-                                      </span>
-                                      {(t as any).paymentDate && (t as any).paymentDate !== ((t as any).purchaseDate || t.date) && (
-                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                          Liq: {formatDateBR((t as any).paymentDate)}
-                                        </span>
-                                      )}
-                                      {hasRef && (
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                          Ref: {formatReference(t.competenceDate)}
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-4 font-semibold text-slate-900 dark:text-white text-sm">
-                                <div className="flex items-center gap-2">
-                                  {isIncome && (
-                                    <span className="p-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                      <TrendingUp className="w-3.5 h-3.5" />
-                                    </span>
-                                  )}
-                                  <span>{t.description}</span>
-                                </div>
-                              </td>
-                              <td className="p-4">
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold uppercase ${
-                                  isIncome
-                                    ? "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50"
-                                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
-                                }`}>
-                                  {t.category || (isIncome ? "Aporte / Injeção de Saldo" : "Despesa")}
-                                </span>
-                              </td>
-                              <td className={`p-4 text-right font-black text-sm tabular-nums ${isIncome ? "text-emerald-500 dark:text-emerald-400" : "text-purple-600 dark:text-purple-400"}`}>
-                                {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
-                              </td>
-                              <td className="p-4 text-center">
-                                {isIncome ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 text-[11px] font-bold">
-                                    <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                                    Entrada
-                                  </span>
-                                ) : isPaid ? (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] font-bold">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                    Pago
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-[11px] font-bold">
-                                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                    Pendente
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-4 text-center whitespace-nowrap">
-                                <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                                  {!isIncome && (
-                                    <button
-                                      onClick={async () => {
-                                        try {
-                                          await toggleTransactionStatusAction(t.id);
-                                          await loadData();
-                                        } catch (err) {
-                                          console.error(err);
-                                        }
-                                      }}
-                                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                                        isPaid
-                                          ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                          : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                                      }`}
-                                      title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}
-                                    >
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  <button onClick={() => openEditModal(t as any)} className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer" title="Editar">
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }} className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer" title="Excluir">
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        };
-                        if (viewMode === "list") {
-                          return monthTransactions.map(renderBankRow);
-                        }
-                        const grouped: Record<string, typeof monthTransactions> = {};
-                        monthTransactions.forEach(t => {
-                          const cat = t.category || "Outros";
-                          if (!grouped[cat]) grouped[cat] = [];
-                          grouped[cat].push(t);
-                        });
-                        return Object.entries(grouped).map(([catName, items]) => {
-                          const catKey = `bank-${catName}`;
-                          const isExpanded = expandedCategories[catKey] === true;
-                          const isOnlyIncome = items.every(item => item.type === "INCOME");
-                          const isOnlyExpense = items.every(item => item.type === "EXPENSE");
-                          const catTotal = items.reduce((s, item) => s + (item.amount || 0), 0);
-                          return (
-                            <React.Fragment key={catKey}>
-                              <tr
-                                onClick={() => toggleCategory(catKey)}
-                                className="bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200/80 dark:hover:bg-slate-800 transition-colors cursor-pointer border-b border-slate-200 dark:border-slate-800 font-bold select-none"
-                              >
-                                <td colSpan={4} className="p-4">
-                                  <div className="flex items-center gap-2.5">
-                                    <span className="p-1 text-indigo-600 dark:text-indigo-400">
-                                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} />
-                                    </span>
-                                    <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">{catName}</span>
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                                      {items.length} {items.length === 1 ? "movimentação" : "movimentações"}
-                                    </span>
+                  {filtered.length === 0 ? (
+                    <div className="py-12 flex flex-col items-center gap-2 text-center">
+                      <CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                      <p className="text-xs font-semibold text-slate-400">Nenhuma movimentação para este filtro.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {dayGroups.map(([dateKey, { label, entries }]) => {
+                        const dayIncome = entries.filter(e => e.type === "INCOME").reduce((s, e) => s + e.amount, 0);
+                        const dayExpense = entries.filter(e => e.type === "EXPENSE").reduce((s, e) => s + e.amount, 0);
+                        return (
+                          <div key={dateKey}>
+                            {/* Separador de Dia */}
+                            <div className="px-5 py-2 bg-slate-50/80 dark:bg-slate-900/60 flex items-center justify-between gap-4">
+                              <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
+                              <div className="flex items-center gap-3">
+                                {dayIncome > 0 && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+ {brl(dayIncome)}</span>}
+                                {dayExpense > 0 && <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 tabular-nums">- {brl(dayExpense)}</span>}
+                              </div>
+                            </div>
+                            {/* Linhas do dia */}
+                            {entries.map(t => {
+                              const isIncome = t.type === "INCOME";
+                              const isPaid = t.status !== "PENDING";
+                              return (
+                                <div key={t.id} className={`group flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${ selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/5" : "" }`}>
+                                  {/* Checkbox */}
+                                  <input type="checkbox" checked={selectedIds.includes(t.id)}
+                                    onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(i => i !== t.id) : [...prev, t.id])}
+                                    className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 text-indigo-600 accent-indigo-600 cursor-pointer flex-shrink-0" />
+                                  {/* Ícone entrada/saída */}
+                                  <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
+                                    isIncome ? "bg-emerald-100 dark:bg-emerald-500/10" : "bg-rose-100 dark:bg-rose-500/10"
+                                  }`}>
+                                    {isIncome
+                                      ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                      : <TrendingDown className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
                                   </div>
-                                </td>
-                                <td className={`p-4 text-right font-black text-xs tabular-nums ${isOnlyIncome ? "text-emerald-500 dark:text-emerald-400" : isOnlyExpense ? "text-indigo-600 dark:text-indigo-400" : "text-slate-900 dark:text-white"}`}>
-                                  {isOnlyIncome ? `+ ${brl(catTotal)}` : isOnlyExpense ? `- ${brl(catTotal)}` : brl(catTotal)}
-                                </td>
-                                <td colSpan={2} className="p-4 text-center text-slate-400 text-[10px] font-medium">
-                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
-                                </td>
-                              </tr>
-                              {isExpanded && items.map(renderBankRow)}
-                            </React.Fragment>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-slate-100 dark:bg-slate-900/90 border-t border-slate-200 dark:border-slate-800 font-black text-slate-900 dark:text-white">
-                        <td colSpan={3} className="p-4">
-                          <div className="flex flex-wrap items-center gap-4 text-xs">
-                            <span className="font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">RESUMO DO EXTRATO DO MÊS:</span>
-                            <span className="inline-flex items-center gap-1 font-black text-emerald-600 dark:text-emerald-400">
-                              <TrendingUp className="w-3.5 h-3.5" /> Entradas: + {brl(totalEntradasExtrato)}
-                            </span>
-                            <span className="inline-flex items-center gap-1 font-black text-rose-600 dark:text-rose-400">
-                              <TrendingDown className="w-3.5 h-3.5" /> Saídas: - {brl(totalSaidasExtrato)}
-                            </span>
+                                  {/* Descrição + Categoria */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{t.description}</p>
+                                    <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{t.category}</p>
+                                  </div>
+                                  {/* Valor */}
+                                  <span className={`text-sm font-black tabular-nums whitespace-nowrap flex-shrink-0 ${
+                                    isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-200"
+                                  }`}>
+                                    {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
+                                  </span>
+                                  {/* Ações hover */}
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex-shrink-0">
+                                    {!isIncome && (
+                                      <button
+                                        onClick={async () => { try { await toggleTransactionStatusAction(t.id); await loadData(); } catch(e) { console.error(e); } }}
+                                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${ isPaid ? "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" : "text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40" }`}
+                                        title={isPaid ? "Marcar como Pendente" : "Marcar como Pago"}>
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button onClick={() => openEditModal(t as any)}
+                                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }}
+                                      className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </td>
-                        <td className="p-4 text-right font-black text-sm tabular-nums">
-                          <span className={balancoLiquidoExtrato >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
-                            {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
-                          </span>
-                        </td>
-                        <td colSpan={3} className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase">
-                          Balanço do Período
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Rodapé fixo */}
+                  {monthTransactions.length > 0 && (
+                    <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 flex flex-wrap items-center gap-x-5 gap-y-1">
+                      <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Resumo</span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums">Entradas: + {brl(totalEntradasExtrato)}</span>
+                      <span className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums">Saídas: - {brl(totalSaidasExtrato)}</span>
+                      <span className={`ml-auto text-xs font-black tabular-nums ${ balancoLiquidoExtrato >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400" }`}>
+                        Resultado: {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
+                      </span>
+                    </div>
+                  )}
+                </>
               );
             })()}
           </div>
