@@ -20,7 +20,8 @@ import {
   Menu,
   X,
   History,
-  Zap
+  Zap,
+  Wrench
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
@@ -123,12 +124,35 @@ export function Sidebar() {
     </span>
   );
 
+  const navLinkMaintenance = (href: string, label: string, Icon: React.ElementType) => {
+    return (
+      <Link
+        key={href}
+        href={href}
+        onClick={() => setIsMobileOpen(false)}
+        className="flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 text-slate-400 dark:text-slate-500 hover:bg-amber-50/60 dark:hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-400 font-semibold group"
+        title="Módulo em manutenção — disponível em breve"
+      >
+        <Icon className="w-4 h-4 flex-shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-amber-500 transition-colors" />
+        <span className="flex-1">{label}</span>
+        <span className="ml-auto inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+          <Wrench className="w-2.5 h-2.5" />
+          Em breve
+        </span>
+      </Link>
+    );
+  };
+
   const navigationContent = (
     <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
       {menuGroups.map((group) => (
         <div key={group.group} className="space-y-0.5">
           {sectionLabel(group.group)}
-          {group.items.map((item) => navLink(item.path, item.label, item.icon))}
+          {group.items.map((item) =>
+            item.path === "/gestao-financeira/orcamentos"
+              ? navLinkMaintenance(item.path, item.label, item.icon)
+              : navLink(item.path, item.label, item.icon)
+          )}
         </div>
       ))}
     </nav>
