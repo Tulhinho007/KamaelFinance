@@ -1016,7 +1016,7 @@ export default function CartaoDetailPage() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {(() => {
                         const renderVistaRow = (p: typeof vistaPurchases[0]) => (
-                          <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                          <tr key={p.id} className={`group hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                             <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
                               <input
                                 type="checkbox"
@@ -1029,35 +1029,16 @@ export default function CartaoDetailPage() {
                                 className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                               />
                             </td>
-                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              <div className="flex flex-col items-start gap-1">
-                                {Boolean(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura"))) ? (
-                                  <>
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                      Fatura: {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                      Vence: {formatDateBR((p as any).paymentDate || p.date)}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                                      {formatDateBR((p as any).purchaseDate || p.date)}
-                                    </span>
-                                    {(p as any).paymentDate && (p as any).paymentDate !== ((p as any).purchaseDate || p.date) && (
-                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                        Venc: {formatDateBR((p as any).paymentDate)}
-                                      </span>
-                                    )}
-                                    {p.competenceDate && isDifferentCompetence((p as any).purchaseDate || p.date, p.competenceDate) && (
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                        Ref: {formatReference(p.competenceDate)}
-                                      </span>
-                                    )}
-                                  </>
-                                )}
-                              </div>
+                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              {Boolean(p.isRecurring || (p.tags && p.tags.toLowerCase().includes("assinatura"))) ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                  {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                                  {formatDateBR((p as any).purchaseDate || p.date)}
+                                </span>
+                              )}
                             </td>
                             <td className="p-3 font-semibold text-slate-900 dark:text-white">{p.description}</td>
                             <td className="p-3">
@@ -1067,7 +1048,7 @@ export default function CartaoDetailPage() {
                             </td>
                             <td className="p-3 text-right font-black text-rose-600 dark:text-rose-400">{brl(p.amount)}</td>
                             <td className="p-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                 <button
                                   onClick={async () => {
                                     try {
@@ -1079,15 +1060,15 @@ export default function CartaoDetailPage() {
                                       showAlert("Erro ao duplicar lançamento.", { variant: "error" });
                                     }
                                   }}
-                                  title="Duplicar este lançamento para o mês seguinte"
+                                  title="Duplicar para o mês seguinte"
                                   className="p-1.5 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
                                 >
                                   <CopyPlus className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Lançamento">
+                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Lançamento">
+                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
@@ -1129,13 +1110,11 @@ export default function CartaoDetailPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="p-3 uppercase text-[10px] font-semibold text-slate-400">Subtotal Categoria</td>
+                                <td className="p-3 uppercase text-[10px] font-semibold text-slate-400">Subtotal</td>
                                 <td className="p-3 text-right font-black text-indigo-600 dark:text-indigo-400 text-xs tabular-nums">
                                   {brl(catTotal)}
                                 </td>
-                                <td className="p-3 text-center text-slate-400 text-[10px] font-medium">
-                                  {isExpanded ? "Recolher ▲" : "Expandir ▼"}
-                                </td>
+                                <td className="p-3" />
                               </tr>
                               {isExpanded && items.map(renderVistaRow)}
                             </React.Fragment>
@@ -1197,7 +1176,7 @@ export default function CartaoDetailPage() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                       {(() => {
                         const renderSubRow = (p: typeof subscriptionPurchases[0]) => (
-                          <tr key={p.id} className={`hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
+                          <tr key={p.id} className={`group hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white transition-colors border-b border-slate-100 dark:border-slate-800 ${selectedIds.includes(p.id) ? "bg-indigo-50 dark:bg-indigo-500/10" : ""}`}>
                             <td className="p-3 w-[45px] min-w-[45px] max-w-[45px] text-center">
                               <input
                                 type="checkbox"
@@ -1210,21 +1189,13 @@ export default function CartaoDetailPage() {
                                 className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-indigo-600 accent-indigo-600 hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                               />
                             </td>
-                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300">
-                              <div className="flex flex-col items-start gap-1">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
-                                  Fatura: {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
-                                </span>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                  Vence: {formatDateBR((p as any).paymentDate || p.date)}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="p-3 font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                              <span>{p.description}</span>
-                              <span className="inline-flex items-center text-[9px] font-bold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-950/80 px-1.5 py-0.5 rounded-md border border-purple-200 dark:border-purple-800">
-                                Assinatura
+                            <td className="p-3 text-xs font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-500/15 border border-indigo-200 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400">
+                                {formatReference(p.competenceDate || (p as any).purchaseDate || p.date)}
                               </span>
+                            </td>
+                            <td className="p-3 font-semibold text-slate-900 dark:text-white">
+                              {p.description}
                             </td>
                             <td className="p-3">
                               <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-md text-[10px] font-medium uppercase">
@@ -1233,7 +1204,7 @@ export default function CartaoDetailPage() {
                             </td>
                             <td className="p-3 text-right font-black text-purple-600 dark:text-purple-400">{brl(p.amount)}</td>
                             <td className="p-3 text-center whitespace-nowrap">
-                              <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                 <button
                                   onClick={async () => {
                                     try {
@@ -1245,15 +1216,15 @@ export default function CartaoDetailPage() {
                                       showAlert("Erro ao duplicar assinatura.", { variant: "error" });
                                     }
                                   }}
-                                  title="Duplicar esta assinatura para o mês seguinte"
+                                  title="Duplicar para o mês seguinte"
                                   className="p-1.5 hover:bg-purple-50 dark:hover:bg-purple-500/10 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
                                 >
                                   <CopyPlus className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors" title="Editar Assinatura">
+                                <button onClick={() => openEditModal(p)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer" title="Editar">
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
-                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors" title="Excluir Assinatura">
+                                <button onClick={() => { setSelectedPurchase(p); setModalType("delete"); }} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer" title="Excluir">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
@@ -1295,7 +1266,7 @@ export default function CartaoDetailPage() {
                                     </span>
                                   </div>
                                 </td>
-                                <td className="p-3 uppercase text-[10px] font-semibold text-purple-400 dark:text-purple-500">Subtotal Categoria</td>
+                                <td className="p-3 uppercase text-[10px] font-semibold text-purple-400 dark:text-purple-500">Subtotal</td>
                                 <td className="p-3 text-right font-black text-purple-700 dark:text-purple-300 text-xs tabular-nums">
                                   {brl(catTotal)}
                                 </td>
