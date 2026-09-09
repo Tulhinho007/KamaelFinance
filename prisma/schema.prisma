@@ -236,6 +236,7 @@ model EventProject {
   endDate   DateTime?
   status    String      @default("Em Planejamento")
   notes     String?
+  checklist Json?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt @default(now())
   items     EventItem[]

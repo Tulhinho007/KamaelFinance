@@ -23,12 +23,15 @@ import {
   X,
   ListTodo,
   CheckSquare,
-  Square
+  Square,
+  RotateCcw
 } from "lucide-react";
 import {
   getEventProjects,
   createEventProjectAction,
   updateEventProjectAction,
+  updateEventProjectChecklistAction,
+  toggleEventProjectStatusAction,
   deleteEventProjectAction,
   createEventItemAction,
   updateEventItemAction,
@@ -57,13 +60,15 @@ interface EventProject {
   endDate: string | null;
   status: string;
   notes: string;
+  checklist?: ChecklistTask[] | any;
   items: EventItem[];
 }
 
 interface ChecklistTask {
   id: string;
   text: string;
-  done: boolean;
+  completed?: boolean;
+  done?: boolean;
 }
 
 export default function PlanningPage() {
@@ -84,6 +89,7 @@ export default function PlanningPage() {
   // Estado do Checklist Interativo
   const [checklistTasks, setChecklistTasks] = useState<ChecklistTask[]>([]);
   const [newChecklistText, setNewChecklistText] = useState("");
+  const [statusToggling, setStatusToggling] = useState(false);
 
   // Modal de Novo Projeto
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
@@ -107,18 +113,55 @@ export default function PlanningPage() {
   // Modal de Conversão em Despesa
   const [convertModalItem, setConvertModalItem] = useState<EventItem | null>(null);
 
-  // Extrai tarefas do checklist salvas nas notas (formato [x] ou [ ])
-  const parseNotesAndChecklist = (rawNotes: string) => {
+  // Extrai tarefas do checklist salvas nas notas (formato [x] ou [ ]) ou da coluna JSON
+  const parseNotesAndChecklist = (rawNotes: string, dbChecklist?: any) => {
+    if (dbChecklist && Array.isArray(dbChecklist) && dbChecklist.length > 0) {
+      setChecklistTasks(
+        dbChecklist.map((t: any, idx: number) => ({
+          id: t.id || `task-${idx}-${Date.now()}`,
+          text: t.text || "",
+          done: Boolean(t.completed ?? t.done),
+          completed: Boolean(t.completed ?? t.done),
+        }))
+      );
+      setEditNotes(rawNotes || "");
+      return;
+    }
+
+    if (!rawNotes) {
+      setChecklistTasks([]);
+      setEditNotes("");
+      return;
+    }
+
     const lines = rawNotes.split("\n");
     const tasks: ChecklistTask[] = [];
     const textLines: string[] = [];
 
     lines.forEach((line, idx) => {
       const trimmed = line.trim();
-      if (trimmed.startsWith("[x] ") || trimmed.startsWith("[X] ")) {
-        tasks.push({ id: `task-${idx}-${Date.now()}`, text: trimmed.slice(4), done: true });
+      const mdMatch = trimmed.match(/^[-*]\s*\[([ xX])\]\s*(.*)$/);
+      if (mdMatch) {
+        tasks.push({
+          id: `task-${idx}-${Date.now()}`,
+          text: mdMatch[2].trim(),
+          done: mdMatch[1].toLowerCase() === "x",
+          completed: mdMatch[1].toLowerCase() === "x",
+        });
+      } else if (trimmed.startsWith("[x] ") || trimmed.startsWith("[X] ")) {
+        tasks.push({
+          id: `task-${idx}-${Date.now()}`,
+          text: trimmed.slice(4),
+          done: true,
+          completed: true,
+        });
       } else if (trimmed.startsWith("[ ] ")) {
-        tasks.push({ id: `task-${idx}-${Date.now()}`, text: trimmed.slice(4), done: false });
+        tasks.push({
+          id: `task-${idx}-${Date.now()}`,
+          text: trimmed.slice(4),
+          done: false,
+          completed: false,
+        });
       } else {
         textLines.push(line);
       }
@@ -126,16 +169,6 @@ export default function PlanningPage() {
 
     setChecklistTasks(tasks);
     setEditNotes(textLines.join("\n").trim());
-  };
-
-  // Codifica o checklist de volta junto com as anotações
-  const serializeNotesAndChecklist = (textNotes: string, tasks: ChecklistTask[]) => {
-    const checklistStr = tasks
-      .map(t => `${t.done ? "[x]" : "[ ]"} ${t.text}`)
-      .join("\n");
-    if (!checklistStr) return textNotes;
-    if (!textNotes) return checklistStr;
-    return `${checklistStr}\n\n${textNotes}`;
   };
 
   // Carrega projetos
@@ -153,7 +186,7 @@ export default function PlanningPage() {
           setEditStartDate(current.startDate || "");
           setEditEndDate(current.endDate || "");
           setEditStatus(current.status);
-          parseNotesAndChecklist(current.notes || "");
+          parseNotesAndChecklist(current.notes || "", current.checklist);
         }
       }
     } catch (error) {
@@ -168,6 +201,7 @@ export default function PlanningPage() {
   }, []);
 
   const activeProject = selectedProjectId ? projects.find((p: EventProject) => p.id === selectedProjectId) || null : null;
+  const isCompleted = activeProject ? activeProject.status === "COMPLETED" || activeProject.status === "Concluído" : false;
 
   // Cálculo da Duração da Viagem em Dias
   const calculateDurationInDays = (startStr?: string | null, endStr?: string | null) => {
@@ -200,7 +234,7 @@ export default function PlanningPage() {
       setEditStartDate(proj.startDate || "");
       setEditEndDate(proj.endDate || "");
       setEditStatus(proj.status);
-      parseNotesAndChecklist(proj.notes || "");
+      parseNotesAndChecklist(proj.notes || "", proj.checklist);
     }
   };
 
@@ -401,45 +435,83 @@ export default function PlanningPage() {
     }
   };
 
+  // Handlers para Conclusão / Reabertura da Viagem
+  const handleToggleProjectCompletion = async () => {
+    if (!activeProject) return;
+    setStatusToggling(true);
+    try {
+      const isCurrentlyCompleted = activeProject.status === "COMPLETED" || activeProject.status === "Concluído";
+      const nextStatus = isCurrentlyCompleted ? "Em Planejamento" : "COMPLETED";
+      await updateEventProjectAction(activeProject.id, { status: nextStatus });
+      setEditStatus(nextStatus);
+      setProjects(prev =>
+        prev.map(p => (p.id === activeProject.id ? { ...p, status: nextStatus } : p))
+      );
+    } catch (err) {
+      console.error("Erro ao alternar conclusão da viagem:", err);
+      showAlert("Não foi possível alterar o status da viagem.", { variant: "error" });
+    } finally {
+      setStatusToggling(false);
+    }
+  };
+
   // Handlers para Checklist Interativo
-  const handleAddChecklistTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newChecklistText.trim()) return;
+  const handleAddChecklistTask = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newChecklistText.trim() || !activeProject) return;
     const newTask: ChecklistTask = {
-      id: `task-${Date.now()}`,
+      id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       text: newChecklistText.trim(),
+      completed: false,
       done: false,
     };
     const updatedTasks = [...checklistTasks, newTask];
     setChecklistTasks(updatedTasks);
     setNewChecklistText("");
-    saveNotesWithTasks(editNotes, updatedTasks);
-  };
 
-  const handleToggleChecklistTask = (taskId: string) => {
-    const updatedTasks = checklistTasks.map(t =>
-      t.id === taskId ? { ...t, done: !t.done } : t
-    );
-    setChecklistTasks(updatedTasks);
-    saveNotesWithTasks(editNotes, updatedTasks);
-  };
-
-  const handleDeleteChecklistTask = (taskId: string) => {
-    const updatedTasks = checklistTasks.filter(t => t.id !== taskId);
-    setChecklistTasks(updatedTasks);
-    saveNotesWithTasks(editNotes, updatedTasks);
-  };
-
-  const saveNotesWithTasks = async (textNotes: string, tasks: ChecklistTask[]) => {
-    if (!activeProject) return;
-    const fullSerialized = serializeNotesAndChecklist(textNotes, tasks);
     try {
-      await updateEventProjectAction(activeProject.id, { notes: fullSerialized });
+      await updateEventProjectChecklistAction(activeProject.id, updatedTasks);
       setProjects(prev =>
-        prev.map(p => (p.id === activeProject.id ? { ...p, notes: fullSerialized } : p))
+        prev.map(p => (p.id === activeProject.id ? { ...p, checklist: updatedTasks } : p))
       );
     } catch (err) {
-      console.error("Erro ao salvar bloco de notas:", err);
+      console.error("Erro ao salvar item no checklist:", err);
+    }
+  };
+
+  const handleToggleChecklistTask = async (taskId: string) => {
+    if (!activeProject) return;
+    const updatedTasks = checklistTasks.map(t => {
+      if (t.id === taskId) {
+        const nextState = !(t.completed ?? t.done);
+        return { ...t, done: nextState, completed: nextState };
+      }
+      return t;
+    });
+    setChecklistTasks(updatedTasks);
+
+    try {
+      await updateEventProjectChecklistAction(activeProject.id, updatedTasks);
+      setProjects(prev =>
+        prev.map(p => (p.id === activeProject.id ? { ...p, checklist: updatedTasks } : p))
+      );
+    } catch (err) {
+      console.error("Erro ao alternar item do checklist:", err);
+    }
+  };
+
+  const handleDeleteChecklistTask = async (taskId: string) => {
+    if (!activeProject) return;
+    const updatedTasks = checklistTasks.filter(t => t.id !== taskId);
+    setChecklistTasks(updatedTasks);
+
+    try {
+      await updateEventProjectChecklistAction(activeProject.id, updatedTasks);
+      setProjects(prev =>
+        prev.map(p => (p.id === activeProject.id ? { ...p, checklist: updatedTasks } : p))
+      );
+    } catch (err) {
+      console.error("Erro ao remover item do checklist:", err);
     }
   };
 
@@ -447,11 +519,22 @@ export default function PlanningPage() {
     if (!activeProject) return;
     setNotesSaving(true);
     try {
-      await saveNotesWithTasks(editNotes, checklistTasks);
+      await updateEventProjectAction(activeProject.id, {
+        notes: editNotes,
+        checklist: checklistTasks,
+      });
+      setProjects(prev =>
+        prev.map(p =>
+          p.id === activeProject.id
+            ? { ...p, notes: editNotes, checklist: checklistTasks }
+            : p
+        )
+      );
       setNotesSavedSuccess(true);
       setTimeout(() => setNotesSavedSuccess(false), 2500);
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao salvar anotações:", err);
+      showAlert("Não foi possível salvar as anotações.", { variant: "error" });
     } finally {
       setNotesSaving(false);
     }
@@ -524,7 +607,7 @@ export default function PlanningPage() {
               <option value="" className="bg-white dark:bg-slate-900 text-slate-500">Selecione um Projeto...</option>
               {projects.map(p => (
                 <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
-                  {p.title} ({p.status})
+                  {p.title} ({p.status === "COMPLETED" || p.status === "Concluído" ? "✓ Concluído" : p.status})
                 </option>
               ))}
             </select>
@@ -586,7 +669,7 @@ export default function PlanningPage() {
 
                   {/* Badge de Status */}
                   <select
-                    value={editStatus}
+                    value={editStatus === "COMPLETED" || editStatus === "Concluído" ? "COMPLETED" : editStatus}
                     onChange={e => {
                       setEditStatus(e.target.value);
                       handleUpdateProjectHeader("status", e.target.value);
@@ -594,14 +677,14 @@ export default function PlanningPage() {
                     className={`text-xs font-black px-3 py-1 rounded-full border cursor-pointer focus:outline-none transition-all ${
                       editStatus === "Confirmado"
                         ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/40"
-                        : editStatus === "Concluído"
-                        ? "bg-purple-50 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-400/40"
+                        : editStatus === "Concluído" || editStatus === "COMPLETED"
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40 font-bold"
                         : "bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-400/40"
                     }`}
                   >
                     <option value="Em Planejamento" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Em Planejamento</option>
                     <option value="Confirmado" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Confirmado</option>
-                    <option value="Concluído" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">Concluído</option>
+                    <option value="COMPLETED" className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">✓ Concluído</option>
                   </select>
                 </div>
 
@@ -1038,44 +1121,82 @@ export default function PlanningPage() {
           {/* ── 6. CHECKLIST INTERATIVO & BLOCO DE NOTAS DO ROTEIRO ─────────────── */}
           <div className="card-glow p-6 space-y-6">
             
-            {/* Cabeçalho da Seção de Notas */}
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+            {/* Cabeçalho da Seção de Notas & Status */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2">
                 <ListTodo className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
-                    Checklist & Roteiro da Viagem
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                      Checklist & Roteiro da Viagem
+                    </h3>
+                    {isCompleted && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30">
+                        <Check className="w-3 h-3 text-emerald-500 stroke-[3]" />
+                        Viagem Concluída
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">Organize mala, documentos e lembretes importantes</p>
                 </div>
               </div>
 
-              <button
-                onClick={handleSaveNotes}
-                disabled={notesSaving}
-                className="btn-primary-glow px-4 py-2 text-xs font-black disabled:opacity-60"
-              >
-                {notesSaving ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
-                ) : notesSavedSuccess ? (
-                  <>
-                    <Check className="w-4 h-4 text-emerald-300" />
-                    <span>Salvo com Sucesso!</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 text-white" />
-                    <span>Salvar Alterações</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Botão Concluir / Reabrir Viagem */}
+                <button
+                  type="button"
+                  onClick={handleToggleProjectCompletion}
+                  disabled={statusToggling}
+                  className={`px-3.5 py-2 text-xs font-black rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                    isCompleted
+                      ? "bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700"
+                      : "bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/40"
+                  }`}
+                  title={isCompleted ? "Reabrir projeto de viagem para planejamento" : "Marcar viagem como concluída"}
+                >
+                  {statusToggling ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+                  ) : isCompleted ? (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                      <span>Reabrir Viagem</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Concluir Viagem</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Botão Salvar Alterações */}
+                <button
+                  onClick={handleSaveNotes}
+                  disabled={notesSaving}
+                  className="btn-primary-glow px-4 py-2 text-xs font-black disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {notesSaving ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : notesSavedSuccess ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-300" />
+                      <span>Salvo com Sucesso!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 text-white" />
+                      <span>Salvar Alterações</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Checklist Interativo */}
             <div className="space-y-4">
               <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                 <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                Checklist Interativo da Viagem ({checklistTasks.filter(t => t.done).length}/{checklistTasks.length})
+                Checklist Interativo da Viagem ({checklistTasks.filter(t => Boolean(t.completed ?? t.done)).length}/{checklistTasks.length})
               </h4>
 
               {/* Form Adicionar Item ao Checklist */}
@@ -1084,12 +1205,12 @@ export default function PlanningPage() {
                   type="text"
                   value={newChecklistText}
                   onChange={e => setNewChecklistText(e.target.value)}
-                  placeholder="Adicionar tarefa (ex: Passaporte, Adaptador de tomada, Check-in)..."
+                  placeholder="Adicionar tarefa (ex: Passagens de ônibus impresso ou QR Code, RG ou CNH atualizada)..."
                   className="flex-1 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1"
+                  className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1 shrink-0 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Adicionar</span>
@@ -1097,41 +1218,72 @@ export default function PlanningPage() {
               </form>
 
               {/* Lista do Checklist */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                {checklistTasks.map(task => (
-                  <div
-                    key={task.id}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                      task.done
-                        ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-slate-400"
-                        : "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleToggleChecklistTask(task.id)}
-                      className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1"
-                    >
-                      {task.done ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      ) : (
-                        <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                      )}
-                      <span className={`text-xs font-semibold truncate ${task.done ? "line-through text-slate-400" : "text-slate-900 dark:text-white"}`}>
-                        {task.text}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteChecklistTask(task.id)}
-                      className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1 transition-colors cursor-pointer"
-                      title="Excluir item"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+              <div className="space-y-2">
+                {checklistTasks.length === 0 ? (
+                  <div className="py-6 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/40">
+                    <p className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+                      Nenhum item no checklist ainda. Digite um item acima e pressione Enter para adicionar.
+                    </p>
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {checklistTasks.map(task => {
+                      const isTaskDone = Boolean(task.completed ?? task.done);
+                      return (
+                        <div
+                          key={task.id}
+                          className={`group flex items-center justify-between p-3 rounded-xl border transition-all ${
+                            isTaskDone
+                              ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-slate-500 dark:text-slate-400"
+                              : "bg-slate-50 dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-slate-300 dark:hover:border-slate-700"
+                          }`}
+                        >
+                          <label
+                            className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer select-none"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleToggleChecklistTask(task.id);
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isTaskDone}
+                              onChange={() => {}}
+                              className="sr-only"
+                            />
+                            <div
+                              className={`w-4 h-4 rounded flex items-center justify-center transition-all shrink-0 ${
+                                isTaskDone
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "border-2 border-slate-400 dark:border-slate-500 group-hover:border-indigo-500 bg-white dark:bg-slate-800"
+                              }`}
+                            >
+                              {isTaskDone && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <span
+                              className={`text-xs font-semibold break-words transition-all ${
+                                isTaskDone
+                                  ? "line-through text-emerald-800/70 dark:text-emerald-400/80"
+                                  : "text-slate-800 dark:text-slate-100"
+                              }`}
+                            >
+                              {task.text}
+                            </span>
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteChecklistTask(task.id)}
+                            className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0 ml-2"
+                            title="Excluir item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

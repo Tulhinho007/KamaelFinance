@@ -121,6 +121,7 @@ export async function getEventProjects() {
     endDate: p.endDate ? p.endDate.toISOString().split("T")[0] : null,
     status: p.status || "Em Planejamento",
     notes: p.notes || "",
+    checklist: p.checklist || null,
     items: (p.items || []).map((i: any) => ({
       id: i.id,
       description: i.description,
@@ -141,6 +142,7 @@ export async function createEventProjectAction(data: {
   endDate?: string | null;
   status?: string;
   notes?: string;
+  checklist?: any;
 }) {
   const userId = await getActiveUserId();
 
@@ -153,7 +155,8 @@ export async function createEventProjectAction(data: {
       endDate: data.endDate ? new Date(data.endDate) : null,
       status: data.status || "Em Planejamento",
       notes: data.notes || "",
-    }
+      checklist: data.checklist || null,
+    } as any
   });
 
   revalidatePath("/planejamento");
@@ -169,6 +172,7 @@ export async function updateEventProjectAction(
     endDate?: string | null;
     status?: string;
     notes?: string;
+    checklist?: any;
   }
 ) {
   const updateData: any = {};
@@ -178,10 +182,37 @@ export async function updateEventProjectAction(
   if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
   if (data.status !== undefined) updateData.status = data.status;
   if (data.notes !== undefined) updateData.notes = data.notes;
+  if (data.checklist !== undefined) updateData.checklist = data.checklist;
 
   const updated = await db.eventProject.update({
     where: { id },
     data: updateData,
+  });
+
+  revalidatePath("/planejamento");
+  return updated;
+}
+
+export async function updateEventProjectChecklistAction(id: string, checklist: any[]) {
+  const updated = await db.eventProject.update({
+    where: { id },
+    data: { checklist } as any,
+  });
+
+  revalidatePath("/planejamento");
+  return updated;
+}
+
+export async function toggleEventProjectStatusAction(id: string) {
+  const project = await db.eventProject.findUnique({ where: { id } });
+  if (!project) throw new Error("Projeto não encontrado.");
+
+  const isCompleted = project.status === "COMPLETED" || project.status === "Concluído";
+  const newStatus = isCompleted ? "Em Planejamento" : "COMPLETED";
+
+  const updated = await db.eventProject.update({
+    where: { id },
+    data: { status: newStatus },
   });
 
   revalidatePath("/planejamento");
