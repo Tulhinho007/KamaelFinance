@@ -140,7 +140,7 @@ export function NewPurchaseModal({
     const status = formIsPaid ? "COMPLETED" : "PENDING";
     const paymentMethod = isCredit ? "CARTAO_CREDITO" : formPaymentMethod;
     const dueDateStr = !formIsPaid ? formPurchaseDate : (formDueDate ? formDueDate : undefined);
-    const compDateStr = formDueDate 
+    const compDateStr = (formIsPaid && !isCredit && formDueDate)
       ? `${formDueDate.split("-")[0]}-${formDueDate.split("-")[1]}-01`
       : (parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined);
     const effectiveDate = formPurchaseDate;

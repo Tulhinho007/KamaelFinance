@@ -125,6 +125,7 @@ export default function CartaoDetailPage() {
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
   const [batchActionsModalOpen, setBatchActionsModalOpen] = useState(false);
   const [deletingBatch, setDeletingBatch] = useState(false);
+  const [duplicatingBatch, setDuplicatingBatch] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Modais de edição/exclusão/carga/datas
@@ -381,9 +382,15 @@ export default function CartaoDetailPage() {
     return { year: Number(parts[0]) || 0, month: Number(parts[1]) || 0 };
   };
 
+  const getTransactionDisplayYearMonth = (item: any) => {
+    if (!item) return { year: 0, month: 0 };
+    const ref = item.purchaseDate || item.date || item.competenceDate;
+    return getYearMonth(ref);
+  };
+
   const getCompetenceYearMonth = (item: any) => {
     if (!item) return { year: 0, month: 0 };
-    const ref = item.competenceDate || item.purchaseDate || item.date;
+    const ref = item.purchaseDate || item.date || item.competenceDate;
     return getYearMonth(ref);
   };
 
@@ -489,17 +496,17 @@ export default function CartaoDetailPage() {
     .filter(t => t && t.type === "INCOME" && (t as any).source !== "RECURRING_PROJECTION")
     .filter(t => {
       if (!t) return false;
-      const { year, month } = getCompetenceYearMonth(t);
+      const { year, month } = getTransactionDisplayYearMonth(t);
       return year === selectedYear && month === selectedMonth;
     })
     .reduce((s, t) => s + (t.amount || 0), 0);
 
-  // Cálculo de Total Pago e Total Não Pago (despesas do mês por competência)
+  // Cálculo de Total Pago e Total Não Pago (despesas do mês)
   const monthExpenseTransactions = (cardData.allTransactions || [])
     .filter(t => t && t.type === "EXPENSE" && (t as any).source !== "RECURRING_PROJECTION")
     .filter(t => {
       if (!t) return false;
-      const { year, month } = getCompetenceYearMonth(t);
+      const { year, month } = getTransactionDisplayYearMonth(t);
       return year === selectedYear && month === selectedMonth;
     });
   const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
@@ -558,6 +565,30 @@ export default function CartaoDetailPage() {
       showAlert("Erro ao excluir despesas selecionadas.", { variant: "error" });
     } finally {
       setDeletingBatch(false);
+    }
+  };
+
+  const nextMonthNum = selectedMonth === 12 ? 1 : selectedMonth + 1;
+  const nextYearNum = selectedMonth === 12 ? selectedYear + 1 : selectedYear;
+  const nextMonthName = getMonthName(nextMonthNum);
+
+  const handleDuplicateBatchToNextMonth = async () => {
+    if (selectedIds.length === 0 || duplicatingBatch) return;
+    setDuplicatingBatch(true);
+    try {
+      const res = await duplicateBatchExpensesToNextMonthAction(selectedIds, selectedMonth, selectedYear);
+      setSelectedIds([]);
+      setBatchActionsModalOpen(false);
+      await loadData();
+      showAlert(
+        `${res.count} ${res.count === 1 ? "despesa replicada" : "despesas replicadas"} para ${res.newMonthLabel || `${nextMonthName}/${nextYearNum}`}`,
+        { variant: "success" }
+      );
+    } catch (err) {
+      console.error("Erro ao replicar despesas:", err);
+      showAlert("Erro ao replicar despesas para o próximo mês.", { variant: "error" });
+    } finally {
+      setDuplicatingBatch(false);
     }
   };
 
@@ -1191,7 +1222,7 @@ export default function CartaoDetailPage() {
               const monthTransactions = (cardData.allTransactions || [])
                 .filter((t) => {
                   if ((t as any).source === "RECURRING_PROJECTION") return false;
-                  const { year, month } = getCompetenceYearMonth(t);
+                  const { year, month } = getTransactionDisplayYearMonth(t);
                   return year === selectedYear && month === selectedMonth;
                 })
                 .sort((a, b) => {
@@ -1251,10 +1282,23 @@ export default function CartaoDetailPage() {
                 <>
                   {/* Header */}
                   <div className="px-5 pt-5 pb-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                      Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
-                    </h2>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                        Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
+                      </h2>
+                      {selectedIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleDuplicateBatchToNextMonth}
+                          disabled={duplicatingBatch}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black shadow-sm transition-all cursor-pointer animate-in fade-in"
+                        >
+                          <CopyPlus className="w-3.5 h-3.5" />
+                          {duplicatingBatch ? "Replicando..." : `Replicar Selecionados (${selectedIds.length}) para ${nextMonthName}`}
+                        </button>
+                      )}
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {/* Filtro Recorrência */}
                       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
@@ -1693,11 +1737,20 @@ export default function CartaoDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handleDuplicateBatchToNextMonth}
+              disabled={duplicatingBatch}
+              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <CopyPlus className="w-3.5 h-3.5" />
+              {duplicatingBatch ? "Replicando..." : `Replicar Selecionados para Próximo Mês (${nextMonthName})`}
+            </button>
+
+            <button
               onClick={() => setBatchActionsModalOpen(true)}
-              className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-600/30 transition-all cursor-pointer flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              Ações em Lote
+              Mais Ações
             </button>
 
             <button
@@ -1735,25 +1788,15 @@ export default function CartaoDetailPage() {
             <div className="grid grid-cols-1 gap-2.5">
               {/* Botão 1: Duplicar Selecionados (+1 Mês) */}
               <button
-                onClick={async () => {
-                  try {
-                    const res = await duplicateBatchExpensesToNextMonthAction(selectedIds);
-                    setSelectedIds([]);
-                    setBatchActionsModalOpen(false);
-                    await loadData();
-                    showAlert(`${res.count} ${res.count === 1 ? "lançamento duplicado" : "lançamentos duplicados"} para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
-                  } catch (err) {
-                    console.error("Erro ao duplicar lançamentos:", err);
-                    showAlert("Erro ao duplicar lançamentos para o próximo mês.", { variant: "error" });
-                  }
-                }}
-                className="w-full px-4 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-2xl shadow-md shadow-indigo-600/30 flex items-center justify-between transition-all cursor-pointer group"
+                onClick={handleDuplicateBatchToNextMonth}
+                disabled={duplicatingBatch}
+                className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black rounded-2xl shadow-md shadow-purple-600/30 flex items-center justify-between transition-all cursor-pointer group"
               >
                 <div className="flex items-center gap-2.5">
-                  <CopyPlus className="w-4 h-4 text-indigo-200 group-hover:scale-110 transition-transform" />
-                  <span>Duplicar Selecionados (+1 Mês)</span>
+                  <CopyPlus className="w-4 h-4 text-purple-200 group-hover:scale-110 transition-transform" />
+                  <span>{duplicatingBatch ? "Replicando..." : `Replicar Selecionados para Próximo Mês (${nextMonthName})`}</span>
                 </div>
-                <span className="text-[10px] uppercase font-bold bg-indigo-500/30 px-2.5 py-0.5 rounded-full">Atalho</span>
+                <span className="text-[10px] uppercase font-bold bg-purple-500/30 px-2.5 py-0.5 rounded-full">Atalho</span>
               </button>
 
               {/* Botão 2: Marcar como Pago */}

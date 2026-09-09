@@ -1795,6 +1795,119 @@ function safeIsoDate(d: any): string {
   }
 }
 
+export async function ensureRecurringExpensesForMonth(
+  targetMonth: number,
+  targetYear: number,
+  walletId?: string
+) {
+  try {
+    const userId = await getActiveUserId();
+    if (!userId) return;
+
+    // 1. Buscar todas as despesas marcadas como recorrentes ativas
+    const recurringTxs = await prisma.transaction.findMany({
+      where: {
+        wallet: walletId ? { id: walletId, userId } : { userId },
+        type: "EXPENSE",
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" },
+        OR: [
+          { isRecurring: true },
+          { tags: { contains: "assinatura", mode: "insensitive" } },
+          { tags: { contains: "recorrente", mode: "insensitive" } },
+        ]
+      },
+      include: { wallet: true },
+      orderBy: [
+        { date: "desc" }
+      ]
+    });
+
+    if (!recurringTxs || recurringTxs.length === 0) return;
+
+    // 2. Agrupar pela chave única walletId + descrição (pegar a versão mais recente como molde)
+    const templatesByWalletDesc = new Map<string, typeof recurringTxs[0]>();
+    for (const tx of recurringTxs) {
+      const key = `${tx.walletId}::${(tx.description || "").trim().toLowerCase()}`;
+      if (!templatesByWalletDesc.has(key)) {
+        templatesByWalletDesc.set(key, tx);
+      }
+    }
+
+    const fromDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+    const toDate   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+    const targetAbsolute = targetYear * 12 + targetMonth;
+
+    for (const template of Array.from(templatesByWalletDesc.values())) {
+      // Verificar se o lançamento original é de um mês posterior ao alvo
+      const refDate = template.dueDate || template.purchaseDate || template.date;
+      const origComp = (template as any).competenceDate ? new Date((template as any).competenceDate) : refDate;
+      const refMonth = (template as any).competenceMonth || (origComp.getUTCMonth() + 1);
+      const refYear = (template as any).competenceYear || origComp.getUTCFullYear();
+      const templateAbsolute = refYear * 12 + refMonth;
+
+      // Não retroagir para meses anteriores à criação da recorrência
+      if (templateAbsolute > targetAbsolute) {
+        continue;
+      }
+
+      // 3. Verificar se já existe despesa com esta descrição no mês alvo
+      const existing = await prisma.transaction.findFirst({
+        where: {
+          walletId: template.walletId,
+          deletedAt: null,
+          type: "EXPENSE",
+          description: { equals: template.description.trim(), mode: "insensitive" },
+          OR: [
+            { competenceMonth: targetMonth, competenceYear: targetYear },
+            { date: { gte: fromDate, lte: toDate } },
+            { purchaseDate: { gte: fromDate, lte: toDate } },
+            { dueDate: { gte: fromDate, lte: toDate } }
+          ]
+        }
+      });
+
+      if (existing) {
+        continue;
+      }
+
+      // 4. Calcular dia com clamp seguro
+      const origDay = (template as any).recurringDay || (template.dueDate ? new Date(template.dueDate).getUTCDate() : (template.purchaseDate ? new Date(template.purchaseDate).getUTCDate() : new Date(template.date).getUTCDate()));
+      const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+      const safeDay = Math.min(Math.max(1, origDay), maxDays);
+
+      const targetDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+      const compDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
+
+      await prisma.transaction.create({
+        data: {
+          walletId: template.walletId,
+          categoryId: template.categoryId,
+          description: template.description,
+          type: "EXPENSE",
+          amount: template.amount,
+          installmentsCount: 1,
+          date: targetDate,
+          purchaseDate: targetDate,
+          dueDate: targetDate,
+          paymentDate: null,
+          status: "PENDING",
+          paymentMethod: (template as any).paymentMethod || null,
+          competenceDate: compDate,
+          competenceMonth: targetMonth,
+          competenceYear: targetYear,
+          source: "MANUAL",
+          tags: template.tags || null,
+          isRecurring: true,
+          recurringDay: safeDay,
+        } as any
+      });
+    }
+  } catch (error) {
+    console.error("Erro em ensureRecurringExpensesForMonth:", error);
+  }
+}
+
 export async function getCardDataById(id: string, month?: number, year?: number) {
   try {
     const userId = await getActiveUserId();
@@ -1812,6 +1925,12 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     if (!wallet) {
       return null;
     }
+
+    const targetMonth = month || (new Date().getMonth() + 1);
+    const targetYear  = year || new Date().getFullYear();
+
+    // Garantir que as despesas recorrentes ativas já existam geradas para este mês na carteira
+    await ensureRecurringExpensesForMonth(targetMonth, targetYear, wallet.id);
 
     const allTransactions = await prisma.transaction.findMany({
       where: {
@@ -1868,9 +1987,6 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     } catch (calcErr) {
       console.error("Erro ao calcular saldo em getCardDataById:", calcErr);
     }
-
-    const targetMonth = month || (new Date().getMonth() + 1);
-    const targetYear  = year || new Date().getFullYear();
 
     const dueDateInfo = getInvoiceDueDateInfo(
       (wallet as any).diaFechamento ?? 1,
@@ -1939,7 +2055,10 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         competenceMonth: (p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined),
         competenceYear: (p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
-        paymentDate: safeIsoDate((p as any).paymentDate || p.date)
+        paymentDate: (p as any).paymentDate ? safeIsoDate((p as any).paymentDate) : null,
+        dueDate: (p as any).dueDate ? safeIsoDate((p as any).dueDate) : null,
+        status: p.status || "COMPLETED",
+        paymentMethod: (p as any).paymentMethod || null,
       })),
       injections: injections.map(i => ({
         id: i.id,
@@ -1953,7 +2072,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         competenceMonth: (i as any).competenceMonth || ((i as any).competenceDate ? new Date((i as any).competenceDate).getUTCMonth() + 1 : undefined),
         competenceYear: (i as any).competenceYear || ((i as any).competenceDate ? new Date((i as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((i as any).purchaseDate || (i as any).competenceDate || i.date),
-        paymentDate: safeIsoDate((i as any).paymentDate || i.date)
+        paymentDate: (i as any).paymentDate ? safeIsoDate((i as any).paymentDate) : null
       })),
       allTransactions: allTransactions.map(t => ({
         id: t.id,
@@ -1973,7 +2092,9 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         competenceMonth: (t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined),
         competenceYear: (t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined),
         purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
-        paymentDate: safeIsoDate((t as any).paymentDate || t.date),
+        paymentDate: (t as any).paymentDate ? safeIsoDate((t as any).paymentDate) : null,
+        dueDate: (t as any).dueDate ? safeIsoDate((t as any).dueDate) : null,
+        paymentMethod: t.paymentMethod || null,
         source: t.source,
       })),
     };
@@ -2179,6 +2300,16 @@ export async function createCardPurchase(
       }
     });
 
+    if (isRecurring) {
+      let nextM = compMonth + 1;
+      let nextY = compYear;
+      if (nextM > 12) {
+        nextM = 1;
+        nextY += 1;
+      }
+      await ensureRecurringExpensesForMonth(nextM, nextY, walletId);
+    }
+
     if (!isPending) {
       const targetW = await prisma.wallet.findUnique({ where: { id: walletId }, select: { walletType: true } });
       if (targetW && targetW.walletType !== "CREDIT_CARD") {
@@ -2320,6 +2451,19 @@ export async function updateCardPurchase(
     } as any
   });
 
+  const effectiveIsRecurring = isRecurring !== undefined ? !!isRecurring : (existingTx as any)?.isRecurring;
+  if (effectiveIsRecurring) {
+    const compMonth = competenceDate.getUTCMonth() + 1;
+    const compYear = competenceDate.getUTCFullYear();
+    let nextM = compMonth + 1;
+    let nextY = compYear;
+    if (nextM > 12) {
+      nextM = 1;
+      nextY += 1;
+    }
+    await ensureRecurringExpensesForMonth(nextM, nextY, walletId);
+  }
+
   if (existingTx) {
     const oldStatus = (existingTx as any).status;
     const newStatus = status || oldStatus || "COMPLETED";
@@ -2446,18 +2590,48 @@ export async function unmarkBatchTransactionsPaidAction(ids: string[]) {
   return { success: true };
 }
 
-export async function duplicateExpenseToNextMonthAction(expenseId: string) {
+export async function duplicateExpenseToNextMonthAction(
+  expenseId: string,
+  baseMonth?: number,
+  baseYear?: number
+) {
   const original = await prisma.transaction.findUnique({
     where: { id: expenseId }
   });
   if (!original) throw new Error("Lançamento não encontrado.");
 
-  const origDate = new Date(original.date);
-  const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
+  let targetMonth: number;
+  let targetYear: number;
+  if (baseMonth && baseYear) {
+    targetMonth = baseMonth + 1;
+    targetYear = baseYear;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
+    }
+  } else {
+    const origDate = new Date(original.dueDate || original.purchaseDate || original.date);
+    const rawComp = (original as any).competenceDate;
+    const origComp = rawComp ? new Date(rawComp) : origDate;
+    const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
+    const y = (original as any).competenceYear || origComp.getUTCFullYear();
+    targetMonth = m + 1;
+    targetYear = y;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
+    }
+  }
 
-  const rawComp = (original as any).competenceDate;
-  const origComp = rawComp ? new Date(rawComp) : origDate;
-  const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
+  const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
+
+  const origDay = (original as any).recurringDay || (original.dueDate ? new Date(original.dueDate).getUTCDate() : (original.purchaseDate ? new Date(original.purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
+  const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+  const safeDay = Math.min(Math.max(1, origDay), maxDays);
+
+  const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+  const nextComp = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
 
   const newTx = await prisma.transaction.create({
     data: {
@@ -2467,18 +2641,23 @@ export async function duplicateExpenseToNextMonthAction(expenseId: string) {
       type: original.type,
       amount: original.amount,
       date: nextDate,
-      competenceDate: nextComp,
+      purchaseDate: nextDate,
+      dueDate: nextDate,
+      paymentDate: null,
       status: "PENDING",
+      paymentMethod: (original as any).paymentMethod || null,
+      competenceDate: nextComp,
+      competenceMonth: targetMonth,
+      competenceYear: targetYear,
       source: original.source || "MANUAL",
       tags: original.tags,
+      isRecurring: (original as any).isRecurring ?? false,
+      recurringDay: safeDay,
       installmentsCount: original.installmentsCount || null,
-      currentInstallment: original.currentInstallment || null,
-      installmentGroupId: original.installmentGroupId || null
+      currentInstallment: (original as any).currentInstallment || null,
+      installmentGroupId: (original as any).installmentGroupId || null
     } as any
   });
-
-  const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  const newMonthLabel = `${monthShorts[nextComp.getUTCMonth()]}/${nextComp.getUTCFullYear()}`;
 
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
@@ -2488,21 +2667,70 @@ export async function duplicateExpenseToNextMonthAction(expenseId: string) {
   return { success: true, newMonthLabel, id: newTx.id };
 }
 
-export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string[]) {
+export async function duplicateBatchExpensesToNextMonthAction(
+  expenseIds: string[],
+  baseMonth?: number,
+  baseYear?: number
+) {
   if (!expenseIds || expenseIds.length === 0) return { success: true, count: 0, newMonthLabel: "" };
 
   const originals = await prisma.transaction.findMany({
     where: { id: { in: expenseIds }, deletedAt: null }
   });
 
+  let createdCount = 0;
   let lastMonthLabel = "";
-  for (const original of originals) {
-    const origDate = new Date(original.date);
-    const nextDate = new Date(Date.UTC(origDate.getUTCFullYear(), origDate.getUTCMonth() + 1, origDate.getUTCDate(), 12, 0, 0));
+  const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-    const rawComp = (original as any).competenceDate;
-    const origComp = rawComp ? new Date(rawComp) : origDate;
-    const nextComp = new Date(Date.UTC(origComp.getUTCFullYear(), origComp.getUTCMonth() + 1, 1, 12, 0, 0));
+  for (const original of originals) {
+    let targetMonth: number;
+    let targetYear: number;
+
+    if (baseMonth && baseYear) {
+      targetMonth = baseMonth + 1;
+      targetYear = baseYear;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear += 1;
+      }
+    } else {
+      const origDate = new Date(original.dueDate || original.purchaseDate || original.date);
+      const rawComp = (original as any).competenceDate;
+      const origComp = rawComp ? new Date(rawComp) : origDate;
+      const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
+      const y = (original as any).competenceYear || origComp.getUTCFullYear();
+      targetMonth = m + 1;
+      targetYear = y;
+      if (targetMonth > 12) {
+        targetMonth = 1;
+        targetYear += 1;
+      }
+    }
+
+    lastMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
+
+    // Evitar duplicações se já existe para este mês
+    const existing = await prisma.transaction.findFirst({
+      where: {
+        walletId: original.walletId,
+        description: original.description,
+        deletedAt: null,
+        type: "EXPENSE",
+        competenceMonth: targetMonth,
+        competenceYear: targetYear,
+      }
+    });
+    if (existing) {
+      createdCount++;
+      continue;
+    }
+
+    const origDay = (original as any).recurringDay || (original.dueDate ? new Date(original.dueDate).getUTCDate() : (original.purchaseDate ? new Date(original.purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
+    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+    const safeDay = Math.min(Math.max(1, origDay), maxDays);
+
+    const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+    const nextComp = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
 
     await prisma.transaction.create({
       data: {
@@ -2512,18 +2740,24 @@ export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string
         type: original.type,
         amount: original.amount,
         date: nextDate,
-        competenceDate: nextComp,
+        purchaseDate: nextDate,
+        dueDate: nextDate,
+        paymentDate: null,
         status: "PENDING",
+        paymentMethod: (original as any).paymentMethod || null,
+        competenceDate: nextComp,
+        competenceMonth: targetMonth,
+        competenceYear: targetYear,
         source: original.source || "MANUAL",
         tags: original.tags,
+        isRecurring: (original as any).isRecurring ?? false,
+        recurringDay: safeDay,
         installmentsCount: original.installmentsCount || null,
-        currentInstallment: original.currentInstallment || null,
-        installmentGroupId: original.installmentGroupId || null
+        currentInstallment: (original as any).currentInstallment || null,
+        installmentGroupId: (original as any).installmentGroupId || null
       } as any
     });
-
-    const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    lastMonthLabel = `${monthShorts[nextComp.getUTCMonth()]}/${nextComp.getUTCFullYear()}`;
+    createdCount++;
   }
 
   revalidatePath("/cartoes");
@@ -2531,7 +2765,7 @@ export async function duplicateBatchExpensesToNextMonthAction(expenseIds: string
   revalidatePath("/receitas");
   revalidatePath("/dashboard");
 
-  return { success: true, count: originals.length, newMonthLabel: lastMonthLabel };
+  return { success: true, count: createdCount, newMonthLabel: lastMonthLabel };
 }
 
 // ---------- Actions de Ticket Alimentação ----------
@@ -2774,6 +3008,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
   }
 
   const effectiveMonth = !isAnnualView ? Number(month) : (new Date().getMonth() + 1);
+  await ensureRecurringExpensesForMonth(effectiveMonth, year);
 
   const result = await Promise.all(
     wallets.map(async (w) => {
@@ -2983,6 +3218,7 @@ export async function getRecurringExpensesAction(month?: number | null | string,
   let from: Date;
   let to: Date;
   if (!isAnnualView && numMonth) {
+    await ensureRecurringExpensesForMonth(numMonth, year);
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
@@ -3348,6 +3584,7 @@ export async function getPendingExpensesAction(month?: number | null | string, y
   let from: Date;
   let to: Date;
   if (!isAnnualView && numMonth) {
+    await ensureRecurringExpensesForMonth(numMonth, year);
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
