@@ -2916,10 +2916,8 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
 
       const paidWhere: any = { walletId: w.id };
       if (!isAnnualView) {
-        paidWhere.OR = [
-          { month: Number(month), year },
-          { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
-        ];
+        paidWhere.year = year;
+        paidWhere.month = { in: [Number(month), dueDateInfo.billingMonth] };
       } else {
         paidWhere.year = year;
       }
@@ -2927,6 +2925,10 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const paidRecord = await (prisma as any).invoicePayment.findFirst({
         where: paidWhere
       });
+
+      const isCardFullyPaid = isCredit
+        ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
+        : false;
 
       return {
         id:               w.id,
@@ -2963,7 +2965,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         isPast:           dueDateInfo.isPast,
         billingMonth:     dueDateInfo.billingMonth,
         billingYear:      dueDateInfo.billingYear,
-        isPaid:           !!paidRecord,
+        isPaid:           isCardFullyPaid,
         paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
         paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
       };
@@ -2971,6 +2973,110 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
   );
 
   return result;
+}
+
+export async function getRecurringExpensesAction(month?: number | null | string, year: number = 2026) {
+  const userId = await getActiveUserId();
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+  const numMonth = !isAnnualView ? Number(month) : null;
+
+  let from: Date;
+  let to: Date;
+  if (!isAnnualView && numMonth) {
+    from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
+
+  const txs = await (prisma.transaction as any).findMany({
+    where: {
+      wallet: { userId },
+      type: "EXPENSE",
+      deletedAt: null,
+      source: { not: "RECURRING_PROJECTION" },
+      OR: [
+        { isRecurring: true },
+        { tags: { contains: "assinatura", mode: "insensitive" } },
+        { tags: { contains: "recorrente", mode: "insensitive" } },
+      ],
+      AND: [
+        !isAnnualView && numMonth
+          ? {
+              OR: [
+                { competenceMonth: numMonth, competenceYear: year },
+                { date: { gte: from, lte: to } },
+                { competenceDate: { gte: from, lte: to } },
+                { dueDate: { gte: from, lte: to } },
+                { paymentDate: { gte: from, lte: to } },
+              ]
+            }
+          : {
+              OR: [
+                { competenceYear: year },
+                { date: { gte: from, lte: to } },
+                { competenceDate: { gte: from, lte: to } },
+                { dueDate: { gte: from, lte: to } },
+                { paymentDate: { gte: from, lte: to } },
+              ]
+            }
+      ]
+    },
+    include: {
+      wallet: true,
+      category: true,
+    },
+    orderBy: [
+      { dueDate: "asc" },
+      { date: "asc" }
+    ]
+  });
+
+  return (txs as any[]).map(t => {
+    const isCredit = t.wallet?.walletType === "CREDIT_CARD";
+    const refDate = t.dueDate || t.competenceDate || t.date;
+    const d = new Date(refDate);
+    const day = t.recurringDay || d.getUTCDate();
+    const billingDayText = `Todo dia ${String(day).padStart(2, "0")}`;
+
+    let formaPagamento = t.wallet?.title || "Conta";
+    if (isCredit) {
+      formaPagamento = `Cartão ${t.wallet?.title}`;
+    } else if (t.paymentMethod) {
+      formaPagamento = `${t.wallet?.title} (${t.paymentMethod})`;
+    } else {
+      formaPagamento = `${t.wallet?.title} (Débito / Pix)`;
+    }
+
+    let statusLabel = "Agendado";
+    let statusStyle = "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800";
+
+    if (isCredit) {
+      statusLabel = "Na Fatura";
+      statusStyle = "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800";
+    } else if (t.status === "COMPLETED" || t.status === "pago") {
+      statusLabel = "Pago";
+      statusStyle = "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+    } else if (t.status === "PENDING") {
+      statusLabel = "Pendente";
+      statusStyle = "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800";
+    }
+
+    return {
+      id: t.id,
+      description: t.description,
+      categoryName: t.category?.name || "Geral",
+      billingDayText,
+      formaPagamento,
+      amount: Number(t.amount),
+      status: statusLabel,
+      statusStyle,
+      isCredit,
+      isPaid: t.status === "COMPLETED" || t.status === "pago",
+      walletId: t.walletId,
+    };
+  });
 }
 
 export async function getRealRevenueAction(month: number | null | string, year: number = 2026) {

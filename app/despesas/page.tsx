@@ -7,7 +7,7 @@ import {
   AlertCircle, CheckCircle2, Clock, Sparkles,
   BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
-  HelpCircle
+  HelpCircle, Repeat
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -16,7 +16,8 @@ import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
   getSalaryCycleSummary, getRealRevenueAction,
-  getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction
+  getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction,
+  getRecurringExpensesAction
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -289,28 +290,31 @@ export default function DespesasPage() {
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
 
   // Controle de Faturas Pagas / Pendentes & Modal de Pagamento
-  const [invoiceTab, setInvoiceTab]         = useState<"pending" | "paid">("pending");
-  const [paidInvoicesList, setPaidInvoicesList] = useState<any[]>([]);
+  const [invoiceTab, setInvoiceTab]                 = useState<"pending" | "paid" | "recurring">("pending");
+  const [paidInvoicesList, setPaidInvoicesList]     = useState<any[]>([]);
   const [pendingExpensesList, setPendingExpensesList] = useState<any[]>([]);
   const [paidExpensesList, setPaidExpensesList]       = useState<any[]>([]);
-  const [payModalCard, setPayModalCard]     = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
+  const [recurringExpensesList, setRecurringExpensesList] = useState<any[]>([]);
+  const [payModalCard, setPayModalCard]             = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
-  const [isPayingInvoice, setIsPayingInvoice] = useState(false);
+  const [isPayingInvoice, setIsPayingInvoice]       = useState(false);
 
   const reloadAllData = async () => {
     try {
-      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp] = await Promise.all([
+      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring] = await Promise.all([
         getAllCardsOverview(selectedMonthFilter, selectedYear),
         getPaidInvoicesAction(selectedMonthFilter, selectedYear),
         getRealRevenueAction(selectedMonthFilter, selectedYear),
         getPendingExpensesAction(selectedMonthFilter, selectedYear),
         getPaidExpensesAction(selectedMonthFilter, selectedYear),
+        getRecurringExpensesAction(selectedMonthFilter, selectedYear),
       ]);
       setCards(freshCards || []);
       setPaidInvoicesList(freshPaidInv || []);
       setRealRevenue(freshRev || 0);
       setPendingExpensesList(freshPending || []);
       setPaidExpensesList(freshPaidExp || []);
+      setRecurringExpensesList(freshRecurring || []);
     } catch (e) {
       console.error("Erro ao recarregar dados de despesas:", e);
     }
@@ -432,14 +436,16 @@ export default function DespesasPage() {
       getRealRevenueAction(monthParam, selectedYear),
       getPendingExpensesAction(monthParam, selectedYear),
       getPaidExpensesAction(monthParam, selectedYear),
+      getRecurringExpensesAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
         setRealRevenue(revenueRes || 0);
         setPendingExpensesList(pendingExpRes || []);
         setPaidExpensesList(paidExpRes || []);
+        setRecurringExpensesList(recurringRes || []);
         setLoading(false);
       })
       .catch(err => {
@@ -475,9 +481,27 @@ export default function DespesasPage() {
   const totalFaturas      = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
   const limiteConsolidado = creditCards.reduce((s, c) => s + (c.limitTotal - c.limitUsed), 0);
 
-  // Cartões com fatura paga e sincronização unificada
-  const paidCardIds = new Set(paidInvoicesList.map(p => p.walletId));
-  const paidCreditCards = creditCards.filter(c => (c as any).isPaid || paidCardIds.has(c.id));
+  // Helper preciso para verificar se a fatura do cartão está paga no período
+  const isCardInvoicePaidForPeriod = (card: CardOverview) => {
+    if (card.faturaAtual <= 0) return false;
+
+    // Se estiver em modo anual, só é considerada paga se não houver saldo pendente
+    if (card.isAnnualView || selectedMonthFilter === null) {
+      return (card as any).faturaPendente <= 0 && Boolean((card as any).isPaid);
+    }
+
+    const currentMonth = Number(selectedMonthFilter);
+    const billingM = (card as any).billingMonth || currentMonth;
+    const billingY = (card as any).billingYear || selectedYear;
+
+    return paidInvoicesList.some(
+      p => p.walletId === card.id &&
+           ((p.month === currentMonth && p.year === selectedYear) ||
+            (p.month === billingM && p.year === billingY))
+    ) || Boolean((card as any).isPaid);
+  };
+
+  const paidCreditCards = creditCards.filter(c => isCardInvoicePaidForPeriod(c));
 
   const unifiedPaidInvoices = [...paidInvoicesList];
   paidCreditCards.forEach(c => {
@@ -499,10 +523,10 @@ export default function DespesasPage() {
 
   // Faturas A Vencer (cartões de crédito com fatura > 0 e NÃO pagas)
   const upcomingBills: UpcomingBill[] = creditCards
-    .filter(c => c.faturaAtual > 0 && !(c as any).isPaid && !paidCardIds.has(c.id))
+    .filter(c => c.faturaAtual > 0 && !isCardInvoicePaidForPeriod(c))
     .map(c => {
       const isPast = (c as any).isPast;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
+      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String((c as any).billingMonth || selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
 
       return {
         id:         c.id,
@@ -953,7 +977,7 @@ export default function DespesasPage() {
                     card={card}
                     selectedMonth={selectedMonthFilter}
                     selectedYear={selectedYear}
-                    isPaid={!!(card as any).isPaid}
+                    isPaid={isCardInvoicePaidForPeriod(card)}
                     onTogglePaid={(id) => {
                       if ((card as any).isPaid) {
                         handleUndoPayment(id, (card as any).billingMonth || selectedMonthFilter || 1, (card as any).billingYear || selectedYear);
@@ -1035,6 +1059,17 @@ export default function DespesasPage() {
                 >
                   Pagas ({unifiedPaidInvoices.length + paidExpensesList.length})
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceTab("recurring")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    invoiceTab === "recurring"
+                      ? "bg-white dark:bg-[#1A233A] text-purple-600 dark:text-purple-400 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Recorrentes & Fixas ({recurringExpensesList.length})
+                </button>
               </div>
 
               {cards.length > 0 && (
@@ -1093,7 +1128,7 @@ export default function DespesasPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.description}</p>
                           {bill.isRecurring && (
                             <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded-md" title="Despesa recorrente">
@@ -1133,32 +1168,50 @@ export default function DespesasPage() {
                   </div>
                 ))}
 
-                {/* 2. Faturas de Cartão de Crédito a Vencer */}
+                {/* 2. Faturas de Cartão de Crédito a Vencer (Padronizado) */}
                 {upcomingBills.map(bill => (
                   <div
                     key={`card-bill-${bill.id}`}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-200 dark:hover:border-indigo-800/60 transition-all group shadow-2xs"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-indigo-200/60 dark:border-indigo-900/40 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-800 transition-all group shadow-2xs"
                   >
                     <div className="flex items-center gap-3.5 flex-1 min-w-0">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        bill.status === "vencido" ? "bg-rose-100 text-rose-500 dark:bg-rose-950/60 dark:text-rose-400" : "bg-amber-100 text-amber-500 dark:bg-amber-950/60 dark:text-amber-400"
+                        bill.status === "vencido"
+                          ? "bg-rose-100 text-rose-500 dark:bg-rose-950/60 dark:text-rose-400"
+                          : "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/60"
                       }`}>
                         <CreditCard className="w-5 h-5" />
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.title || bill.bankName}</p>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Fatura · Vence em {bill.vencimento}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                            Fatura {bill.title || bill.bankName}
+                          </p>
+                          <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/80 px-1.5 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60 tracking-wider">
+                            Cartão de Crédito
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                          Vence em {bill.vencimento}
+                        </p>
+                        <p className="text-[9px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                          Cartão: {bill.bankName || bill.title}
+                        </p>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
                       <div className="text-left sm:text-right">
-                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(bill.valor)}</p>
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">
+                          {formatCurrency(bill.valor)}
+                        </p>
                         <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 ${
-                          bill.status === "vencido" ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900" : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
+                          bill.status === "vencido"
+                            ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900"
+                            : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
                         }`}>
-                          {bill.status === "vencido" ? "Vencida" : "Em Aberto"}
+                          {bill.status === "vencido" ? "Vencida" : "Aguardando Pagamento"}
                         </span>
                       </div>
 
@@ -1174,8 +1227,8 @@ export default function DespesasPage() {
                             year: bill.year,
                           });
                         }}
-                        className="flex items-center gap-1 text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
-                        title="Efetuar pagamento da fatura"
+                        className="flex items-center gap-1.5 text-[10px] font-black text-white bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 px-3.5 py-2 rounded-xl transition-all shadow-sm shadow-indigo-600/20 cursor-pointer"
+                        title="Efetuar pagamento da fatura com débito em conta"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         Pagar Fatura
@@ -1185,7 +1238,7 @@ export default function DespesasPage() {
                 ))}
               </div>
             )
-          ) : (
+          ) : invoiceTab === "paid" ? (
             unifiedPaidInvoices.length === 0 && paidExpensesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                 <Clock className="w-8 h-8 text-slate-300" />
@@ -1294,6 +1347,94 @@ export default function DespesasPage() {
                 ))}
               </div>
             )
+          ) : (
+            /* 3. Tabela Dedicada para Assinaturas e Contas Recorrentes */
+            <div className="overflow-x-auto">
+              {recurringExpensesList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                  <Repeat className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                  <p className="text-xs font-semibold text-slate-400">
+                    Nenhuma assinatura ou despesa recorrente cadastrada para este mês.
+                  </p>
+                  <p className="text-[10px] text-slate-400">
+                    Ao lançar uma nova despesa, marque a opção "Despesa Recorrente / Assinatura" para exibi-la aqui.
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      <th className="py-3 px-4">Serviço / Conta</th>
+                      <th className="py-3 px-4">Categoria</th>
+                      <th className="py-3 px-4">Vencimento / Cobrança</th>
+                      <th className="py-3 px-4">Forma de Pagamento</th>
+                      <th className="py-3 px-4 text-right">Valor Previsto</th>
+                      <th className="py-3 px-4 text-center">Status</th>
+                      <th className="py-3 px-4 text-center">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
+                    {recurringExpensesList.map((item) => (
+                      <tr
+                        key={`rec-${item.id}`}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                              <Repeat className="w-3.5 h-3.5" />
+                            </div>
+                            <span>{item.description}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
+                          {item.categoryName}
+                        </td>
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-semibold">
+                          {item.billingDayText}
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                          <span className="inline-flex items-center gap-1">
+                            {item.isCredit ? <CreditCard className="w-3 h-3 text-purple-500" /> : <Wallet className="w-3 h-3 text-indigo-500" />}
+                            {item.formaPagamento}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white font-tnum">
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${item.statusStyle}`}>
+                            {item.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {!item.isCredit && !item.isPaid ? (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkBillPaid(item.id)}
+                              className="px-2.5 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                            >
+                              Dar Baixa
+                            </button>
+                          ) : item.isCredit ? (
+                            <Link
+                              href={`/cartoes/${item.walletId}`}
+                              className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
+                            >
+                              Ver Cartão
+                            </Link>
+                          ) : (
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                              Liquidado
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </div>
       </section>

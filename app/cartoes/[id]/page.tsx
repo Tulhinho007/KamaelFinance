@@ -79,6 +79,8 @@ type TransactionItem = {
   date: string;
   competenceDate?: string;
   source?: string;
+  tags?: string;
+  isRecurring?: boolean;
 };
 
 type CardData = {
@@ -140,6 +142,9 @@ export default function CartaoDetailPage() {
   // Filtro de fluxo (Todas | Entradas | Saídas)
   const [flowFilter, setFlowFilter] = useState<"all" | "income" | "expense">("all");
   const [bankFlowFilter, setBankFlowFilter] = useState<"all" | "income" | "expense">("all");
+  // Filtro de recorrência (Todas | Compras Avulsas | Recorrentes / Fixas)
+  const [recurrenceFilter, setRecurrenceFilter] = useState<"all" | "single" | "recurring">("all");
+  const [bankRecurrenceFilter, setBankRecurrenceFilter] = useState<"all" | "single" | "recurring">("all");
   // Form Fields
   const [formLimit, setFormLimit] = useState<number | "">("");
   const [formDiaFechamento, setFormDiaFechamento] = useState<number>(1);
@@ -935,7 +940,20 @@ export default function CartaoDetailPage() {
             const entradasCount = 0;
             const saidasCount = allCreditEntries.length;
 
-            const filtered = allCreditEntries; // no CC só existem saídas
+            const isRecurringEntry = (e: CreditEntry) => Boolean(
+              e.isRecurring ||
+              e.subtype === "assinatura" ||
+              (e.tags && (e.tags.toLowerCase().includes("assinatura") || e.tags.toLowerCase().includes("recorrente")))
+            );
+
+            const avulsasCount = allCreditEntries.filter(e => !isRecurringEntry(e)).length;
+            const recorrentesCount = allCreditEntries.filter(e => isRecurringEntry(e)).length;
+
+            const filtered = allCreditEntries.filter(entry => {
+              if (recurrenceFilter === "single") return !isRecurringEntry(entry);
+              if (recurrenceFilter === "recurring") return isRecurringEntry(entry);
+              return true;
+            });
 
             // Agrupamento por data
             const today = new Date();
@@ -967,15 +985,19 @@ export default function CartaoDetailPage() {
                 {/* Header */}
                 <div className="px-5 pt-5 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
                   <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">Extrato da Fatura</h3>
-                  {/* Abas de fluxo */}
+                  {/* Filtro de Recorrência */}
                   <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <button type="button" onClick={() => setFlowFilter("all")}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ flowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                      Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
+                    <button type="button" onClick={() => setRecurrenceFilter("all")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ recurrenceFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                      Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{allCreditEntries.length}</span>
                     </button>
-                    <button type="button" onClick={() => setFlowFilter("expense")}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ flowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                      Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
+                    <button type="button" onClick={() => setRecurrenceFilter("single")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ recurrenceFilter === "single" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                      Compras Avulsas <span className="text-[10px] font-black opacity-60 ml-0.5">{avulsasCount}</span>
+                    </button>
+                    <button type="button" onClick={() => setRecurrenceFilter("recurring")}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ recurrenceFilter === "recurring" ? "bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                      Recorrentes / Fixas <span className="text-[10px] font-black opacity-60 ml-0.5">{recorrentesCount}</span>
                     </button>
                   </div>
                 </div>
@@ -1184,9 +1206,23 @@ export default function CartaoDetailPage() {
               const entradasCount = monthTransactions.filter(t => t.type === "INCOME").length;
               const saidasCount = monthTransactions.filter(t => t.type === "EXPENSE").length;
 
-              const filtered = bankFlowFilter === "all" ? monthTransactions
-                : bankFlowFilter === "income" ? monthTransactions.filter(t => t.type === "INCOME")
-                : monthTransactions.filter(t => t.type === "EXPENSE");
+              const isRecurringTransaction = (t: any) => Boolean(
+                t.isRecurring ||
+                (t.tags && (t.tags.toLowerCase().includes("assinatura") || t.tags.toLowerCase().includes("recorrente"))) ||
+                (t.description && /luz|água|internet|energia|celular|netflix|spotify|aluguel/i.test(t.description))
+              );
+
+              const bankAvulsasCount = monthTransactions.filter(t => !isRecurringTransaction(t)).length;
+              const bankRecorrentesCount = monthTransactions.filter(t => isRecurringTransaction(t)).length;
+
+              const filtered = monthTransactions.filter(t => {
+                if (bankFlowFilter === "income" && t.type !== "INCOME") return false;
+                if (bankFlowFilter === "expense" && t.type !== "EXPENSE") return false;
+                const isRec = isRecurringTransaction(t);
+                if (bankRecurrenceFilter === "single" && isRec) return false;
+                if (bankRecurrenceFilter === "recurring" && !isRec) return false;
+                return true;
+              });
 
               const today = new Date();
               today.setHours(0, 0, 0, 0);
@@ -1214,25 +1250,43 @@ export default function CartaoDetailPage() {
               return (
                 <>
                   {/* Header */}
-                  <div className="px-5 pt-5 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
+                  <div className="px-5 pt-5 pb-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-100 dark:border-slate-800">
                     <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                       Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
                     </h2>
-                    {/* Abas de fluxo */}
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
-                      <button type="button" onClick={() => setBankFlowFilter("all")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                        Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{monthTransactions.length}</span>
-                      </button>
-                      <button type="button" onClick={() => setBankFlowFilter("income")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "income" ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                        Entradas <span className="text-[10px] font-black opacity-60 ml-0.5">{entradasCount}</span>
-                      </button>
-                      <button type="button" onClick={() => setBankFlowFilter("expense")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                        Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
-                      </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Filtro Recorrência */}
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <button type="button" onClick={() => setBankRecurrenceFilter("all")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankRecurrenceFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{monthTransactions.length}</span>
+                        </button>
+                        <button type="button" onClick={() => setBankRecurrenceFilter("single")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankRecurrenceFilter === "single" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Compras Avulsas <span className="text-[10px] font-black opacity-60 ml-0.5">{bankAvulsasCount}</span>
+                        </button>
+                        <button type="button" onClick={() => setBankRecurrenceFilter("recurring")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankRecurrenceFilter === "recurring" ? "bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Recorrentes / Fixas <span className="text-[10px] font-black opacity-60 ml-0.5">{bankRecorrentesCount}</span>
+                        </button>
+                      </div>
+
+                      {/* Abas de fluxo */}
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <button type="button" onClick={() => setBankFlowFilter("all")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{monthTransactions.length}</span>
+                        </button>
+                        <button type="button" onClick={() => setBankFlowFilter("income")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "income" ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Entradas <span className="text-[10px] font-black opacity-60 ml-0.5">{entradasCount}</span>
+                        </button>
+                        <button type="button" onClick={() => setBankFlowFilter("expense")}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
+                          Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
