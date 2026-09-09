@@ -1633,7 +1633,7 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   // Fetch ALL historical non-deleted transactions for this wallet up to endOfMonth
-  const allWalletTransactions = await prisma.transaction.findMany({
+  const allWalletTransactions = await (prisma.transaction as any).findMany({
     where: {
       walletId: walletId,
       deletedAt: null,
@@ -1673,59 +1673,59 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   };
 
   // Calculate historical totals up to endOfMonth (baseado na data efetiva de caixa para o saldo real da conta)
-  const totalEntradasHistoricas = allWalletTransactions
-    .filter((t) => {
+  const totalEntradasHistoricas = (allWalletTransactions as any[])
+    .filter((t: any) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
       const cashDate = getTxCashDate(t);
       return cashDate <= endOfMonth;
     })
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
-  const totalSaidasHistoricas = allWalletTransactions
-    .filter((t) => {
+  const totalSaidasHistoricas = (allWalletTransactions as any[])
+    .filter((t: any) => {
       if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
       const cashDate = getTxCashDate(t);
       return cashDate <= endOfMonth;
     })
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas na conta)
   const finalBalance = (Number(wallet.initialBalance || 0) + totalEntradasHistoricas) - totalSaidasHistoricas;
 
   // Transações do mês selecionado por competência
-  const monthTransactions = allWalletTransactions.filter((t) => {
+  const monthTransactions = (allWalletTransactions as any[]).filter((t: any) => {
     const comp = getTxCompetence(t);
     return comp.year === year && comp.month === month;
   });
 
-  const monthIncome = allWalletTransactions
-    .filter((t) => {
+  const monthIncome = (allWalletTransactions as any[])
+    .filter((t: any) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
       const cashDate = getTxCashDate(t);
       return cashDate >= startOfMonth && cashDate <= endOfMonth;
     })
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   const monthExpense = monthTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .filter((t: any) => t.type === "EXPENSE" && t.status !== "PENDING")
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   // Transações anteriores ao mês selecionado por caixa
-  const prevIncome = allWalletTransactions
-    .filter((t) => {
+  const prevIncome = (allWalletTransactions as any[])
+    .filter((t: any) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
       const cashDate = getTxCashDate(t);
       return cashDate < startOfMonth;
     })
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
-  const prevExpense = allWalletTransactions
-    .filter((t) => {
+  const prevExpense = (allWalletTransactions as any[])
+    .filter((t: any) => {
       if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
       const cashDate = getTxCashDate(t);
       return cashDate < startOfMonth;
     })
-    .reduce((s, t) => s + Number(t.amount), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   const previousBalance = (Number(wallet.initialBalance || 0) + prevIncome) - prevExpense;
   const totalAvailable  = previousBalance + monthIncome;
@@ -2780,7 +2780,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const isCredit = w.walletType === "CREDIT_CARD";
       const balanceInfo = await calculateAccountBalance(w.id, effectiveMonth, year);
 
-      const rawTransactions = await prisma.transaction.findMany({
+      const rawTransactions = await (prisma.transaction as any).findMany({
         where: {
           walletId: w.id,
           type:     "EXPENSE",
@@ -2799,33 +2799,33 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         orderBy: { date: "asc" },
       });
 
-      const transactions = rawTransactions.filter((t) => {
+      const transactions = (rawTransactions as any[]).filter((t: any) => {
         if (isCredit) {
-          if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+          if (t.competenceMonth != null && t.competenceYear != null) {
             if (!isAnnualView) {
-              return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+              return t.competenceMonth === Number(month) && t.competenceYear === year;
             }
-            return (t as any).competenceYear === year;
+            return t.competenceYear === year;
           }
-          const d = new Date((t as any).competenceDate || (t as any).purchaseDate || t.date);
+          const d = new Date(t.competenceDate || t.purchaseDate || t.date);
           return d >= from && d <= to;
         }
 
         // Para contas correntes / débito:
         if (isAnnualView) {
-          const compYear = (t as any).competenceYear || new Date((t as any).paymentDate || t.date).getUTCFullYear();
+          const compYear = t.competenceYear || new Date(t.paymentDate || t.date).getUTCFullYear();
           return compYear === year;
         }
 
         const numM = Number(month);
-        const payD = (t as any).paymentDate ? new Date((t as any).paymentDate) : null;
-        const dueD = (t as any).dueDate ? new Date((t as any).dueDate) : ((t as any).competenceDate ? new Date((t as any).competenceDate) : null);
+        const payD = t.paymentDate ? new Date(t.paymentDate) : null;
+        const dueD = t.dueDate ? new Date(t.dueDate) : (t.competenceDate ? new Date(t.competenceDate) : null);
 
         // 1. Se foi pago neste mês (paymentDate no mês selecionado): dinheiro saiu da conta neste mês
         if (payD && payD >= from && payD <= to) return true;
 
         // 2. Se a competência / vencimento é deste mês
-        const isCompThisMonth = ((t as any).competenceMonth === numM && ((t as any).competenceYear || year) === year) ||
+        const isCompThisMonth = (t.competenceMonth === numM && (t.competenceYear || year) === year) ||
           (dueD && dueD >= from && dueD <= to);
 
         return isCompThisMonth;
@@ -2833,15 +2833,15 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
 
       const filteredTransactions = isCredit
         ? transactions
-        : transactions.filter(t => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
+        : transactions.filter((t: any) => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
 
-      const faturaAtual = filteredTransactions.reduce((s, t) => s + Number(t.amount), 0);
+      const faturaAtual = filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
       const faturaPaga = filteredTransactions
-        .filter(t => (t as any).status === "COMPLETED" || (t as any).status === "pago" || (t as any).status === "confirmado")
-        .reduce((s, t) => s + Number(t.amount), 0);
+        .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
+        .reduce((s: number, t: any) => s + Number(t.amount), 0);
       const faturaPendente = filteredTransactions
-        .filter(t => (t as any).status === "PENDING" || ((t as any).status !== "COMPLETED" && (t as any).status !== "pago" && (t as any).status !== "confirmado"))
-        .reduce((s, t) => s + Number(t.amount), 0);
+        .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
+        .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
       // Para cartão de crédito: limitTotal é o limite de crédito.
       // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO.
@@ -2878,7 +2878,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
 
       // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
       // Somar todas as saídas vinculadas a essa conta registradas no período
-      const accountExpenses = transactions.reduce((s, t) => s + Number(t.amount), 0);
+      const accountExpenses = transactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
       const totalSpentInPeriod = accountExpenses;
 
       // Entradas na conta no período selecionado
