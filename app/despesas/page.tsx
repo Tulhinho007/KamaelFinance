@@ -15,7 +15,8 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
-  getSalaryCycleSummary, getRealRevenueAction
+  getSalaryCycleSummary, getRealRevenueAction,
+  getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -290,9 +291,52 @@ export default function DespesasPage() {
   // Controle de Faturas Pagas / Pendentes & Modal de Pagamento
   const [invoiceTab, setInvoiceTab]         = useState<"pending" | "paid">("pending");
   const [paidInvoicesList, setPaidInvoicesList] = useState<any[]>([]);
+  const [pendingExpensesList, setPendingExpensesList] = useState<any[]>([]);
+  const [paidExpensesList, setPaidExpensesList]       = useState<any[]>([]);
   const [payModalCard, setPayModalCard]     = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice] = useState(false);
+
+  const reloadAllData = async () => {
+    try {
+      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp] = await Promise.all([
+        getAllCardsOverview(selectedMonthFilter, selectedYear),
+        getPaidInvoicesAction(selectedMonthFilter, selectedYear),
+        getRealRevenueAction(selectedMonthFilter, selectedYear),
+        getPendingExpensesAction(selectedMonthFilter, selectedYear),
+        getPaidExpensesAction(selectedMonthFilter, selectedYear),
+      ]);
+      setCards(freshCards || []);
+      setPaidInvoicesList(freshPaidInv || []);
+      setRealRevenue(freshRev || 0);
+      setPendingExpensesList(freshPending || []);
+      setPaidExpensesList(freshPaidExp || []);
+    } catch (e) {
+      console.error("Erro ao recarregar dados de despesas:", e);
+    }
+  };
+
+  const handleMarkBillPaid = async (billId: string) => {
+    try {
+      await markExpenseAsPaidAction(billId);
+      await reloadAllData();
+      showAlert("Conta liquidada com sucesso! O valor foi deduzido do saldo.", { variant: "success" });
+    } catch (e) {
+      console.error(e);
+      showAlert("Erro ao liquidar conta.", { variant: "error" });
+    }
+  };
+
+  const handleUndoBillPayment = async (billId: string) => {
+    try {
+      await undoExpensePaymentAction(billId);
+      await reloadAllData();
+      showAlert("Pagamento desfeito com sucesso.", { variant: "success" });
+    } catch (e) {
+      console.error(e);
+      showAlert("Erro ao desfazer pagamento.", { variant: "error" });
+    }
+  };
 
 
 
@@ -386,12 +430,16 @@ export default function DespesasPage() {
       getAllCardsOverview(monthParam, selectedYear),
       getPaidInvoicesAction(monthParam, selectedYear),
       getRealRevenueAction(monthParam, selectedYear),
+      getPendingExpensesAction(monthParam, selectedYear),
+      getPaidExpensesAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
         setRealRevenue(revenueRes || 0);
+        setPendingExpensesList(pendingExpRes || []);
+        setPaidExpensesList(paidExpRes || []);
         setLoading(false);
       })
       .catch(err => {
@@ -468,16 +516,22 @@ export default function DespesasPage() {
       };
     });
 
-  // Cálculo da porcentagem de faturas pagas no mês
+  // ── Contas e Faturas Pendentes / Pagas ─────────────────────────────────────────
+  const totalContasPendentes = pendingExpensesList.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const totalFaturasPendentes = upcomingBills.reduce((s, b) => s + Number(b.valor || 0), 0);
+  const totalPendentesMes = totalFaturasPendentes + totalContasPendentes;
+  const saldoPrevisto = saldoTotalContas - totalPendentesMes;
+
   const pagoFaturasMes    = unifiedPaidInvoices.reduce((s, p) => s + Number(p.amount), 0);
-  const pendenteFaturasMes = upcomingBills.reduce((s, b) => s + Number(b.valor), 0);
-  const totalFaturasMes   = pagoFaturasMes + pendenteFaturasMes;
+  const totalContasPagas  = paidExpensesList.reduce((s, b) => s + Number(b.amount || 0), 0);
+  const totalPagoMes      = pagoFaturasMes + totalContasPagas;
+  const totalGeralMes     = totalPagoMes + totalPendentesMes;
 
-  const pctFaturasPagas = totalFaturasMes > 0
-    ? Math.min(100, Math.round((pagoFaturasMes / totalFaturasMes) * 100))
-    : (unifiedPaidInvoices.length > 0 ? 100 : 0);
+  const pctGeralPago = totalGeralMes > 0
+    ? Math.min(100, Math.round((totalPagoMes / totalGeralMes) * 100))
+    : (unifiedPaidInvoices.length > 0 || paidExpensesList.length > 0 ? 100 : 0);
 
-  const proximosVencimentos = pendenteFaturasMes;
+  const proximosVencimentos = totalPendentesMes;
 
 
 
@@ -721,11 +775,17 @@ export default function DespesasPage() {
             </div>
           </div>
 
-          {/* Meio: Valor em Destaque */}
-          <div className="py-2 my-auto flex items-center">
+          {/* Meio: Valor em Destaque + Projeção Prevista */}
+          <div className="py-2 my-auto flex flex-col justify-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white font-tnum tabular-nums">
               {formatCurrency(saldoTotalContas)}
             </h2>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+              <span>Previsto após contas do mês:</span>
+              <span className={`font-bold font-tnum ${saldoPrevisto < 0 ? "text-rose-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {formatCurrency(saldoPrevisto)}
+              </span>
+            </div>
           </div>
 
           {/* Base: Indicador Verde */}
@@ -933,95 +993,97 @@ export default function DespesasPage() {
         );
       })()}
 
-      {/* ── 6. GESTÃO DE FATURAS DE CARTÃO (EXIBIDO EM VISÃO GERAL E CRÉDITO) ────────────────── */}
-      {(activeTab === "overview" || activeTab === "credit") && (
-        <section>
-        <div className="bg-white rounded-[28px] border border-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.03)] flex flex-col gap-5">
+      {/* ── 6. CONTAS E FATURAS A VENCER (CALENDÁRIO FINANCEIRO) ────────────────── */}
+      <section>
+        <div className="bg-white dark:bg-[#131B2E] rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col gap-5">
 
           {/* Header da seção + Tabs (A Vencer vs Pagas) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
             <div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-black tracking-widest text-slate-500 uppercase">
+              <span className="rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 px-3 py-1 text-[10px] font-black tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">
                 Calendário Financeiro
               </span>
-              <h3 className="text-base font-extrabold text-slate-800 mt-2">
-                Gestão de Faturas de Cartão
+              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 mt-2">
+                Contas e Faturas a Vencer
               </h3>
               <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                Status de pagamento por cartão e conta bancária
+                Status de pagamento por cartão, conta bancária, boletos e Pix
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
                 <button
+                  type="button"
                   onClick={() => setInvoiceTab("pending")}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     invoiceTab === "pending"
-                      ? "bg-white text-indigo-600 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-[#1A233A] text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  A Vencer ({upcomingBills.length})
+                  A Vencer ({upcomingBills.length + pendingExpensesList.length})
                 </button>
                 <button
+                  type="button"
                   onClick={() => setInvoiceTab("paid")}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     invoiceTab === "paid"
-                      ? "bg-white text-emerald-600 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800"
+                      ? "bg-white dark:bg-[#1A233A] text-emerald-600 dark:text-emerald-400 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  Faturas Pagas ({unifiedPaidInvoices.length})
+                  Pagas ({unifiedPaidInvoices.length + paidExpensesList.length})
                 </button>
               </div>
 
               {cards.length > 0 && (
                 <Link
                   href="/cartoes"
-                  className="flex items-center gap-1.5 text-[10px] font-extrabold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-3 py-2 rounded-xl transition-all"
+                  className="flex items-center gap-1.5 text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 border border-indigo-100 dark:border-indigo-900/60 px-3 py-2 rounded-xl transition-all"
                 >
-                  Detalhes
+                  Cartões
                   <ChevronRight className="w-3 h-3" />
                 </Link>
               )}
             </div>
           </div>
 
-          {/* Barra de Progresso Visual de Pagamento das Faturas do Mês */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col gap-2">
+          {/* Barra de Progresso Visual de Pagamento do Mês */}
+          <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-2">
             <div className="flex justify-between items-center text-xs font-bold">
-              <span className="text-slate-600 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-indigo-600" />
-                Progresso de Pagamento das Faturas
+              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                Progresso de Pagamento das Contas e Faturas
               </span>
-              <span className="text-indigo-600 font-extrabold">{pctFaturasPagas}% pago</span>
+              <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{pctGeralPago}% pago</span>
             </div>
-            <div className="w-full bg-slate-200/80 h-2.5 rounded-full overflow-hidden">
+            <div className="w-full bg-slate-200/80 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-700"
-                style={{ width: `${pctFaturasPagas}%` }}
+                style={{ width: `${pctGeralPago}%` }}
               />
             </div>
             <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-              <span>Pago: {brl(pagoFaturasMes)}</span>
-              <span>Total Faturas: {brl(totalFaturasMes)}</span>
+              <span>Pago: {formatCurrency(totalPagoMes)}</span>
+              <span>Total no Período: {formatCurrency(totalGeralMes)}</span>
             </div>
           </div>
 
           {/* Conteúdo da Aba Ativa */}
           {invoiceTab === "pending" ? (
-            upcomingBills.length === 0 ? (
+            upcomingBills.length === 0 && pendingExpensesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura pendente a vencer neste mês.</p>
+                <p className="text-xs font-semibold text-slate-400">Nenhuma conta ou fatura pendente a vencer neste mês.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {upcomingBills.map(bill => (
+                {/* 1. Contas e Despesas Avulsas/Recorrentes a Vencer (Pix, Boleto, Débito) */}
+                {pendingExpensesList.map((bill) => (
                   <div
-                    key={bill.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 hover:bg-slate-50 dark:hover:bg-slate-900/70 transition-colors group"
+                    key={`pending-exp-${bill.id}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-200 dark:hover:border-indigo-800/60 transition-all group shadow-2xs"
                   >
                     <div className="flex items-center gap-3.5 flex-1 min-w-0">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
@@ -1031,14 +1093,26 @@ export default function DespesasPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.title || bill.bankName}</p>
-                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Vence em {bill.vencimento}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.description}</p>
+                          {bill.isRecurring && (
+                            <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded-md" title="Despesa recorrente">
+                              Recorrente
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                          Vence em {bill.dueDate} · {bill.paymentMethod || "DÉBITO"}
+                        </p>
+                        <p className="text-[9px] font-medium text-slate-400 dark:text-slate-500 truncate">
+                          Conta: {bill.bankName || bill.walletTitle}
+                        </p>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
                       <div className="text-left sm:text-right">
-                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{brl(bill.valor)}</p>
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(bill.amount)}</p>
                         <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 ${
                           bill.status === "vencido" ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900" : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
                         }`}>
@@ -1047,6 +1121,49 @@ export default function DespesasPage() {
                       </div>
 
                       <button
+                        type="button"
+                        onClick={() => handleMarkBillPaid(bill.id)}
+                        className="flex items-center gap-1 text-[10px] font-black text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 px-3 py-2 rounded-xl transition-all shadow-sm shadow-emerald-600/20 cursor-pointer"
+                        title="Dar baixa e marcar como pago agora"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Dar Baixa
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* 2. Faturas de Cartão de Crédito a Vencer */}
+                {upcomingBills.map(bill => (
+                  <div
+                    key={`card-bill-${bill.id}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-200 dark:hover:border-indigo-800/60 transition-all group shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        bill.status === "vencido" ? "bg-rose-100 text-rose-500 dark:bg-rose-950/60 dark:text-rose-400" : "bg-amber-100 text-amber-500 dark:bg-amber-950/60 dark:text-amber-400"
+                      }`}>
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{bill.title || bill.bankName}</p>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Fatura · Vence em {bill.vencimento}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(bill.valor)}</p>
+                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 ${
+                          bill.status === "vencido" ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900" : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
+                        }`}>
+                          {bill.status === "vencido" ? "Vencida" : "Em Aberto"}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
                         onClick={() => {
                           setSelectedPaymentWalletId("NONE");
                           setPayModalCard({
@@ -1057,11 +1174,11 @@ export default function DespesasPage() {
                             year: bill.year,
                           });
                         }}
-                        className="flex items-center gap-1 text-[10px] font-black text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-800 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                        className="flex items-center gap-1 text-[10px] font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 border border-indigo-200 dark:border-indigo-800 px-3 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
                         title="Efetuar pagamento da fatura"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        Pagar
+                        Pagar Fatura
                       </button>
                     </div>
                   </div>
@@ -1069,16 +1186,17 @@ export default function DespesasPage() {
               </div>
             )
           ) : (
-            unifiedPaidInvoices.length === 0 ? (
+            unifiedPaidInvoices.length === 0 && paidExpensesList.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                 <Clock className="w-8 h-8 text-slate-300" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura paga encontrada para este mês.</p>
+                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura ou conta paga encontrada para este mês.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {unifiedPaidInvoices.map((paidItem: any) => (
+                {/* 1. Contas Baixadas/Pagas */}
+                {paidExpensesList.map((paidItem: any) => (
                   <div
-                    key={paidItem.id}
+                    key={`paid-exp-${paidItem.id}`}
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors group"
                   >
                     <div className="flex items-center gap-3.5 flex-1 min-w-0">
@@ -1087,9 +1205,51 @@ export default function DespesasPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{paidItem.description}</p>
+                        <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                          Pago em {paidItem.paidAtFormatted}
+                        </p>
+                        <p className="text-[9px] font-medium text-slate-400 truncate">
+                          Conta: {paidItem.bankName || paidItem.walletTitle} · {paidItem.paymentMethod}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
+                      <div className="text-left sm:text-right">
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(paidItem.amount)}</p>
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          PAGO
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleUndoBillPayment(paidItem.id)}
+                        className="text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 border border-slate-200 dark:border-slate-700 hover:border-rose-200 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
+                        title="Desfazer pagamento e reabrir conta"
+                      >
+                        Desfazer
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {/* 2. Faturas de Cartão Pagas */}
+                {unifiedPaidInvoices.map((paidItem: any) => (
+                  <div
+                    key={`paid-inv-${paidItem.id}`}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors group"
+                  >
+                    <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+
+                      <div className="flex-1 min-w-0">
                         <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{paidItem.cardTitle}</p>
                         <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
-                          Pago em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
+                          Fatura Paga em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
                         </p>
                         <p className="text-[9px] font-medium text-slate-400 truncate">
                           Débito: {paidItem.paymentWalletTitle}
@@ -1099,13 +1259,14 @@ export default function DespesasPage() {
 
                     <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
                       <div className="text-left sm:text-right">
-                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{brl(paidItem.amount)}</p>
+                        <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(paidItem.amount)}</p>
                         <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                           PAGO
                         </span>
                       </div>
 
                       <button
+                        type="button"
                         onClick={() => handleUndoPayment(paidItem.walletId, paidItem.month, paidItem.year)}
                         className="text-[10px] font-bold text-slate-500 hover:text-rose-600 bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 border border-slate-200 dark:border-slate-700 hover:border-rose-200 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
                         title="Desfazer pagamento e reabrir fatura"
@@ -1120,7 +1281,6 @@ export default function DespesasPage() {
           )}
         </div>
       </section>
-      )}
 
       {/* ── MODAIS ─────────────────────────────────────────────────────────────── */}
 
@@ -1510,9 +1670,7 @@ export default function DespesasPage() {
       <NewPurchaseModal
         isOpen={purchaseModalOpen}
         onClose={() => setPurchaseModalOpen(false)}
-        onSuccess={() => {
-          getAllCardsOverview(selectedMonthFilter, selectedYear).then(setCards);
-        }}
+        onSuccess={reloadAllData}
       />
 
     </div>

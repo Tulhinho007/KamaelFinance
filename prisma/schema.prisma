@@ -85,8 +85,10 @@ model Transaction {
   competenceMonth   Int?            // Mês a que o valor pertence (1-12)
   competenceYear    Int?            // Ano de competência (ex: 2026)
   purchaseDate      DateTime?       // Data em que a compra/despesa foi realizada
-  paymentDate       DateTime?       // Data de vencimento/liquidação do pagamento
+  paymentDate       DateTime?       // Data de liquidação/pagamento efetivo
+  dueDate           DateTime?       // Data de vencimento da conta/despesa
   status            String          @default("COMPLETED")
+  paymentMethod     String?         // PIX, DEBITO, DINHEIRO, BOLETO, CARTAO_CREDITO
   isRecurring       Boolean         @default(false)
   recurringDay      Int?            // Dia de vencimento recorrente mensal (1-31)
   source            String          @default("MANUAL")
