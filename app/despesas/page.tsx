@@ -1205,9 +1205,21 @@ export default function DespesasPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{paidItem.description}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">{paidItem.description}</p>
+                          {paidItem.isEarlyPayment && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-500 text-white uppercase tracking-wider shadow-2xs">
+                              {paidItem.paidEarlyText || "Paga Antecipada"}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
                           Pago em {paidItem.paidAtFormatted}
+                          {paidItem.isEarlyPayment && paidItem.dueDateFormatted && (
+                            <span className="ml-1 text-[10px] font-bold text-slate-400">
+                              (Vencimento original: {paidItem.dueDateFormatted})
+                            </span>
+                          )}
                         </p>
                         <p className="text-[9px] font-medium text-slate-400 truncate">
                           Conta: {paidItem.bankName || paidItem.walletTitle} · {paidItem.paymentMethod}
@@ -1218,8 +1230,12 @@ export default function DespesasPage() {
                     <div className="flex items-center justify-between sm:justify-end gap-3 flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-800">
                       <div className="text-left sm:text-right">
                         <p className="text-sm font-black text-slate-800 dark:text-white font-tnum">{formatCurrency(paidItem.amount)}</p>
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          PAGO
+                        <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block sm:block mt-0.5 ${
+                          paidItem.isEarlyPayment
+                            ? "bg-emerald-500 text-white font-black border border-emerald-400 shadow-2xs"
+                            : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        }`}>
+                          {paidItem.isEarlyPayment ? (paidItem.paidEarlyText || "PAGO ANTECIPADO") : "PAGO"}
                         </span>
                       </div>
 

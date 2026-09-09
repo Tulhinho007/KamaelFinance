@@ -57,6 +57,7 @@ export function NewPurchaseModal({
   const [formAmount, setFormAmount] = useState<string | number>("");
   const [formInstallmentsCount, setFormInstallmentsCount] = useState<number>(2);
   const [formPurchaseDate, setFormPurchaseDate] = useState(new Date().toISOString().split("T")[0]);
+  const [formDueDate, setFormDueDate] = useState<string>("");
   const [formIsPaid, setFormIsPaid] = useState(true);
   const [formPaymentMethod, setFormPaymentMethod] = useState<string>("PIX");
   const [formIsRecurring, setFormIsRecurring] = useState(false);
@@ -79,12 +80,13 @@ export function NewPurchaseModal({
             setFormIsPaid(initialData.status !== "PENDING");
             setFormPaymentMethod(initialData.paymentMethod || "PIX");
             setFormIsRecurring(!!initialData.isRecurring);
+            setFormDueDate(initialData.dueDate ? initialData.dueDate.split("T")[0] : "");
             
-            const targetDate = initialData.dueDate
-              ? initialData.dueDate.split("T")[0]
+            const targetDate = initialData.paymentDate
+              ? initialData.paymentDate.split("T")[0]
               : (initialData.purchaseDate
                 ? initialData.purchaseDate.split("T")[0]
-                : (initialData.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]));
+                : (initialData.date ? initialData.date.split("T")[0] : (initialData.dueDate ? initialData.dueDate.split("T")[0] : new Date().toISOString().split("T")[0])));
             setFormPurchaseDate(targetDate);
           } else {
             const initialWallet = defaultWalletId || (data.length > 0 ? data[0].id : "");
@@ -94,6 +96,7 @@ export function NewPurchaseModal({
             setFormAmount("");
             setFormType("vista");
             setFormPurchaseDate(new Date().toISOString().split("T")[0]);
+            setFormDueDate("");
             
             const wObj = data.find(w => w.id === initialWallet);
             const isCred = wObj?.walletType === "CREDIT_CARD";
@@ -134,12 +137,14 @@ export function NewPurchaseModal({
 
     const installments = isCredit && formType === "parcelado" && formInstallmentsCount > 1 ? formInstallmentsCount : undefined;
     const parts = formPurchaseDate.split("-");
-    const compDateStr = parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined;
-    const effectiveDate = formPurchaseDate;
-    const finalTags = initialData?.tags || "";
     const status = formIsPaid ? "COMPLETED" : "PENDING";
     const paymentMethod = isCredit ? "CARTAO_CREDITO" : formPaymentMethod;
-    const dueDateStr = !formIsPaid ? formPurchaseDate : undefined;
+    const dueDateStr = !formIsPaid ? formPurchaseDate : (formDueDate ? formDueDate : undefined);
+    const compDateStr = formDueDate 
+      ? `${formDueDate.split("-")[0]}-${formDueDate.split("-")[1]}-01`
+      : (parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined);
+    const effectiveDate = formPurchaseDate;
+    const finalTags = initialData?.tags || "";
 
     setSaving(true);
     try {
@@ -429,6 +434,22 @@ export function NewPurchaseModal({
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
             />
           </div>
+
+          {/* Vencimento Original (caso esteja pagando antecipado uma conta de outro mês) */}
+          {formIsPaid && !isCredit && (
+            <div className="flex flex-col gap-1 p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800">
+              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center justify-between">
+                <span>Vencimento Original da Conta</span>
+                <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold">Opcional se adiantou o pagamento</span>
+              </label>
+              <input
+                type="date"
+                value={formDueDate}
+                onChange={e => setFormDueDate(e.target.value)}
+                className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-xs"
+              />
+            </div>
+          )}
 
           {/* 8. Opção: Repetir todo mês (Recorrente) */}
           <div className="flex items-center gap-2 pt-1">

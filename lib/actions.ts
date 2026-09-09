@@ -1641,39 +1641,56 @@ export async function calculateAccountBalance(walletId: string, month: number, y
       OR: [
         { competenceDate: { lte: endOfMonth } },
         { purchaseDate: { lte: endOfMonth } },
-        { date: { lte: endOfMonth } }
+        { date: { lte: endOfMonth } },
+        { paymentDate: { lte: endOfMonth } },
+        { dueDate: { lte: endOfMonth } }
       ]
     },
-    select: { type: true, amount: true, status: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true, purchaseDate: true, paymentDate: true },
+    select: { 
+      type: true, 
+      amount: true, 
+      status: true, 
+      date: true, 
+      competenceDate: true, 
+      competenceMonth: true, 
+      competenceYear: true, 
+      purchaseDate: true, 
+      paymentDate: true,
+      dueDate: true
+    },
   });
+
+  const getTxCashDate = (t: any) => {
+    return new Date(t.paymentDate || t.date || t.purchaseDate || t.competenceDate);
+  };
 
   const getTxCompetence = (t: any) => {
     if (t.competenceMonth != null && t.competenceYear != null) {
       return { month: t.competenceMonth, year: t.competenceYear };
     }
-    const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+    const d = new Date(t.competenceDate || t.dueDate || t.purchaseDate || t.date);
     return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
   };
 
-  // Calculate historical totals up to endOfMonth (baseado na competência)
+  // Calculate historical totals up to endOfMonth (baseado na data efetiva de caixa para o saldo real da conta)
   const totalEntradasHistoricas = allWalletTransactions
     .filter((t) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
-      const comp = getTxCompetence(t);
-      return comp.year < year || (comp.year === year && comp.month <= month);
+      const cashDate = getTxCashDate(t);
+      return cashDate <= endOfMonth;
     })
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const totalSaidasHistoricas = allWalletTransactions
     .filter((t) => {
       if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
-      const comp = getTxCompetence(t);
-      return comp.year < year || (comp.year === year && comp.month <= month);
+      const cashDate = getTxCashDate(t);
+      return cashDate <= endOfMonth;
     })
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas)
-  const finalBalance = totalEntradasHistoricas - totalSaidasHistoricas;
+  // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas na conta)
+  const finalBalance = (Number(wallet.initialBalance || 0) + totalEntradasHistoricas) - totalSaidasHistoricas;
 
   // Transações do mês selecionado por competência
   const monthTransactions = allWalletTransactions.filter((t) => {
@@ -1681,29 +1698,36 @@ export async function calculateAccountBalance(walletId: string, month: number, y
     return comp.year === year && comp.month === month;
   });
 
-  const monthIncome = monthTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
+  const monthIncome = allWalletTransactions
+    .filter((t) => {
+      if (t.type !== "INCOME" || t.status === "PENDING") return false;
+      const cashDate = getTxCashDate(t);
+      return cashDate >= startOfMonth && cashDate <= endOfMonth;
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
   const monthExpense = monthTransactions
     .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  // Transações anteriores ao mês selecionado por competência
-  const prevTransactions = allWalletTransactions.filter((t) => {
-    const comp = getTxCompetence(t);
-    return comp.year < year || (comp.year === year && comp.month < month);
-  });
-
-  const prevIncome = prevTransactions
-    .filter((t) => t.type === "INCOME" && t.status !== "PENDING")
+  // Transações anteriores ao mês selecionado por caixa
+  const prevIncome = allWalletTransactions
+    .filter((t) => {
+      if (t.type !== "INCOME" || t.status === "PENDING") return false;
+      const cashDate = getTxCashDate(t);
+      return cashDate < startOfMonth;
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const prevExpense = prevTransactions
-    .filter((t) => t.type === "EXPENSE" && t.status !== "PENDING")
+  const prevExpense = allWalletTransactions
+    .filter((t) => {
+      if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
+      const cashDate = getTxCashDate(t);
+      return cashDate < startOfMonth;
+    })
     .reduce((s, t) => s + Number(t.amount), 0);
 
-  const previousBalance = prevIncome - prevExpense;
+  const previousBalance = (Number(wallet.initialBalance || 0) + prevIncome) - prevExpense;
   const totalAvailable  = previousBalance + monthIncome;
 
   return {
@@ -2078,7 +2102,7 @@ export async function createCardPurchase(
   if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1), 12, 0, 0));
-  } else if (dueDate && isPending) {
+  } else if (dueDate) {
     competenceDate = dueDate;
   }
 
@@ -2156,6 +2180,14 @@ export async function createCardPurchase(
     });
 
     if (!isPending) {
+      const targetW = await prisma.wallet.findUnique({ where: { id: walletId }, select: { walletType: true } });
+      if (targetW && targetW.walletType !== "CREDIT_CARD") {
+        await prisma.wallet.update({
+          where: { id: walletId },
+          data: { currentBalance: { decrement: amount } } as any
+        });
+      }
+
       await syncRecurringProjections(
         walletId,
         description,
@@ -2258,7 +2290,7 @@ export async function updateCardPurchase(
   if (competenceDateStr) {
     const compParts = competenceDateStr.split("-");
     competenceDate = new Date(Date.UTC(Number(compParts[0]), Number(compParts[1]) - 1, Number(compParts[2] || 1)));
-  } else if (dueDate && isPending) {
+  } else if (dueDate) {
     competenceDate = dueDate;
   }
 
@@ -2287,6 +2319,33 @@ export async function updateCardPurchase(
       recurringDay: isRecurring ? (dueDate ? dueDate.getUTCDate() : purchaseDate.getUTCDate()) : null
     } as any
   });
+
+  if (existingTx) {
+    const oldStatus = (existingTx as any).status;
+    const newStatus = status || oldStatus || "COMPLETED";
+    const oldAmount = Number(existingTx.amount);
+
+    const targetW = await prisma.wallet.findUnique({ where: { id: walletId }, select: { walletType: true } });
+    if (targetW && targetW.walletType !== "CREDIT_CARD") {
+      if (oldStatus === "PENDING" && newStatus !== "PENDING") {
+        await prisma.wallet.update({
+          where: { id: walletId },
+          data: { currentBalance: { decrement: amount } } as any
+        });
+      } else if (oldStatus !== "PENDING" && newStatus === "PENDING") {
+        await prisma.wallet.update({
+          where: { id: existingTx.walletId },
+          data: { currentBalance: { increment: oldAmount } } as any
+        });
+      } else if (oldStatus !== "PENDING" && newStatus !== "PENDING" && oldAmount !== amount) {
+        const diff = oldAmount - amount;
+        await prisma.wallet.update({
+          where: { id: walletId },
+          data: { currentBalance: { increment: diff } } as any
+        });
+      }
+    }
+  }
 
   if (!isPending) {
     await syncRecurringProjections(
@@ -2730,7 +2789,9 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
             ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
             { competenceDate: { gte: from, lte: to } },
             { purchaseDate: { gte: from, lte: to } },
-            { date: { gte: from, lte: to } }
+            { date: { gte: from, lte: to } },
+            { paymentDate: { gte: from, lte: to } },
+            { dueDate: { gte: from, lte: to } }
           ],
           deletedAt: null,
         },
@@ -2739,14 +2800,35 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       });
 
       const transactions = rawTransactions.filter((t) => {
-        if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
-          if (!isAnnualView) {
-            return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+        if (isCredit) {
+          if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+            if (!isAnnualView) {
+              return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+            }
+            return (t as any).competenceYear === year;
           }
-          return (t as any).competenceYear === year;
+          const d = new Date((t as any).competenceDate || (t as any).purchaseDate || t.date);
+          return d >= from && d <= to;
         }
-        const d = new Date((t as any).competenceDate || (t as any).purchaseDate || t.date);
-        return d >= from && d <= to;
+
+        // Para contas correntes / débito:
+        if (isAnnualView) {
+          const compYear = (t as any).competenceYear || new Date((t as any).paymentDate || t.date).getUTCFullYear();
+          return compYear === year;
+        }
+
+        const numM = Number(month);
+        const payD = (t as any).paymentDate ? new Date((t as any).paymentDate) : null;
+        const dueD = (t as any).dueDate ? new Date((t as any).dueDate) : ((t as any).competenceDate ? new Date((t as any).competenceDate) : null);
+
+        // 1. Se foi pago neste mês (paymentDate no mês selecionado): dinheiro saiu da conta neste mês
+        if (payD && payD >= from && payD <= to) return true;
+
+        // 2. Se a competência / vencimento é deste mês
+        const isCompThisMonth = ((t as any).competenceMonth === numM && ((t as any).competenceYear || year) === year) ||
+          (dueD && dueD >= from && dueD <= to);
+
+        return isCompThisMonth;
       });
 
       const filteredTransactions = isCredit
@@ -3232,6 +3314,7 @@ export async function markExpenseAsPaidAction(
 
   const tx = await prisma.transaction.findFirst({
     where: { id: transactionId, wallet: { userId } },
+    include: { wallet: true },
   });
   if (!tx) throw new Error("Despesa não encontrada.");
 
@@ -3242,6 +3325,7 @@ export async function markExpenseAsPaidAction(
     paymentDate: pDate,
   };
 
+  const targetWalletId = (paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : tx.walletId;
   if (paymentWalletId && paymentWalletId !== "NONE") {
     updateData.walletId = paymentWalletId;
   }
@@ -3250,6 +3334,15 @@ export async function markExpenseAsPaidAction(
     where: { id: transactionId },
     data: updateData,
   });
+
+  // Sempre atualiza o saldo real da conta no exato momento da ação:
+  const targetWallet = await prisma.wallet.findUnique({ where: { id: targetWalletId }, select: { walletType: true } });
+  if (targetWallet && targetWallet.walletType !== "CREDIT_CARD") {
+    await prisma.wallet.update({
+      where: { id: targetWalletId },
+      data: { currentBalance: { decrement: tx.amount } } as any
+    });
+  }
 
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
@@ -3263,6 +3356,7 @@ export async function undoExpensePaymentAction(transactionId: string) {
 
   const tx = await prisma.transaction.findFirst({
     where: { id: transactionId, wallet: { userId } },
+    include: { wallet: true },
   });
   if (!tx) throw new Error("Despesa não encontrada.");
 
@@ -3273,6 +3367,13 @@ export async function undoExpensePaymentAction(transactionId: string) {
       paymentDate: null,
     },
   });
+
+  if (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD") {
+    await prisma.wallet.update({
+      where: { id: tx.walletId },
+      data: { currentBalance: { increment: tx.amount } } as any
+    });
+  }
 
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
@@ -3306,6 +3407,7 @@ export async function getPaidExpensesAction(month?: number | null | string, year
       OR: [
         ...(!isAnnualView && numMonth ? [{ competenceMonth: numMonth, competenceYear: year }] : [{ competenceYear: year }]),
         { paymentDate: { gte: from, lte: to } },
+        { dueDate: { gte: from, lte: to } },
         { date: { gte: from, lte: to } },
       ]
     },
@@ -3316,12 +3418,52 @@ export async function getPaidExpensesAction(month?: number | null | string, year
     orderBy: { paymentDate: "desc" },
   });
 
-  return (paidTxs as any[]).map((t: any) => {
+  // Filtra para a visão mensal:
+  // 1. Despesas pagas dentro do mês visto (saída de caixa no mês)
+  // 2. Despesas com vencimento/competência no mês visto que foram pagas antecipadamente
+  const filteredTxs = (paidTxs as any[]).filter((t: any) => {
+    if (isAnnualView) return true;
+    const payD = t.paymentDate ? new Date(t.paymentDate) : null;
+    const dueD = t.dueDate ? new Date(t.dueDate) : (t.competenceDate ? new Date(t.competenceDate) : null);
+
+    const paidInMonth = payD && payD >= from && payD <= to;
+    if (paidInMonth) return true;
+
+    const dueInMonth = (dueD && dueD >= from && dueD <= to) ||
+      (t.competenceMonth === numMonth && (t.competenceYear || year) === year);
+    const paidEarlier = payD && payD < from;
+
+    return dueInMonth && paidEarlier;
+  });
+
+  return filteredTxs.map((t: any) => {
     const paidD = t.paymentDate || t.date;
     const d = new Date(paidD);
     const dayStr = String(d.getUTCDate()).padStart(2, "0");
     const monthStr = String(d.getUTCMonth() + 1).padStart(2, "0");
     const dateFormatted = `${dayStr}/${monthStr}/${d.getUTCFullYear()}`;
+
+    // Checagem de Pagamento Antecipado
+    const dueRaw = t.dueDate || (t.competenceMonth ? new Date(Date.UTC(t.competenceYear || year, t.competenceMonth - 1, 15)) : null);
+    let isEarlyPayment = false;
+    let paidEarlyText = "";
+    let dueDateFormatted = "";
+
+    if (dueRaw && t.paymentDate) {
+      const dueD = new Date(dueRaw);
+      const dueM = dueD.getUTCMonth() + 1;
+      const dueY = dueD.getUTCFullYear();
+      const payM = d.getUTCMonth() + 1;
+      const payY = d.getUTCFullYear();
+
+      dueDateFormatted = `${String(dueD.getUTCDate()).padStart(2, "0")}/${String(dueM).padStart(2, "0")}/${dueY}`;
+
+      // Se pago em mês anterior ao do vencimento original
+      if (payY < dueY || (payY === dueY && payM < dueM)) {
+        isEarlyPayment = true;
+        paidEarlyText = `Paga em ${monthStr}/${d.getUTCFullYear()}`;
+      }
+    }
 
     return {
       id: t.id,
@@ -3329,6 +3471,10 @@ export async function getPaidExpensesAction(month?: number | null | string, year
       amount: Number(t.amount),
       paidAt: paidD.toISOString(),
       paidAtFormatted: dateFormatted,
+      dueDateFormatted,
+      dueDateRaw: dueRaw ? new Date(dueRaw).toISOString() : null,
+      isEarlyPayment,
+      paidEarlyText,
       walletId: t.walletId,
       walletTitle: t.wallet?.title || "Conta",
       bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
