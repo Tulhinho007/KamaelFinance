@@ -1840,7 +1840,7 @@ export async function ensureRecurringExpensesForMonth(
 
     for (const template of Array.from(templatesByWalletDesc.values())) {
       // Verificar se o lançamento original é de um mês posterior ao alvo
-      const refDate = template.dueDate || template.purchaseDate || template.date;
+      const refDate = (template as any).dueDate || (template as any).purchaseDate || template.date;
       const origComp = (template as any).competenceDate ? new Date((template as any).competenceDate) : refDate;
       const refMonth = (template as any).competenceMonth || (origComp.getUTCMonth() + 1);
       const refYear = (template as any).competenceYear || origComp.getUTCFullYear();
@@ -1852,7 +1852,7 @@ export async function ensureRecurringExpensesForMonth(
       }
 
       // 3. Verificar se já existe despesa com esta descrição no mês alvo
-      const existing = await prisma.transaction.findFirst({
+      const existing = await (prisma.transaction as any).findFirst({
         where: {
           walletId: template.walletId,
           deletedAt: null,
@@ -1872,7 +1872,7 @@ export async function ensureRecurringExpensesForMonth(
       }
 
       // 4. Calcular dia com clamp seguro
-      const origDay = (template as any).recurringDay || (template.dueDate ? new Date(template.dueDate).getUTCDate() : (template.purchaseDate ? new Date(template.purchaseDate).getUTCDate() : new Date(template.date).getUTCDate()));
+      const origDay = (template as any).recurringDay || ((template as any).dueDate ? new Date((template as any).dueDate).getUTCDate() : ((template as any).purchaseDate ? new Date((template as any).purchaseDate).getUTCDate() : new Date(template.date).getUTCDate()));
       const maxDays = new Date(targetYear, targetMonth, 0).getDate();
       const safeDay = Math.min(Math.max(1, origDay), maxDays);
 
@@ -2094,7 +2094,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
         paymentDate: (t as any).paymentDate ? safeIsoDate((t as any).paymentDate) : null,
         dueDate: (t as any).dueDate ? safeIsoDate((t as any).dueDate) : null,
-        paymentMethod: t.paymentMethod || null,
+        paymentMethod: (t as any).paymentMethod || null,
         source: t.source,
       })),
     };
@@ -2610,7 +2610,7 @@ export async function duplicateExpenseToNextMonthAction(
       targetYear += 1;
     }
   } else {
-    const origDate = new Date(original.dueDate || original.purchaseDate || original.date);
+    const origDate = new Date((original as any).dueDate || (original as any).purchaseDate || original.date);
     const rawComp = (original as any).competenceDate;
     const origComp = rawComp ? new Date(rawComp) : origDate;
     const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
@@ -2626,7 +2626,7 @@ export async function duplicateExpenseToNextMonthAction(
   const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
 
-  const origDay = (original as any).recurringDay || (original.dueDate ? new Date(original.dueDate).getUTCDate() : (original.purchaseDate ? new Date(original.purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
+  const origDay = (original as any).recurringDay || ((original as any).dueDate ? new Date((original as any).dueDate).getUTCDate() : ((original as any).purchaseDate ? new Date((original as any).purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
   const maxDays = new Date(targetYear, targetMonth, 0).getDate();
   const safeDay = Math.min(Math.max(1, origDay), maxDays);
 
@@ -2694,7 +2694,7 @@ export async function duplicateBatchExpensesToNextMonthAction(
         targetYear += 1;
       }
     } else {
-      const origDate = new Date(original.dueDate || original.purchaseDate || original.date);
+      const origDate = new Date((original as any).dueDate || (original as any).purchaseDate || original.date);
       const rawComp = (original as any).competenceDate;
       const origComp = rawComp ? new Date(rawComp) : origDate;
       const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
@@ -2725,7 +2725,7 @@ export async function duplicateBatchExpensesToNextMonthAction(
       continue;
     }
 
-    const origDay = (original as any).recurringDay || (original.dueDate ? new Date(original.dueDate).getUTCDate() : (original.purchaseDate ? new Date(original.purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
+    const origDay = (original as any).recurringDay || ((original as any).dueDate ? new Date((original as any).dueDate).getUTCDate() : ((original as any).purchaseDate ? new Date((original as any).purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
     const maxDays = new Date(targetYear, targetMonth, 0).getDate();
     const safeDay = Math.min(Math.max(1, origDay), maxDays);
 
