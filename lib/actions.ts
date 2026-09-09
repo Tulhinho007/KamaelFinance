@@ -2277,13 +2277,13 @@ export async function updateCardPurchase(
       purchaseDate,
       paymentDate,
       dueDate,
-      status: status || existingTx?.status || "COMPLETED",
-      paymentMethod: paymentMethod !== undefined ? paymentMethod : existingTx?.paymentMethod,
+      status: status || (existingTx as any)?.status || "COMPLETED",
+      paymentMethod: paymentMethod !== undefined ? paymentMethod : (existingTx as any)?.paymentMethod,
       competenceDate,
       competenceMonth: competenceDate.getUTCMonth() + 1,
       competenceYear: competenceDate.getUTCFullYear(),
       tags: finalTags,
-      isRecurring: isRecurring !== undefined ? !!isRecurring : existingTx?.isRecurring,
+      isRecurring: isRecurring !== undefined ? !!isRecurring : (existingTx as any)?.isRecurring,
       recurringDay: isRecurring ? (dueDate ? dueDate.getUTCDate() : purchaseDate.getUTCDate()) : null
     } as any
   });
@@ -3167,7 +3167,7 @@ export async function getPendingExpensesAction(month?: number | null | string, y
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  const pendingTxs = await prisma.transaction.findMany({
+  const pendingTxs = await (prisma.transaction as any).findMany({
     where: {
       wallet: { userId, walletType: { not: "CREDIT_CARD" } },
       type: "EXPENSE",
@@ -3193,7 +3193,7 @@ export async function getPendingExpensesAction(month?: number | null | string, y
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return pendingTxs.map(t => {
+  return (pendingTxs as any[]).map((t: any) => {
     const due = t.dueDate || t.date;
     const d = new Date(due);
     const isPast = d < today;
@@ -3208,8 +3208,8 @@ export async function getPendingExpensesAction(month?: number | null | string, y
       dueDate: dateFormatted,
       dueDateRaw: due.toISOString(),
       walletId: t.walletId,
-      walletTitle: t.wallet.title,
-      bankName: t.wallet.bankName || t.wallet.title,
+      walletTitle: t.wallet?.title || "Conta",
+      bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
       categoryName: t.category?.name || "Outros",
       categoryColor: t.category?.color || "#6366F1",
       paymentMethod: t.paymentMethod || "DEBITO",
@@ -3296,7 +3296,7 @@ export async function getPaidExpensesAction(month?: number | null | string, year
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  const paidTxs = await prisma.transaction.findMany({
+  const paidTxs = await (prisma.transaction as any).findMany({
     where: {
       wallet: { userId, walletType: { not: "CREDIT_CARD" } },
       type: "EXPENSE",
@@ -3316,7 +3316,7 @@ export async function getPaidExpensesAction(month?: number | null | string, year
     orderBy: { paymentDate: "desc" },
   });
 
-  return paidTxs.map(t => {
+  return (paidTxs as any[]).map((t: any) => {
     const paidD = t.paymentDate || t.date;
     const d = new Date(paidD);
     const dayStr = String(d.getUTCDate()).padStart(2, "0");
@@ -3330,8 +3330,8 @@ export async function getPaidExpensesAction(month?: number | null | string, year
       paidAt: paidD.toISOString(),
       paidAtFormatted: dateFormatted,
       walletId: t.walletId,
-      walletTitle: t.wallet.title,
-      bankName: t.wallet.bankName || t.wallet.title,
+      walletTitle: t.wallet?.title || "Conta",
+      bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
       categoryName: t.category?.name || "Outros",
       categoryColor: t.category?.color || "#10B981",
       paymentMethod: t.paymentMethod || "DEBITO",
