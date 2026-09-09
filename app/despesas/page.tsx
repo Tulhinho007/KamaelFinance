@@ -24,6 +24,7 @@ import { NewPurchaseModal } from "@/components/new-purchase-modal";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const formatCurrency = brl;
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type CardOverview = {
@@ -31,6 +32,8 @@ type CardOverview = {
   title: string;
   bankName: string;
   walletType: string;
+  tipo?: string;
+  saldoAtual?: number;
   holder?: string;
   agencia?: string;
   conta?: string;
@@ -412,7 +415,15 @@ export default function DespesasPage() {
   const creditCards  = cards.filter(c => c.walletType === "CREDIT_CARD");
   const accountCards = cards.filter(c => c.walletType !== "CREDIT_CARD");
 
-  const saldoTotalConta   = accountCards.reduce((s, c) => s + c.limitTotal, 0);
+  const contas = cards;
+  const totalEntradasMes = realRevenue;
+
+  // 1. Calcule o saldo somando apenas contas do tipo conta corrente / débito:
+  const saldoTotalContas = contas
+    .filter((c: any) => c.tipo === "CONTA_CORRENTE" || c.tipo === "DEBITO" || c.walletType === "CONTA_CORRENTE" || c.walletType === "DEBITO")
+    .reduce((acc, conta: any) => acc + Number(conta.saldoAtual ?? conta.finalBalance ?? conta.limitTotal ?? 0), 0);
+
+  const saldoTotalConta   = saldoTotalContas;
   const totalFaturas      = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
   const limiteConsolidado = creditCards.reduce((s, c) => s + (c.limitTotal - c.limitUsed), 0);
 
@@ -713,7 +724,7 @@ export default function DespesasPage() {
           {/* Meio: Valor em Destaque */}
           <div className="py-2 my-auto flex items-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white font-tnum tabular-nums">
-              {brl(realRevenue)}
+              {formatCurrency(saldoTotalContas)}
             </h2>
           </div>
 
@@ -721,7 +732,7 @@ export default function DespesasPage() {
           <div className="min-h-[36px] flex items-center mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
             <p className="text-green-600 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1.5">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+ {brl(realRevenue)}</span>
+              <span>+ {formatCurrency(totalEntradasMes)}</span>
               <span className="text-slate-400 font-normal">Entradas no Mês</span>
             </p>
           </div>

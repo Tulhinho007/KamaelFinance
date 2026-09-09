@@ -2819,6 +2819,8 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         title:            w.title,
         bankName:         w.bankName || w.title,
         walletType:       w.walletType,
+        tipo:             w.walletType,
+        saldoAtual:       isCredit ? 0 : balanceInfo.finalBalance,
         holder:           (w as any).holder || "",
         agencia:          w.agencia || "",
         conta:            w.conta || "",
