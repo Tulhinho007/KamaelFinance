@@ -273,9 +273,18 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
   const { showAlert } = useModal();
+  const { selectedMonth, selectedYear, setPeriod } = usePeriod();
 
-  const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | null>(null); // null = Todos os Meses (Visão Anual)
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | null>(selectedMonth || 9);
+
+  useEffect(() => {
+    if (selectedMonth && selectedMonthFilter !== selectedMonth) {
+      setSelectedMonthFilter(selectedMonth);
+    }
+  }, [selectedMonth]);
+
+  const activeMonth = selectedMonthFilter ?? selectedMonth ?? (new Date().getMonth() + 1);
+  const activeYear  = selectedYear ?? 2026;
 
   const [cards, setCards]         = useState<CardOverview[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -320,7 +329,7 @@ export default function DespesasPage() {
         getPendingExpensesAction(selectedMonthFilter, selectedYear),
         getPaidExpensesAction(selectedMonthFilter, selectedYear),
         getRecurringExpensesAction(selectedMonthFilter, selectedYear),
-        getUpcomingBillsWindowAction(),
+        getUpcomingBillsWindowAction(selectedMonthFilter, selectedYear),
       ]);
       setCards(freshCards || []);
       setPaidInvoicesList(freshPaidInv || []);
@@ -451,7 +460,7 @@ export default function DespesasPage() {
       getPendingExpensesAction(monthParam, selectedYear),
       getPaidExpensesAction(monthParam, selectedYear),
       getRecurringExpensesAction(monthParam, selectedYear),
-      getUpcomingBillsWindowAction(),
+      getUpcomingBillsWindowAction(monthParam, selectedYear),
     ])
       .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes]) => {
         if (!active) return;
@@ -537,17 +546,6 @@ export default function DespesasPage() {
     }
   });
 
-  // ── Janela de Exibição (Mês Atual + Mês Seguinte) ─────────────────────────
-  const { startOfCurrentMonth, endOfNextMonth } = React.useMemo(() => {
-    const now = new Date();
-    const curY = now.getFullYear();
-    const curM = now.getMonth();
-    return {
-      startOfCurrentMonth: new Date(curY, curM, 1, 0, 0, 0, 0),
-      endOfNextMonth: new Date(curY, curM + 2, 0, 23, 59, 59, 999),
-    };
-  }, []);
-
   const parseDueDateMs = React.useCallback((dateStr?: string, rawDateStr?: string) => {
     if (rawDateStr) {
       const d = new Date(rawDateStr);
@@ -564,71 +562,42 @@ export default function DespesasPage() {
     return 0;
   }, []);
 
-  // Faturas A Vencer (cartões de crédito com fatura > 0 e NÃO pagas)
-  const upcomingBills: UpcomingBill[] = creditCards
-    .filter(c => c.faturaAtual > 0 && !isCardInvoicePaidForPeriod(c))
-    .map(c => {
-      const isPast = (c as any).isPast;
-      const dateStr = (c as any).vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String((c as any).billingMonth || selectedMonthFilter || 1).padStart(2, "0")}/${selectedYear}`;
-
-      return {
-        id:         c.id,
-        title:      c.title,
-        bankName:   c.bankName || c.title,
-        vencimento: dateStr,
-        valor:      c.faturaAtual,
-        status:     isPast ? ("vencido" as const) : ("aberto" as const),
-        month:      (c as any).billingMonth || selectedMonthFilter || 1,
-        year:       (c as any).billingYear || selectedYear,
-      };
-    });
-
-  // 1. Contas a Vencer filtradas estritamente pela janela [startOfCurrentMonth, endOfNextMonth]
-  const filteredPendingExpenses = React.useMemo(() => {
-    const list = windowBills?.pendingBills || pendingExpensesList;
-    const startMs = startOfCurrentMonth.getTime();
-    const endMs = endOfNextMonth.getTime();
-
-    return list.filter((item: any) => {
-      const dueMs = parseDueDateMs(item.dueDate, item.dueDateRaw);
-      return dueMs >= startMs && dueMs <= endMs;
-    });
-  }, [windowBills, pendingExpensesList, startOfCurrentMonth, endOfNextMonth, parseDueDateMs]);
-
-  // 2. Faturas de Cartão a Vencer: apenas a próxima fatura aberta/a vencer de cada cartão cadastrado
-  const filteredUpcomingCardBills = React.useMemo(() => {
+  // 1. Faturas de Cartão a Vencer para o mês selecionado
+  const upcomingCardBills = React.useMemo(() => {
     if (windowBills?.upcomingCardInvoices && windowBills.upcomingCardInvoices.length > 0) {
-      return windowBills.upcomingCardInvoices;
+      return windowBills.upcomingCardInvoices.filter((c: any) => {
+        return (!c.month || c.month === activeMonth) && (!c.year || c.year === selectedYear);
+      });
     }
-    const startMs = startOfCurrentMonth.getTime();
-    const endMs = endOfNextMonth.getTime();
-    return upcomingBills.filter(bill => {
-      const dueMs = parseDueDateMs(bill.vencimento);
-      return dueMs >= startMs && dueMs <= endMs;
-    });
-  }, [windowBills, upcomingBills, startOfCurrentMonth, endOfNextMonth, parseDueDateMs]);
 
-  // 3. Lista unificada de todas as contas e faturas a vencer, ordenada crescentemente por vencimento (dueDate ASC)
+    return creditCards
+      .filter(c => c.faturaAtual > 0 && !isCardInvoicePaidForPeriod(c))
+      .map(c => {
+        const vencDay = c.vencimento || 10;
+        const dateStr = `${String(vencDay).padStart(2, "0")}/${String(activeMonth).padStart(2, "0")}/${selectedYear}`;
+        const dueDate = new Date(selectedYear, activeMonth - 1, vencDay, 12, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isPast = dueDate < today && dueDate.toDateString() !== today.toDateString();
+
+        return {
+          id:         c.id,
+          title:      c.title,
+          bankName:   c.bankName || c.title,
+          vencimento: dateStr,
+          valor:      c.faturaAtual,
+          dueDateRaw: dueDate.toISOString(),
+          dueDateMs:  dueDate.getTime(),
+          status:     isPast ? ("vencido" as const) : ("aberto" as const),
+          month:      activeMonth,
+          year:       selectedYear,
+        };
+      });
+  }, [windowBills, creditCards, activeMonth, selectedYear, isCardInvoicePaidForPeriod]);
+
+  // 2. Lista unificada para a seção "Contas e Faturas a Vencer" (exclusivamente Faturas de Cartão do mês selecionado)
   const unifiedUpcomingItems = React.useMemo(() => {
-    const expenseItems = filteredPendingExpenses.map((bill: any) => {
-      const dueMs = parseDueDateMs(bill.dueDate, bill.dueDateRaw);
-      return {
-        id: bill.id,
-        itemType: "EXPENSE" as const,
-        description: bill.description,
-        dueDate: bill.dueDate,
-        dueDateMs: dueMs,
-        amount: Number(bill.amount || 0),
-        status: bill.status,
-        paymentMethod: bill.paymentMethod || "DÉBITO",
-        bankName: bill.bankName || bill.walletTitle,
-        isRecurring: bill.isRecurring,
-        month: bill.month,
-        year: bill.year,
-      };
-    });
-
-    const cardItems = filteredUpcomingCardBills.map((bill: any) => {
+    return upcomingCardBills.map((bill: any) => {
       const dueMs = parseDueDateMs(bill.vencimento, bill.dueDateRaw);
       return {
         id: bill.id,
@@ -641,56 +610,37 @@ export default function DespesasPage() {
         paymentMethod: "CARTÃO DE CRÉDITO",
         bankName: bill.bankName || bill.title,
         isRecurring: false,
-        month: bill.month,
-        year: bill.year,
+        month: bill.month || activeMonth,
+        year: bill.year || selectedYear,
       };
-    });
+    }).sort((a: any, b: any) => a.dueDateMs - b.dueDateMs);
+  }, [upcomingCardBills, parseDueDateMs, activeMonth, selectedYear]);
 
-    const combined = [...expenseItems, ...cardItems];
-    // Ordenação estrita por vencimento (o que vence primeiro aparece no topo/início)
-    combined.sort((a, b) => a.dueDateMs - b.dueDateMs);
-    return combined;
-  }, [filteredPendingExpenses, filteredUpcomingCardBills, parseDueDateMs]);
-
-  // 4. Contas e Faturas Pagas da janela de 2 meses
-  const filteredPaidExpenses = React.useMemo(() => {
-    const list = windowBills?.paidBills || paidExpensesList;
-    const startMs = startOfCurrentMonth.getTime();
-    const endMs = endOfNextMonth.getTime();
-
-    return list.filter((item: any) => {
-      const paidMs = parseDueDateMs(item.paidAtFormatted, item.paidAt || item.paymentDate);
-      const dueMs = parseDueDateMs(item.dueDateFormatted, item.dueDateRaw);
-      return (paidMs >= startMs && paidMs <= endMs) || (dueMs >= startMs && dueMs <= endMs);
-    });
-  }, [windowBills, paidExpensesList, startOfCurrentMonth, endOfNextMonth, parseDueDateMs]);
-
+  // 3. Faturas de Cartão Pagas no mês selecionado
   const filteredPaidCardInvoices = React.useMemo(() => {
-    if (windowBills?.paidCardInvoices) {
-      return windowBills.paidCardInvoices;
+    if (windowBills?.paidCardInvoices && windowBills.paidCardInvoices.length > 0) {
+      return windowBills.paidCardInvoices.filter((item: any) => {
+        return (!item.month || item.month === activeMonth) && (!item.year || item.year === selectedYear);
+      });
     }
-    const startMs = startOfCurrentMonth.getTime();
-    const endMs = endOfNextMonth.getTime();
     return unifiedPaidInvoices.filter((item: any) => {
-      const paidMs = new Date(item.paidAt || "").getTime();
-      return isNaN(paidMs) || (paidMs >= startMs && paidMs <= endMs);
+      return (Number(item.month) === activeMonth && Number(item.year) === selectedYear);
     });
-  }, [windowBills, unifiedPaidInvoices, startOfCurrentMonth, endOfNextMonth]);
+  }, [windowBills, unifiedPaidInvoices, activeMonth, selectedYear]);
 
-  // ── Contas e Faturas Pendentes / Pagas (recalculadas para a janela de 2 meses) ──
-  const totalContasPendentes = filteredPendingExpenses.reduce((s, b) => s + Number(b.amount || 0), 0);
-  const totalFaturasPendentes = filteredUpcomingCardBills.reduce((s, b) => s + Number(b.valor || 0), 0);
-  const totalPendentesMes = windowBills?.totals ? windowBills.totals.totalPendente : (totalContasPendentes + totalFaturasPendentes);
-  const saldoPrevisto = saldoTotalContas - totalPendentesMes;
+  // ── Contas e Faturas Pendentes / Pagas (Cálculo Corrigido) ──────────────────
+  // O cálculo do saldo previsto para o mês selecionado considera apenas o saldo em conta subtraído da fatura de cartão de crédito do mês
+  const totalFaturasPendentes = upcomingCardBills.reduce((s, b) => s + Number(b.valor || 0), 0);
+  const totalPendentesMes = totalFaturasPendentes;
+  const saldoPrevisto = saldoTotalContas - totalFaturasPendentes;
 
-  const pagoFaturasMes    = windowBills?.totals ? Math.max(0, windowBills.totals.totalPago - filteredPaidExpenses.reduce((s, b) => s + Number(b.amount || 0), 0)) : filteredPaidCardInvoices.reduce((s, p) => s + Number(p.amount), 0);
-  const totalContasPagas  = filteredPaidExpenses.reduce((s, b) => s + Number(b.amount || 0), 0);
-  const totalPagoMes      = windowBills?.totals ? windowBills.totals.totalPago : (totalContasPagas + pagoFaturasMes);
-  const totalGeralMes     = windowBills?.totals ? windowBills.totals.totalGeral : (totalPagoMes + totalPendentesMes);
+  const pagoFaturasMes   = filteredPaidCardInvoices.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const totalPagoMes     = pagoFaturasMes;
+  const totalGeralMes    = totalFaturasPendentes + pagoFaturasMes;
 
-  const pctGeralPago = windowBills?.totals ? windowBills.totals.pctGeralPago : (totalGeralMes > 0
+  const pctGeralPago = totalGeralMes > 0
     ? Math.min(100, Math.round((totalPagoMes / totalGeralMes) * 100))
-    : (filteredPaidCardInvoices.length > 0 || filteredPaidExpenses.length > 0 ? 100 : 0));
+    : (filteredPaidCardInvoices.length > 0 ? 100 : 0);
 
   const proximosVencimentos = totalPendentesMes;
 
@@ -846,7 +796,7 @@ export default function DespesasPage() {
           {/* Navegador de Ano: [< ANO 2026 >] */}
           <div className="flex items-center bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
             <button
-              onClick={() => setSelectedYear(prev => prev - 1)}
+              onClick={() => setPeriod(selectedMonthFilter || selectedMonth, selectedYear - 1)}
               className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
               title="Ano Anterior"
             >
@@ -856,7 +806,7 @@ export default function DespesasPage() {
               ANO {selectedYear}
             </span>
             <button
-              onClick={() => setSelectedYear(prev => prev + 1)}
+              onClick={() => setPeriod(selectedMonthFilter || selectedMonth, selectedYear + 1)}
               className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
               title="Próximo Ano"
             >
@@ -867,8 +817,9 @@ export default function DespesasPage() {
           {/* Atalho "ANO ATUAL" */}
           <button
             onClick={() => {
-              setSelectedYear(new Date().getFullYear());
-              setSelectedMonthFilter(null);
+              const now = new Date();
+              setPeriod(now.getMonth() + 1, now.getFullYear());
+              setSelectedMonthFilter(now.getMonth() + 1);
             }}
             className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 dark:bg-indigo-950/60 dark:border-indigo-800/60 dark:text-indigo-300 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
           >
@@ -880,7 +831,11 @@ export default function DespesasPage() {
             value={selectedMonthFilter === null ? "" : selectedMonthFilter}
             onChange={(e) => {
               const val = e.target.value;
-              setSelectedMonthFilter(val === "" ? null : Number(val));
+              const newM = val === "" ? null : Number(val);
+              setSelectedMonthFilter(newM);
+              if (newM !== null) {
+                setPeriod(newM, selectedYear);
+              }
             }}
             className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
           >
@@ -1168,7 +1123,7 @@ export default function DespesasPage() {
                 Contas e Faturas a Vencer
               </h3>
               <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                Status de pagamento por cartão, conta bancária, boletos e Pix
+                Status de pagamento das faturas de cartão de crédito do mês
               </p>
             </div>
 
@@ -1194,7 +1149,7 @@ export default function DespesasPage() {
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  Pagas ({filteredPaidCardInvoices.length + filteredPaidExpenses.length})
+                  Pagas ({filteredPaidCardInvoices.length})
                 </button>
                 <button
                   type="button"
@@ -1226,7 +1181,7 @@ export default function DespesasPage() {
             <div className="flex justify-between items-center text-xs font-bold">
               <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                 <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                Progresso de Pagamento das Contas e Faturas
+                Progresso de Pagamento das Faturas de Cartão
               </span>
               <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{pctGeralPago}% pago</span>
             </div>
@@ -1247,208 +1202,84 @@ export default function DespesasPage() {
             unifiedUpcomingItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma conta ou fatura pendente a vencer neste mês ou no próximo mês.</p>
+                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura de cartão pendente a vencer neste mês.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-                {unifiedUpcomingItems.map((item) =>
-                  item.itemType === "EXPENSE" ? (
-                    /* 1. Contas e Despesas Avulsas/Recorrentes a Vencer (Pix, Boleto, Débito) */
-                    <div
-                      key={`pending-exp-${item.id}`}
-                      className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs hover:shadow-xs transition-all min-h-[90px] gap-3"
-                    >
-                      {/* Bloco Esquerdo: Ícone + Info */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                          item.status === "vencido"
-                            ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900"
-                            : "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900"
-                        }`}>
-                          {item.status === "vencido" ? <AlertCircle className="w-6 h-6" /> : <Clock className="w-6 h-6" />}
-                        </div>
-
-                        <div className="flex flex-col min-w-0">
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">
-                              {item.description}
-                            </span>
-                            {item.isRecurring && (
-                              <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 border border-indigo-100 dark:border-indigo-800 px-1.5 py-0.5 rounded-md shrink-0">
-                                Recorrente
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            Vence em {item.dueDate}
-                          </span>
-                          <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wide truncate">
-                            • {item.paymentMethod || "DÉBITO"} {item.bankName ? `(${item.bankName})` : ""}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bloco Direito: Valor, Badge e Botão de Ação */}
-                      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                        <div className="flex flex-col items-end">
-                          <span className="text-base font-bold text-slate-900 dark:text-white font-tnum">
-                            {formatCurrency(item.amount)}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
-                            item.status === "vencido"
-                              ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
-                              : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                          }`}>
-                            {item.status === "vencido" ? "VENCIDA" : "EM ABERTO"}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => handleMarkBillPaid(item.id)}
-                          className="px-3.5 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-                          title="Dar baixa e marcar como pago agora"
-                        >
-                          <CheckCircle2 className="w-4 h-4"/>
-                          Dar Baixa
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    /* 2. Faturas de Cartão de Crédito a Vencer (Padronizado) */
-                    <div
-                      key={`card-bill-${item.id}`}
-                      className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs hover:shadow-xs transition-all min-h-[90px] gap-3"
-                    >
-                      {/* Bloco Esquerdo: Ícone + Info */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                          item.status === "vencido"
-                            ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900"
-                            : "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-800/60"
-                        }`}>
-                          <CreditCard className="w-6 h-6" />
-                        </div>
-
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">
-                            {item.description}
-                          </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            Vence em {item.dueDate}
-                          </span>
-                          <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
-                            • CARTÃO DE CRÉDITO
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bloco Direito: Valor, Badge e Botão de Ação */}
-                      <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                        <div className="flex flex-col items-end">
-                          <span className="text-base font-bold text-slate-900 dark:text-white font-tnum">
-                            {formatCurrency(item.amount)}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
-                            item.status === "vencido"
-                              ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
-                              : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                          }`}>
-                            {item.status === "vencido" ? "VENCIDA" : "AGUARDANDO PAGAMENTO"}
-                          </span>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedPaymentWalletId("NONE");
-                            setPayModalCard({
-                              id: item.id,
-                              title: item.description.replace(/^Fatura\s+/, "") || item.bankName || "Cartão",
-                              amount: item.amount,
-                              month: item.month || 1,
-                              year: item.year || 2026,
-                            });
-                          }}
-                          className="px-3.5 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-                          title="Efetuar pagamento da fatura com débito em conta"
-                        >
-                          <CheckCircle2 className="w-4 h-4"/>
-                          Pagar Fatura
-                        </button>
-                      </div>
-                    </div>
-                  )
-                )}
-              </div>
-            )
-          ) : invoiceTab === "paid" ? (
-            filteredPaidCardInvoices.length === 0 && filteredPaidExpenses.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                <Clock className="w-8 h-8 text-slate-300" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura ou conta paga encontrada para este período.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-                {/* 1. Contas Baixadas/Pagas */}
-                {filteredPaidExpenses.map((paidItem: any) => (
+                {unifiedUpcomingItems.map((item) => (
                   <div
-                    key={`paid-exp-${paidItem.id}`}
-                    className="flex items-center justify-between p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors min-h-[90px] gap-3"
+                    key={`card-bill-${item.id}`}
+                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs hover:shadow-xs transition-all min-h-[90px] gap-3"
                   >
+                    {/* Bloco Esquerdo: Ícone + Info */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-6 h-6" />
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                        item.status === "vencido"
+                          ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900"
+                          : "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-800/60"
+                      }`}>
+                        <CreditCard className="w-6 h-6" />
                       </div>
 
                       <div className="flex flex-col min-w-0">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">{paidItem.description}</span>
-                          {paidItem.isEarlyPayment && (
-                            <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black bg-emerald-500 text-white uppercase tracking-wider shrink-0">
-                              {paidItem.paidEarlyText || "Paga Antecipada"}
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-emerald-700 dark:text-emerald-400 truncate">
-                          Pago em {paidItem.paidAtFormatted}
-                          {paidItem.isEarlyPayment && paidItem.dueDateFormatted && (
-                            <span className="ml-1 text-[10px] font-bold text-slate-400">
-                              (Venc. orig: {paidItem.dueDateFormatted})
-                            </span>
-                          )}
+                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">
+                          {item.description}
                         </span>
-                        <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 truncate">
-                          • {paidItem.paymentMethod || "DÉBITO"} {paidItem.bankName || paidItem.walletTitle ? `(${paidItem.bankName || paidItem.walletTitle})` : ""}
+                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          Vence em {item.dueDate}
+                        </span>
+                        <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
+                          • CARTÃO DE CRÉDITO
                         </span>
                       </div>
                     </div>
 
+                    {/* Bloco Direito: Valor, Badge e Botão de Ação */}
                     <div className="flex items-center gap-3 sm:gap-4 shrink-0">
                       <div className="flex flex-col items-end">
-                        <span className="text-base font-bold text-slate-900 dark:text-white font-tnum">{formatCurrency(paidItem.amount)}</span>
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap ${
-                          paidItem.isEarlyPayment
-                            ? "bg-emerald-500 text-white font-black border border-emerald-400 shadow-2xs"
-                            : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        <span className="text-base font-bold text-slate-900 dark:text-white font-tnum">
+                          {formatCurrency(item.amount)}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
+                          item.status === "vencido"
+                            ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+                            : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
                         }`}>
-                          {paidItem.isEarlyPayment ? (paidItem.paidEarlyText || "PAGO ANTECIPADO") : "PAGO"}
+                          {item.status === "vencido" ? "VENCIDA" : "AGUARDANDO PAGAMENTO"}
                         </span>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => handleUndoBillPayment(paidItem.id)}
-                        className="text-xs font-semibold text-slate-500 hover:text-rose-600 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 border border-slate-200 dark:border-slate-700 hover:border-rose-200 px-3 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap"
-                        title="Desfazer pagamento e reabrir conta"
+                        onClick={() => {
+                          setSelectedPaymentWalletId("NONE");
+                          setPayModalCard({
+                            id: item.id,
+                            title: item.description.replace(/^Fatura\s+/, "") || item.bankName || "Cartão",
+                            amount: item.amount,
+                            month: item.month || activeMonth,
+                            year: item.year || selectedYear,
+                          });
+                        }}
+                        className="px-3.5 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
+                        title="Efetuar pagamento da fatura com débito em conta"
                       >
-                        Desfazer
+                        <CheckCircle2 className="w-4 h-4"/>
+                        Pagar Fatura
                       </button>
                     </div>
                   </div>
                 ))}
-
-                {/* 2. Faturas de Cartão Pagas */}
+              </div>
+            )
+          ) : invoiceTab === "paid" ? (
+            filteredPaidCardInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+                <Clock className="w-8 h-8 text-slate-300" />
+                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura de cartão paga encontrada para este período.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
                 {filteredPaidCardInvoices.map((paidItem: any) => (
                   <div
                     key={`paid-inv-${paidItem.id}`}
@@ -1460,7 +1291,7 @@ export default function DespesasPage() {
                       </div>
 
                       <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">{paidItem.cardTitle}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">{paidItem.cardTitle || paidItem.bankName}</span>
                         <span className="text-xs text-emerald-700 dark:text-emerald-400 truncate">
                           Fatura Paga em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
                         </span>
