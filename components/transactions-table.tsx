@@ -9,14 +9,10 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  XCircle,
-  Filter,
+  Repeat,
+  Calendar,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown,
-  CreditCard,
-  Wallet,
-  Calendar,
 } from "lucide-react";
 
 export type TransactionStatus =
@@ -49,6 +45,12 @@ export interface Transaction {
   status: TransactionStatus;
   paymentMethod?: string;
   account?: string;
+  referenceMonth?: string; // Formato "YYYY-MM" (ex: "2026-08") ou formatado (ex: "Agosto/2026")
+  repeatNextMonth?: boolean;
+  isRecurring?: boolean;
+  competenceDate?: string | Date;
+  competenceMonth?: number;
+  competenceYear?: number;
 }
 
 export interface TransactionsTableProps {
@@ -67,15 +69,14 @@ export interface TransactionsTableProps {
 
 // ─── Helpers de Formatação ───────────────────────────────────────────────────
 
-const formatBRL = (val: unknown): string => {
+export const formatBRL = (val: unknown): string => {
   const num = typeof val === "number" ? val : Number(val) || 0;
   return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 };
 
-const formatDate = (d: string | Date): string => {
+export const formatDate = (d: string | Date): string => {
   if (!d) return "—";
   if (typeof d === "string") {
-    // Se vier no formato ISO ou YYYY-MM-DD
     const clean = d.split("T")[0];
     const parts = clean.split("-");
     if (parts.length === 3) {
@@ -87,8 +88,54 @@ const formatDate = (d: string | Date): string => {
   return dateObj.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };
 
-// Normalização do Status para os estilos requeridos
-const getStatusConfig = (status: TransactionStatus) => {
+export const formatReferenceMonth = (
+  ref?: string | Date | null,
+  compM?: number,
+  compY?: number
+): string | null => {
+  const months = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  if (ref) {
+    if (typeof ref === "string" && ref.includes("/")) return ref;
+    const str = typeof ref === "string" ? ref.split("T")[0] : ref.toISOString().split("T")[0];
+    const parts = str.split("-");
+    if (parts.length >= 2) {
+      const mIdx = Number(parts[1]) - 1;
+      const mName = months[mIdx] || parts[1];
+      return `${mName}/${parts[0]}`;
+    }
+  }
+
+  if (compM && compY) {
+    const mName = months[compM - 1] || String(compM);
+    return `${mName}/${compY}`;
+  }
+
+  return null;
+};
+
+export const hasDifferentReferenceMonth = (tx: Transaction): boolean => {
+  if (tx.referenceMonth) return true;
+  if (!tx.competenceDate && !tx.competenceMonth) return false;
+
+  const txDateStr = typeof tx.date === "string" ? tx.date.split("T")[0] : tx.date.toISOString().split("T")[0];
+  const txMonth = txDateStr.substring(0, 7);
+
+  let compMonth = "";
+  if (tx.competenceYear && tx.competenceMonth) {
+    compMonth = `${tx.competenceYear}-${String(tx.competenceMonth).padStart(2, "0")}`;
+  } else if (tx.competenceDate) {
+    const cStr = typeof tx.competenceDate === "string" ? tx.competenceDate : tx.competenceDate.toISOString();
+    compMonth = cStr.split("T")[0].substring(0, 7);
+  }
+
+  return Boolean(compMonth && compMonth !== txMonth);
+};
+
+export const getStatusConfig = (status: TransactionStatus) => {
   const s = String(status || "").toLowerCase();
 
   // Status Positivo / Pago (Verde)
@@ -121,7 +168,6 @@ const getStatusConfig = (status: TransactionStatus) => {
     };
   }
 
-  // Default neutro
   return {
     label: String(status),
     pillClass: "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700",
@@ -129,6 +175,169 @@ const getStatusConfig = (status: TransactionStatus) => {
     icon: CheckCircle2,
   };
 };
+
+// ─── Sub-componente: Linha da Tabela (TransactionRow) ─────────────────────────
+
+export interface TransactionRowProps {
+  tx: Transaction;
+  onView?: (transaction: Transaction) => void;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transaction: Transaction) => void;
+}
+
+export function TransactionRow({ tx, onView, onEdit, onDelete }: TransactionRowProps) {
+  const categoryName =
+    typeof tx.category === "string"
+      ? tx.category
+      : tx.category?.name || "Sem categoria";
+
+  const isExpense =
+    tx.type === "EXPENSE" ||
+    tx.type === "DEBIT" ||
+    (!tx.type && Number(tx.amount) < 0);
+
+  const statusConfig = getStatusConfig(tx.status);
+
+  // Mês de Referência
+  const refMonthLabel = formatReferenceMonth(
+    tx.referenceMonth || (tx.competenceDate ? String(tx.competenceDate) : null),
+    tx.competenceMonth,
+    tx.competenceYear
+  );
+  const showRefBadge = hasDifferentReferenceMonth(tx) && refMonthLabel;
+
+  // Repetição no próximo mês / Recorrência
+  const isRepeating = Boolean(tx.repeatNextMonth || tx.isRecurring);
+
+  // Tratamento da Tag de Tipo / Parcela
+  let typeLabel = "À vista";
+  if (tx.installment) {
+    if (typeof tx.installment === "string") {
+      typeLabel = tx.installment.toLowerCase().includes("parcela")
+        ? tx.installment
+        : `Parcela ${tx.installment}`;
+    } else if (typeof tx.installment === "object") {
+      typeLabel = `Parcela ${tx.installment.current}/${tx.installment.total}`;
+    }
+  } else if (tx.type === "INCOME") {
+    typeLabel = "Receita";
+  } else if (tx.type === "TRANSFER") {
+    typeLabel = "Transferência";
+  } else if (tx.paymentMethod) {
+    typeLabel = tx.paymentMethod;
+  }
+
+  return (
+    <tr className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors group">
+      {/* 1. DATA */}
+      <td className="py-3.5 sm:py-4 px-4 text-xs text-slate-500 dark:text-slate-400 font-medium tabular-nums whitespace-nowrap">
+        {formatDate(tx.date)}
+      </td>
+
+      {/* 2. DESCRIÇÃO / CATEGORIA (com Badge de Mês de Referência e Indicador de Repetição) */}
+      <td className="py-3.5 sm:py-4 px-4 min-w-0">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-slate-800 dark:text-slate-100 text-sm font-semibold truncate leading-snug">
+              {tx.description}
+            </span>
+
+            {/* Badge de Mês de Referência */}
+            {showRefBadge && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shrink-0"
+                title={`Mês de Referência / Competência: ${refMonthLabel}`}
+              >
+                <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                Ref. {refMonthLabel}
+              </span>
+            )}
+
+            {/* Indicador de Repetição no Próximo Mês */}
+            {isRepeating && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 shrink-0"
+                title="Repetir despesa no próximo mês (recorrente)"
+              >
+                <Repeat className="w-3 h-3 text-purple-500 shrink-0" />
+                <span>Repete</span>
+              </span>
+            )}
+          </div>
+
+          <span className="text-xs text-slate-400 dark:text-slate-500 font-normal truncate">
+            {categoryName}
+          </span>
+        </div>
+      </td>
+
+      {/* 3. TIPO / PARCELA */}
+      <td className="py-3.5 sm:py-4 px-4 whitespace-nowrap">
+        <span className="rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5 border bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700">
+          {typeLabel}
+        </span>
+      </td>
+
+      {/* 4. VALOR */}
+      <td className="py-3.5 sm:py-4 px-4 text-right whitespace-nowrap">
+        <span
+          className={`text-sm font-semibold tabular-nums font-tnum ${
+            isExpense ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-100"
+          }`}
+        >
+          {isExpense ? `- ${formatBRL(Math.abs(Number(tx.amount)))}` : formatBRL(Number(tx.amount))}
+        </span>
+      </td>
+
+      {/* 5. STATUS */}
+      <td className="py-3.5 sm:py-4 px-4 text-center whitespace-nowrap">
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5 border ${statusConfig.pillClass}`}
+        >
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusConfig.dotClass}`} />
+          {statusConfig.label}
+        </span>
+      </td>
+
+      {/* 6. AÇÕES */}
+      <td className="py-3.5 sm:py-4 px-4 text-center whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1.5">
+          {/* Visualizar */}
+          <button
+            type="button"
+            onClick={() => onView?.(tx)}
+            title="Visualizar detalhes"
+            className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center cursor-pointer"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Editar */}
+          <button
+            type="button"
+            onClick={() => onEdit?.(tx)}
+            title="Editar transação"
+            className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center cursor-pointer"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Excluir com tom destrutivo */}
+          <button
+            type="button"
+            onClick={() => onDelete?.(tx)}
+            title="Excluir transação"
+            className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-center cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+// ─── Componente Principal: TransactionsTable ──────────────────────────────────
 
 export function TransactionsTable({
   title = "Extrato de Transações",
@@ -150,14 +359,12 @@ export function TransactionsTable({
   // Filtragem
   const filtered = useMemo(() => {
     return transactions.filter((t) => {
-      // Busca textual
       const matchesQuery =
         !query ||
         t.description.toLowerCase().includes(query.toLowerCase()) ||
         (typeof t.category === "string" && t.category.toLowerCase().includes(query.toLowerCase())) ||
         (typeof t.category === "object" && t.category?.name?.toLowerCase().includes(query.toLowerCase()));
 
-      // Filtro de status
       if (!matchesQuery) return false;
       if (statusFilter === "ALL") return true;
 
@@ -176,14 +383,12 @@ export function TransactionsTable({
     return filtered.slice(start, start + itemsPerPage);
   }, [filtered, currentPage, itemsPerPage]);
 
-  // Totais
+  // Totalizador
   const totalAmount = useMemo(() => {
     return filtered.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
   }, [filtered]);
 
   return (
-    // Container Card conforme especificação 5:
-    // "bg-white rounded-2xl border border-slate-100 shadow-sm p-6"
     <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 transition-all">
       {/* ── Top Header com Título, Busca e Filtros ─────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -197,7 +402,7 @@ export function TransactionsTable({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          {/* Campo de Busca com Ícone Search */}
+          {/* Campo de Busca */}
           {showSearch && (
             <div className="relative flex items-center min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
@@ -267,12 +472,10 @@ export function TransactionsTable({
       {/* ── Tabela Responsiva ──────────────────────────────────────────────── */}
       <div className="overflow-x-auto w-full -mx-6 px-6 sm:mx-0 sm:px-0">
         <table className="w-full text-left border-collapse">
-          {/* Cabeçalho fixo no topo com títulos em caixa alta conforme especificação 1:
-              "text-[11px] font-bold tracking-wider text-slate-500 uppercase" */}
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold tracking-wider text-slate-500 dark:text-slate-400 uppercase select-none">
               <th className="py-3 px-4 w-[110px]">Data</th>
-              <th className="py-3 px-4 min-w-[200px]">Descrição / Categoria</th>
+              <th className="py-3 px-4 min-w-[220px]">Descrição / Categoria</th>
               <th className="py-3 px-4 min-w-[140px]">Tipo / Parcela</th>
               <th className="py-3 px-4 text-right min-w-[120px]">Valor</th>
               <th className="py-3 px-4 text-center min-w-[120px]">Status</th>
@@ -280,8 +483,6 @@ export function TransactionsTable({
             </tr>
           </thead>
 
-          {/* Corpo da Tabela com Separação entre linhas limpa:
-              "border-b border-slate-100 hover:bg-slate-50/60 transition-colors" e "py-3.5 a py-4" */}
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {isLoading ? (
               <tr>
@@ -299,124 +500,15 @@ export function TransactionsTable({
                 </td>
               </tr>
             ) : (
-              paginatedTransactions.map((tx) => {
-                const categoryName =
-                  typeof tx.category === "string"
-                    ? tx.category
-                    : tx.category?.name || "Sem categoria";
-
-                const isExpense =
-                  tx.type === "EXPENSE" ||
-                  tx.type === "DEBIT" ||
-                  (!tx.type && Number(tx.amount) < 0);
-
-                const statusConfig = getStatusConfig(tx.status);
-
-                // Tratamento da Tag de Tipo / Parcela
-                let typeLabel = "À vista";
-                if (tx.installment) {
-                  if (typeof tx.installment === "string") {
-                    typeLabel = tx.installment.toLowerCase().includes("parcela")
-                      ? tx.installment
-                      : `Parcela ${tx.installment}`;
-                  } else if (typeof tx.installment === "object") {
-                    typeLabel = `Parcela ${tx.installment.current}/${tx.installment.total}`;
-                  }
-                } else if (tx.type === "INCOME") {
-                  typeLabel = "Receita";
-                } else if (tx.type === "TRANSFER") {
-                  typeLabel = "Transferência";
-                } else if (tx.paymentMethod) {
-                  typeLabel = tx.paymentMethod;
-                }
-
-                return (
-                  <tr
-                    key={tx.id}
-                    className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors group"
-                  >
-                    {/* 1. DATA */}
-                    <td className="py-3.5 sm:py-4 px-4 text-xs text-slate-500 dark:text-slate-400 font-medium tabular-nums whitespace-nowrap">
-                      {formatDate(tx.date)}
-                    </td>
-
-                    {/* 2. DESCRIÇÃO / CATEGORIA */}
-                    <td className="py-3.5 sm:py-4 px-4 min-w-0">
-                      <div className="flex flex-col">
-                        <span className="text-slate-800 dark:text-slate-100 text-sm font-semibold truncate leading-snug">
-                          {tx.description}
-                        </span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500 font-normal mt-0.5 truncate">
-                          {categoryName}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* 3. TIPO / PARCELA */}
-                    <td className="py-3.5 sm:py-4 px-4 whitespace-nowrap">
-                      <span className="rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5 border bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/60 dark:text-slate-300 dark:border-slate-700">
-                        {typeLabel}
-                      </span>
-                    </td>
-
-                    {/* 4. VALOR (text-slate-800 font-semibold text-sm ou vermelho suave text-rose-600 para saída) */}
-                    <td className="py-3.5 sm:py-4 px-4 text-right whitespace-nowrap">
-                      <span
-                        className={`text-sm font-semibold tabular-nums font-tnum ${
-                          isExpense ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-100"
-                        }`}
-                      >
-                        {isExpense ? `- ${formatBRL(Math.abs(Number(tx.amount)))}` : formatBRL(Number(tx.amount))}
-                      </span>
-                    </td>
-
-                    {/* 5. STATUS (Badges e Pílulas de Status Estilo Imagem 1) */}
-                    <td className="py-3.5 sm:py-4 px-4 text-center whitespace-nowrap">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-medium inline-flex items-center gap-1.5 border ${statusConfig.pillClass}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusConfig.dotClass}`} />
-                        {statusConfig.label}
-                      </span>
-                    </td>
-
-                    {/* 6. AÇÕES (Botões circulares w-8 h-8 com hover suave e hover destrutivo na exclusão) */}
-                    <td className="py-3.5 sm:py-4 px-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* Visualizar */}
-                        <button
-                          type="button"
-                          onClick={() => onView?.(tx)}
-                          title="Visualizar detalhes"
-                          className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Editar */}
-                        <button
-                          type="button"
-                          onClick={() => onEdit?.(tx)}
-                          title="Editar transação"
-                          className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors flex items-center justify-center cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Excluir (Hover Destrutivo) */}
-                        <button
-                          type="button"
-                          onClick={() => onDelete?.(tx)}
-                          title="Excluir transação"
-                          className="w-8 h-8 rounded-full border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors flex items-center justify-center cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+              paginatedTransactions.map((tx) => (
+                <TransactionRow
+                  key={tx.id}
+                  tx={tx}
+                  onView={onView}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))
             )}
           </tbody>
         </table>
@@ -482,4 +574,5 @@ export function TransactionsTable({
   );
 }
 
+export const TableRow = TransactionRow;
 export default TransactionsTable;

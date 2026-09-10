@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight, Check
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight, Check, Repeat
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -1074,6 +1074,9 @@ export default function CartaoDetailPage() {
                                 const currInst = (entry as any).currentInstallment || (match ? Number(match[1]) : null);
                                 const totalInst = entry.installmentsCount || (match ? Number(match[2]) : null);
                                 const displayLabel = entry.installmentLabel || (currInst && totalInst ? `${currInst}/${totalInst}` : null);
+                                const isDiffComp = isDifferentCompetence(entry.purchaseDate || entry.date, entry.competenceDate);
+                                const refLabel = formatReference(entry.competenceDate);
+                                const isRepeating = Boolean(entry.isRecurring || (entry as any).tags?.toLowerCase().includes("recorrente"));
                                 return (
                                   <div className="flex items-center gap-1.5 flex-wrap">
                                     <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
@@ -1082,6 +1085,23 @@ export default function CartaoDetailPage() {
                                     {displayLabel && (
                                       <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
                                         Parcela {displayLabel}
+                                      </span>
+                                    )}
+                                    {isDiffComp && refLabel && (
+                                      <span
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                                        title={`Mês de Referência: ${refLabel}`}
+                                      >
+                                        Ref. {refLabel}
+                                      </span>
+                                    )}
+                                    {isRepeating && (
+                                      <span
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                                        title="Repetir despesa no próximo mês (recorrente)"
+                                      >
+                                        <Repeat className="w-2.5 h-2.5 text-purple-500" />
+                                        <span>Repete</span>
                                       </span>
                                     )}
                                   </div>
@@ -1397,6 +1417,32 @@ export default function CartaoDetailPage() {
                                                 Parcela {installmentLabel}
                                               </span>
                                             )}
+                                            {(() => {
+                                              const isDiffComp = isDifferentCompetence((t as any).purchaseDate || t.date, (t as any).competenceDate);
+                                              const refLabel = formatReference((t as any).competenceDate);
+                                              const isRepeating = Boolean((t as any).isRecurring || (t as any).tags?.toLowerCase().includes("recorrente"));
+                                              return (
+                                                <>
+                                                  {isDiffComp && refLabel && (
+                                                    <span
+                                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                                                      title={`Mês de Referência: ${refLabel}`}
+                                                    >
+                                                      Ref. {refLabel}
+                                                    </span>
+                                                  )}
+                                                  {isRepeating && (
+                                                    <span
+                                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                                                      title="Repetir despesa no próximo mês (recorrente)"
+                                                    >
+                                                      <Repeat className="w-2.5 h-2.5 text-purple-500" />
+                                                      <span>Repete</span>
+                                                    </span>
+                                                  )}
+                                                </>
+                                              );
+                                            })()}
                                           </div>
                                           <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{t.category}</p>
                                         </div>
@@ -1917,6 +1963,8 @@ export default function CartaoDetailPage() {
           purchaseDate: (selectedPurchase as any).purchaseDate || selectedPurchase.date,
           paymentDate: (selectedPurchase as any).paymentDate || selectedPurchase.date,
           competenceDate: (selectedPurchase as any).competenceDate || selectedPurchase.date,
+          referenceMonth: (selectedPurchase as any).referenceMonth || ((selectedPurchase as any).competenceDate ? (selectedPurchase as any).competenceDate.split("T")[0].substring(0, 7) : undefined),
+          repeatNextMonth: !!(selectedPurchase as any).isRecurring,
           tags: selectedPurchase.tags,
           isRecurring: (selectedPurchase as any).isRecurring,
           recurringDay: (selectedPurchase as any).recurringDay

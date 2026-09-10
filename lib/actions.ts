@@ -2228,6 +2228,7 @@ export async function createCardPurchase(
   }
 
   const numInstallments = installmentsCount && installmentsCount > 1 ? installmentsCount : 1;
+  let createdTxId: string | undefined;
 
   if (numInstallments > 1) {
     const groupId = crypto.randomUUID();
@@ -2299,6 +2300,7 @@ export async function createCardPurchase(
         recurringDay: isRecurring ? (dueDate ? dueDate.getUTCDate() : purchaseDate.getUTCDate()) : null
       }
     });
+    createdTxId = newTx?.id;
 
     if (isRecurring) {
       let nextM = compMonth + 1;
@@ -2336,6 +2338,8 @@ export async function createCardPurchase(
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
+
+  return { success: true, id: createdTxId };
 }
 
 async function syncRecurringProjections(
@@ -2510,6 +2514,8 @@ export async function updateCardPurchase(
   revalidatePath("/despesas");
   revalidatePath("/receitas");
   revalidatePath("/dashboard");
+
+  return { success: true, id };
 }
 
 export async function deleteCardPurchase(id: string) {
@@ -3685,6 +3691,35 @@ export async function markExpenseAsPaidAction(
       where: { id: targetWalletId },
       data: { currentBalance: { decrement: tx.amount } } as any
     });
+  }
+
+  // Se a despesa for recorrente / marcada para repetir, garante o agendamento no mês seguinte
+  if ((tx as any).isRecurring) {
+    try {
+      const compDate = (tx as any).competenceDate || (tx as any).dueDate || tx.date;
+      const m = (tx as any).competenceMonth || (new Date(compDate).getUTCMonth() + 1);
+      const y = (tx as any).competenceYear || new Date(compDate).getUTCFullYear();
+      let nextM = m + 1;
+      let nextY = y;
+      if (nextM > 12) {
+        nextM = 1;
+        nextY += 1;
+      }
+      const alreadyScheduled = await prisma.transaction.findFirst({
+        where: {
+          walletId: tx.walletId,
+          description: tx.description,
+          competenceMonth: nextM,
+          competenceYear: nextY,
+          deletedAt: null
+        }
+      });
+      if (!alreadyScheduled) {
+        await duplicateExpenseToNextMonthAction(transactionId, m, y);
+      }
+    } catch (dupErr) {
+      console.warn("Aviso ao agendar repetição no mês seguinte:", dupErr);
+    }
   }
 
   revalidatePath("/despesas");
