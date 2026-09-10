@@ -3525,6 +3525,238 @@ export async function getPaidInvoicesAction(month?: number | null | string, year
 
 // ---------- Actions de Ciclo de Vida de Despesas (Contas / Boletos / Pix) ----------
 
+export async function getUpcomingBillsWindowAction() {
+  const userId = await getActiveUserId();
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth(); // 0-indexed (8 = Setembro)
+
+  // Início do mês atual (ex: 01/09/2026 00:00:00)
+  const startOfCurrentMonth = new Date(curYear, curMonth, 1, 0, 0, 0, 0);
+  // Fim do mês seguinte (ex: 31/10/2026 23:59:59.999)
+  const endOfNextMonth = new Date(curYear, curMonth + 2, 0, 23, 59, 59, 999);
+
+  // Garantir despesas recorrentes geradas para o mês atual e o mês seguinte
+  const m1 = curMonth + 1;
+  const y1 = curYear;
+  const m2 = m1 + 1 > 12 ? 1 : m1 + 1;
+  const y2 = m1 + 1 > 12 ? y1 + 1 : y1;
+  await ensureRecurringExpensesForMonth(m1, y1);
+  await ensureRecurringExpensesForMonth(m2, y2);
+
+  // 1. Contas Pendentes (não cartão) com vencimento dentro do intervalo
+  const pendingTxs = await (prisma.transaction as any).findMany({
+    where: {
+      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+      type: "EXPENSE",
+      status: "PENDING",
+      deletedAt: null,
+      OR: [
+        { dueDate: { gte: startOfCurrentMonth, lte: endOfNextMonth } },
+        { AND: [{ dueDate: null }, { date: { gte: startOfCurrentMonth, lte: endOfNextMonth } }] }
+      ]
+    },
+    include: { wallet: true, category: true },
+    orderBy: [
+      { dueDate: "asc" },
+      { date: "asc" }
+    ]
+  });
+
+  const pendingBills = pendingTxs.map((t: any) => {
+    const due = t.dueDate || t.date;
+    const d = new Date(due);
+    const isPast = d < now;
+    const dayStr = String(d.getUTCDate()).padStart(2, "0");
+    const monthStr = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dateFormatted = `${dayStr}/${monthStr}/${d.getUTCFullYear()}`;
+
+    return {
+      id: t.id,
+      description: t.description,
+      amount: Number(t.amount),
+      dueDate: dateFormatted,
+      dueDateRaw: due.toISOString(),
+      dueDateMs: d.getTime(),
+      walletId: t.walletId,
+      walletTitle: t.wallet?.title || "Conta",
+      bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
+      categoryName: t.category?.name || "Outros",
+      categoryColor: t.category?.color || "#6366F1",
+      paymentMethod: t.paymentMethod || "DEBITO",
+      isRecurring: !!t.isRecurring,
+      isPast,
+      status: isPast ? ("vencido" as const) : ("aberto" as const),
+      month: d.getUTCMonth() + 1,
+      year: d.getUTCFullYear(),
+      type: "BILL" as const,
+    };
+  });
+
+  // 2. Contas Pagas (não cartão) dentro da janela
+  const paidTxs = await (prisma.transaction as any).findMany({
+    where: {
+      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+      type: "EXPENSE",
+      status: { in: ["COMPLETED", "PAID"] },
+      deletedAt: null,
+      paymentDate: { not: null },
+      OR: [
+        { dueDate: { gte: startOfCurrentMonth, lte: endOfNextMonth } },
+        { paymentDate: { gte: startOfCurrentMonth, lte: endOfNextMonth } }
+      ]
+    },
+    include: { wallet: true, category: true },
+    orderBy: { paymentDate: "desc" }
+  });
+
+  const paidBills = paidTxs.map((t: any) => {
+    const paidD = t.paymentDate || t.date;
+    const d = new Date(paidD);
+    const dayStr = String(d.getUTCDate()).padStart(2, "0");
+    const monthStr = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const dateFormatted = `${dayStr}/${monthStr}/${d.getUTCFullYear()}`;
+
+    const dueRaw = t.dueDate || t.date;
+    let dueDateFormatted = "";
+    if (dueRaw) {
+      const dueD = new Date(dueRaw);
+      dueDateFormatted = `${String(dueD.getUTCDate()).padStart(2, "0")}/${String(dueD.getUTCMonth() + 1).padStart(2, "0")}/${dueD.getUTCFullYear()}`;
+    }
+
+    return {
+      id: t.id,
+      description: t.description,
+      amount: Number(t.amount),
+      paidAt: paidD.toISOString(),
+      paidAtFormatted: dateFormatted,
+      dueDateFormatted,
+      dueDateRaw: dueRaw ? new Date(dueRaw).toISOString() : null,
+      walletId: t.walletId,
+      walletTitle: t.wallet?.title || "Conta",
+      bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
+      categoryName: t.category?.name || "Outros",
+      categoryColor: t.category?.color || "#10B981",
+      paymentMethod: t.paymentMethod || "DEBITO",
+      isRecurring: !!t.isRecurring,
+      month: d.getUTCMonth() + 1,
+      year: d.getUTCFullYear(),
+      type: "BILL" as const,
+    };
+  });
+
+  // 3. Faturas de Cartão de Crédito
+  const creditCards = await prisma.wallet.findMany({
+    where: { userId, walletType: "CREDIT_CARD" },
+    select: { id: true, title: true, bankName: true, vencimento: true, diaFechamento: true }
+  });
+
+  const upcomingCardInvoices: any[] = [];
+  const paidCardInvoices: any[] = [];
+
+  for (const card of creditCards) {
+    const paidInvoices = await (prisma as any).invoicePayment.findMany({ where: { walletId: card.id } });
+    const paidKeys = new Set(paidInvoices.map((p: any) => `${p.month}-${p.year}`));
+
+    const allPurchases = await prisma.transaction.findMany({
+      where: { walletId: card.id, type: "EXPENSE", deletedAt: null }
+    });
+
+    const getComp = (t: any) => {
+      const d = t.competenceDate ? new Date(t.competenceDate) : new Date(t.date);
+      return { m: t.competenceMonth || (d.getUTCMonth() + 1), y: t.competenceYear || d.getUTCFullYear() };
+    };
+
+    // Mês 1 da janela (ex: vencimento em 10/09 para compras de 08)
+    const prevMonthM1 = m1 - 1 < 1 ? 12 : m1 - 1;
+    const prevYearM1 = m1 - 1 < 1 ? y1 - 1 : y1;
+    const m1Txs = allPurchases.filter(t => { const c = getComp(t); return c.m === prevMonthM1 && c.y === prevYearM1; });
+    const amt1 = m1Txs.reduce((s, t) => s + Number(t.amount), 0);
+    const isPaid1 = paidKeys.has(`${m1}-${y1}`) || paidKeys.has(`${prevMonthM1}-${prevYearM1}`);
+
+    // Mês 2 da janela (ex: vencimento em 10/10 para compras de 09)
+    const m2Txs = allPurchases.filter(t => { const c = getComp(t); return c.m === m1 && c.y === y1; });
+    const amt2 = m2Txs.reduce((s, t) => s + Number(t.amount), 0);
+    const isPaid2 = paidKeys.has(`${m2}-${y2}`) || paidKeys.has(`${m1}-${y1}`);
+
+    const due1Date = new Date(y1, m1 - 1, card.vencimento || 10, 12, 0, 0);
+    const due2Date = new Date(y2, m2 - 1, card.vencimento || 10, 12, 0, 0);
+
+    // Regra: exibir apenas a próxima fatura aberta/a vencer de cada cartão cadastrado
+    if (!isPaid1 && amt1 > 0) {
+      upcomingCardInvoices.push({
+        id: card.id,
+        title: card.title || card.bankName,
+        bankName: card.bankName || card.title,
+        vencimento: `${String(card.vencimento || 10).padStart(2, "0")}/${String(m1).padStart(2, "0")}/${y1}`,
+        valor: amt1,
+        dueDateRaw: due1Date.toISOString(),
+        dueDateMs: due1Date.getTime(),
+        status: due1Date < now ? "vencido" : "aberto",
+        month: m1,
+        year: y1,
+      });
+    } else if (!isPaid2 && amt2 > 0) {
+      upcomingCardInvoices.push({
+        id: card.id,
+        title: card.title || card.bankName,
+        bankName: card.bankName || card.title,
+        vencimento: `${String(card.vencimento || 10).padStart(2, "0")}/${String(m2).padStart(2, "0")}/${y2}`,
+        valor: amt2,
+        dueDateRaw: due2Date.toISOString(),
+        dueDateMs: due2Date.getTime(),
+        status: due2Date < now ? "vencido" : "aberto",
+        month: m2,
+        year: y2,
+      });
+    }
+
+    // Faturas quitadas na janela
+    for (const pi of paidInvoices) {
+      const paidDate = new Date(pi.paidAt);
+      if (paidDate >= startOfCurrentMonth && paidDate <= endOfNextMonth) {
+        paidCardInvoices.push({
+          id: pi.id,
+          walletId: card.id,
+          cardTitle: card.title || card.bankName,
+          amount: Number(pi.amount),
+          paidAt: pi.paidAt ? pi.paidAt.toISOString() : new Date().toISOString(),
+          month: pi.month,
+          year: pi.year,
+          paymentWalletId: pi.paymentWalletId || null,
+          paymentWalletTitle: "Conta Bancária",
+        });
+      }
+    }
+  }
+
+  const totalContasPendentes = pendingBills.reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
+  const totalFaturasPendentes = upcomingCardInvoices.reduce((s: number, c: any) => s + Number(c.valor || 0), 0);
+  const totalPendenteJanela = totalContasPendentes + totalFaturasPendentes;
+
+  const totalContasPagas = paidBills.reduce((s: number, b: any) => s + Number(b.amount || 0), 0);
+  const totalFaturasPagas = paidCardInvoices.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
+  const totalPagoJanela = totalContasPagas + totalFaturasPagas;
+
+  const totalGeralJanela = totalPendenteJanela + totalPagoJanela;
+  const pctGeralPago = totalGeralJanela > 0
+    ? Math.min(100, Math.round((totalPagoJanela / totalGeralJanela) * 100))
+    : (totalPagoJanela > 0 ? 100 : 0);
+
+  return {
+    pendingBills,
+    paidBills,
+    upcomingCardInvoices,
+    paidCardInvoices,
+    totals: {
+      totalPendente: totalPendenteJanela,
+      totalPago: totalPagoJanela,
+      totalGeral: totalGeralJanela,
+      pctGeralPago,
+    }
+  };
+}
+
 export async function getPendingExpensesAction(month?: number | null | string, year: number = 2026) {
   const userId = await getActiveUserId();
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
@@ -3537,8 +3769,12 @@ export async function getPendingExpensesAction(month?: number | null | string, y
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
-    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    // Para a listagem geral de contas a vencer na visão anual, restringir para a janela de vencimento imediata (mês atual + próximo mês)
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth();
+    from = new Date(Date.UTC(curYear, curMonth, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(curYear, curMonth + 2, 0, 23, 59, 59, 999));
   }
 
   const pendingTxs = await (prisma.transaction as any).findMany({
@@ -3548,10 +3784,8 @@ export async function getPendingExpensesAction(month?: number | null | string, y
       status: "PENDING",
       deletedAt: null,
       OR: [
-        ...(!isAnnualView && numMonth ? [{ competenceMonth: numMonth, competenceYear: year }] : [{ competenceYear: year }]),
         { dueDate: { gte: from, lte: to } },
-        { date: { gte: from, lte: to } },
-        { purchaseDate: { gte: from, lte: to } },
+        { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
       ]
     },
     include: {
@@ -3686,8 +3920,11 @@ export async function getPaidExpensesAction(month?: number | null | string, year
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
-    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-    to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth();
+    from = new Date(Date.UTC(curYear, curMonth, 1, 0, 0, 0));
+    to   = new Date(Date.UTC(curYear, curMonth + 2, 0, 23, 59, 59, 999));
   }
 
   const paidTxs = await (prisma.transaction as any).findMany({
@@ -3698,10 +3935,9 @@ export async function getPaidExpensesAction(month?: number | null | string, year
       deletedAt: null,
       paymentDate: { not: null },
       OR: [
-        ...(!isAnnualView && numMonth ? [{ competenceMonth: numMonth, competenceYear: year }] : [{ competenceYear: year }]),
         { paymentDate: { gte: from, lte: to } },
         { dueDate: { gte: from, lte: to } },
-        { date: { gte: from, lte: to } },
+        { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
       ]
     },
     include: {
