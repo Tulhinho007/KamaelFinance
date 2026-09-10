@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -48,6 +48,54 @@ export interface CreditCardInvoiceTableProps {
   emptyMessage?: string;
   className?: string;
 }
+
+/** Extrai chave YYYY-MM-DD para agrupamento */
+const getDateKey = (dateVal?: string | Date | null): string => {
+  if (!dateVal) return "SEM_DATA";
+  try {
+    if (typeof dateVal === "string") {
+      return dateVal.split("T")[0];
+    }
+    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+      const y = dateVal.getFullYear();
+      const m = String(dateVal.getMonth() + 1).padStart(2, "0");
+      const d = String(dateVal.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+  } catch {
+    // fallback
+  }
+  return String(dateVal);
+};
+
+/** Formata rótulo do dia para cabeçalho do grupo (ex: 08 DE SET ou HOJE) */
+const formatDayHeaderLabel = (dateKey: string): string => {
+  if (!dateKey || dateKey === "SEM_DATA") return "Sem Data";
+
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+
+  if (dateKey === todayKey) return "HOJE";
+  if (dateKey === yesterdayKey) return "ONTEM";
+
+  const parts = dateKey.split("-");
+  if (parts.length === 3) {
+    const day = parts[2];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const monthShorts = [
+      "JAN", "FEV", "MAR", "ABR", "MAI", "JUN",
+      "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"
+    ];
+    const monthStr = monthShorts[monthIndex] || parts[1];
+    return `${day} DE ${monthStr}`;
+  }
+
+  return dateKey.toUpperCase();
+};
 
 /** Formata data para dd/mm/aaaa */
 const formatDate = (dateVal?: string | Date | null): string => {
@@ -127,6 +175,53 @@ export function CreditCardInvoiceTable({
     transactions.length > 0 && selectedIds.length === transactions.length;
   const isPartiallySelected =
     selectedIds.length > 0 && selectedIds.length < transactions.length;
+
+  // Agrupamento de transações por dia e cálculo do consolidado diário
+  const groupedTransactions = useMemo(() => {
+    const groupsMap = new Map<
+      string,
+      {
+        dateKey: string;
+        dateLabel: string;
+        transactions: CreditCardTransaction[];
+        totalExpense: number;
+        totalIncome: number;
+      }
+    >();
+
+    for (const tx of transactions) {
+      const txDate = tx.purchaseDate || tx.date;
+      const dateKey = getDateKey(txDate);
+
+      if (!groupsMap.has(dateKey)) {
+        groupsMap.set(dateKey, {
+          dateKey,
+          dateLabel: formatDayHeaderLabel(dateKey),
+          transactions: [],
+          totalExpense: 0,
+          totalIncome: 0,
+        });
+      }
+
+      const group = groupsMap.get(dateKey)!;
+      group.transactions.push(tx);
+
+      const isIncome = tx.type === "INCOME";
+      const amount = typeof tx.amount === "number" ? tx.amount : Number(tx.amount) || 0;
+      if (isIncome) {
+        group.totalIncome += amount;
+      } else {
+        group.totalExpense += amount;
+      }
+    }
+
+    // Ordena os grupos por data decrescente (mais recente primeiro)
+    return Array.from(groupsMap.values()).sort((a, b) => {
+      if (a.dateKey === "SEM_DATA") return 1;
+      if (b.dateKey === "SEM_DATA") return -1;
+      return b.dateKey.localeCompare(a.dateKey);
+    });
+  }, [transactions]);
 
   const containerClasses =
     className !== undefined
@@ -208,210 +303,238 @@ export function CreditCardInvoiceTable({
               </td>
             </tr>
           ) : (
-            transactions.map((tx) => {
-              const isSelected = selectedIds.includes(tx.id);
-              const txDate = tx.purchaseDate || tx.date;
-              const dateFormatted = formatDate(txDate);
-
-              // Tratamento de parcelas e descrição
-              const match = tx.description.match(/\((\d+)\/(\d+)\)/);
-              const cleanDesc = tx.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
-              const currInst = tx.currentInstallment || (match ? Number(match[1]) : null);
-              const totalInst = tx.installmentsCount || (match ? Number(match[2]) : null);
-              const displayInstallment =
-                tx.installmentLabel || (currInst && totalInst ? `${currInst}/${totalInst}` : null);
-
-              // Mês de referência
-              const diffComp = isDifferentCompetence(txDate, tx.competenceDate);
-              const refBadge = diffComp ? formatReference(tx.competenceDate) : null;
-
-              // Indicador de repetição / recorrência
-              const isRepeating = Boolean(
-                tx.isRecurring ||
-                tx.repeatNextMonth ||
-                tx.subtype === "assinatura" ||
-                (tx.tags && tx.tags.toLowerCase().includes("recorrente"))
-              );
-
-              // Categoria
-              const categoryName =
-                typeof tx.category === "string"
-                  ? tx.category
-                  : tx.category?.name || "Geral";
-
-              // Status
-              const normalizedStatus = (tx.status || (tx.isPaid ? "PAID" : "PENDING")).toUpperCase();
-              const isPaid = normalizedStatus === "PAID" || normalizedStatus === "COMPLETED" || normalizedStatus === "PAGO";
-              const isOpen = normalizedStatus === "OPEN" || normalizedStatus === "ABERTA";
-
-              return (
-                <tr
-                  key={tx.id}
-                  className={`py-3.5 px-4 text-sm border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
-                    isSelected ? "bg-indigo-50/60 dark:bg-indigo-950/20" : ""
-                  }`}
-                >
-                  {/* Checkbox de Seleção */}
-                  {hasSelection && (
-                    <td className="w-10 px-3 py-3.5 text-center">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggleSelect && onToggleSelect(tx.id)}
-                        aria-label={`Selecionar ${cleanDesc}`}
-                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
-                      />
-                    </td>
-                  )}
-
-                  {/* 1. DATA COMPRA */}
-                  <td className="py-3.5 px-4 text-xs font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap tabular-nums">
-                    {dateFormatted}
-                  </td>
-
-                  {/* 2. DESCRIÇÃO + BADGES */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1.5 flex-wrap max-w-md">
-                      <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                        {cleanDesc}
+            groupedTransactions.map((group) => (
+              <React.Fragment key={group.dateKey}>
+                {/* Linha Divisória de Data */}
+                <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-y border-slate-100 dark:border-slate-800 select-none">
+                  <td colSpan={hasSelection ? 7 : 6} className="px-4 py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                        {group.dateLabel}
                       </span>
-
-                      {/* Badge de Parcela */}
-                      {displayInstallment && (
-                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
-                          Parcela {displayInstallment}
-                        </span>
-                      )}
-
-                      {/* Badge de Mês de Referência */}
-                      {refBadge && (
-                        <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
-                          title={`Mês de Referência: ${refBadge}`}
-                        >
-                          Ref. {refBadge}
-                        </span>
-                      )}
-
-                      {/* Badge de Repetição */}
-                      {isRepeating && (
-                        <span
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
-                          title="Repete no próximo mês"
-                        >
-                          <Repeat className="w-2.5 h-2.5 text-purple-500" />
-                          <span>Repete</span>
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 3. CATEGORIA */}
-                  <td className="py-3.5 px-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
-                      {categoryName}
-                    </span>
-                  </td>
-
-                  {/* 4. VALOR */}
-                  <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                    <span
-                      className={`text-sm font-semibold tabular-nums ${
-                        tx.type === "INCOME"
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-slate-900 dark:text-slate-100"
-                      }`}
-                    >
-                      {tx.type === "INCOME" ? `+ ${formatBRL(tx.amount)}` : `- ${formatBRL(tx.amount)}`}
-                    </span>
-                  </td>
-
-                  {/* 5. STATUS */}
-                  <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                    {onToggleStatus ? (
-                      <button
-                        type="button"
-                        disabled={togglingId === tx.id}
-                        onClick={() => onToggleStatus(tx.id)}
-                        className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none ${
-                          isPaid
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 hover:brightness-95"
-                            : isOpen
-                            ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 hover:brightness-95"
-                            : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 hover:brightness-95"
-                        } ${togglingId === tx.id ? "opacity-60 cursor-wait" : "active:scale-95"}`}
-                        title={isPaid ? "Clique para marcar como Pendente" : (tx.type === "INCOME" ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
-                      >
-                        {isPaid ? (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        ) : isOpen ? (
-                          <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        ) : (
-                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      <div className="flex items-center gap-3">
+                        {group.totalIncome > 0 && (
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                            + {formatBRL(group.totalIncome)}
+                          </span>
                         )}
-                        <span>{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
-                      </button>
-                    ) : isPaid ? (
-                      <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>{tx.type === "INCOME" ? "Recebido" : "Pago"}</span>
-                      </span>
-                    ) : isOpen ? (
-                      <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                        <span>Aberta</span>
-                      </span>
-                    ) : (
-                      <span className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                        <span>Pendente</span>
-                      </span>
-                    )}
-                  </td>
-
-                  {/* 6. AÇÕES */}
-                  <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-1.5">
-                      {onDuplicate && (
-                        <button
-                          type="button"
-                          onClick={() => onDuplicate(tx)}
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                          title="Duplicar para o próximo mês"
-                          aria-label="Duplicar lançamento"
-                        >
-                          <CopyPlus className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      {onEdit && (
-                        <button
-                          type="button"
-                          onClick={() => onEdit(tx)}
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
-                          title="Editar despesa"
-                          aria-label="Editar despesa"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-
-                      {onDelete && (
-                        <button
-                          type="button"
-                          onClick={() => onDelete(tx)}
-                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 dark:hover:border-rose-800 transition-colors cursor-pointer"
-                          title="Excluir despesa"
-                          aria-label="Excluir despesa"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                        {(group.totalExpense > 0 || group.totalIncome === 0) && (
+                          <span className="text-xs font-semibold text-rose-500 dark:text-rose-400 tabular-nums">
+                            - {formatBRL(group.totalExpense)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
-              );
-            })
+
+                {/* Transações do Dia */}
+                {group.transactions.map((tx) => {
+                  const isSelected = selectedIds.includes(tx.id);
+                  const txDate = tx.purchaseDate || tx.date;
+                  const dateFormatted = formatDate(txDate);
+
+                  // Tratamento de parcelas e descrição
+                  const match = tx.description.match(/\((\d+)\/(\d+)\)/);
+                  const cleanDesc = tx.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
+                  const currInst = tx.currentInstallment || (match ? Number(match[1]) : null);
+                  const totalInst = tx.installmentsCount || (match ? Number(match[2]) : null);
+                  const displayInstallment =
+                    tx.installmentLabel || (currInst && totalInst ? `${currInst}/${totalInst}` : null);
+
+                  // Mês de referência
+                  const diffComp = isDifferentCompetence(txDate, tx.competenceDate);
+                  const refBadge = diffComp ? formatReference(tx.competenceDate) : null;
+
+                  // Indicador de repetição / recorrência
+                  const isRepeating = Boolean(
+                    tx.isRecurring ||
+                    tx.repeatNextMonth ||
+                    tx.subtype === "assinatura" ||
+                    (tx.tags && tx.tags.toLowerCase().includes("recorrente"))
+                  );
+
+                  // Categoria
+                  const categoryName =
+                    typeof tx.category === "string"
+                      ? tx.category
+                      : tx.category?.name || "Geral";
+
+                  // Status
+                  const normalizedStatus = (tx.status || (tx.isPaid ? "PAID" : "PENDING")).toUpperCase();
+                  const isPaid = normalizedStatus === "PAID" || normalizedStatus === "COMPLETED" || normalizedStatus === "PAGO";
+                  const isOpen = normalizedStatus === "OPEN" || normalizedStatus === "ABERTA";
+
+                  return (
+                    <tr
+                      key={tx.id}
+                      className={`py-3.5 px-4 text-sm border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
+                        isSelected ? "bg-indigo-50/60 dark:bg-indigo-950/20" : ""
+                      }`}
+                    >
+                      {/* Checkbox de Seleção */}
+                      {hasSelection && (
+                        <td className="w-10 px-3 py-3.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => onToggleSelect && onToggleSelect(tx.id)}
+                            aria-label={`Selecionar ${cleanDesc}`}
+                            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+                          />
+                        </td>
+                      )}
+
+                      {/* 1. DATA (exibição discreta) */}
+                      <td className="py-3.5 px-4 text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap tabular-nums">
+                        {dateFormatted}
+                      </td>
+
+                      {/* 2. DESCRIÇÃO + BADGES */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-1.5 flex-wrap max-w-md">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                            {cleanDesc}
+                          </span>
+
+                          {/* Badge de Parcela */}
+                          {displayInstallment && (
+                            <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
+                              Parcela {displayInstallment}
+                            </span>
+                          )}
+
+                          {/* Badge de Mês de Referência */}
+                          {refBadge && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                              title={`Mês de Referência: ${refBadge}`}
+                            >
+                              Ref. {refBadge}
+                            </span>
+                          )}
+
+                          {/* Badge de Repetição */}
+                          {isRepeating && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
+                              title="Repete no próximo mês"
+                            >
+                              <Repeat className="w-2.5 h-2.5 text-purple-500" />
+                              <span>Repete</span>
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 3. CATEGORIA */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60">
+                          {categoryName}
+                        </span>
+                      </td>
+
+                      {/* 4. VALOR */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <span
+                          className={`text-sm font-semibold tabular-nums ${
+                            tx.type === "INCOME"
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-slate-900 dark:text-slate-100"
+                          }`}
+                        >
+                          {tx.type === "INCOME" ? `+ ${formatBRL(tx.amount)}` : `- ${formatBRL(tx.amount)}`}
+                        </span>
+                      </td>
+
+                      {/* 5. STATUS */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        {onToggleStatus ? (
+                          <button
+                            type="button"
+                            disabled={togglingId === tx.id}
+                            onClick={() => onToggleStatus(tx.id)}
+                            className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none ${
+                              isPaid
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 hover:brightness-95"
+                                : isOpen
+                                ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 hover:brightness-95"
+                                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 hover:brightness-95"
+                            } ${togglingId === tx.id ? "opacity-60 cursor-wait" : "active:scale-95"}`}
+                            title={isPaid ? "Clique para marcar como Pendente" : (tx.type === "INCOME" ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
+                          >
+                            {isPaid ? (
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            ) : isOpen ? (
+                              <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            ) : (
+                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            )}
+                            <span>{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
+                          </button>
+                        ) : isPaid ? (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                            <span>{tx.type === "INCOME" ? "Recebido" : "Pago"}</span>
+                          </span>
+                        ) : isOpen ? (
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            <span>Aberta</span>
+                          </span>
+                        ) : (
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                            <span>Pendente</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 6. AÇÕES */}
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {onDuplicate && (
+                            <button
+                              type="button"
+                              onClick={() => onDuplicate(tx)}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                              title="Duplicar para o próximo mês"
+                              aria-label="Duplicar lançamento"
+                            >
+                              <CopyPlus className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {onEdit && (
+                            <button
+                              type="button"
+                              onClick={() => onEdit(tx)}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                              title="Editar despesa"
+                              aria-label="Editar despesa"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {onDelete && (
+                            <button
+                              type="button"
+                              onClick={() => onDelete(tx)}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 dark:hover:border-rose-800 transition-colors cursor-pointer"
+                              title="Excluir despesa"
+                              aria-label="Excluir despesa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </React.Fragment>
+            ))
           )}
         </tbody>
       </table>
