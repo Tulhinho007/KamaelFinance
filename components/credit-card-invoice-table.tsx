@@ -21,6 +21,7 @@ export interface CreditCardTransaction {
   date: string | Date;
   purchaseDate?: string | Date | null;
   competenceDate?: string | Date | null;
+  type?: "INCOME" | "EXPENSE" | string;
   status?: "PAID" | "PENDING" | "COMPLETED" | "pago" | "pendente" | "aberta" | string;
   isPaid?: boolean;
   installmentLabel?: string;
@@ -40,6 +41,9 @@ export interface CreditCardInvoiceTableProps {
   onEdit?: (transaction: CreditCardTransaction) => void;
   onDelete?: (transaction: CreditCardTransaction) => void;
   onDuplicate?: (transaction: CreditCardTransaction) => void;
+  onToggleStatus?: (id: string) => void;
+  togglingId?: string | null;
+  dateColumnHeader?: string;
   isLoading?: boolean;
   emptyMessage?: string;
   className?: string;
@@ -111,6 +115,9 @@ export function CreditCardInvoiceTable({
   onEdit,
   onDelete,
   onDuplicate,
+  onToggleStatus,
+  togglingId,
+  dateColumnHeader = "Data Compra",
   isLoading = false,
   emptyMessage = "Nenhum lançamento encontrado para esta fatura.",
   className,
@@ -147,7 +154,7 @@ export function CreditCardInvoiceTable({
               </th>
             )}
             <th className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-left whitespace-nowrap">
-              Data Compra
+              {dateColumnHeader}
             </th>
             <th className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-left">
               Descrição
@@ -308,17 +315,46 @@ export function CreditCardInvoiceTable({
 
                   {/* 4. VALOR */}
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                    <span className="text-sm font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
-                      - {formatBRL(tx.amount)}
+                    <span
+                      className={`text-sm font-semibold tabular-nums ${
+                        tx.type === "INCOME"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-slate-900 dark:text-slate-100"
+                      }`}
+                    >
+                      {tx.type === "INCOME" ? `+ ${formatBRL(tx.amount)}` : `- ${formatBRL(tx.amount)}`}
                     </span>
                   </td>
 
                   {/* 5. STATUS */}
                   <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                    {isPaid ? (
+                    {onToggleStatus ? (
+                      <button
+                        type="button"
+                        disabled={togglingId === tx.id}
+                        onClick={() => onToggleStatus(tx.id)}
+                        className={`rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none ${
+                          isPaid
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 hover:brightness-95"
+                            : isOpen
+                            ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 hover:brightness-95"
+                            : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 hover:brightness-95"
+                        } ${togglingId === tx.id ? "opacity-60 cursor-wait" : "active:scale-95"}`}
+                        title={isPaid ? "Clique para marcar como Pendente" : (tx.type === "INCOME" ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
+                      >
+                        {isPaid ? (
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        ) : isOpen ? (
+                          <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                        )}
+                        <span>{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
+                      </button>
+                    ) : isPaid ? (
                       <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                        <span>Pago</span>
+                        <span>{tx.type === "INCOME" ? "Recebido" : "Pago"}</span>
                       </span>
                     ) : isOpen ? (
                       <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-3 py-0.5 text-xs font-medium inline-flex items-center gap-1">

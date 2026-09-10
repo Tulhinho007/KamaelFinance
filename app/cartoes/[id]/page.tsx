@@ -1185,29 +1185,6 @@ export default function CartaoDetailPage() {
                 return true;
               });
 
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const yesterday = new Date(today);
-              yesterday.setDate(yesterday.getDate() - 1);
-
-              const formatDayLabel = (dateStr: string) => {
-                const d = new Date(dateStr.split("T")[0] + "T12:00:00");
-                d.setHours(0, 0, 0, 0);
-                if (d.getTime() === today.getTime()) return "Hoje";
-                if (d.getTime() === yesterday.getTime()) return "Ontem";
-                const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-                return `${String(d.getDate()).padStart(2, "0")} de ${months[d.getMonth()]}`;
-              };
-
-              const groupedByDay: Record<string, { label: string; entries: typeof monthTransactions }> = {};
-              filtered.forEach(t => {
-                const rawDate = ((t as any).purchaseDate || t.date).split("T")[0];
-                const label = formatDayLabel(rawDate);
-                if (!groupedByDay[rawDate]) groupedByDay[rawDate] = { label, entries: [] };
-                groupedByDay[rawDate].entries.push(t);
-              });
-              const dayGroups = Object.entries(groupedByDay).sort(([a], [b]) => b.localeCompare(a));
-
               return (
                 <>
                   {/* Header */}
@@ -1264,158 +1241,51 @@ export default function CartaoDetailPage() {
                     </div>
                   </div>
 
-                  {filtered.length === 0 ? (
-                    <div className="py-12 flex flex-col items-center gap-2 text-center">
-                      <CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                      <p className="text-xs font-semibold text-slate-400">Nenhuma movimentação para este filtro.</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                      {dayGroups.map(([dateKey, { label, entries }]) => {
-                        const dayIncome = entries.filter(e => e.type === "INCOME").reduce((s, e) => s + e.amount, 0);
-                        const dayExpense = entries.filter(e => e.type === "EXPENSE").reduce((s, e) => s + e.amount, 0);
-                        return (
-                          <div key={dateKey}>
-                            {/* Separador de Dia */}
-                            <div className="px-5 py-2 bg-slate-50/80 dark:bg-slate-900/60 flex items-center justify-between gap-4">
-                              <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
-                              <div className="flex items-center gap-3">
-                                {dayIncome > 0 && <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+ {brl(dayIncome)}</span>}
-                                {dayExpense > 0 && <span className="text-[10px] font-bold text-rose-500 dark:text-rose-400 tabular-nums">- {brl(dayExpense)}</span>}
-                              </div>
-                            </div>
-                            {/* Linhas do dia */}
-                            {entries.map(t => {
-                              const isIncome = t.type === "INCOME";
-                              const isPaid = t.status !== "PENDING";
-                              return (
-                                <div key={t.id} className={`group flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${ selectedIds.includes(t.id) ? "bg-indigo-50 dark:bg-indigo-500/5" : "" }`}>
-                                  {/* Checkbox */}
-                                  <input type="checkbox" checked={selectedIds.includes(t.id)}
-                                    onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(i => i !== t.id) : [...prev, t.id])}
-                                    className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 text-indigo-600 accent-indigo-600 cursor-pointer flex-shrink-0" />
-                                  {/* Ícone entrada/saída */}
-                                  {(() => {
-                                    const isInstallment = !isIncome && ((t.installmentsCount && t.installmentsCount > 1) || (t as any).currentInstallment != null || /\(\d+\/\d+\)/.test(t.description));
-                                    const match = t.description.match(/\((\d+)\/(\d+)\)/);
-                                    const currInst = (t as any).currentInstallment || (match ? Number(match[1]) : null);
-                                    const totalInst = t.installmentsCount || (match ? Number(match[2]) : null);
-                                    const installmentLabel = currInst && totalInst ? `${currInst}/${totalInst}` : null;
-                                    const cleanDesc = t.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
+                  {/* Tabela Estruturada de Extrato da Conta */}
+                  <CreditCardInvoiceTable
+                    dateColumnHeader="Data"
+                    transactions={filtered.map(t => {
+                      const match = t.description.match(/\((\d+)\/(\d+)\)/);
+                      const currInst = (t as any).currentInstallment || (match ? Number(match[1]) : null);
+                      const totalInst = t.installmentsCount || (match ? Number(match[2]) : null);
+                      const installmentLabel = currInst && totalInst ? `${currInst}/${totalInst}` : undefined;
 
-                                    return (
-                                      <>
-                                        <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
-                                          isIncome ? "bg-emerald-100 dark:bg-emerald-500/10" :
-                                          isInstallment ? "bg-amber-100 dark:bg-amber-500/10" :
-                                          "bg-rose-100 dark:bg-rose-500/10"
-                                        }`}>
-                                          {isIncome
-                                            ? <TrendingUp className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                            : isInstallment
-                                            ? <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                            : <TrendingDown className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
-                                        </div>
-                                        {/* Descrição + Categoria */}
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                              {cleanDesc}
-                                            </p>
-                                            {installmentLabel && (
-                                              <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
-                                                Parcela {installmentLabel}
-                                              </span>
-                                            )}
-                                            {(() => {
-                                              const isDiffComp = isDifferentCompetence((t as any).purchaseDate || t.date, (t as any).competenceDate);
-                                              const refLabel = formatReference((t as any).competenceDate);
-                                              const isRepeating = Boolean((t as any).isRecurring || (t as any).tags?.toLowerCase().includes("recorrente"));
-                                              return (
-                                                <>
-                                                  {isDiffComp && refLabel && (
-                                                    <span
-                                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
-                                                      title={`Mês de Referência: ${refLabel}`}
-                                                    >
-                                                      Ref. {refLabel}
-                                                    </span>
-                                                  )}
-                                                  {isRepeating && (
-                                                    <span
-                                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
-                                                      title="Repetir despesa no próximo mês (recorrente)"
-                                                    >
-                                                      <Repeat className="w-2.5 h-2.5 text-purple-500" />
-                                                      <span>Repete</span>
-                                                    </span>
-                                                  )}
-                                                </>
-                                              );
-                                            })()}
-                                          </div>
-                                          <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{t.category}</p>
-                                        </div>
-                                      </>
-                                    );
-                                  })()}
-                                  {/* Área Direita: [ Valor ] [ Botão Status (Pill) ] [ Lápis Editar ] [ Lixeira Excluir ] */}
-                                  <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 ml-auto">
-                                    {/* Valor */}
-                                    <span className={`text-sm font-black tabular-nums whitespace-nowrap ${
-                                      isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-100"
-                                    }`}>
-                                      {isIncome ? `+ ${brl(t.amount)}` : `- ${brl(t.amount)}`}
-                                    </span>
-
-                                    {/* Botão de Status (Pill Alternável) */}
-                                    <button
-                                      type="button"
-                                      disabled={togglingId === t.id}
-                                      onClick={() => togglePaymentStatus(t.id)}
-                                      title={isPaid ? "Clique para marcar como Pendente" : (isIncome ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
-                                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all cursor-pointer select-none shrink-0 shadow-2xs hover:brightness-95 active:scale-95 ${
-                                        isPaid
-                                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 dark:hover:bg-emerald-900/60"
-                                          : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200/80 dark:border-amber-800/80 hover:bg-amber-100 dark:hover:bg-amber-900/60"
-                                      } ${togglingId === t.id ? "opacity-60 cursor-wait" : ""}`}
-                                    >
-                                      {isPaid ? (
-                                        <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
-                                      ) : (
-                                        <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 stroke-[2.5]" />
-                                      )}
-                                      <span>{isIncome ? (isPaid ? "Recebido" : "Pendente") : (isPaid ? "Pago" : "Pendente")}</span>
-                                    </button>
-
-                                    {/* Botão Editar (Sempre Visível) */}
-                                    <button
-                                      type="button"
-                                      onClick={() => openEditModal(t as any)}
-                                      className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0"
-                                      title="Editar lançamento"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-
-                                    {/* Botão Excluir (Sempre Visível) */}
-                                    <button
-                                      type="button"
-                                      onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }}
-                                      className="p-1.5 bg-rose-50/50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 border border-rose-200/60 dark:border-rose-900/40 rounded-xl text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer shrink-0"
-                                      title="Excluir lançamento"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                      return {
+                        id: t.id,
+                        description: t.description,
+                        category: t.category,
+                        amount: t.amount,
+                        date: t.date,
+                        purchaseDate: (t as any).purchaseDate || t.date,
+                        competenceDate: (t as any).competenceDate || t.date,
+                        type: t.type,
+                        status: t.status,
+                        installmentLabel,
+                        currentInstallment: currInst ?? undefined,
+                        installmentsCount: totalInst ?? undefined,
+                        isRecurring: Boolean((t as any).isRecurring || (t as any).tags?.toLowerCase().includes("recorrente")),
+                        tags: t.tags,
+                      };
+                    })}
+                    selectedIds={selectedIds}
+                    onToggleSelect={(id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                    onToggleSelectAll={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
+                    onToggleStatus={togglePaymentStatus}
+                    togglingId={togglingId}
+                    onEdit={(tx) => openEditModal(tx as any)}
+                    onDelete={(tx) => { setSelectedPurchase(tx as any); setModalType("delete"); }}
+                    onDuplicate={async (tx) => {
+                      try {
+                        const res = await duplicateExpenseToNextMonthAction(tx.id);
+                        await loadData();
+                        showAlert(`"${tx.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" });
+                      } catch (e) {
+                        showAlert("Erro ao duplicar.", { variant: "error" });
+                      }
+                    }}
+                    emptyMessage="Nenhuma movimentação para este filtro."
+                    className="w-full overflow-x-auto"
+                  />
 
                   {/* Rodapé fixo */}
                   {monthTransactions.length > 0 && (
