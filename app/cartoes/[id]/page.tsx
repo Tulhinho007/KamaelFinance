@@ -17,6 +17,7 @@ import {
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
+import { CreditCardInvoiceTable } from "@/components/credit-card-invoice-table";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { getInvoiceStatusInfo } from "@/lib/invoice-utils";
@@ -986,31 +987,6 @@ export default function CartaoDetailPage() {
               return true;
             });
 
-            // Agrupamento por data
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const yesterday = new Date(today);
-            yesterday.setDate(yesterday.getDate() - 1);
-
-            const formatDayLabel = (dateStr: string) => {
-              const d = new Date(dateStr.split("T")[0] + "T12:00:00");
-              d.setHours(0, 0, 0, 0);
-              if (d.getTime() === today.getTime()) return "Hoje";
-              if (d.getTime() === yesterday.getTime()) return "Ontem";
-              const months = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-              return `${String(d.getDate()).padStart(2, "0")} de ${months[d.getMonth()]}`;
-            };
-
-            const groupedByDay: Record<string, { label: string; entries: CreditEntry[] }> = {};
-            filtered.forEach(entry => {
-              const rawDate = (entry.purchaseDate || entry.competenceDate || entry.date).split("T")[0];
-              const label = formatDayLabel(rawDate);
-              if (!groupedByDay[rawDate]) groupedByDay[rawDate] = { label, entries: [] };
-              groupedByDay[rawDate].entries.push(entry);
-            });
-
-            const dayGroups = Object.entries(groupedByDay).sort(([a], [b]) => b.localeCompare(a));
-
             return (
               <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-xl overflow-hidden">
                 {/* Header */}
@@ -1033,107 +1009,41 @@ export default function CartaoDetailPage() {
                   </div>
                 </div>
 
-                {filtered.length === 0 ? (
-                  <div className="py-12 flex flex-col items-center gap-2 text-center">
-                    <CheckCircle2 className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                    <p className="text-xs font-semibold text-slate-400">Nenhum lançamento neste mês.</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {dayGroups.map(([dateKey, { label, entries }]) => (
-                      <div key={dateKey}>
-                        {/* Separador de Dia */}
-                        <div className="px-5 py-2 bg-slate-50/80 dark:bg-slate-900/60 flex items-center justify-between">
-                          <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{label}</span>
-                          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 tabular-nums">
-                            - {brl(entries.reduce((s, e) => s + e.amount, 0))}
-                          </span>
-                        </div>
-                        {/* Linhas do dia */}
-                        {entries.map(entry => (
-                          <div key={entry.id} className={`group flex items-center gap-3 px-5 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors ${ selectedIds.includes(entry.id) ? "bg-indigo-50 dark:bg-indigo-500/5" : "" }`}>
-                            {/* Checkbox */}
-                            <input type="checkbox" checked={selectedIds.includes(entry.id)}
-                              onChange={() => setSelectedIds(prev => prev.includes(entry.id) ? prev.filter(i => i !== entry.id) : [...prev, entry.id])}
-                              className="w-4 h-4 rounded-md border border-slate-300 dark:border-slate-700 text-indigo-600 accent-indigo-600 cursor-pointer flex-shrink-0" />
-                            {/* Ícone de tipo */}
-                            <div className={`w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center ${
-                              entry.subtype === "assinatura" ? "bg-purple-100 dark:bg-purple-500/10" :
-                              entry.subtype === "parcelado" ? "bg-amber-100 dark:bg-amber-500/10" :
-                              "bg-rose-100 dark:bg-rose-500/10"
-                            }`}>
-                              {entry.subtype === "assinatura" ? <RotateCcw className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" /> :
-                               entry.subtype === "parcelado" ? <Calendar className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" /> :
-                               <CreditCard className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />}
-                            </div>
-                            {/* Descrição + Categoria */}
-                            <div className="flex-1 min-w-0">
-                              {(() => {
-                                const match = entry.description.match(/\((\d+)\/(\d+)\)/);
-                                const cleanDesc = entry.description.replace(/\s*\(\d+\/\d+\)$/, "").trim();
-                                const currInst = (entry as any).currentInstallment || (match ? Number(match[1]) : null);
-                                const totalInst = entry.installmentsCount || (match ? Number(match[2]) : null);
-                                const displayLabel = entry.installmentLabel || (currInst && totalInst ? `${currInst}/${totalInst}` : null);
-                                const isDiffComp = isDifferentCompetence(entry.purchaseDate || entry.date, entry.competenceDate);
-                                const refLabel = formatReference(entry.competenceDate);
-                                const isRepeating = Boolean(entry.isRecurring || (entry as any).tags?.toLowerCase().includes("recorrente"));
-                                return (
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                      {cleanDesc}
-                                    </p>
-                                    {displayLabel && (
-                                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
-                                        Parcela {displayLabel}
-                                      </span>
-                                    )}
-                                    {isDiffComp && refLabel && (
-                                      <span
-                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
-                                        title={`Mês de Referência: ${refLabel}`}
-                                      >
-                                        Ref. {refLabel}
-                                      </span>
-                                    )}
-                                    {isRepeating && (
-                                      <span
-                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
-                                        title="Repetir despesa no próximo mês (recorrente)"
-                                      >
-                                        <Repeat className="w-2.5 h-2.5 text-purple-500" />
-                                        <span>Repete</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                );
-                              })()}
-                              <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5 truncate">{entry.category}</p>
-                            </div>
-                            {/* Valor */}
-                            <span className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums whitespace-nowrap flex-shrink-0">
-                              - {brl(entry.amount)}
-                            </span>
-                            {/* Ações (Sempre Visíveis) */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button onClick={async () => { try { const res = await duplicateExpenseToNextMonthAction(entry.id); await loadData(); showAlert(`"${entry.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" }); } catch(e) { showAlert("Erro ao duplicar.", { variant: "error" }); } }}
-                                className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0" title="Duplicar">
-                                <CopyPlus className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => openEditModal(entry as any)}
-                                className="p-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800/60 dark:hover:bg-slate-700/70 border border-slate-200/80 dark:border-slate-700/60 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors cursor-pointer shrink-0" title="Editar">
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button onClick={() => { setSelectedPurchase(entry as any); setModalType("delete"); }}
-                                className="p-1.5 bg-rose-50/50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/50 border border-rose-200/60 dark:border-rose-900/40 rounded-xl text-rose-500 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 transition-colors cursor-pointer shrink-0" title="Excluir">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {/* Tabela Estruturada de Fatura */}
+                <CreditCardInvoiceTable
+                  transactions={filtered.map(entry => ({
+                    id: entry.id,
+                    description: entry.description,
+                    category: entry.category,
+                    amount: entry.amount,
+                    date: entry.date,
+                    purchaseDate: entry.purchaseDate,
+                    competenceDate: entry.competenceDate,
+                    status: (entry as any).status || "COMPLETED",
+                    installmentLabel: entry.installmentLabel,
+                    currentInstallment: entry.currentInstallment,
+                    installmentsCount: entry.installmentsCount,
+                    isRecurring: entry.isRecurring,
+                    tags: entry.tags,
+                    subtype: entry.subtype,
+                  }))}
+                  selectedIds={selectedIds}
+                  onToggleSelect={(id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+                  onToggleSelectAll={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
+                  onEdit={(tx) => openEditModal(tx as any)}
+                  onDelete={(tx) => { setSelectedPurchase(tx as any); setModalType("delete"); }}
+                  onDuplicate={async (tx) => {
+                    try {
+                      const res = await duplicateExpenseToNextMonthAction(tx.id);
+                      await loadData();
+                      showAlert(`"${tx.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" });
+                    } catch (e) {
+                      showAlert("Erro ao duplicar.", { variant: "error" });
+                    }
+                  }}
+                  emptyMessage="Nenhum lançamento neste mês."
+                  className="w-full overflow-x-auto"
+                />
 
                 {/* Rodapé de resumo */}
                 {filtered.length > 0 && (
