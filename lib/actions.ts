@@ -1796,116 +1796,13 @@ function safeIsoDate(d: any): string {
 }
 
 export async function ensureRecurringExpensesForMonth(
-  targetMonth: number,
-  targetYear: number,
-  walletId?: string
+  _targetMonth: number,
+  _targetYear: number,
+  _walletId?: string
 ) {
-  try {
-    const userId = await getActiveUserId();
-    if (!userId) return;
-
-    // 1. Buscar todas as despesas marcadas como recorrentes ativas
-    const recurringTxs = await prisma.transaction.findMany({
-      where: {
-        wallet: walletId ? { id: walletId, userId } : { userId },
-        type: "EXPENSE",
-        deletedAt: null,
-        source: { not: "RECURRING_PROJECTION" },
-        OR: [
-          { isRecurring: true },
-          { tags: { contains: "assinatura", mode: "insensitive" } },
-          { tags: { contains: "recorrente", mode: "insensitive" } },
-        ]
-      },
-      include: { wallet: true },
-      orderBy: [
-        { date: "desc" }
-      ]
-    });
-
-    if (!recurringTxs || recurringTxs.length === 0) return;
-
-    // 2. Agrupar pela chave única walletId + descrição (pegar a versão mais recente como molde)
-    const templatesByWalletDesc = new Map<string, typeof recurringTxs[0]>();
-    for (const tx of recurringTxs) {
-      const key = `${tx.walletId}::${(tx.description || "").trim().toLowerCase()}`;
-      if (!templatesByWalletDesc.has(key)) {
-        templatesByWalletDesc.set(key, tx);
-      }
-    }
-
-    const fromDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
-    const toDate   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
-    const targetAbsolute = targetYear * 12 + targetMonth;
-
-    for (const template of Array.from(templatesByWalletDesc.values())) {
-      // Verificar se o lançamento original é de um mês posterior ao alvo
-      const refDate = (template as any).dueDate || (template as any).purchaseDate || template.date;
-      const origComp = (template as any).competenceDate ? new Date((template as any).competenceDate) : refDate;
-      const refMonth = (template as any).competenceMonth || (origComp.getUTCMonth() + 1);
-      const refYear = (template as any).competenceYear || origComp.getUTCFullYear();
-      const templateAbsolute = refYear * 12 + refMonth;
-
-      // Não retroagir para meses anteriores à criação da recorrência
-      if (templateAbsolute > targetAbsolute) {
-        continue;
-      }
-
-      // 3. Verificar se já existe despesa com esta descrição no mês alvo
-      const existing = await (prisma.transaction as any).findFirst({
-        where: {
-          walletId: template.walletId,
-          deletedAt: null,
-          type: "EXPENSE",
-          description: { equals: template.description.trim(), mode: "insensitive" },
-          OR: [
-            { competenceMonth: targetMonth, competenceYear: targetYear },
-            { date: { gte: fromDate, lte: toDate } },
-            { purchaseDate: { gte: fromDate, lte: toDate } },
-            { dueDate: { gte: fromDate, lte: toDate } }
-          ]
-        }
-      });
-
-      if (existing) {
-        continue;
-      }
-
-      // 4. Calcular dia com clamp seguro
-      const origDay = (template as any).recurringDay || ((template as any).dueDate ? new Date((template as any).dueDate).getUTCDate() : ((template as any).purchaseDate ? new Date((template as any).purchaseDate).getUTCDate() : new Date(template.date).getUTCDate()));
-      const maxDays = new Date(targetYear, targetMonth, 0).getDate();
-      const safeDay = Math.min(Math.max(1, origDay), maxDays);
-
-      const targetDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
-      const compDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
-
-      await prisma.transaction.create({
-        data: {
-          walletId: template.walletId,
-          categoryId: template.categoryId,
-          description: template.description,
-          type: "EXPENSE",
-          amount: template.amount,
-          installmentsCount: 1,
-          date: targetDate,
-          purchaseDate: targetDate,
-          dueDate: targetDate,
-          paymentDate: null,
-          status: "PENDING",
-          paymentMethod: (template as any).paymentMethod || null,
-          competenceDate: compDate,
-          competenceMonth: targetMonth,
-          competenceYear: targetYear,
-          source: "MANUAL",
-          tags: template.tags || null,
-          isRecurring: true,
-          recurringDay: safeDay,
-        } as any
-      });
-    }
-  } catch (error) {
-    console.error("Erro em ensureRecurringExpensesForMonth:", error);
-  }
+  // Desativado: Duplicação de despesas é estritamente pontual (+1 mês apenas)
+  // sob demanda explícita do usuário (clone único P2P), sem cron job ou auto-replicação contínua.
+  return;
 }
 
 export async function getCardDataById(id: string, month?: number, year?: number) {
@@ -2620,6 +2517,20 @@ export async function duplicateExpenseToNextMonthAction(
   const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
 
+  // Idempotência: Se já existir lançamento idêntico para o mês alvo, não duplica novamente
+  const existing = await prisma.transaction.findFirst({
+    where: {
+      walletId: original.walletId,
+      description: original.description,
+      deletedAt: null,
+      type: "EXPENSE",
+      date: nextDate,
+    }
+  });
+  if (existing) {
+    return { success: true, newMonthLabel, id: existing.id };
+  }
+
   const newTx = await prisma.transaction.create({
     data: {
       walletId: original.walletId,
@@ -2749,6 +2660,61 @@ export async function duplicateBatchExpensesToNextMonthAction(
   revalidatePath("/dashboard");
 
   return { success: true, count: createdCount, newMonthLabel: lastMonthLabel };
+}
+
+/**
+ * Ação de limpeza no banco: remove projeções futuras indevidas e garante que
+ * 'Energia - Celpe' e 'Seguro energia solar' fiquem apenas até Setembro/2026,
+ * e 'Internet - Tim Live' fique apenas em Setembro e Outubro/2026.
+ */
+export async function cleanupPollutedFutureExpensesAction() {
+  // 1. Deletar 'Energia - Celpe' e 'Seguro energia solar' a partir de Outubro/2026 (>= 2026-10-01)
+  const cutOffOct = new Date(Date.UTC(2026, 9, 1, 0, 0, 0));
+  const delCelpeSolar = await prisma.transaction.deleteMany({
+    where: {
+      date: { gte: cutOffOct },
+      OR: [
+        { description: { contains: "Celpe", mode: "insensitive" } },
+        { description: { contains: "solar", mode: "insensitive" } },
+      ],
+    },
+  });
+
+  // 2. Deletar 'Internet - Tim Live' a partir de Novembro/2026 (>= 2026-11-01)
+  const cutOffNov = new Date(Date.UTC(2026, 10, 1, 0, 0, 0));
+  const delTim = await prisma.transaction.deleteMany({
+    where: {
+      date: { gte: cutOffNov },
+      description: { contains: "Tim Live", mode: "insensitive" },
+    },
+  });
+
+  // 3. Desativar flags isRecurring residuais para evitar repetições automáticas contínuas
+  const updatedRec = await prisma.transaction.updateMany({
+    where: {
+      isRecurring: true,
+      OR: [
+        { description: { contains: "Celpe", mode: "insensitive" } },
+        { description: { contains: "solar", mode: "insensitive" } },
+        { description: { contains: "Tim Live", mode: "insensitive" } },
+      ],
+    },
+    data: {
+      isRecurring: false,
+    },
+  });
+
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+  revalidatePath("/receitas");
+  revalidatePath("/dashboard");
+
+  return {
+    success: true,
+    deletedCelpeSolar: delCelpeSolar.count,
+    deletedTim: delTim.count,
+    updatedRecurring: updatedRec.count,
+  };
 }
 
 // ---------- Actions de Ticket Alimentação ----------
@@ -3670,35 +3636,7 @@ export async function markExpenseAsPaidAction(
     });
   }
 
-  // Se a despesa for recorrente / marcada para repetir, garante o agendamento no mês seguinte
-  if ((tx as any).isRecurring) {
-    try {
-      const pDate = new Date((tx as any).paymentDate || (tx as any).purchaseDate || tx.date || (tx as any).dueDate);
-      const m = pDate.getUTCMonth() + 1;
-      const y = pDate.getUTCFullYear();
-      let nextM = m + 1;
-      let nextY = y;
-      if (nextM > 12) {
-        nextM = 1;
-        nextY += 1;
-      }
-      const alreadyScheduled = await prisma.transaction.findFirst({
-        where: {
-          walletId: tx.walletId,
-          description: tx.description,
-          competenceMonth: m,
-          competenceYear: y,
-          deletedAt: null
-        }
-      });
-      if (!alreadyScheduled) {
-        await duplicateExpenseToNextMonthAction(transactionId, m, y);
-      }
-    } catch (dupErr) {
-      console.warn("Aviso ao agendar repetição no mês seguinte:", dupErr);
-    }
-  }
-
+  // Duplicação não é realizada na baixa do pagamento para evitar criação de séries contínuas ou duplicatas indesejadas.
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");

@@ -1964,7 +1964,7 @@ export default function CartaoDetailPage() {
           paymentDate: (selectedPurchase as any).paymentDate || selectedPurchase.date,
           competenceDate: (selectedPurchase as any).competenceDate || selectedPurchase.date,
           referenceMonth: (selectedPurchase as any).referenceMonth || ((selectedPurchase as any).competenceDate ? (selectedPurchase as any).competenceDate.split("T")[0].substring(0, 7) : undefined),
-          repeatNextMonth: !!(selectedPurchase as any).isRecurring,
+          repeatNextMonth: false,
           tags: selectedPurchase.tags,
           isRecurring: (selectedPurchase as any).isRecurring,
           recurringDay: (selectedPurchase as any).recurringDay

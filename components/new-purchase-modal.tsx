@@ -191,7 +191,8 @@ export function NewPurchaseModal({
 
     const effectiveDate = formPurchaseDate;
     const finalTags = initialData?.tags || "";
-    const isRecurring = formRepeatNextMonth;
+    // Duplicação pontual P2P (+1 mês apenas): não salva como série recorrente infinita no banco
+    const isRecurring = false;
 
     setSaving(true);
     try {
