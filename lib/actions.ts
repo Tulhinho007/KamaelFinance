@@ -2302,15 +2302,6 @@ export async function createCardPurchase(
     });
     createdTxId = newTx?.id;
 
-    if (isRecurring) {
-      let nextM = compMonth + 1;
-      let nextY = compYear;
-      if (nextM > 12) {
-        nextM = 1;
-        nextY += 1;
-      }
-      await ensureRecurringExpensesForMonth(nextM, nextY, walletId);
-    }
 
     if (!isPending) {
       const targetW = await prisma.wallet.findUnique({ where: { id: walletId }, select: { walletType: true } });
@@ -2455,18 +2446,6 @@ export async function updateCardPurchase(
     } as any
   });
 
-  const effectiveIsRecurring = isRecurring !== undefined ? !!isRecurring : (existingTx as any)?.isRecurring;
-  if (effectiveIsRecurring) {
-    const compMonth = competenceDate.getUTCMonth() + 1;
-    const compYear = competenceDate.getUTCFullYear();
-    let nextM = compMonth + 1;
-    let nextY = compYear;
-    if (nextM > 12) {
-      nextM = 1;
-      nextY += 1;
-    }
-    await ensureRecurringExpensesForMonth(nextM, nextY, walletId);
-  }
 
   if (existingTx) {
     const oldStatus = (existingTx as any).status;
@@ -2606,38 +2585,40 @@ export async function duplicateExpenseToNextMonthAction(
   });
   if (!original) throw new Error("Lançamento não encontrado.");
 
-  let targetMonth: number;
-  let targetYear: number;
-  if (baseMonth && baseYear) {
-    targetMonth = baseMonth + 1;
-    targetYear = baseYear;
-    if (targetMonth > 12) {
-      targetMonth = 1;
-      targetYear += 1;
-    }
-  } else {
-    const origDate = new Date((original as any).dueDate || (original as any).purchaseDate || original.date);
-    const rawComp = (original as any).competenceDate;
-    const origComp = rawComp ? new Date(rawComp) : origDate;
-    const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
-    const y = (original as any).competenceYear || origComp.getUTCFullYear();
-    targetMonth = m + 1;
-    targetYear = y;
-    if (targetMonth > 12) {
-      targetMonth = 1;
-      targetYear += 1;
-    }
+  // 1. Data base da compra/pagamento de origem
+  const origDate = new Date(
+    (original as any).paymentDate ||
+    (original as any).purchaseDate ||
+    original.date ||
+    (original as any).dueDate
+  );
+
+  const sourceYear = baseYear ?? origDate.getUTCFullYear();
+  const sourceMonth = baseMonth ?? (origDate.getUTCMonth() + 1); // 1-12 (Setembro = 9)
+  const sourceDay = (original as any).recurringDay || origDate.getUTCDate();
+
+  // 2. Mês seguinte (+1 mês exato da data de pagamento)
+  let targetMonth = sourceMonth + 1;
+  let targetYear = sourceYear;
+  if (targetMonth > 12) {
+    targetMonth = 1;
+    targetYear += 1;
   }
 
-  const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
-
-  const origDay = (original as any).recurringDay || ((original as any).dueDate ? new Date((original as any).dueDate).getUTCDate() : ((original as any).purchaseDate ? new Date((original as any).purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
+  // 3. Ajuste de dias com clamp seguro (mesmo dia base)
   const maxDays = new Date(targetYear, targetMonth, 0).getDate();
-  const safeDay = Math.min(Math.max(1, origDay), maxDays);
+  const safeDay = Math.min(Math.max(1, sourceDay), maxDays);
 
+  // Nova data de pagamento/agendamento no mês seguinte (+1 mês)
   const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
-  const nextComp = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
+
+  // 4. Mês de Referência da nova despesa: mês da despesa de origem (ex: se nova está em Outubro, Ref é Setembro/2026)
+  const nextComp = new Date(Date.UTC(sourceYear, sourceMonth - 1, 1, 12, 0, 0));
+  const nextCompMonth = sourceMonth;
+  const nextCompYear = sourceYear;
+
+  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
 
   const newTx = await prisma.transaction.create({
     data: {
@@ -2646,18 +2627,22 @@ export async function duplicateExpenseToNextMonthAction(
       description: original.description,
       type: original.type,
       amount: original.amount,
+      // Regra 1: Data exatamente no mês seguinte (+1 mês)
       date: nextDate,
       purchaseDate: nextDate,
       dueDate: nextDate,
       paymentDate: null,
+      // Regra 3: Status obrigatoriamente PENDENTE
       status: "PENDING",
       paymentMethod: (original as any).paymentMethod || null,
+      // Regra 2: Mês de referência = mês da despesa de origem (Setembro/2026)
       competenceDate: nextComp,
-      competenceMonth: targetMonth,
-      competenceYear: targetYear,
+      competenceMonth: nextCompMonth,
+      competenceYear: nextCompYear,
       source: original.source || "MANUAL",
       tags: original.tags,
-      isRecurring: (original as any).isRecurring ?? false,
+      // Regra 4: Toggle de repetição no clone: false por padrão para evitar loop infinito
+      isRecurring: false,
       recurringDay: safeDay,
       installmentsCount: original.installmentsCount || null,
       currentInstallment: (original as any).currentInstallment || null,
@@ -2689,31 +2674,31 @@ export async function duplicateBatchExpensesToNextMonthAction(
   const monthShorts = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
   for (const original of originals) {
-    let targetMonth: number;
-    let targetYear: number;
+    const origDate = new Date(
+      (original as any).paymentDate ||
+      (original as any).purchaseDate ||
+      original.date ||
+      (original as any).dueDate
+    );
 
-    if (baseMonth && baseYear) {
-      targetMonth = baseMonth + 1;
-      targetYear = baseYear;
-      if (targetMonth > 12) {
-        targetMonth = 1;
-        targetYear += 1;
-      }
-    } else {
-      const origDate = new Date((original as any).dueDate || (original as any).purchaseDate || original.date);
-      const rawComp = (original as any).competenceDate;
-      const origComp = rawComp ? new Date(rawComp) : origDate;
-      const m = (original as any).competenceMonth || (origComp.getUTCMonth() + 1);
-      const y = (original as any).competenceYear || origComp.getUTCFullYear();
-      targetMonth = m + 1;
-      targetYear = y;
-      if (targetMonth > 12) {
-        targetMonth = 1;
-        targetYear += 1;
-      }
+    const sourceYear = baseYear ?? origDate.getUTCFullYear();
+    const sourceMonth = baseMonth ?? (origDate.getUTCMonth() + 1);
+    const sourceDay = (original as any).recurringDay || origDate.getUTCDate();
+
+    let targetMonth = sourceMonth + 1;
+    let targetYear = sourceYear;
+    if (targetMonth > 12) {
+      targetMonth = 1;
+      targetYear += 1;
     }
 
     lastMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
+
+    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+    const safeDay = Math.min(Math.max(1, sourceDay), maxDays);
+
+    const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+    const nextComp = new Date(Date.UTC(sourceYear, sourceMonth - 1, 1, 12, 0, 0));
 
     // Evitar duplicações se já existe para este mês
     const existing = await prisma.transaction.findFirst({
@@ -2722,21 +2707,13 @@ export async function duplicateBatchExpensesToNextMonthAction(
         description: original.description,
         deletedAt: null,
         type: "EXPENSE",
-        competenceMonth: targetMonth,
-        competenceYear: targetYear,
+        date: nextDate,
       }
     });
     if (existing) {
       createdCount++;
       continue;
     }
-
-    const origDay = (original as any).recurringDay || ((original as any).dueDate ? new Date((original as any).dueDate).getUTCDate() : ((original as any).purchaseDate ? new Date((original as any).purchaseDate).getUTCDate() : new Date(original.date).getUTCDate()));
-    const maxDays = new Date(targetYear, targetMonth, 0).getDate();
-    const safeDay = Math.min(Math.max(1, origDay), maxDays);
-
-    const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
-    const nextComp = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
 
     await prisma.transaction.create({
       data: {
@@ -2752,11 +2729,11 @@ export async function duplicateBatchExpensesToNextMonthAction(
         status: "PENDING",
         paymentMethod: (original as any).paymentMethod || null,
         competenceDate: nextComp,
-        competenceMonth: targetMonth,
-        competenceYear: targetYear,
+        competenceMonth: sourceMonth,
+        competenceYear: sourceYear,
         source: original.source || "MANUAL",
         tags: original.tags,
-        isRecurring: (original as any).isRecurring ?? false,
+        isRecurring: false,
         recurringDay: safeDay,
         installmentsCount: original.installmentsCount || null,
         currentInstallment: (original as any).currentInstallment || null,
@@ -3696,9 +3673,9 @@ export async function markExpenseAsPaidAction(
   // Se a despesa for recorrente / marcada para repetir, garante o agendamento no mês seguinte
   if ((tx as any).isRecurring) {
     try {
-      const compDate = (tx as any).competenceDate || (tx as any).dueDate || tx.date;
-      const m = (tx as any).competenceMonth || (new Date(compDate).getUTCMonth() + 1);
-      const y = (tx as any).competenceYear || new Date(compDate).getUTCFullYear();
+      const pDate = new Date((tx as any).paymentDate || (tx as any).purchaseDate || tx.date || (tx as any).dueDate);
+      const m = pDate.getUTCMonth() + 1;
+      const y = pDate.getUTCFullYear();
       let nextM = m + 1;
       let nextY = y;
       if (nextM > 12) {
@@ -3709,8 +3686,8 @@ export async function markExpenseAsPaidAction(
         where: {
           walletId: tx.walletId,
           description: tx.description,
-          competenceMonth: nextM,
-          competenceYear: nextY,
+          competenceMonth: m,
+          competenceYear: y,
           deletedAt: null
         }
       });

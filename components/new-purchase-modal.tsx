@@ -238,13 +238,13 @@ export function NewPurchaseModal({
         savedId = createRes?.id;
       }
 
-      // Se marcado para repetir no próximo mês, agenda a duplicação imediata
+      // Se marcado para repetir no próximo mês, agenda a duplicação imediata com base na data da compra/pagamento
       if (formRepeatNextMonth && savedId) {
         try {
-          const compParts = (formReferenceMonth || formPurchaseDate).split("-");
-          const m = Number(compParts[1]);
-          const y = Number(compParts[0]);
-          await duplicateExpenseToNextMonthAction(savedId, m, y);
+          const dateParts = formPurchaseDate.split("-");
+          const baseM = Number(dateParts[1]); // Mês da despesa de origem (ex: 9 para Setembro)
+          const baseY = Number(dateParts[0]); // Ano da despesa de origem (ex: 2026)
+          await duplicateExpenseToNextMonthAction(savedId, baseM, baseY);
         } catch (dupErr) {
           console.warn("Aviso ao agendar repetição no próximo mês:", dupErr);
         }
