@@ -11,6 +11,7 @@ import {
   CopyPlus,
   CreditCard,
   Inbox,
+  ChevronDown,
 } from "lucide-react";
 
 export interface CreditCardTransaction {
@@ -465,23 +466,24 @@ export function CreditCardInvoiceTable({
                             type="button"
                             disabled={togglingId === tx.id}
                             onClick={() => onToggleStatus(tx.id)}
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none ${
+                            className={`rounded-full px-2 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none hover:opacity-80 active:scale-95 ${
                               isPaid
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 hover:brightness-95"
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
                                 : isOpen
-                                ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 hover:brightness-95"
-                                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 hover:brightness-95"
-                            } ${togglingId === tx.id ? "opacity-60 cursor-wait" : "active:scale-95"}`}
-                            title={isPaid ? "Clique para marcar como Pendente" : (tx.type === "INCOME" ? "Clique para confirmar recebimento" : "Clique para confirmar pagamento")}
+                                ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20"
+                                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
+                            } ${togglingId === tx.id ? "opacity-60 cursor-wait" : ""}`}
+                            title={isPaid ? "Clique para alterar status para Pendente" : "Clique para alterar status para Pago"}
                           >
                             {isPaid ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
                             ) : isOpen ? (
-                              <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                              <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
                             ) : (
-                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
                             )}
                             <span>{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
+                            <ChevronDown className="w-2.5 h-2.5 opacity-60 shrink-0" />
                           </button>
                         ) : isPaid ? (
                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1">

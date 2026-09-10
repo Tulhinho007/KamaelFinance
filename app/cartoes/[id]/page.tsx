@@ -67,6 +67,7 @@ type Purchase = {
   recurringDay?: number;
   date: string;
   competenceDate?: string;
+  status?: string;
 };
 
 type TransactionItem = {
@@ -364,12 +365,32 @@ export default function CartaoDetailPage() {
 
   const togglePaymentStatus = async (id: string) => {
     setTogglingId(id);
+    // Atualização otimista imediata no estado local
+    setCardData(prev => {
+      if (!prev) return prev;
+      const updateList = (items: any[]) =>
+        items.map(item => {
+          if (item.id === id) {
+            const curStatus = (item.status || "PENDING").toUpperCase();
+            const nextStatus = curStatus === "PENDING" ? "COMPLETED" : "PENDING";
+            return { ...item, status: nextStatus, isPaid: nextStatus === "COMPLETED" };
+          }
+          return item;
+        });
+      return {
+        ...prev,
+        purchases: updateList(prev.purchases || []),
+        allTransactions: updateList(prev.allTransactions || []),
+      };
+    });
+
     try {
       await toggleTransactionStatusAction(id);
       await loadData();
     } catch (err) {
       console.error("Erro ao alternar status do pagamento:", err);
       showAlert("Erro ao alternar status do pagamento.", { variant: "error" });
+      await loadData();
     } finally {
       setTogglingId(null);
     }
@@ -944,6 +965,7 @@ export default function CartaoDetailPage() {
               date: string;
               purchaseDate?: string;
               competenceDate?: string;
+              status?: string;
               subtype: "vista" | "parcelado" | "assinatura";
               installmentLabel?: string;
               installmentsCount?: number;
@@ -951,10 +973,24 @@ export default function CartaoDetailPage() {
             };
 
             const allCreditEntries: CreditEntry[] = [
-              ...vistaPurchases.map(p => ({ ...p, subtype: "vista" as const, purchaseDate: (p as any).purchaseDate, competenceDate: (p as any).competenceDate })),
-              ...subscriptionPurchases.map(p => ({ ...p, subtype: "assinatura" as const, purchaseDate: (p as any).purchaseDate, competenceDate: (p as any).competenceDate })),
+              ...vistaPurchases.map(p => ({
+                ...p,
+                status: p.status || "PENDING",
+                subtype: "vista" as const,
+                purchaseDate: (p as any).purchaseDate,
+                competenceDate: (p as any).competenceDate
+              })),
+              ...subscriptionPurchases.map(p => ({
+                ...p,
+                status: p.status || "PENDING",
+                subtype: "assinatura" as const,
+                purchaseDate: (p as any).purchaseDate,
+                competenceDate: (p as any).competenceDate
+              })),
               ...parceladoPurchasesProcessed.map(p => ({
-                ...p, subtype: "parcelado" as const,
+                ...p,
+                status: p.status || "PENDING",
+                subtype: "parcelado" as const,
                 purchaseDate: (p as any).purchaseDate,
                 competenceDate: (p as any).competenceDate,
                 installmentLabel: `${p.currentInstallment}/${p.installmentsCount}`,
@@ -1019,7 +1055,7 @@ export default function CartaoDetailPage() {
                     date: entry.date,
                     purchaseDate: entry.purchaseDate,
                     competenceDate: entry.competenceDate,
-                    status: (entry as any).status || "COMPLETED",
+                    status: entry.status || "PENDING",
                     installmentLabel: entry.installmentLabel,
                     currentInstallment: entry.currentInstallment,
                     installmentsCount: entry.installmentsCount,
@@ -1030,6 +1066,8 @@ export default function CartaoDetailPage() {
                   selectedIds={selectedIds}
                   onToggleSelect={(id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
                   onToggleSelectAll={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
+                  onToggleStatus={togglePaymentStatus}
+                  togglingId={togglingId}
                   onEdit={(tx) => openEditModal(tx as any)}
                   onDelete={(tx) => { setSelectedPurchase(tx as any); setModalType("delete"); }}
                   onDuplicate={async (tx) => {

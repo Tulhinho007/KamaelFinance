@@ -2087,7 +2087,7 @@ export async function createCardPurchase(
   competenceDateStr?: string,
   paymentDateStr?: string,
   purchaseDateStr?: string,
-  status: string = "COMPLETED",
+  status: string = "PENDING",
   paymentMethod?: string,
   dueDateStr?: string
 ) {
@@ -2161,7 +2161,7 @@ export async function createCardPurchase(
         competenceYear: instCompetenceDate.getUTCFullYear(),
         source: "MANUAL",
         tags: finalTags,
-        status: "COMPLETED",
+        status: isPending ? "PENDING" : "COMPLETED",
         paymentMethod: paymentMethod || "CARTAO_CREDITO",
       });
     }
