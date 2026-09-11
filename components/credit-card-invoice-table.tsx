@@ -224,19 +224,21 @@ export function CreditCardInvoiceTable({
     });
   }, [transactions]);
 
-  const containerClasses =
+  const containerClasses = [
+    "max-h-[580px] overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700",
     className !== undefined
       ? className
-      : "bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm w-full overflow-hidden overflow-x-auto";
+      : "bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm w-full"
+  ].join(" ");
 
   return (
     <div className={containerClasses}>
       <table className="w-full table-fixed border-collapse text-left">
         {/* Cabeçalho */}
-        <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700/80">
+        <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
           <tr>
             {hasSelection && (
-              <th className="w-10 px-3 py-3 text-center">
+              <th className="w-9 px-2 py-2.5 text-center bg-white dark:bg-slate-900">
                 <input
                   type="checkbox"
                   checked={isAllSelected}
@@ -249,22 +251,22 @@ export function CreditCardInvoiceTable({
                 />
               </th>
             )}
-            <th className="w-28 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-left whitespace-nowrap">
+            <th className="w-24 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider py-2.5 px-3 text-left whitespace-nowrap bg-white dark:bg-slate-900">
               {dateColumnHeader}
             </th>
-            <th className="w-auto text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-left">
+            <th className="w-[32%] max-w-0 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
               Descrição
             </th>
-            <th className="w-36 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-left whitespace-nowrap">
+            <th className="w-28 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
               Categoria
             </th>
-            <th className="w-28 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-right whitespace-nowrap">
+            <th className="w-28 text-right font-semibold whitespace-nowrap text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Valor
             </th>
-            <th className="w-24 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-center whitespace-nowrap">
+            <th className="w-28 text-center whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Status
             </th>
-            <th className="w-28 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-3 px-4 text-right whitespace-nowrap">
+            <th className="w-24 text-right whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Ações
             </th>
           </tr>
@@ -308,19 +310,19 @@ export function CreditCardInvoiceTable({
               <React.Fragment key={group.dateKey}>
                 {/* Linha Divisória de Data */}
                 <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-y border-slate-100 dark:border-slate-800 select-none">
-                  <td colSpan={hasSelection ? 7 : 6} className="px-4 py-2">
+                  <td colSpan={hasSelection ? 7 : 6} className="px-3 py-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         {group.dateLabel}
                       </span>
                       <div className="flex items-center gap-3">
                         {group.totalIncome > 0 && (
-                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
                             + {formatBRL(group.totalIncome)}
                           </span>
                         )}
                         {(group.totalExpense > 0 || group.totalIncome === 0) && (
-                          <span className="text-xs font-semibold text-rose-500 dark:text-rose-400 tabular-nums">
+                          <span className="text-[11px] font-semibold text-rose-500 dark:text-rose-400 tabular-nums">
                             - {formatBRL(group.totalExpense)}
                           </span>
                         )}
@@ -363,19 +365,19 @@ export function CreditCardInvoiceTable({
 
                   // Status
                   const normalizedStatus = (tx.status || (tx.isPaid ? "PAID" : "PENDING")).toUpperCase();
-                  const isPaid = normalizedStatus === "PAID" || normalizedStatus === "COMPLETED" || normalizedStatus === "PAGO";
+                  const isPaid = normalizedStatus === "PAID" || normalizedStatus === "COMPLETED" || normalizedStatus === "PAGO" || normalizedStatus === "RECEBIDO";
                   const isOpen = normalizedStatus === "OPEN" || normalizedStatus === "ABERTA";
 
                   return (
                     <tr
                       key={tx.id}
-                      className={`text-sm border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
+                      className={`border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors ${
                         isSelected ? "bg-indigo-50/60 dark:bg-indigo-950/20" : ""
                       }`}
                     >
                       {/* Checkbox de Seleção */}
                       {hasSelection && (
-                        <td className="w-10 px-3 py-3.5 text-center">
+                        <td className="w-9 px-2 py-2 text-center">
                           <input
                             type="checkbox"
                             checked={isSelected}
@@ -387,15 +389,15 @@ export function CreditCardInvoiceTable({
                       )}
 
                       {/* 1. DATA (exibição discreta) */}
-                      <td className="w-28 py-3.5 px-4 text-xs text-slate-400 dark:text-slate-500 text-left whitespace-nowrap tabular-nums">
+                      <td className="w-24 py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-left whitespace-nowrap tabular-nums">
                         {dateFormatted}
                       </td>
 
                       {/* 2. DESCRIÇÃO + BADGES (limitado para não estourar layout) */}
-                      <td className="w-auto py-3.5 px-4 text-left min-w-0 max-w-full">
+                      <td className="w-[32%] max-w-0 py-2 px-3 text-left">
                         <div className="max-w-full min-w-0">
                           <span
-                            className="block truncate font-semibold text-slate-900 dark:text-white text-sm"
+                            className="block truncate text-xs font-medium text-slate-900 dark:text-white"
                             title={cleanDesc}
                           >
                             {cleanDesc}
@@ -403,7 +405,7 @@ export function CreditCardInvoiceTable({
 
                           {/* Badges auxiliares */}
                           {(displayInstallment || refBadge || isRepeating) && (
-                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                               {/* Badge de Parcela */}
                               {displayInstallment && (
                                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
@@ -414,7 +416,7 @@ export function CreditCardInvoiceTable({
                               {/* Badge de Mês de Referência */}
                               {refBadge && (
                                 <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 whitespace-nowrap"
                                   title={`Mês de Referência: ${refBadge}`}
                                 >
                                   Ref. {refBadge}
@@ -437,9 +439,9 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 3. CATEGORIA */}
-                      <td className="w-36 py-3.5 px-4 text-left whitespace-nowrap">
+                      <td className="w-28 py-2 px-3 text-left truncate">
                         <span
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 truncate max-w-[120px]"
+                          className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 truncate max-w-full"
                           title={categoryName}
                         >
                           {categoryName}
@@ -447,9 +449,9 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 4. VALOR */}
-                      <td className="w-28 py-3.5 px-4 text-right whitespace-nowrap">
+                      <td className="w-28 py-2 px-3 text-right font-semibold whitespace-nowrap">
                         <span
-                          className={`text-sm font-semibold tabular-nums ${
+                          className={`text-xs font-semibold tabular-nums ${
                             tx.type === "INCOME"
                               ? "text-emerald-600 dark:text-emerald-400"
                               : "text-slate-900 dark:text-slate-100"
@@ -460,20 +462,20 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 5. STATUS */}
-                      <td className="w-24 py-3.5 px-4 text-center whitespace-nowrap">
+                      <td className="w-28 py-2 px-3 text-center whitespace-nowrap">
                         {onToggleStatus ? (
                           <button
                             type="button"
                             disabled={togglingId === tx.id}
                             onClick={() => onToggleStatus(tx.id)}
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none hover:opacity-80 active:scale-95 ${
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none hover:opacity-80 active:scale-95 ${
                               isPaid
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
                                 : isOpen
                                 ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20"
                                 : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
                             } ${togglingId === tx.id ? "opacity-60 cursor-wait" : ""}`}
-                            title={isPaid ? "Clique para alterar status para Pendente" : "Clique para alterar status para Pago"}
+                            title={isPaid ? (tx.type === "INCOME" ? "Clique para alterar status para Pendente" : "Clique para alterar status para Pendente") : "Clique para alterar status para Pago/Recebido"}
                           >
                             {isPaid ? (
                               <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -482,21 +484,21 @@ export function CreditCardInvoiceTable({
                             ) : (
                               <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
                             )}
-                            <span>{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
+                            <span className="truncate">{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
                             <ChevronDown className="w-2.5 h-2.5 opacity-60 shrink-0" />
                           </button>
                         ) : isPaid ? (
-                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                             <span>{tx.type === "INCOME" ? "Recebido" : "Pago"}</span>
                           </span>
                         ) : isOpen ? (
-                          <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
                             <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                             <span>Aberta</span>
                           </span>
                         ) : (
-                          <span className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center gap-1">
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
                             <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                             <span>Pendente</span>
                           </span>
@@ -504,13 +506,13 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 6. AÇÕES */}
-                      <td className="w-28 py-3.5 px-4 text-right whitespace-nowrap">
+                      <td className="w-24 py-2 px-3 text-right whitespace-nowrap">
                         <div className="inline-flex items-center justify-end gap-1">
                           {onDuplicate && (
                             <button
                               type="button"
                               onClick={() => onDuplicate(tx)}
-                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                              className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
                               title="Duplicar para o próximo mês"
                               aria-label="Duplicar lançamento"
                             >
@@ -522,9 +524,9 @@ export function CreditCardInvoiceTable({
                             <button
                               type="button"
                               onClick={() => onEdit(tx)}
-                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
-                              title="Editar despesa"
-                              aria-label="Editar despesa"
+                              className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                              title="Editar"
+                              aria-label="Editar"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -534,9 +536,9 @@ export function CreditCardInvoiceTable({
                             <button
                               type="button"
                               onClick={() => onDelete(tx)}
-                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 dark:hover:border-rose-800 transition-colors cursor-pointer"
-                              title="Excluir despesa"
-                              aria-label="Excluir despesa"
+                              className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 dark:hover:border-rose-800 transition-colors cursor-pointer"
+                              title="Excluir"
+                              aria-label="Excluir"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
