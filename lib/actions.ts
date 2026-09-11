@@ -2174,7 +2174,7 @@ export async function createCardPurchase(
         source: "MANUAL",
         tags: finalTags,
         status: isPending ? "PENDING" : "COMPLETED",
-        paymentMethod: paymentMethod || "CARTAO_CREDITO",
+        paymentMethod: (paymentMethod === "CARTAO_CREDITO" ? "CREDITO" : paymentMethod) || "CREDITO",
       });
     }
 
@@ -2199,7 +2199,7 @@ export async function createCardPurchase(
         paymentDate: isPending ? null : (paymentDate || purchaseDate),
         dueDate,
         status: isPending ? "PENDING" : "COMPLETED",
-        paymentMethod: paymentMethod || null,
+        paymentMethod: (paymentMethod === "CARTAO_CREDITO" ? "CREDITO" : paymentMethod) || "DEBITO",
         competenceDate,
         competenceMonth: compMonth,
         competenceYear: compYear,
@@ -2345,7 +2345,9 @@ export async function updateCardPurchase(
       paymentDate,
       dueDate,
       status: status || (existingTx as any)?.status || "COMPLETED",
-      paymentMethod: paymentMethod !== undefined ? paymentMethod : (existingTx as any)?.paymentMethod,
+      paymentMethod: (paymentMethod === "CARTAO_CREDITO" ? "CREDITO" : paymentMethod) !== undefined
+        ? ((paymentMethod === "CARTAO_CREDITO" ? "CREDITO" : paymentMethod) || "DEBITO")
+        : ((existingTx as any)?.paymentMethod || "DEBITO"),
       competenceDate,
       competenceMonth: competenceDate.getUTCMonth() + 1,
       competenceYear: competenceDate.getUTCFullYear(),
@@ -6858,21 +6860,17 @@ export async function getPaymentHistoryData(month: number, year: number) {
       const wExpensesList = monthTransactions
         .filter(t => t.walletId === w.id && t.type === "EXPENSE");
 
-      // No Histórico de Pagamentos, mantemos o foco em obrigações consolidadas e boletos de concessionárias (luz, água, internet, etc.)
-      const consolidatedBills = wExpensesList.filter(t =>
-        t.isRecurring ||
-        t.source === "SUBSCRIPTION" ||
-        (t.category?.name && /luz|energia|água|agua|internet|concessionária|concessionaria|aluguel|condomínio|condominio|boleto/i.test(t.category.name)) ||
-        (t.description && /luz|energia|água|agua|internet|aluguel|condomínio|condominio|boleto/i.test(t.description))
-      );
+      // No Histórico de Pagamentos, mantemos o foco ESTRITAMENTE em boletos de concessionárias e cobranças consolidadas
+      // Exclusão: Despesas com paymentMethod igual a PIX, DEBITO ou DINHEIRO (ex: lanches, apostas) pertencem exclusivamente ao Extrato da Conta.
+      const boletoBills = wExpensesList.filter(t => (t as any).paymentMethod === "BOLETO");
 
-      const billsPaid = consolidatedBills
+      const billsPaid = boletoBills
         .filter(t => t.status !== "PENDING")
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       totalDebitPix += billsPaid;
 
-      for (const bill of consolidatedBills) {
+      for (const bill of boletoBills) {
         const isPaid = bill.status !== "PENDING";
         const billAmount = Number(bill.amount);
         historyItems.push({
@@ -6880,7 +6878,7 @@ export async function getPaymentHistoryData(month: number, year: number) {
           accountName: bill.description,
           bankName: w.bankName || w.title || "Conta Corrente",
           walletType: "CONTA_CORRENTE",
-          typeLabel: "Boleto / Concessionária",
+          typeLabel: "Boleto Bancário",
           periodRef: periodStr,
           amount: billAmount,
           paidAmount: isPaid ? billAmount : 0,
@@ -6907,7 +6905,7 @@ export async function getPaymentHistoryData(month: number, year: number) {
   const prevDebitPix = prevMonthTransactions
     .filter(t => {
       const w = wallets.find(wall => wall.id === t.walletId);
-      return w?.walletType === "CONTA_CORRENTE" && t.type === "EXPENSE" && t.status !== "PENDING";
+      return w?.walletType === "CONTA_CORRENTE" && t.type === "EXPENSE" && (t as any).paymentMethod === "BOLETO" && t.status !== "PENDING";
     })
     .reduce((s, t) => s + Number(t.amount), 0);
 

@@ -1072,6 +1072,7 @@ export default function CartaoDetailPage() {
                     isRecurring: entry.isRecurring,
                     tags: entry.tags,
                     subtype: entry.subtype,
+                    paymentMethod: (entry as any).paymentMethod,
                   }))}
                   selectedIds={selectedIds}
                   onToggleSelect={(id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
@@ -1285,6 +1286,7 @@ export default function CartaoDetailPage() {
                         installmentsCount: totalInst ?? undefined,
                         isRecurring: Boolean((t as any).isRecurring || (t as any).tags?.toLowerCase().includes("recorrente")),
                         tags: t.tags,
+                        paymentMethod: (t as any).paymentMethod,
                       };
                     })}
                     selectedIds={selectedIds}
@@ -1659,7 +1661,8 @@ export default function CartaoDetailPage() {
           repeatNextMonth: false,
           tags: selectedPurchase.tags,
           isRecurring: (selectedPurchase as any).isRecurring,
-          recurringDay: (selectedPurchase as any).recurringDay
+          recurringDay: (selectedPurchase as any).recurringDay,
+          paymentMethod: (selectedPurchase as any).paymentMethod
         } : null}
         defaultWalletId={cardData.walletId}
         onClose={() => {

@@ -33,6 +33,7 @@ export interface CreditCardTransaction {
   repeatNextMonth?: boolean;
   tags?: string | null;
   subtype?: "vista" | "parcelado" | "assinatura" | string;
+  paymentMethod?: string;
 }
 
 export interface CreditCardInvoiceTableProps {

@@ -71,6 +71,14 @@ enum TransactionType {
   EXPENSE
 }
 
+enum PaymentMethod {
+  PIX
+  DEBITO
+  BOLETO
+  DINHEIRO
+  CREDITO
+}
+
 model Transaction {
   id                String          @id @default(uuid())
   walletId          String
@@ -88,7 +96,7 @@ model Transaction {
   paymentDate       DateTime?       // Data de liquidação/pagamento efetivo
   dueDate           DateTime?       // Data de vencimento da conta/despesa
   status            String          @default("COMPLETED")
-  paymentMethod     String?         // PIX, DEBITO, DINHEIRO, BOLETO, CARTAO_CREDITO
+  paymentMethod     PaymentMethod   @default(DEBITO)
   isRecurring       Boolean         @default(false)
   recurringDay      Int?            // Dia de vencimento recorrente mensal (1-31)
   source            String          @default("MANUAL")

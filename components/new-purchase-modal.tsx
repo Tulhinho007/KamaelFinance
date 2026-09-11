@@ -101,7 +101,22 @@ export function NewPurchaseModal({
               ? (initialData.status !== "PENDING" && (initialData as any).status !== "pendente")
               : (initialData.isPaid ?? true);
             setFormIsPaid(isInitiallyPaid);
-            setFormPaymentMethod(initialData.paymentMethod || "PIX");
+            const wObj = data.find(w => w.id === (initialData.walletId || defaultWalletId));
+            const isCred = wObj?.walletType === "CREDIT_CARD";
+            const rawPm = (initialData.paymentMethod || "").toUpperCase();
+            if (rawPm === "CARTAO_CREDITO" || rawPm === "CREDITO") {
+              setFormPaymentMethod("CREDITO");
+            } else if (rawPm === "BOLETO") {
+              setFormPaymentMethod("BOLETO");
+            } else if (rawPm === "DEBITO") {
+              setFormPaymentMethod("DEBITO");
+            } else if (rawPm === "DINHEIRO") {
+              setFormPaymentMethod("DINHEIRO");
+            } else if (rawPm === "PIX") {
+              setFormPaymentMethod("PIX");
+            } else {
+              setFormPaymentMethod(isCred ? "CREDITO" : "DEBITO");
+            }
             setFormRepeatNextMonth(Boolean(initialData.repeatNextMonth || initialData.isRecurring));
             
             const targetDate = initialData.paymentDate
@@ -138,7 +153,7 @@ export function NewPurchaseModal({
             const isCred = wObj?.walletType === "CREDIT_CARD";
             // Compras no cartão de crédito nascem como PENDENTE por padrão
             setFormIsPaid(isCred ? false : true);
-            setFormPaymentMethod(isCred ? "CARTAO_CREDITO" : "PIX");
+            setFormPaymentMethod(isCred ? "CREDITO" : "PIX");
             setFormRepeatNextMonth(false);
           }
         })
@@ -186,7 +201,7 @@ export function NewPurchaseModal({
     const installments = isCredit && formType === "parcelado" && formInstallmentsCount > 1 ? formInstallmentsCount : undefined;
     const parts = formPurchaseDate.split("-");
     const status = formIsPaid ? "COMPLETED" : "PENDING";
-    const paymentMethod = isCredit ? "CARTAO_CREDITO" : formPaymentMethod;
+    const paymentMethod = isCredit ? "CREDITO" : (formPaymentMethod === "CREDITO" ? "DEBITO" : formPaymentMethod);
     const dueDateStr = !formIsPaid ? formPurchaseDate : undefined;
 
     // Competência / Mês de Referência da compra
@@ -311,7 +326,7 @@ export function NewPurchaseModal({
                 if (!isEditMode) {
                   setFormIsPaid(isCred ? false : true);
                 }
-                setFormPaymentMethod(isCred ? "CARTAO_CREDITO" : "PIX");
+                setFormPaymentMethod(isCred ? "CREDITO" : (formPaymentMethod === "CREDITO" ? "PIX" : formPaymentMethod));
               }}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
             >
@@ -425,25 +440,32 @@ export function NewPurchaseModal({
             </div>
           )}
 
-          {/* 5. Forma de Liquidação (se conta corrente) e Status do Pagamento (sempre disponível e editável) */}
-          <div className={`grid grid-cols-1 ${!isCredit ? "sm:grid-cols-2" : ""} gap-3`}>
-            {!isCredit && (
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                  Forma de Pagamento
-                </label>
+          {/* 5. Forma de Liquidação e Status do Pagamento (sempre disponível e editável) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Forma de Pagamento
+              </label>
+              {isCredit ? (
+                <div className="w-full h-[38px] rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <span>Cartão de Crédito</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                    Crédito
+                  </span>
+                </div>
+              ) : (
                 <select
                   value={formPaymentMethod}
                   onChange={e => setFormPaymentMethod(e.target.value)}
-                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
+                  className="w-full h-[38px] rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
                 >
                   <option value="PIX">PIX</option>
                   <option value="DEBITO">Débito em Conta</option>
                   <option value="BOLETO">Boleto Bancário</option>
                   <option value="DINHEIRO">Dinheiro</option>
                 </select>
-              </div>
-            )}
+              )}
+            </div>
 
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
