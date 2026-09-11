@@ -3227,6 +3227,21 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         where: paidWhere
       });
 
+      // Pendência do Próximo Mês (Competência M+1)
+      const nextMonthNum = effectiveMonth === 12 ? 1 : effectiveMonth + 1;
+      const nextYearNum = effectiveMonth === 12 ? year + 1 : year;
+      const totalPendenteProximoMes = allExpenses
+        .filter((t: any) => {
+          if (t.status !== "PENDING") return false;
+          if (t.competenceMonth != null && t.competenceYear != null) {
+            return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
+          }
+          const d = new Date(t.competenceDate || t.dueDate || t.date);
+          const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+          return (brt.getUTCMonth() + 1 === nextMonthNum && brt.getUTCFullYear() === nextYearNum);
+        })
+        .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
       const isCardFullyPaid = isCredit
         ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
         : false;
@@ -3258,6 +3273,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         monthIncome:      balanceInfo.monthIncome,
         monthExpense:     balanceInfo.monthExpense,
         finalBalance:     balanceInfo.finalBalance,
+        totalPendenteProximoMes: Math.round(totalPendenteProximoMes * 100) / 100,
         vencimento:       w.vencimento ?? 10,
         diaFechamento:    (w as any).diaFechamento ?? 1,
         melhorDiaCompra:  (w as any).diaFechamento ? (((w as any).diaFechamento % 31) + 1) : 2,

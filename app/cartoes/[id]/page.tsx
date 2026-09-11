@@ -551,6 +551,21 @@ export default function CartaoDetailPage() {
   const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
   const totalDespesasExtrato = totalPago + totalNaoPago;
 
+  // Competência do Mês Seguinte (+1)
+  const nextDate = new Date(selectedYear, selectedMonth, 1); // mês seguinte
+  const nextCompMonth = nextDate.getMonth() + 1;
+  const nextCompYear = nextDate.getFullYear();
+  const nextMonthLabel = nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" }); // ex: "out/2026"
+
+  const nextMonthPendingExpenses = (cardData.allTransactions || [])
+    .filter(t => t && t.type === "EXPENSE" && (t as any).source !== "RECURRING_PROJECTION")
+    .filter(t => {
+      if (!t || t.status !== "PENDING") return false;
+      const { year, month } = getTransactionDisplayYearMonth(t);
+      return year === nextCompYear && month === nextCompMonth;
+    });
+  const totalPendenteProximoMes = nextMonthPendingExpenses.reduce((s, t) => s + (t.amount || 0), 0);
+
   const totalGastosMes = totalDespesasExtrato > 0
     ? totalDespesasExtrato
     : (cardData.balanceInfo?.monthExpense ?? filteredMonthExpenses.reduce((sum, p) => sum + (p.amount || 0), 0));
@@ -1200,11 +1215,28 @@ export default function CartaoDetailPage() {
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
               </div>
-              <div className="flex items-center my-0.5">
-                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-amber-600 dark:text-amber-400">{brl(totalNaoPago)}</h3>
+              <div className="flex flex-col my-0.5">
+                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-amber-600 dark:text-amber-400">
+                  <CurrencyValue value={totalNaoPago > 0 ? totalNaoPago : (totalPendenteProximoMes > 0 ? totalPendenteProximoMes : 0)} />
+                </h3>
+                {totalPendenteProximoMes > 0 && totalNaoPago === 0 ? (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/60 px-2 py-0.5 rounded-md mt-1.5 inline-block w-fit">
+                    Competência {nextMonthLabel}
+                  </span>
+                ) : totalPendenteProximoMes > 0 && totalNaoPago > 0 ? (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-1">
+                    + <CurrencyValue value={totalPendenteProximoMes} /> em {nextMonthLabel}
+                  </span>
+                ) : null}
               </div>
               <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Aguardando pagamento</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">
+                  {totalNaoPago > 0
+                    ? "Aguardando pagamento no mês"
+                    : totalPendenteProximoMes > 0
+                    ? `Compromisso agendado para ${nextMonthLabel}`
+                    : "Aguardando pagamento"}
+                </p>
               </div>
             </div>
 

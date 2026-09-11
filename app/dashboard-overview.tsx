@@ -454,6 +454,18 @@ export function DashboardOverview() {
                   <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                     <CurrencyValue value={saldoDisp} />
                   </p>
+                  {!isCredit && Number(card.totalPendenteProximoMes || 0) > 0 && (
+                    <div className="mt-1.5">
+                      <span className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                        Pendente ({(() => {
+                          const curM = selectedDashboardMonth || (new Date().getMonth() + 1);
+                          const curY = selectedDashboardYear || new Date().getFullYear();
+                          const nextDate = new Date(curY, curM, 1);
+                          return nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+                        })()}): <CurrencyValue value={card.totalPendenteProximoMes} />
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold">

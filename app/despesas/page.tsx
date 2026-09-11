@@ -1877,9 +1877,21 @@ function CardTile({
               </div>
 
               <div className="flex justify-between items-center text-[8px] font-extrabold text-white/75 uppercase tracking-wider">
-                <span className="bg-white/15 px-2 py-0.5 rounded-full border border-white/20 backdrop-blur-xs">
-                  Ref: {isYearlyFilter ? `${selectedYear}` : `${String(selectedMonth || (new Date().getMonth() + 1)).padStart(2, "0")}/${selectedYear}`}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase backdrop-blur-xs">
+                    REF: {isYearlyFilter ? `${selectedYear}` : `${String(selectedMonth || (new Date().getMonth() + 1)).padStart(2, "0")}/${selectedYear}`}
+                  </span>
+                  {Number((card as any).totalPendenteProximoMes || 0) > 0 && (
+                    <span className="bg-amber-400/20 text-amber-200 border border-amber-300/30 text-[10px] font-medium px-2 py-0.5 rounded-full backdrop-blur-xs">
+                      Pendente ({(() => {
+                        const curM = selectedMonth || (new Date().getMonth() + 1);
+                        const curY = selectedYear || new Date().getFullYear();
+                        const nextDate = new Date(curY, curM, 1);
+                        return nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+                      })()}): R$ {Number((card as any).totalPendenteProximoMes).toFixed(2)}
+                    </span>
+                  )}
+                </div>
                 <span>
                   {card.periodExpenseCount !== undefined
                     ? `${card.periodExpenseCount} ${card.periodExpenseCount === 1 ? 'saída' : 'saídas'}`
