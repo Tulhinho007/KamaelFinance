@@ -143,12 +143,12 @@ export default function PaymentHistoryPage() {
             </div>
           </div>
 
-          {/* Card 2: Total Gastos Débito/PIX */}
+          {/* Card 2: Total Boletos e Concessionárias */}
           <div className="card-glow p-5 rounded-2xl bg-white dark:bg-[#131B2E] border border-emerald-200 dark:border-emerald-500/30 flex flex-col justify-between h-full shadow-sm">
             {/* Topo: Altura mínima fixa para nivelar títulos de 1 ou 2 linhas */}
             <div className="flex items-start justify-between min-h-[44px] gap-3">
               <span className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-snug">
-                Total Gastos Débito/PIX
+                Total Boletos & Contas Débito
               </span>
               <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
                 <Building2 className="w-5 h-5" />
@@ -165,7 +165,7 @@ export default function PaymentHistoryPage() {
             {/* Rodapé: Altura mínima padronizada e ancorado na base */}
             <div className="min-h-[38px] flex items-center mt-auto border-t border-slate-100 dark:border-slate-800/50 pt-2">
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Débitos e transações liquidadas no mês
+                Boletos e contas consolidadas liquidadas no mês
               </p>
             </div>
           </div>
@@ -219,7 +219,7 @@ export default function PaymentHistoryPage() {
             {[
               { id: "ALL", label: "Todas" },
               { id: "CREDIT_CARD", label: "Crédito" },
-              { id: "CONTA_CORRENTE", label: "Débito / PIX" },
+              { id: "CONTA_CORRENTE", label: "Boletos / Contas" },
               { id: "TICKET", label: "Benefício" },
             ].map((f) => (
               <button

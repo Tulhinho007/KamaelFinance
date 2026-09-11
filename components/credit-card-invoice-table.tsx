@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -12,6 +12,7 @@ import {
   CreditCard,
   Inbox,
   ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 export interface CreditCardTransaction {
@@ -224,6 +225,48 @@ export function CreditCardInvoiceTable({
     });
   }, [transactions]);
 
+  // ── Accordion por Data: Estado local de dias expandidos ─────────────────────
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+
+  // Inicialização: Deixa apenas os 2 dias mais recentes (índices 0 e 1) abertos por padrão
+  useEffect(() => {
+    if (groupedTransactions.length === 0) return;
+    setExpandedDays((prev) => {
+      const next: Record<string, boolean> = { ...prev };
+      groupedTransactions.forEach((group, index) => {
+        if (next[group.dateKey] === undefined) {
+          next[group.dateKey] = index < 2; // HOJE e ONTEM (os dois primeiros mais recentes)
+        }
+      });
+      return next;
+    });
+  }, [groupedTransactions]);
+
+  const isDayExpanded = (dateKey: string, index: number): boolean => {
+    return expandedDays[dateKey] !== undefined ? expandedDays[dateKey] : index < 2;
+  };
+
+  const toggleDay = (dateKey: string, index: number) => {
+    const current = isDayExpanded(dateKey, index);
+    setExpandedDays((prev) => ({
+      ...prev,
+      [dateKey]: !current,
+    }));
+  };
+
+  const allExpanded =
+    groupedTransactions.length > 0 &&
+    groupedTransactions.every((g, idx) => isDayExpanded(g.dateKey, idx));
+
+  const toggleExpandAll = () => {
+    const nextState = !allExpanded;
+    const next: Record<string, boolean> = {};
+    groupedTransactions.forEach((g) => {
+      next[g.dateKey] = nextState;
+    });
+    setExpandedDays(next);
+  };
+
   const containerClasses = [
     "max-h-[580px] overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700",
     className !== undefined
@@ -233,6 +276,31 @@ export function CreditCardInvoiceTable({
 
   return (
     <div className={containerClasses}>
+      {/* Barra de Ações Rápidas: Expandir / Recolher Todos */}
+      {groupedTransactions.length > 0 && (
+        <div className="flex items-center justify-between px-3.5 py-2 bg-slate-50/80 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 text-xs select-none">
+          <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+            Extrato diário ({groupedTransactions.length} {groupedTransactions.length === 1 ? "dia" : "dias"})
+          </span>
+          <button
+            type="button"
+            onClick={toggleExpandAll}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors cursor-pointer bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 px-2.5 py-1 rounded-lg shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700/60"
+          >
+            {allExpanded ? (
+              <>
+                <ChevronUp className="w-3.5 h-3.5" />
+                <span>Recolher Todos</span>
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3.5 h-3.5" />
+                <span>Expandir Todos</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
       <table className="w-full table-fixed border-collapse text-left">
         {/* Cabeçalho */}
         <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
@@ -306,33 +374,58 @@ export function CreditCardInvoiceTable({
               </td>
             </tr>
           ) : (
-            groupedTransactions.map((group) => (
-              <React.Fragment key={group.dateKey}>
-                {/* Linha Divisória de Data */}
-                <tr className="bg-slate-50/80 dark:bg-slate-900/60 border-y border-slate-100 dark:border-slate-800 select-none">
-                  <td colSpan={hasSelection ? 7 : 6} className="px-3 py-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {group.dateLabel}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        {group.totalIncome > 0 && (
-                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                            + {formatBRL(group.totalIncome)}
-                          </span>
-                        )}
-                        {(group.totalExpense > 0 || group.totalIncome === 0) && (
-                          <span className="text-[11px] font-semibold text-rose-500 dark:text-rose-400 tabular-nums">
-                            - {formatBRL(group.totalExpense)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
+            groupedTransactions.map((group, groupIndex) => {
+              const isExpanded = isDayExpanded(group.dateKey, groupIndex);
+              const txCount = group.transactions.length;
+              const countText = `${txCount} ${txCount === 1 ? "compra" : "compras"}`;
 
-                {/* Transações do Dia */}
-                {group.transactions.map((tx) => {
+              return (
+                <React.Fragment key={group.dateKey}>
+                  {/* Linha Divisória de Data (Cabeçalho do Dia com Toggle Accordion) */}
+                  <tr
+                    onClick={() => toggleDay(group.dateKey, groupIndex)}
+                    className="bg-slate-50/90 dark:bg-slate-900/80 border-y border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-100/90 dark:hover:bg-slate-800/90 transition-colors select-none group"
+                    title={`Clique para ${isExpanded ? "recolher" : "expandir"} os lançamentos deste dia`}
+                  >
+                    <td colSpan={hasSelection ? 7 : 6} className="px-3 py-2">
+                      <div className="flex items-center justify-between">
+                        {/* Lado Esquerdo: Ícone Chevron + Data Formatada + Contador */}
+                        <div className="flex items-center gap-2">
+                          <span className="p-0.5 rounded text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                                !isExpanded ? "-rotate-90 text-slate-400" : "rotate-0 text-indigo-600 dark:text-indigo-400"
+                              }`}
+                            />
+                          </span>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                            {group.dateLabel}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">
+                            ({countText})
+                          </span>
+                        </div>
+
+                        {/* Lado Direito: Total Gasto / Recebido no dia */}
+                        <div className="flex items-center gap-3">
+                          {group.totalIncome > 0 && (
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              + {formatBRL(group.totalIncome)}
+                            </span>
+                          )}
+                          {(group.totalExpense > 0 || group.totalIncome === 0) && (
+                            <span className="text-[11px] font-bold text-rose-500 dark:text-rose-400 tabular-nums">
+                              - {formatBRL(group.totalExpense)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  {/* Transações do Dia (Renderizadas somente se expandido) */}
+                  {isExpanded &&
+                    group.transactions.map((tx) => {
                   const isSelected = selectedIds.includes(tx.id);
                   const txDate = tx.purchaseDate || tx.date;
                   const dateFormatted = formatDate(txDate);
@@ -549,8 +642,9 @@ export function CreditCardInvoiceTable({
                   );
                 })}
               </React.Fragment>
-            ))
-          )}
+            );
+          })
+        )}
         </tbody>
       </table>
     </div>

@@ -6858,36 +6858,39 @@ export async function getPaymentHistoryData(month: number, year: number) {
       const wExpensesList = monthTransactions
         .filter(t => t.walletId === w.id && t.type === "EXPENSE");
 
-      const wExpensesPaid = wExpensesList
+      // No Histórico de Pagamentos, mantemos o foco em obrigações consolidadas e boletos de concessionárias (luz, água, internet, etc.)
+      const consolidatedBills = wExpensesList.filter(t =>
+        t.isRecurring ||
+        t.source === "SUBSCRIPTION" ||
+        (t.category?.name && /luz|energia|água|agua|internet|concessionária|concessionaria|aluguel|condomínio|condominio|boleto/i.test(t.category.name)) ||
+        (t.description && /luz|energia|água|agua|internet|aluguel|condomínio|condominio|boleto/i.test(t.description))
+      );
+
+      const billsPaid = consolidatedBills
         .filter(t => t.status !== "PENDING")
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
-      const wExpensesPending = wExpensesList
-        .filter(t => t.status === "PENDING")
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+      totalDebitPix += billsPaid;
 
-      const wExpensesTotal = wExpensesPaid + wExpensesPending;
-
-      // O card do topo (Total Gastos Débito/PIX) só deve somar o que já foi baixado / liquidado!
-      totalDebitPix += wExpensesPaid;
-
-      const hasPending = wExpensesPending > 0;
-
-      historyItems.push({
-        id: w.id,
-        accountName: w.title || w.bankName || "Conta Corrente",
-        bankName: w.bankName || "Conta Corrente",
-        walletType: "CONTA_CORRENTE",
-        typeLabel: "Conta Débito / PIX",
-        periodRef: periodStr,
-        amount: wExpensesTotal,
-        paidAmount: wExpensesPaid,
-        pendingAmount: wExpensesPending,
-        status: wExpensesTotal <= 0 ? "ZERADO" : (hasPending ? "AGUARDANDO LIQUIDAÇÃO" : "LIQUIDADO"),
-        statusColor: wExpensesTotal <= 0 ? "slate" : (hasPending ? "amber" : "emerald"),
-        detailsUrl: `/cartoes/${w.id}`,
-        holder: (w as any).holder || undefined,
-      });
+      for (const bill of consolidatedBills) {
+        const isPaid = bill.status !== "PENDING";
+        const billAmount = Number(bill.amount);
+        historyItems.push({
+          id: bill.id,
+          accountName: bill.description,
+          bankName: w.bankName || w.title || "Conta Corrente",
+          walletType: "CONTA_CORRENTE",
+          typeLabel: "Boleto / Concessionária",
+          periodRef: periodStr,
+          amount: billAmount,
+          paidAmount: isPaid ? billAmount : 0,
+          pendingAmount: isPaid ? 0 : billAmount,
+          status: isPaid ? "LIQUIDADO" : "AGUARDANDO LIQUIDAÇÃO",
+          statusColor: isPaid ? "emerald" : "amber",
+          detailsUrl: `/cartoes/${w.id}`,
+          holder: (w as any).holder || undefined,
+        });
+      }
     }
   }
 
