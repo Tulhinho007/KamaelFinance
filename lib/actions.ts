@@ -3390,6 +3390,101 @@ export async function getRealRevenueAction(month: number | null | string, year: 
   return Math.round(total * 100) / 100;
 }
 
+export async function getPendingRevenuesAction(month?: number | null | string, year: number = 2026) {
+  const userId = await getActiveUserId();
+  const now = new Date();
+  const targetYear = year || now.getFullYear();
+  const targetMonth = month && month !== "ALL" && !isNaN(Number(month)) ? Number(month) : (now.getMonth() + 1);
+
+  const from = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+  const to   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+
+  const BENEFIT_TYPES = [
+    "TICKET", "BENEFICIO", "BENEFÍCIO", 
+    "ticket", "beneficio", "benefício", 
+    "Ticket", "Benefício", "Beneficio"
+  ];
+
+  const targetRefMonth = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      wallet: {
+        userId,
+        walletType: { notIn: BENEFIT_TYPES }
+      },
+      type: "INCOME",
+      deletedAt: null,
+    },
+    include: { wallet: true },
+    orderBy: { date: "asc" }
+  });
+
+  const filtered = transactions.filter((t: any) => {
+    // 1. Status: deve ser pendente (status !== 'RECEBIDO' ou !isReceived)
+    const st = (t.status || "").toUpperCase();
+    const isReceived = ["COMPLETED", "PAID", "RECEBIDO"].includes(st);
+    if (isReceived) return false;
+
+    // 2. Isolamento de benefício / ticket
+    const wType = (t.wallet?.walletType || "").toUpperCase();
+    if (BENEFIT_TYPES.some(b => b.toUpperCase() === wType)) return false;
+
+    // 3. Regra para Capturar as Receitas Pendentes:
+    // referenceMonth === '2026-09'
+    if ((t as any).referenceMonth && String((t as any).referenceMonth).substring(0, 7) === targetRefMonth) {
+      return true;
+    }
+
+    // competenceMonth e competenceYear
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      if (t.competenceMonth === targetMonth && t.competenceYear === targetYear) {
+        return true;
+      }
+    }
+
+    // competenceDate
+    if (t.competenceDate) {
+      const compStr = new Date(t.competenceDate).toISOString().substring(0, 7);
+      if (compStr === targetRefMonth) {
+        return true;
+      }
+      const cDate = new Date(t.competenceDate);
+      if (!isNaN(cDate.getTime())) {
+        if (cDate.getUTCFullYear() === targetYear && (cDate.getUTCMonth() + 1) === targetMonth) {
+          return true;
+        }
+      }
+    }
+
+    // Data de recebimento (date ou paymentDate) no mês selecionado
+    const d = new Date(t.paymentDate || t.date);
+    if (!isNaN(d.getTime())) {
+      if (d.getUTCFullYear() === targetYear && (d.getUTCMonth() + 1) === targetMonth) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+  const total = filtered.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+  return {
+    items: filtered.map(t => ({
+      id: t.id,
+      description: t.description,
+      amount: Number(t.amount),
+      status: t.status,
+      date: t.date ? new Date(t.date).toISOString().split("T")[0] : "",
+      referenceMonth: (t as any).referenceMonth || (t.competenceDate ? new Date(t.competenceDate).toISOString().substring(0, 7) : undefined),
+      competenceMonth: t.competenceMonth,
+      competenceYear: t.competenceYear
+    })),
+    total: Math.round(total * 100) / 100
+  };
+}
+
 // ---------- Actions de Pagamento de Faturas ----------
 
 export async function payCardInvoiceAction(
@@ -3705,14 +3800,20 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
     ? Math.min(100, Math.round((totalFaturasPagas / totalGeral) * 100))
     : (totalFaturasPagas > 0 ? 100 : 0);
 
+  const pendingRevData = await getPendingRevenuesAction(month, year);
+  const receitasPendentesDoMes = pendingRevData.total;
+
   return {
     pendingBills: [],
     paidBills: [],
     upcomingCardInvoices,
     paidCardInvoices,
+    receitasPendentesDoMes,
+    pendingRevenues: pendingRevData.items,
     totals: {
       totalPendente: totalFaturasPendentes,
       totalPago: totalFaturasPagas,
+      receitasPendentes: receitasPendentesDoMes,
       totalGeral,
       pctGeralPago,
     }

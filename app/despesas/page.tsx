@@ -15,7 +15,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getAllCardsOverview, createNewCard, updateCardAccount, deleteCardAccount,
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
-  getSalaryCycleSummary, getRealRevenueAction,
+  getSalaryCycleSummary, getRealRevenueAction, getPendingRevenuesAction,
   getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction,
   getRecurringExpensesAction, getUpcomingBillsWindowAction
 } from "@/lib/actions";
@@ -309,20 +309,24 @@ export default function DespesasPage() {
     paidBills: any[];
     upcomingCardInvoices: any[];
     paidCardInvoices: any[];
+    receitasPendentesDoMes?: number;
+    pendingRevenues?: any[];
     totals: {
       totalPendente: number;
       totalPago: number;
       totalGeral: number;
       pctGeralPago: number;
+      receitasPendentes?: number;
     };
   } | null>(null);
+  const [receitasPendentesMes, setReceitasPendentesMes] = useState<number>(0);
   const [payModalCard, setPayModalCard]             = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice]       = useState(false);
 
   const reloadAllData = async () => {
     try {
-      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow] = await Promise.all([
+      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev] = await Promise.all([
         getAllCardsOverview(selectedMonthFilter, selectedYear),
         getPaidInvoicesAction(selectedMonthFilter, selectedYear),
         getRealRevenueAction(selectedMonthFilter, selectedYear),
@@ -330,6 +334,7 @@ export default function DespesasPage() {
         getPaidExpensesAction(selectedMonthFilter, selectedYear),
         getRecurringExpensesAction(selectedMonthFilter, selectedYear),
         getUpcomingBillsWindowAction(selectedMonthFilter, selectedYear),
+        getPendingRevenuesAction(selectedMonthFilter, selectedYear),
       ]);
       setCards(freshCards || []);
       setPaidInvoicesList(freshPaidInv || []);
@@ -338,6 +343,7 @@ export default function DespesasPage() {
       setPaidExpensesList(freshPaidExp || []);
       setRecurringExpensesList(freshRecurring || []);
       setWindowBills(freshWindow || null);
+      setReceitasPendentesMes(freshPendingRev?.total ?? freshWindow?.receitasPendentesDoMes ?? 0);
     } catch (e) {
       console.error("Erro ao recarregar dados de despesas:", e);
     }
@@ -461,8 +467,9 @@ export default function DespesasPage() {
       getPaidExpensesAction(monthParam, selectedYear),
       getRecurringExpensesAction(monthParam, selectedYear),
       getUpcomingBillsWindowAction(monthParam, selectedYear),
+      getPendingRevenuesAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
@@ -471,6 +478,7 @@ export default function DespesasPage() {
         setPaidExpensesList(paidExpRes || []);
         setRecurringExpensesList(recurringRes || []);
         setWindowBills(windowRes || null);
+        setReceitasPendentesMes(pendingRevRes?.total ?? windowRes?.receitasPendentesDoMes ?? 0);
         setLoading(false);
       })
       .catch(err => {
@@ -631,10 +639,15 @@ export default function DespesasPage() {
   }, [windowBills, unifiedPaidInvoices, activeMonth, selectedYear]);
 
   // ── Contas e Faturas Pendentes / Pagas (Cálculo Corrigido) ──────────────────
-  // O cálculo do saldo previsto para o mês selecionado considera apenas o saldo em conta subtraído da fatura de cartão de crédito do mês
   const totalFaturasPendentes = upcomingCardBills.reduce((s, b) => s + Number(b.valor || 0), 0);
   const totalPendentesMes = totalFaturasPendentes;
-  const saldoPrevisto = saldoTotalContas - totalFaturasPendentes;
+  const faturasDespesasPendentesDoMes = totalFaturasPendentes;
+  const saldoAtual = saldoTotalContas;
+  const receitasPendentesDoMes = windowBills?.receitasPendentesDoMes ?? receitasPendentesMes ?? 0;
+
+  // Nova Fórmula do Saldo Previsto:
+  // saldoPrevisto = saldoAtual + receitasPendentesDoMes - faturasDespesasPendentesDoMes;
+  const saldoPrevisto = saldoAtual + receitasPendentesDoMes - faturasDespesasPendentesDoMes;
 
   const pagoFaturasMes   = filteredPaidCardInvoices.reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalPagoMes     = pagoFaturasMes;
@@ -900,8 +913,15 @@ export default function DespesasPage() {
             </h2>
             <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
               <span>Previsto após contas do mês:</span>
-              <span className={`font-bold font-tnum ${saldoPrevisto < 0 ? "text-rose-500 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {formatCurrency(saldoPrevisto)}
+              <span
+                title={`Saldo Atual (${formatCurrency(saldoAtual)}) + Receitas Previstas (${formatCurrency(receitasPendentesDoMes)}) - Faturas/Contas (${formatCurrency(faturasDespesasPendentesDoMes)})`}
+                className={`font-bold font-tnum ${
+                  saldoPrevisto < 0
+                    ? "text-rose-500 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400"
+                }`}
+              >
+                {saldoPrevisto >= 0 ? `+ ${formatCurrency(saldoPrevisto)}` : formatCurrency(saldoPrevisto)}
               </span>
             </div>
           </div>
