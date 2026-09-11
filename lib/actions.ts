@@ -4527,6 +4527,35 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     categoryBreakdown.push({ name: "Sem gastos", color: "#94A3B8", total: 0 });
   }
 
+  // 2.1 Distribuição por Meio de Pagamento
+  const paymentMethodMap: Record<string, { method: string; name: string; color: string; total: number }> = {
+    PIX:     { method: "PIX", name: "PIX", color: "#0d9488", total: 0 },
+    CREDITO: { method: "CREDITO", name: "Cartão de Crédito", color: "#6366f1", total: 0 },
+    BOLETO:  { method: "BOLETO", name: "Boleto", color: "#f59e0b", total: 0 },
+    DEBITO:  { method: "DEBITO", name: "Débito", color: "#3b82f6", total: 0 },
+    DINHEIRO:{ method: "DINHEIRO", name: "Dinheiro", color: "#10b981", total: 0 },
+  };
+
+  monthExpenses.forEach((exp) => {
+    const rawAmt = Number(exp.amount || 0);
+    const amt = isNaN(rawAmt) ? 0 : Math.max(0, rawAmt);
+    if (amt <= 0) return;
+
+    let pm = ((exp as any).paymentMethod || "").toUpperCase();
+    if (pm === "CARTAO_CREDITO") pm = "CREDITO";
+    if (!pm) {
+      pm = exp.wallet?.walletType === "CREDIT_CARD" ? "CREDITO" : "DEBITO";
+    }
+    if (!paymentMethodMap[pm]) {
+      pm = "DEBITO";
+    }
+    paymentMethodMap[pm].total = Math.round((paymentMethodMap[pm].total + amt) * 100) / 100;
+  });
+
+  const paymentMethodBreakdown = Object.values(paymentMethodMap)
+    .filter((m) => m.total > 0)
+    .sort((a, b) => b.total - a.total);
+
   // 3. Histórico Comparativo ("Evolução Financeira")
   // No modo anual: exibe todos os 12 meses do ano selecionado.
   // No modo mensal: exibe os últimos 7 meses até o mês selecionado.
@@ -4646,6 +4675,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     cards,
     goals,
     categoryBreakdown,
+    paymentMethodBreakdown,
     monthlyHistory: historyMonths,
     upcomingBills: await getUpcomingCreditCardBills(userId),
   };

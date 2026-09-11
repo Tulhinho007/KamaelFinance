@@ -158,6 +158,50 @@ const formatBRL = (val: number): string => {
   }).format(val);
 };
 
+/** Renderiza badge estilizada da forma de pagamento */
+const renderPaymentMethodBadge = (pm?: string) => {
+  const norm = (pm || "").toUpperCase();
+  switch (norm) {
+    case "PIX":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-teal-50 text-teal-700 border border-teal-200/60 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800/60 whitespace-nowrap">
+          PIX
+        </span>
+      );
+    case "BOLETO":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 whitespace-nowrap">
+          Boleto
+        </span>
+      );
+    case "DEBITO":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-blue-50 text-blue-700 border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 whitespace-nowrap">
+          Débito
+        </span>
+      );
+    case "CREDITO":
+    case "CARTAO_CREDITO":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-purple-50 text-purple-700 border border-purple-200/60 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/60 whitespace-nowrap">
+          Crédito
+        </span>
+      );
+    case "DINHEIRO":
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60 whitespace-nowrap">
+          Dinheiro
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide bg-blue-50 text-blue-700 border border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 whitespace-nowrap">
+          {pm || "Débito"}
+        </span>
+      );
+  }
+};
+
 export function CreditCardInvoiceTable({
   transactions = [],
   selectedIds = [],
@@ -329,6 +373,9 @@ export function CreditCardInvoiceTable({
             <th className="w-28 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
               Categoria
             </th>
+            <th className="w-28 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 py-2.5 px-3 bg-white dark:bg-slate-900 whitespace-nowrap">
+              Método
+            </th>
             <th className="w-28 text-right font-semibold whitespace-nowrap text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Valor
             </th>
@@ -346,7 +393,7 @@ export function CreditCardInvoiceTable({
           {isLoading ? (
             <tr>
               <td
-                colSpan={hasSelection ? 7 : 6}
+                colSpan={hasSelection ? 8 : 7}
                 className="py-12 px-4 text-center text-sm text-slate-400 dark:text-slate-500"
               >
                 <div className="flex flex-col items-center justify-center gap-2">
@@ -358,7 +405,7 @@ export function CreditCardInvoiceTable({
           ) : transactions.length === 0 ? (
             <tr>
               <td
-                colSpan={hasSelection ? 7 : 6}
+                colSpan={hasSelection ? 8 : 7}
                 className="py-14 px-4 text-center text-sm text-slate-400 dark:text-slate-500"
               >
                 <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
@@ -388,7 +435,7 @@ export function CreditCardInvoiceTable({
                     className="bg-slate-50/90 dark:bg-slate-900/80 border-y border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-100/90 dark:hover:bg-slate-800/90 transition-colors select-none group"
                     title={`Clique para ${isExpanded ? "recolher" : "expandir"} os lançamentos deste dia`}
                   >
-                    <td colSpan={hasSelection ? 7 : 6} className="px-3 py-2">
+                    <td colSpan={hasSelection ? 8 : 7} className="px-3 py-2">
                       <div className="flex items-center justify-between">
                         {/* Lado Esquerdo: Ícone Chevron + Data Formatada + Contador */}
                         <div className="flex items-center gap-2">
@@ -542,7 +589,12 @@ export function CreditCardInvoiceTable({
                         </span>
                       </td>
 
-                      {/* 4. VALOR */}
+                      {/* 4. MÉTODO DE PAGAMENTO */}
+                      <td className="w-28 py-2 px-3 text-left whitespace-nowrap">
+                        {renderPaymentMethodBadge(tx.paymentMethod)}
+                      </td>
+
+                      {/* 5. VALOR */}
                       <td className="w-28 py-2 px-3 text-right font-semibold whitespace-nowrap">
                         <span
                           className={`text-xs font-semibold tabular-nums ${

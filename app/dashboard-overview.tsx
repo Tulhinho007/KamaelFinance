@@ -16,6 +16,7 @@ import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
+import { PaymentMethodChart } from "@/components/payment-method-chart";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
@@ -712,7 +713,17 @@ export function DashboardOverview() {
             )}
           </div>
 
-          {/* BLOCO 2: Resumo de Metas */}
+          {/* BLOCO 2: Gastos por Meio de Pagamento */}
+          <PaymentMethodChart
+            data={data.paymentMethodBreakdown}
+            periodLabel={
+              viewMode === "annual"
+                ? `Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`
+                : `Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`
+            }
+          />
+
+          {/* BLOCO 3: Resumo de Metas */}
           <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
