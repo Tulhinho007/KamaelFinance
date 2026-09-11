@@ -1888,7 +1888,7 @@ function CardTile({
                         const curY = selectedYear || new Date().getFullYear();
                         const nextDate = new Date(curY, curM, 1);
                         return nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
-                      })()}): R$ {Number((card as any).totalPendenteProximoMes).toFixed(2)}
+                      })()}): <CurrencyValue value={(card as any).totalPendenteProximoMes} />
                     </span>
                   )}
                 </div>

@@ -3227,18 +3227,41 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         where: paidWhere
       });
 
-      // Pendência do Próximo Mês (Competência M+1)
+      // Pendência do Próximo Mês (vencimento/lançamento no próximo mês, sem filtrar por referenceMonth)
       const nextMonthNum = effectiveMonth === 12 ? 1 : effectiveMonth + 1;
       const nextYearNum = effectiveMonth === 12 ? year + 1 : year;
+
+      const isDateInTargetMonth = (rawDate: any) => {
+        if (!rawDate) return false;
+        if (typeof rawDate === "string") {
+          const clean = rawDate.split("T")[0];
+          const [y, m] = clean.split("-").map(Number);
+          if (y === nextYearNum && m === nextMonthNum) return true;
+        }
+        const d = new Date(rawDate);
+        if (isNaN(d.getTime())) return false;
+        const utcY = d.getUTCFullYear();
+        const utcM = d.getUTCMonth() + 1;
+        const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+        const brtY = brt.getUTCFullYear();
+        const brtM = brt.getUTCMonth() + 1;
+        return (utcY === nextYearNum && utcM === nextMonthNum) || (brtY === nextYearNum && brtM === nextMonthNum);
+      };
+
       const totalPendenteProximoMes = allExpenses
         .filter((t: any) => {
-          if (t.status !== "PENDING") return false;
-          if (t.competenceMonth != null && t.competenceYear != null) {
+          const isPending = t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado" && t.status !== "RECEBIDO");
+          if (!isPending) return false;
+
+          // Se for cartão de crédito com competência explicitamente definida:
+          if (isCredit && t.competenceMonth != null && t.competenceYear != null) {
             return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
           }
-          const d = new Date(t.competenceDate || t.dueDate || t.date);
-          const brt = new Date(d.getTime() - 3 * 3600 * 1000);
-          return (brt.getUTCMonth() + 1 === nextMonthNum && brt.getUTCFullYear() === nextYearNum);
+
+          // Para conta bancária (débito, pix, boleto, etc.) e tickets:
+          // Avalia a data de vencimento ou lançamento (dueDate / date / purchaseDate) dentro da janela do próximo mês,
+          // NUNCA filtrando por referenceMonth / competenceMonth.
+          return isDateInTargetMonth(t.dueDate) || isDateInTargetMonth(t.date) || isDateInTargetMonth(t.purchaseDate);
         })
         .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
