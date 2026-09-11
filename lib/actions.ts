@@ -155,7 +155,7 @@ export async function deleteTransaction(id: string) {
       where: { id },
     });
   } catch {
-    await prisma.transaction.updateMany({
+    await (prisma.transaction as any).updateMany({
       where: { id },
       data: { deletedAt: new Date(), pixCreditOperationId: null },
     });
@@ -2416,7 +2416,7 @@ export async function deleteCardPurchase(id: string) {
       where: { id },
     });
   } catch {
-    await prisma.transaction.updateMany({
+    await (prisma.transaction as any).updateMany({
       where: { id },
       data: { deletedAt: new Date(), pixCreditOperationId: null },
     });
@@ -2433,7 +2433,7 @@ export async function deleteBatchPurchasesAction(ids: string[]) {
       where: { id: { in: ids } },
     });
   } catch {
-    await prisma.transaction.updateMany({
+    await (prisma.transaction as any).updateMany({
       where: { id: { in: ids } },
       data: { deletedAt: new Date(), pixCreditOperationId: null },
     });
