@@ -573,23 +573,25 @@ export default function DespesasPage() {
     return creditCards
       .filter(c => c.faturaAtual > 0 && !isCardInvoicePaidForPeriod(c))
       .map(c => {
-        const vencDay = c.vencimento || 10;
-        const dateStr = `${String(vencDay).padStart(2, "0")}/${String(activeMonth).padStart(2, "0")}/${selectedYear}`;
-        const dueDate = new Date(selectedYear, activeMonth - 1, vencDay, 12, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const isPast = dueDate < today && dueDate.toDateString() !== today.toDateString();
+        const dueDateInfo = getInvoiceDueDateInfo(
+          (c as any).diaFechamento || 1,
+          c.vencimento || 10,
+          activeMonth,
+          selectedYear
+        );
 
         return {
           id:         c.id,
           title:      c.title,
           bankName:   c.bankName || c.title,
-          vencimento: dateStr,
+          vencimento: dueDateInfo.dateStr,
           valor:      c.faturaAtual,
-          dueDateRaw: dueDate.toISOString(),
-          dueDateMs:  dueDate.getTime(),
-          status:     isPast ? ("vencido" as const) : ("aberto" as const),
+          dueDateRaw: dueDateInfo.dueDate.toISOString(),
+          dueDateMs:  dueDateInfo.dueDate.getTime(),
+          status:     dueDateInfo.isPast ? ("vencido" as const) : ("aberto" as const),
           month:      activeMonth,
+          billingMonth: dueDateInfo.billingMonth,
+          billingYear:  dueDateInfo.billingYear,
           year:       selectedYear,
         };
       });

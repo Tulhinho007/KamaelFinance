@@ -2852,6 +2852,93 @@ export async function removeTicketCarga(walletId: string, value: number, month?:
   revalidatePath("/dashboard");
 }
 
+export async function recordBalanceMovementAction(
+  walletId: string,
+  amount: number,
+  origin: string,
+  month?: number,
+  year?: number,
+  customDateStr?: string
+) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
+  });
+  if (!wallet) throw new Error("Conta não encontrada.");
+
+  const now = new Date();
+  const targetYear = year || now.getFullYear();
+  const targetMonth = month || (now.getMonth() + 1);
+  const dateToUse = customDateStr || `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
+
+  const originLabels: Record<string, string> = {
+    DEPOSITO: "Depósito em Conta",
+    SAQUE: "Saque em Dinheiro",
+    SALARIO: "Injeção de Capital / Salário",
+    RECARGA: "Recarga de Saldo",
+    FREELANCE: "Renda Extra / Freelance",
+    INVESTIMENTO: "Resgate de Investimento",
+    APORTE: "Outra Fonte / Aporte Direto",
+    ROLLOVER: "Saldo do Mês Anterior"
+  };
+
+  const isSaque = origin === "SAQUE";
+  const labelText = originLabels[origin] || (isSaque ? "Saque em Dinheiro" : "Depósito em Conta");
+
+  if (isSaque) {
+    let category = await prisma.category.findFirst({
+      where: { name: { equals: "Saque em Dinheiro", mode: "insensitive" } }
+    });
+    if (!category) {
+      category = await prisma.category.create({
+        data: { name: "Saque em Dinheiro", color: "#EF4444" }
+      });
+    }
+
+    const txDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
+    const tx = await prisma.transaction.create({
+      data: {
+        walletId: wallet.id,
+        categoryId: category.id,
+        description: labelText,
+        type: "EXPENSE",
+        amount: Math.abs(amount),
+        status: "COMPLETED",
+        date: txDate,
+        paymentDate: txDate,
+        purchaseDate: txDate,
+        competenceDate: txDate,
+        competenceMonth: targetMonth,
+        competenceYear: targetYear,
+        source: "MANUAL"
+      }
+    });
+
+    revalidatePath("/cartoes");
+    revalidatePath(`/cartoes/${walletId}`);
+    revalidatePath("/despesas");
+    revalidatePath("/dashboard");
+    return {
+      id: tx.id,
+      description: tx.description,
+      amount: Number(tx.amount),
+      type: "EXPENSE"
+    };
+  } else {
+    return await createRevenueAction(
+      labelText,
+      Math.abs(amount),
+      dateToUse,
+      wallet.id,
+      "COMPLETED",
+      dateToUse,
+      labelText,
+      targetMonth,
+      targetYear
+    );
+  }
+}
+
 export async function createTicketExpense(
   walletId: string,
   description: string,
@@ -3574,8 +3661,12 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
     const totalFatura = monthTxs.reduce((s, t) => s + Number(t.amount), 0);
 
     const vencDay = card.vencimento || 10;
-    const dueDate = new Date(curYear, targetMonth - 1, vencDay, 12, 0, 0);
-    const isPast = dueDate < now && dueDate.toDateString() !== now.toDateString();
+    const dueDateInfo = getInvoiceDueDateInfo(
+      (card as any).diaFechamento ?? 1,
+      card.vencimento ?? 10,
+      targetMonth,
+      curYear
+    );
 
     if (paidThisMonth) {
       paidCardInvoices.push({
@@ -3594,12 +3685,14 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
         id: card.id,
         title: card.title || card.bankName,
         bankName: card.bankName || card.title,
-        vencimento: `${String(vencDay).padStart(2, "0")}/${String(targetMonth).padStart(2, "0")}/${curYear}`,
+        vencimento: dueDateInfo.dateStr,
         valor: totalFatura,
-        dueDateRaw: dueDate.toISOString(),
-        dueDateMs: dueDate.getTime(),
-        status: isPast ? "vencido" : "aberto",
+        dueDateRaw: dueDateInfo.dueDate.toISOString(),
+        dueDateMs: dueDateInfo.dueDate.getTime(),
+        status: dueDateInfo.isPast ? "vencido" : "aberto",
         month: targetMonth,
+        billingMonth: dueDateInfo.billingMonth,
+        billingYear: dueDateInfo.billingYear,
         year: curYear,
       });
     }

@@ -17,6 +17,7 @@ import {
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
+import { InjectBalanceModal } from "@/components/inject-balance-modal";
 import { CreditCardInvoiceTable } from "@/components/credit-card-invoice-table";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -1345,127 +1346,19 @@ export default function CartaoDetailPage() {
 
       {/* ── MODAIS ─────────────────────────────────────────────────────────────── */}
 
-      {/* Modal Adicionar Saldo / Injeção de Capital Flexível */}
-      {modalType === "carga" && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <div>
-                <h3 className="text-sm font-black text-slate-900 dark:text-white">Injetar Saldo / Capital</h3>
-                <p className="text-xs text-slate-400 font-medium mt-0.5">Informe o valor, a origem e o mês de aplicação.</p>
-              </div>
-              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleAddCarga} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Valor da Entrada (R$) *</label>
-                <input
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={formCarga}
-                  onChange={e => setFormCarga(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0,00"
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Origem da Entrada *</label>
-                <select
-                  value={formCargaOrigin}
-                  onChange={e => setFormCargaOrigin(e.target.value as any)}
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="SALARIO">Injeção de Capital / Salário</option>
-                  <option value="RECARGA">Recarga de Saldo</option>
-                  <option value="FREELANCE">Renda Extra / Freelance</option>
-                  <option value="INVESTIMENTO">Resgate de Investimento</option>
-                  <option value="APORTE">Outra Fonte / Aporte Direto</option>
-                  <option value="ROLLOVER">Saldo do Mês Anterior</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-300">Mês de Aplicação</label>
-                  <select
-                    value={formCargaMonth}
-                    onChange={e => setFormCargaMonth(Number(e.target.value))}
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {[
-                      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-                    ].map((m, i) => (
-                      <option key={m} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-300">Ano de Aplicação</label>
-                  <select
-                    value={formCargaYear}
-                    onChange={e => setFormCargaYear(Number(e.target.value))}
-                    className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    {Array.from({ length: 11 }, (_, i) => 2020 + i).map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setModalType(null)} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-colors cursor-pointer">Cancelar</button>
-                <button type="submit" className="px-5 py-2 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer">Confirmar Entrada</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Remover Carga / Subtrair Saldo */}
-      {modalType === "cargaRemove" && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-5 shadow-2xl border border-slate-800 animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-sm font-black text-white">
-                  {isTicket ? "Remover Carga do Ticket" : "Subtrair Saldo da Conta"}
-                </h3>
-                <p className="text-xs font-medium text-slate-400 mt-0.5">Subtrai o valor digitado do saldo atual.</p>
-              </div>
-              <button onClick={() => setModalType(null)} className="p-1 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <form onSubmit={handleRemoveCarga} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-300">Valor a Subtrair (R$)</label>
-                <input
-                  required
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={formCarga}
-                  onChange={e => setFormCarga(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0,00"
-                  className="w-full rounded-2xl bg-slate-950 border border-slate-800 px-4 py-2.5 text-xs font-bold text-white placeholder-slate-600 focus:outline-none focus:border-rose-500"
-                />
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button type="button" onClick={() => setModalType(null)} className="px-4 py-2 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl transition-colors cursor-pointer">CANCELAR</button>
-                <button type="submit" className="px-5 py-2 text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/30 transition-all cursor-pointer">SUBTRAIR</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal Adicionar Saldo / Injeção de Capital / Saque Flexível (Clean) */}
+      <InjectBalanceModal
+        isOpen={modalType === "carga" || modalType === "cargaRemove"}
+        onClose={() => setModalType(null)}
+        onSuccess={async () => {
+          await loadData();
+        }}
+        walletId={cardData.walletId}
+        walletTitle={cardData.title}
+        defaultMonth={selectedMonth}
+        defaultYear={selectedYear}
+        defaultOrigin={modalType === "cargaRemove" ? "SAQUE" : "DEPOSITO"}
+      />
 
       {/* Modal Ajustar Limite do Cartão */}
       {modalType === "limit" && (
