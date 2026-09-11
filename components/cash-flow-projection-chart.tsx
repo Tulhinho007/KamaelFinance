@@ -21,9 +21,11 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
+  HelpCircle,
 } from "lucide-react";
 import { CurrencyValue } from "@/components/currency-value";
 import { getCashFlowProjectionAction } from "@/lib/actions";
+import { CashFlowAuditModal } from "@/components/cash-flow-audit-modal";
 
 interface CashFlowProjectionChartProps {
   initialDays?: number;
@@ -35,6 +37,7 @@ export function CashFlowProjectionChart({
   className = "",
 }: CashFlowProjectionChartProps) {
   const [horizon, setHorizon] = useState<30 | 60>(60);
+  const [openAuditModal, setOpenAuditModal] = useState<"D+30" | "D+60" | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<any>(null);
 
@@ -190,9 +193,19 @@ export function CashFlowProjectionChart({
 
           {/* Card 2: Saldo em D+30 */}
           <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 flex flex-col justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
-              Projeção em D+30
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                Projeção em D+30
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpenAuditModal("D+30")}
+                className="text-indigo-400 hover:text-indigo-600 dark:text-indigo-300 dark:hover:text-indigo-100 transition-colors p-0.5 rounded-full hover:bg-indigo-100/50 dark:hover:bg-indigo-900/50 cursor-pointer"
+                title="Ver demonstrativo do cálculo"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <div className="my-1">
               <CurrencyValue
                 value={data.saldoD30}
@@ -208,9 +221,19 @@ export function CashFlowProjectionChart({
 
           {/* Card 3: Saldo em D+60 */}
           <div className="p-3.5 rounded-2xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-200/60 dark:border-purple-900/40 flex flex-col justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
-              Projeção em D+60
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300">
+                Projeção em D+60
+              </span>
+              <button
+                type="button"
+                onClick={() => setOpenAuditModal("D+60")}
+                className="text-purple-400 hover:text-purple-600 dark:text-purple-300 dark:hover:text-purple-100 transition-colors p-0.5 rounded-full hover:bg-purple-100/50 dark:hover:bg-purple-900/50 cursor-pointer"
+                title="Ver demonstrativo do cálculo"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+              </button>
+            </div>
             <div className="my-1">
               <CurrencyValue
                 value={data.saldoD60}
@@ -340,6 +363,16 @@ export function CashFlowProjectionChart({
             </span>
           </div>
         </div>
+      )}
+
+      {/* 5. Modal de Auditoria de Cálculo (D+30 e D+60) */}
+      {openAuditModal && data?.audit && (
+        <CashFlowAuditModal
+          isOpen={!!openAuditModal}
+          onClose={() => setOpenAuditModal(null)}
+          horizon={openAuditModal}
+          auditData={openAuditModal === "D+30" ? data.audit.d30 : data.audit.d60}
+        />
       )}
     </div>
   );

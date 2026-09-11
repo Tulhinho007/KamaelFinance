@@ -7031,11 +7031,39 @@ export async function getCashFlowProjectionAction(days: number = 60) {
 
   // Mapear saídas de faturas por data YYYY-MM-DD
   const cardInvoicesDueByDate = new Map<string, number>();
+  const cardInvoicesItemsByDate = new Map<
+    string,
+    Array<{
+      id: string;
+      name: string;
+      amount: number;
+      rawDate: string;
+      dateFormatted: string;
+      source: string;
+      category?: string;
+      isBill: boolean;
+    }>
+  >();
+
   for (const bill of upcomingBills) {
     if (bill.valor > 0 && bill.dueDate) {
       const d = new Date(bill.dueDate);
       const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
       cardInvoicesDueByDate.set(dateKey, (cardInvoicesDueByDate.get(dateKey) || 0) + Number(bill.valor));
+
+      const billItem = {
+        id: bill.id,
+        name: `Fatura ${bill.title || bill.bankName || "Cartão"}`,
+        amount: Number(bill.valor),
+        rawDate: bill.dueDate,
+        dateFormatted: `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+        source: bill.bankName || bill.title || "Cartão de Crédito",
+        category: "Fatura de Cartão",
+        isBill: true,
+      };
+      const arr = cardInvoicesItemsByDate.get(dateKey) || [];
+      arr.push(billItem);
+      cardInvoicesItemsByDate.set(dateKey, arr);
     }
   }
 
@@ -7071,6 +7099,32 @@ export async function getCashFlowProjectionAction(days: number = 60) {
   // Mapear receitas e despesas por dia (YYYY-MM-DD)
   const incomesByDate = new Map<string, number>();
   const expensesByDate = new Map<string, number>();
+  const incomesItemsByDate = new Map<
+    string,
+    Array<{
+      id: string;
+      name: string;
+      amount: number;
+      rawDate: string;
+      dateFormatted: string;
+      source: string;
+      category?: string;
+      isBill: boolean;
+    }>
+  >();
+  const expensesItemsByDate = new Map<
+    string,
+    Array<{
+      id: string;
+      name: string;
+      amount: number;
+      rawDate: string;
+      dateFormatted: string;
+      source: string;
+      category?: string;
+      isBill: boolean;
+    }>
+  >();
 
   for (const tx of pendingTransactions) {
     const amt = Number(tx.amount || 0);
@@ -7085,18 +7139,45 @@ export async function getCashFlowProjectionAction(days: number = 60) {
 
     const d = new Date(targetDate);
     const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    const dateFormatted = `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 
     if (tx.type === "INCOME") {
       // Receita pendente ou agendada
       const isPendingOrFuture = tx.status === "PENDING" || d >= todayStart;
       if (isPendingOrFuture) {
         incomesByDate.set(dateKey, (incomesByDate.get(dateKey) || 0) + amt);
+        const item = {
+          id: tx.id,
+          name: tx.description || "Receita Prevista",
+          amount: amt,
+          rawDate: targetDate instanceof Date ? targetDate.toISOString() : String(targetDate),
+          dateFormatted,
+          source: tx.wallet?.title || "Conta Bancária",
+          category: tx.category?.name || "Receita",
+          isBill: false,
+        };
+        const arr = incomesItemsByDate.get(dateKey) || [];
+        arr.push(item);
+        incomesItemsByDate.set(dateKey, arr);
       }
     } else if (tx.type === "EXPENSE") {
       // Despesa pendente em conta corrente/débito/boleto (não cartão de crédito, pois fatura já foi somada)
       if (wType !== "CREDIT_CARD" && !isInvoicePaymentTransaction(tx)) {
         if (tx.status === "PENDING" || d >= todayStart) {
           expensesByDate.set(dateKey, (expensesByDate.get(dateKey) || 0) + amt);
+          const item = {
+            id: tx.id,
+            name: tx.description || "Despesa / Conta",
+            amount: amt,
+            rawDate: targetDate instanceof Date ? targetDate.toISOString() : String(targetDate),
+            dateFormatted,
+            source: tx.wallet?.title || "Conta Bancária",
+            category: tx.category?.name || "Despesa",
+            isBill: false,
+          };
+          const arr = expensesItemsByDate.get(dateKey) || [];
+          arr.push(item);
+          expensesItemsByDate.set(dateKey, arr);
         }
       }
     }
@@ -7110,6 +7191,53 @@ export async function getCashFlowProjectionAction(days: number = 60) {
   let firstNegativeDate: string | null = null;
   let balanceD30 = runningBalance;
   let balanceD60 = runningBalance;
+
+  const incomesD30: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    rawDate: string;
+    dateFormatted: string;
+    source: string;
+    category?: string;
+    isBill: boolean;
+  }> = [];
+  const expensesD30: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    rawDate: string;
+    dateFormatted: string;
+    source: string;
+    category?: string;
+    isBill: boolean;
+  }> = [];
+
+  const incomesD60: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    rawDate: string;
+    dateFormatted: string;
+    source: string;
+    category?: string;
+    isBill: boolean;
+  }> = [];
+  const expensesD60: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    rawDate: string;
+    dateFormatted: string;
+    source: string;
+    category?: string;
+    isBill: boolean;
+  }> = [];
+
+  let sumIncomesD30 = 0;
+  let sumExpensesD30 = 0;
+  let sumIncomesD60 = 0;
+  let sumExpensesD60 = 0;
 
   const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -7125,8 +7253,40 @@ export async function getCashFlowProjectionAction(days: number = 60) {
     const dayCardBills = cardInvoicesDueByDate.get(dateKey) || 0;
     const totalDayExpense = dayExpensesTrans + dayCardBills;
 
+    const dayIncomesItems = incomesItemsByDate.get(dateKey) || [];
+    const dayExpensesItems = [
+      ...(cardInvoicesItemsByDate.get(dateKey) || []),
+      ...(expensesItemsByDate.get(dateKey) || []),
+    ];
+
     if (i > 0) {
       runningBalance += dayIncome - totalDayExpense;
+
+      if (i <= 30) {
+        sumIncomesD30 += dayIncome;
+        sumExpensesD30 += totalDayExpense;
+        incomesD30.push(...dayIncomesItems);
+        expensesD30.push(...dayExpensesItems);
+      }
+      if (i <= 60) {
+        sumIncomesD60 += dayIncome;
+        sumExpensesD60 += totalDayExpense;
+        incomesD60.push(...dayIncomesItems);
+        expensesD60.push(...dayExpensesItems);
+      }
+    } else {
+      // Dia 0 (Hoje): se houver lançamentos pendentes agendados para hoje, aplicá-los ao saldo para os dias futuros
+      if (dayIncome > 0 || totalDayExpense > 0) {
+        runningBalance += dayIncome - totalDayExpense;
+        sumIncomesD30 += dayIncome;
+        sumExpensesD30 += totalDayExpense;
+        sumIncomesD60 += dayIncome;
+        sumExpensesD60 += totalDayExpense;
+        incomesD30.push(...dayIncomesItems);
+        expensesD30.push(...dayExpensesItems);
+        incomesD60.push(...dayIncomesItems);
+        expensesD60.push(...dayExpensesItems);
+      }
     }
 
     if (runningBalance < minBalance) {
@@ -7163,6 +7323,12 @@ export async function getCashFlowProjectionAction(days: number = 60) {
     });
   }
 
+  // Ordenar itens cronologicamente
+  incomesD30.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+  expensesD30.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+  incomesD60.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+  expensesD60.sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime());
+
   return {
     saldoInicialHoje: Math.round(initialBalanceToday * 100) / 100,
     saldoD30: Math.round(balanceD30 * 100) / 100,
@@ -7172,6 +7338,24 @@ export async function getCashFlowProjectionAction(days: number = 60) {
     diasNegativos: negativeCount,
     primeiroDiaNegativo: firstNegativeDate,
     points,
+    audit: {
+      d30: {
+        saldoInicial: Math.round(initialBalanceToday * 100) / 100,
+        totalEntradas: Math.round(sumIncomesD30 * 100) / 100,
+        totalSaidas: Math.round(sumExpensesD30 * 100) / 100,
+        saldoProjetado: Math.round(balanceD30 * 100) / 100,
+        incomes: incomesD30,
+        expenses: expensesD30,
+      },
+      d60: {
+        saldoInicial: Math.round(initialBalanceToday * 100) / 100,
+        totalEntradas: Math.round(sumIncomesD60 * 100) / 100,
+        totalSaidas: Math.round(sumExpensesD60 * 100) / 100,
+        saldoProjetado: Math.round(balanceD60 * 100) / 100,
+        incomes: incomesD60,
+        expenses: expensesD60,
+      },
+    },
   };
 }
 
