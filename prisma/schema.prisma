@@ -100,6 +100,8 @@ model Transaction {
   goalId             String?
   goal               Goal?           @relation(fields: [goalId], references: [id], onDelete: SetNull)
   goalContributionId String?
+  pixCreditOperationId String?
+  pixCreditOperation   CreditPixOperation? @relation(fields: [pixCreditOperationId], references: [id], onDelete: SetNull)
 }
 
 model Goal {
@@ -394,8 +396,9 @@ model CreditPixOperation {
   installmentGroupId  String   @unique
   incomeTransactionId String?
   description         String?
-  status              String   @default("ACTIVE")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt @default(now())
+  status              String        @default("ACTIVE")
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt @default(now())
+  transactions        Transaction[]
 }
 

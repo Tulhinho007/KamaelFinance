@@ -148,14 +148,26 @@ export async function updateTransaction(
   return transaction;
 }
 
-// Soft delete — mantém o histórico financeiro (nunca apaga de fato)
+// Regra A: Exclusão de transação sem deletar a operação mãe de PIX no Crédito
 export async function deleteTransaction(id: string) {
-  await prisma.transaction.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
+  try {
+    await prisma.transaction.delete({
+      where: { id },
+    });
+  } catch {
+    await prisma.transaction.updateMany({
+      where: { id },
+      data: { deletedAt: new Date(), pixCreditOperationId: null },
+    });
+  }
 
   revalidatePath("/dashboard");
+  revalidatePath("/cartoes");
+  revalidatePath("/despesas");
+}
+
+export async function deleteExpense(id: string) {
+  return deleteTransaction(id);
 }
 
 export async function createWallet(input: z.infer<typeof createWalletSchema>) {
@@ -2395,22 +2407,38 @@ export async function updateCardPurchase(
 }
 
 export async function deleteCardPurchase(id: string) {
-  await prisma.transaction.update({
-    where: { id },
-    data: { deletedAt: new Date() }
-  });
+  // Regra A: A exclusão de uma parcela ou despesa de dentro do extrato do cartão ou conta
+  // NUNCA deve apagar a operação mãe de "PIX no Crédito". Apenas a transação selecionada é removida.
+  try {
+    await prisma.transaction.delete({
+      where: { id },
+    });
+  } catch {
+    await prisma.transaction.updateMany({
+      where: { id },
+      data: { deletedAt: new Date(), pixCreditOperationId: null },
+    });
+  }
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
 export async function deleteBatchPurchasesAction(ids: string[]) {
   if (!ids || ids.length === 0) return;
-  await prisma.transaction.updateMany({
-    where: { id: { in: ids } },
-    data: { deletedAt: new Date() }
-  });
+  try {
+    await prisma.transaction.deleteMany({
+      where: { id: { in: ids } },
+    });
+  } catch {
+    await prisma.transaction.updateMany({
+      where: { id: { in: ids } },
+      data: { deletedAt: new Date(), pixCreditOperationId: null },
+    });
+  }
   revalidatePath("/cartoes");
   revalidatePath("/despesas");
+  revalidatePath("/dashboard");
 }
 
 export async function cleanFutureRecurringProjectionsAction() {

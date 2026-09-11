@@ -156,6 +156,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
 
   const opDate = input.operationDate ? new Date(input.operationDate) : new Date();
   const groupId = `cpix-${crypto.randomUUID()}`;
+  const operationId = crypto.randomUUID();
 
   // Executa toda a transação no banco de dados
   const result = await prisma.$transaction(async (tx) => {
@@ -178,7 +179,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
       });
     }
 
-    // 2. Cria a transação de entrada (INCOME) na conta corrente
+    // 2. Cria a transação de entrada (INCOME) na conta corrente vinculada à operação
     const incomeTx = await tx.transaction.create({
       data: {
         walletId: destAccount.id,
@@ -191,10 +192,11 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
         status: "COMPLETED",
         source: "MANUAL",
         tags: "#pixcredito",
+        pixCreditOperationId: operationId,
       },
     });
 
-    // 3. Cria as N transações de despesa parcelada no cartão de crédito
+    // 3. Cria as N transações de despesa parcelada no cartão de crédito vinculadas à operação
     for (let i = 1; i <= installmentsCount; i++) {
       // Cálculo da competência de fatura de cada parcela
       const rawMonth = input.firstBillingMonth + (i - 1);
@@ -219,6 +221,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
           status: "COMPLETED",
           source: "MANUAL",
           tags: "#pixcredito",
+          pixCreditOperationId: operationId,
         },
       });
     }
@@ -226,6 +229,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
     // 4. Cria o registro mestre de CreditPixOperation
     const operation = await (tx as any).creditPixOperation.create({
       data: {
+        id: operationId,
         userId,
         sourceCardWalletId: sourceCard.id,
         destAccountWalletId: destAccount.id,
@@ -417,6 +421,12 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
 
 /**
  * Exclui uma operação de PIX no Crédito em cascata (desfaz a receita e as parcelas no cartão)
+ * Regra B: Excluir da Gestão de "PIX no Crédito" (Módulo Mãe)
+ * - Localiza e deleta em cascata:
+ *   1. A operação de PIX no Crédito;
+ *   2. Todas as parcelas geradas nas faturas dos cartões vinculadas a ela;
+ *   3. A entrada de crédito/líquido gerada na conta corrente de destino (se houver);
+ * - Recalcula o saldo da conta e recompõe o limite do cartão.
  */
 export async function deleteCreditPixOperationAction(operationId: string) {
   const userId = await getActiveUserId();
@@ -428,17 +438,20 @@ export async function deleteCreditPixOperationAction(operationId: string) {
   if (!operation) throw new Error("Operação de PIX no Crédito não encontrada.");
 
   await prisma.$transaction(async (tx) => {
-    // 1. Remove a transação de entrada na conta se existir
+    // 1. Remove a transação de entrada na conta corrente se existir
     if (operation.incomeTransactionId) {
       await tx.transaction.deleteMany({
         where: { id: operation.incomeTransactionId },
       });
     }
 
-    // 2. Remove todas as parcelas geradas no cartão de crédito vinculadas ao groupId
+    // 2. Remove todas as parcelas geradas no cartão de crédito vinculadas à operação
     await tx.transaction.deleteMany({
       where: {
-        installmentGroupId: operation.installmentGroupId,
+        OR: [
+          { pixCreditOperationId: operationId },
+          { installmentGroupId: operation.installmentGroupId },
+        ],
       },
     });
 
@@ -446,9 +459,33 @@ export async function deleteCreditPixOperationAction(operationId: string) {
     await (tx as any).creditPixOperation.delete({
       where: { id: operationId },
     });
+
+    // 4. Recalcula o saldo da conta corrente de destino se aplicável
+    if (operation.destAccountWalletId) {
+      const destWallet = await tx.wallet.findUnique({ where: { id: operation.destAccountWalletId } });
+      if (destWallet) {
+        const txs = await tx.transaction.findMany({
+          where: { walletId: destWallet.id, deletedAt: null, status: "COMPLETED" }
+        });
+        const income = txs.filter(t => t.type === "INCOME").reduce((s, t) => s + Number(t.amount), 0);
+        const expense = txs.filter(t => t.type === "EXPENSE").reduce((s, t) => s + Number(t.amount), 0);
+        const currentTotal = Number(destWallet.initialBalance || 0) + income - expense;
+        await tx.wallet.update({
+          where: { id: destWallet.id },
+          data: { currentBalance: currentTotal }
+        });
+      }
+    }
   });
 
   revalidatePath("/pix-credito");
+  revalidatePath("/cartoes");
+  if (operation.sourceCardWalletId) {
+    revalidatePath(`/cartoes/${operation.sourceCardWalletId}`);
+  }
+  if (operation.destAccountWalletId) {
+    revalidatePath(`/cartoes/${operation.destAccountWalletId}`);
+  }
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/receitas");
