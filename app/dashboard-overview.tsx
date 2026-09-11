@@ -17,6 +17,9 @@ import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
 import { PaymentMethodChart } from "@/components/payment-method-chart";
+import { CurrencyValue } from "@/components/currency-value";
+import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
+import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
@@ -261,6 +264,9 @@ export function DashboardOverview() {
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">
       
+      {/* ── 0. BANNER DE ALERTAS DE VENCIMENTO IMINENTE (D-3 e D-1) ─────────── */}
+      <UpcomingDueAlertBanner bills={upcomingBills} />
+
       {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO FLEXÍVEL (VISÃO ANUAL vs MENSAL) ── */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div>
@@ -446,7 +452,7 @@ export function DashboardOverview() {
                     {isCredit ? "Limite Disponível" : "Saldo Atual"}
                   </span>
                   <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
-                    {brl(saldoDisp)}
+                    <CurrencyValue value={saldoDisp} />
                   </p>
                 </div>
 
@@ -461,7 +467,7 @@ export function DashboardOverview() {
                   <span className={`text-xs font-black font-tnum tabular-nums ${
                     isCredit ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-200"
                   }`}>
-                    {brl(isCredit ? card.faturaAtual : accountSpentInPeriod)}
+                    <CurrencyValue value={isCredit ? card.faturaAtual : accountSpentInPeriod} />
                   </span>
                 </div>
               </Link>
@@ -469,6 +475,9 @@ export function DashboardOverview() {
           })}
         </div>
       </section>
+
+      {/* ── 3. PROJEÇÃO DE FLUXO DE CAIXA (D+30 E D+60) ───────────────────────── */}
+      <CashFlowProjectionChart />
 
       {/* ── 4. GRÁFICOS & TABELAS SECUNDÁRIAS ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -700,7 +709,7 @@ export function DashboardOverview() {
                         <p className={`text-xs font-black font-tnum tabular-nums ${
                           isOverdue ? "text-rose-600 dark:text-rose-400" : isUrgent ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
                         }`}>
-                          {brl(bill.valor)}
+                          <CurrencyValue value={bill.valor} />
                         </p>
                         <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 border ${badgeStyle}`}>
                           {bill.statusLabel || (isOverdue ? "VENCIDA" : "PENDENTE")}

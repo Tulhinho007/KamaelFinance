@@ -22,9 +22,12 @@ import {
   History,
   Zap,
   Wrench,
-  Plane
+  Plane,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
+import { usePrivacyMode } from "@/components/privacy-context";
 import { getUserProfile } from "@/lib/actions";
 import { logoutAction } from "@/lib/auth-actions";
 
@@ -78,6 +81,7 @@ export const sidebarNavigation: SidebarNavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
+  const { isPrivate, togglePrivacy } = usePrivacyMode();
   const [userName, setUserName] = useState("Túlio Cavalcanti");
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -196,6 +200,15 @@ export function Sidebar() {
           </div>
         </Link>
         <button
+          onClick={togglePrivacy}
+          title={isPrivate ? "Mostrar valores (Modo Privacidade ativo)" : "Ocultar valores (Modo Privacidade)"}
+          className={`p-2 rounded-xl transition-all cursor-pointer flex-shrink-0 ${
+            isPrivate ? "text-amber-500 bg-amber-500/10" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+          }`}
+        >
+          {isPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+        <button
           onClick={toggleTheme}
           title={theme === "dark" ? "Alternar para Modo Claro" : "Alternar para Modo Escuro"}
           className="p-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer flex-shrink-0"
@@ -240,6 +253,15 @@ export function Sidebar() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={togglePrivacy}
+            title={isPrivate ? "Mostrar valores" : "Ocultar valores"}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isPrivate ? "text-amber-500 bg-amber-500/10" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            }`}
+          >
+            {isPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
           <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
             {initials}
           </div>

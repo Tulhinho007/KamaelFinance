@@ -19,6 +19,8 @@ import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { InjectBalanceModal } from "@/components/inject-balance-modal";
 import { CreditCardInvoiceTable } from "@/components/credit-card-invoice-table";
+import { CreditCardLimitBreakdown } from "@/components/credit-card-limit-breakdown";
+import { CurrencyValue } from "@/components/currency-value";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { getInvoiceStatusInfo } from "@/lib/invoice-utils";
@@ -486,22 +488,26 @@ export default function CartaoDetailPage() {
     paidInvoiceKeys.add(`${selectedMonth}-${selectedYear}`);
   }
 
-  // Soma de todos os débitos em aberto no cartão cujas faturas de competência NÃO foram pagas
-  const pendingDebitsSum = purchasesList
+  // ── GESTÃO DE LIMITE COMPROMETIDO REAL (CARTÕES DE CRÉDITO) ──
+  // 1. Limite Total contratado
+  const creditLimit = cardData.creditLimit || 0;
+  // 2. Fatura Corrente (Gastos do ciclo aberto do mês atual)
+  const isInvoicePaid = !!(cardData as any).isPaid;
+  const faturaCorrente = isInvoicePaid ? 0 : impactoMes;
+  // 3. Faturas Futuras (Parcelas a Vencer nos meses seguintes D+30, D+60...)
+  const faturasFuturas = purchasesList
     .filter((p) => {
       if (!p || !p.amount) return false;
-      const { year: pYear, month: pMonth } = getYearMonth(p.date);
-      const key = `${pMonth}-${pYear}`;
-      const isPaid = paidInvoiceKeys.has(key);
-      return !isPaid;
+      const { year: pYear, month: pMonth } = getCompetenceYearMonth(p);
+      const isFuture = (pYear * 12 + pMonth) > (selectedYear * 12 + selectedMonth);
+      const isPaid = paidInvoiceKeys.has(`${pMonth}-${pYear}`);
+      return isFuture && !isPaid;
     })
     .reduce((sum, p) => sum + (p.amount || 0), 0);
-
-  const isInvoicePaid = !!(cardData as any).isPaid;
-  const creditLimit = cardData.creditLimit || 0;
-  const limitCompromised = pendingDebitsSum;
-  const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - limitCompromised));
-  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((limitCompromised / creditLimit) * 100)) : 0;
+  // 4. Limite Real Disponível = Limite Total - (Fatura Corrente + Faturas Futuras)
+  const totalComprometidoReal = faturaCorrente + faturasFuturas;
+  const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - totalComprometidoReal));
+  const usagePct = creditLimit > 0 ? Math.min(100, Math.round((totalComprometidoReal / creditLimit) * 100)) : 0;
 
   // Para Ticket Alimentação / Benefício / Conta Corrente com Rollover
   const filteredMonthExpenses = purchasesList.filter(p => {
@@ -812,8 +818,17 @@ export default function CartaoDetailPage() {
 
       {isCredit ? (
         // ── VISÃO PARA CARTÃO DE CRÉDITO (DARK THEME) ─────────────────────────────────────
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-6">
           
+          {/* Componente de Gestão de Limite Comprometido Real com Barra Tri-color */}
+          <CreditCardLimitBreakdown
+            limiteTotal={creditLimit}
+            faturaCorrente={faturaCorrente}
+            faturasFuturas={faturasFuturas}
+            isInvoicePaid={isInvoicePaid}
+            cardTitle={cardData.title}
+          />
+
           <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-stretch w-full">
             {/* Card 1 — LIMITE TOTAL */}
             <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
@@ -824,7 +839,7 @@ export default function CartaoDetailPage() {
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
                 <p className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap" title={brl(cardData.creditLimit)}>
-                  {brl(cardData.creditLimit)}
+                  <CurrencyValue value={cardData.creditLimit} />
                 </p>
               </div>
               <div className="h-7 flex items-center w-full">
@@ -834,7 +849,7 @@ export default function CartaoDetailPage() {
               </div>
             </div>
 
-            {/* Card 2 — LIMITE DISPONÍVEL */}
+            {/* Card 2 — LIMITE DISPONÍVEL REAL */}
             <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
@@ -843,7 +858,7 @@ export default function CartaoDetailPage() {
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
                 <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${limitAvailable < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`} title={brl(limitAvailable)}>
-                  {brl(limitAvailable)}
+                  <CurrencyValue value={limitAvailable} />
                 </p>
               </div>
               <div className="h-7 flex items-center w-full">
@@ -865,7 +880,7 @@ export default function CartaoDetailPage() {
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
                 <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${impactoMes <= 0 ? "text-slate-900 dark:text-white" : (cardData as any).isPaid ? "text-emerald-600 dark:text-emerald-400" : (cardData as any).isPast ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`} title={brl(impactoMes)}>
-                  {brl(impactoMes)}
+                  <CurrencyValue value={impactoMes} />
                 </p>
               </div>
               <div className="h-7 flex items-center w-full overflow-hidden">

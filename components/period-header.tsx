@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Calendar, Moon, Sun, Bell } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Moon, Sun, Bell, Eye, EyeOff } from "lucide-react";
 import { usePeriod } from "./period-context";
 import { useTheme } from "./theme-context";
+import { usePrivacyMode } from "./privacy-context";
 
 type PeriodHeaderProps = {
   title: string;
@@ -22,6 +23,7 @@ const YEARS_LIST = Array.from({ length: 11 }, (_, i) => 2020 + i);
 export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderProps) {
   const { selectedMonth, selectedYear, prevMonth, nextMonth, setPeriod, goToCurrentMonth } = usePeriod();
   const { theme, toggleTheme } = useTheme();
+  const { isPrivate, togglePrivacy } = usePrivacyMode();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -156,6 +158,18 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
       {/* 3. Ações e Status */}
       <div className="hidden sm:flex items-center gap-2">
+        <button
+          onClick={togglePrivacy}
+          title={isPrivate ? "Mostrar valores (Modo Privacidade ativo)" : "Ocultar valores (Modo Privacidade)"}
+          className={`p-2 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center justify-center ${
+            isPrivate
+              ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/25"
+              : "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+          }`}
+        >
+          {isPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+
         <button className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-colors cursor-pointer">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full border border-white dark:border-slate-900"></span>

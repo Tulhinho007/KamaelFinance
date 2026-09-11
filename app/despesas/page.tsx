@@ -22,6 +22,7 @@ import {
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
+import { CurrencyValue } from "@/components/currency-value";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const brl = (v: number) =>
@@ -909,7 +910,7 @@ export default function DespesasPage() {
           {/* Meio: Valor em Destaque + Projeção Prevista */}
           <div className="py-2 my-auto flex flex-col justify-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white font-tnum tabular-nums">
-              {formatCurrency(saldoTotalContas)}
+              <CurrencyValue value={saldoTotalContas} />
             </h2>
             <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
               <span>Previsto após contas do mês:</span>
@@ -921,7 +922,7 @@ export default function DespesasPage() {
                     : "text-emerald-600 dark:text-emerald-400"
                 }`}
               >
-                {saldoPrevisto >= 0 ? `+ ${formatCurrency(saldoPrevisto)}` : formatCurrency(saldoPrevisto)}
+                <CurrencyValue value={saldoPrevisto} showSign={true} />
               </span>
             </div>
           </div>
@@ -930,7 +931,7 @@ export default function DespesasPage() {
           <div className="min-h-[36px] flex items-center mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
             <p className="text-green-600 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1.5">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+ {formatCurrency(totalEntradasMes)}</span>
+              <span>+ <CurrencyValue value={totalEntradasMes} /></span>
               <span className="text-slate-400 font-normal">Entradas no Mês</span>
             </p>
           </div>

@@ -6985,4 +6985,179 @@ export async function getPaymentHistoryData(month: number, year: number) {
   };
 }
 
+// ---------- 16. PROJEÇÃO DE FLUXO DE CAIXA (D+30 E D+60) ----------
+
+export async function getCashFlowProjectionAction(days: number = 60) {
+  const userId = await getActiveUserId();
+  const maxDays = Math.min(90, Math.max(7, days));
+
+  const now = new Date();
+  const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0));
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+
+  // 1. Saldo inicial em contas correntes hoje
+  const bankWallets = await prisma.wallet.findMany({
+    where: {
+      userId,
+      walletType: { in: ["CONTA_CORRENTE", "Conta Corrente"] },
+    },
+  });
+
+  let initialBalanceToday = 0;
+  for (const w of bankWallets) {
+    const bInfo = await calculateAccountBalance(w.id, curMonth, curYear);
+    initialBalanceToday += Number(bInfo?.finalBalance ?? 0);
+  }
+
+  // 2. Faturas de cartão de crédito pendentes com suas datas de vencimento
+  const upcomingBills = await getUpcomingCreditCardBills(userId);
+
+  // Mapear saídas de faturas por data YYYY-MM-DD
+  const cardInvoicesDueByDate = new Map<string, number>();
+  for (const bill of upcomingBills) {
+    if (bill.valor > 0 && bill.dueDate) {
+      const d = new Date(bill.dueDate);
+      const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      cardInvoicesDueByDate.set(dateKey, (cardInvoicesDueByDate.get(dateKey) || 0) + Number(bill.valor));
+    }
+  }
+
+  // 3. Buscar transações futuras ou pendentes (receitas a receber e despesas/boletos a pagar)
+  const projectionEndDate = new Date(todayStart.getTime() + (maxDays + 2) * 24 * 3600 * 1000);
+
+  const pendingTransactions = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      deletedAt: null,
+      source: { not: "RECURRING_PROJECTION" },
+      OR: [
+        {
+          date: { gte: todayStart, lte: projectionEndDate },
+        },
+        {
+          dueDate: { gte: todayStart, lte: projectionEndDate },
+        },
+        {
+          competenceDate: { gte: todayStart, lte: projectionEndDate },
+        },
+        {
+          status: "PENDING",
+        },
+      ],
+    },
+    include: {
+      wallet: { select: { walletType: true, title: true } },
+      category: true,
+    },
+  });
+
+  // Mapear receitas e despesas por dia (YYYY-MM-DD)
+  const incomesByDate = new Map<string, number>();
+  const expensesByDate = new Map<string, number>();
+
+  for (const tx of pendingTransactions) {
+    const amt = Number(tx.amount || 0);
+    if (amt <= 0) continue;
+
+    const wType = (tx.wallet?.walletType || "").toUpperCase();
+    if (["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) continue;
+
+    // Data de referência do impacto financeiro (dueDate ou date ou competenceDate)
+    const targetDate = tx.dueDate || tx.date || tx.competenceDate;
+    if (!targetDate) continue;
+
+    const d = new Date(targetDate);
+    const dateKey = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+
+    if (tx.type === "INCOME") {
+      // Receita pendente ou agendada
+      const isPendingOrFuture = tx.status === "PENDING" || d >= todayStart;
+      if (isPendingOrFuture) {
+        incomesByDate.set(dateKey, (incomesByDate.get(dateKey) || 0) + amt);
+      }
+    } else if (tx.type === "EXPENSE") {
+      // Despesa pendente em conta corrente/débito/boleto (não cartão de crédito, pois fatura já foi somada)
+      if (wType !== "CREDIT_CARD" && !isInvoicePaymentTransaction(tx)) {
+        if (tx.status === "PENDING" || d >= todayStart) {
+          expensesByDate.set(dateKey, (expensesByDate.get(dateKey) || 0) + amt);
+        }
+      }
+    }
+  }
+
+  // 4. Iterar dia a dia de 0 a maxDays e calcular a curva cumulativa
+  const points = [];
+  let runningBalance = initialBalanceToday;
+  let minBalance = runningBalance;
+  let negativeCount = 0;
+  let firstNegativeDate: string | null = null;
+  let balanceD30 = runningBalance;
+  let balanceD60 = runningBalance;
+
+  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+  for (let i = 0; i <= maxDays; i++) {
+    const dayDate = new Date(todayStart.getTime() + i * 24 * 3600 * 1000);
+    const y = dayDate.getUTCFullYear();
+    const m = dayDate.getUTCMonth() + 1;
+    const d = dayDate.getUTCDate();
+    const dateKey = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+    const dayIncome = incomesByDate.get(dateKey) || 0;
+    const dayExpensesTrans = expensesByDate.get(dateKey) || 0;
+    const dayCardBills = cardInvoicesDueByDate.get(dateKey) || 0;
+    const totalDayExpense = dayExpensesTrans + dayCardBills;
+
+    if (i > 0) {
+      runningBalance += dayIncome - totalDayExpense;
+    }
+
+    if (runningBalance < minBalance) {
+      minBalance = runningBalance;
+    }
+
+    if (runningBalance < 0) {
+      negativeCount++;
+      if (!firstNegativeDate) {
+        firstNegativeDate = `${String(d).padStart(2, "0")}/${monthShorts[m - 1]}`;
+      }
+    }
+
+    if (i === 30) {
+      balanceD30 = runningBalance;
+    }
+    if (i === 60) {
+      balanceD60 = runningBalance;
+    }
+
+    const label = i === 0 ? "Hoje" : `${String(d).padStart(2, "0")}/${monthShorts[m - 1]}`;
+    const fullDate = `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+
+    points.push({
+      dayIndex: i,
+      dateKey,
+      label,
+      fullDate,
+      saldo: Math.round(runningBalance * 100) / 100,
+      entradas: Math.round(dayIncome * 100) / 100,
+      saidas: Math.round(totalDayExpense * 100) / 100,
+      isToday: i === 0,
+      isNegative: runningBalance < 0,
+    });
+  }
+
+  return {
+    saldoInicialHoje: Math.round(initialBalanceToday * 100) / 100,
+    saldoD30: Math.round(balanceD30 * 100) / 100,
+    saldoD60: Math.round(balanceD60 * 100) / 100,
+    menorSaldo: Math.round(minBalance * 100) / 100,
+    hasNegativeBalance: minBalance < 0,
+    diasNegativos: negativeCount,
+    primeiroDiaNegativo: firstNegativeDate,
+    points,
+  };
+}
+
+
 

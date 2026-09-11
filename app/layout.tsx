@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { PeriodProvider } from "@/components/period-context";
 import { ThemeProvider } from "@/components/theme-context";
+import { PrivacyProvider } from "@/components/privacy-context";
 import { CustomDialogProvider } from "@/components/ui/custom-dialog-provider";
 import { AppShell } from "@/components/app-shell";
 
@@ -33,11 +34,13 @@ export default function RootLayout({
     >
       <body className="min-h-full flex bg-slate-100 text-slate-900 dark:bg-[#090D16] dark:text-slate-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
-          <PeriodProvider>
-            <CustomDialogProvider>
-              <AppShell>{children}</AppShell>
-            </CustomDialogProvider>
-          </PeriodProvider>
+          <PrivacyProvider>
+            <PeriodProvider>
+              <CustomDialogProvider>
+                <AppShell>{children}</AppShell>
+              </CustomDialogProvider>
+            </PeriodProvider>
+          </PrivacyProvider>
         </ThemeProvider>
       </body>
     </html>
