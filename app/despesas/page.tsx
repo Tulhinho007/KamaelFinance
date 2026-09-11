@@ -299,7 +299,7 @@ export default function DespesasPage() {
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
 
   // Controle de Faturas Pagas / Pendentes & Modal de Pagamento
-  const [invoiceTab, setInvoiceTab]                 = useState<"pending" | "paid" | "recurring">("pending");
+  const [invoiceTab, setInvoiceTab]                 = useState<"pending" | "paid">("pending");
   const [paidInvoicesList, setPaidInvoicesList]     = useState<any[]>([]);
   const [pendingExpensesList, setPendingExpensesList] = useState<any[]>([]);
   const [paidExpensesList, setPaidExpensesList]       = useState<any[]>([]);
@@ -1131,25 +1131,25 @@ export default function DespesasPage() {
         );
       })()}
 
-      {/* ── 6. CONTAS E FATURAS A VENCER (CALENDÁRIO FINANCEIRO) ────────────────── */}
+      {/* ── 6. FATURAS A VENCER ────────────────── */}
       <section>
-        <div className="bg-white dark:bg-[#131B2E] rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col gap-5">
+        <div className="bg-white dark:bg-[#131B2E] rounded-[28px] border border-slate-200 dark:border-slate-800 p-6 shadow-sm flex flex-col gap-4">
 
           {/* Header da seção + Tabs (A Vencer vs Pagas) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
-              <span className="rounded-full bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 px-3 py-1 text-[10px] font-black tracking-widest text-indigo-600 dark:text-indigo-400 uppercase">
-                Calendário Financeiro
-              </span>
-              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 mt-2">
-                Contas e Faturas a Vencer
+              <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                Faturas a Vencer
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-100 dark:bg-rose-950/60 dark:text-rose-400 dark:border-rose-900/60">
+                  {unifiedUpcomingItems.length}
+                </span>
               </h3>
-              <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                Status de pagamento das faturas de cartão de crédito do mês
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                Compromissos pendentes nos próximos dias
               </p>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
                 <button
                   type="button"
@@ -1173,265 +1173,149 @@ export default function DespesasPage() {
                 >
                   Pagas ({filteredPaidCardInvoices.length})
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceTab("recurring")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    invoiceTab === "recurring"
-                      ? "bg-white dark:bg-[#1A233A] text-purple-600 dark:text-purple-400 shadow-xs"
-                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                  }`}
-                >
-                  Recorrentes & Fixas ({recurringExpensesList.length})
-                </button>
               </div>
 
-              {cards.length > 0 && (
-                <Link
-                  href="/cartoes"
-                  className="flex items-center gap-1.5 text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 border border-indigo-100 dark:border-indigo-900/60 px-3 py-2 rounded-xl transition-all"
-                >
-                  Cartões
-                  <ChevronRight className="w-3 h-3" />
-                </Link>
-              )}
-            </div>
-          </div>
-
-          {/* Barra de Progresso Visual de Pagamento do Mês */}
-          <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-            <div className="flex justify-between items-center text-xs font-bold">
-              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                Progresso de Pagamento das Faturas de Cartão
-              </span>
-              <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{pctGeralPago}% pago</span>
-            </div>
-            <div className="w-full bg-slate-200/80 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-emerald-500 rounded-full transition-all duration-700"
-                style={{ width: `${pctGeralPago}%` }}
-              />
-            </div>
-            <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-              <span>Pago: {formatCurrency(totalPagoMes)}</span>
-              <span>Total no Período: {formatCurrency(totalGeralMes)}</span>
+              <Link
+                href="/cartoes"
+                className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
+              >
+                Ver todas <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
           </div>
 
           {/* Conteúdo da Aba Ativa */}
           {invoiceTab === "pending" ? (
             unifiedUpcomingItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura de cartão pendente a vencer neste mês.</p>
+              <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 dark:text-emerald-400/80" />
+                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                  Nenhuma fatura pendente para os próximos dias.
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-                {unifiedUpcomingItems.map((item) => (
-                  <div
-                    key={`card-bill-${item.id}`}
-                    className="flex items-center justify-between p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xs hover:shadow-xs transition-all min-h-[90px] gap-3"
-                  >
-                    {/* Bloco Esquerdo: Ícone + Info */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                        item.status === "vencido"
-                          ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-900"
-                          : "bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-800/60"
-                      }`}>
-                        <CreditCard className="w-6 h-6" />
+              <div className="flex flex-col gap-2.5">
+                {unifiedUpcomingItems.map((fatura) => {
+                  const cardName = fatura.bankName || fatura.description.replace(/^Fatura\s+/, "") || "Cartão";
+                  const valorTotal = fatura.amount;
+                  const dataVencimento = fatura.dueDate;
+                  const isOverdue = fatura.status === "vencido";
+                  const statusLabel = isOverdue ? "VENCIDA" : "PENDENTE";
+
+                  return (
+                    <div
+                      key={`card-bill-${fatura.id}`}
+                      onClick={() => {
+                        setSelectedPaymentWalletId("NONE");
+                        setPayModalCard({
+                          id: fatura.id,
+                          title: cardName,
+                          amount: fatura.amount,
+                          month: fatura.month || activeMonth,
+                          year: fatura.year || selectedYear,
+                        });
+                      }}
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer group"
+                      title="Clique para pagar ou ver detalhes da fatura"
+                    >
+                      {/* Lado Esquerdo: Ícone + Detalhes */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 shadow-sm shrink-0">
+                          {/* Ícone de relógio Clock ou CreditCard */}
+                          <Clock className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">
+                            {cardName}
+                          </h4>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 font-normal">
+                            Vencimento: {dataVencimento}
+                          </span>
+                        </div>
                       </div>
 
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">
-                          {item.description}
+                      {/* Lado Direito: Valor + Badge */}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white font-tnum tabular-nums">
+                          {formatCurrency(valorTotal)}
                         </span>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                          Vence em {item.dueDate}
-                        </span>
-                        <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
-                          • CARTÃO DE CRÉDITO
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Bloco Direito: Valor, Badge e Botão de Ação */}
-                    <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                      <div className="flex flex-col items-end">
-                        <span className="text-base font-bold text-slate-900 dark:text-white font-tnum">
-                          {formatCurrency(item.amount)}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
-                          item.status === "vencido"
-                            ? "bg-rose-50 dark:bg-rose-950/80 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
-                            : "bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                          isOverdue
+                            ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
                         }`}>
-                          {item.status === "vencido" ? "VENCIDA" : "AGUARDANDO PAGAMENTO"}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPaymentWalletId("NONE");
-                          setPayModalCard({
-                            id: item.id,
-                            title: item.description.replace(/^Fatura\s+/, "") || item.bankName || "Cartão",
-                            amount: item.amount,
-                            month: item.month || activeMonth,
-                            year: item.year || selectedYear,
-                          });
-                        }}
-                        className="px-3.5 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer whitespace-nowrap"
-                        title="Efetuar pagamento da fatura com débito em conta"
-                      >
-                        <CheckCircle2 className="w-4 h-4"/>
-                        Pagar Fatura
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : invoiceTab === "paid" ? (
-            filteredPaidCardInvoices.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                <Clock className="w-8 h-8 text-slate-300" />
-                <p className="text-xs font-semibold text-slate-400">Nenhuma fatura de cartão paga encontrada para este período.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5">
-                {filteredPaidCardInvoices.map((paidItem: any) => (
-                  <div
-                    key={`paid-inv-${paidItem.id}`}
-                    className="flex items-center justify-between p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50/20 dark:bg-emerald-950/20 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors min-h-[90px] gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                        <CreditCard className="w-6 h-6" />
-                      </div>
-
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm">{paidItem.cardTitle || paidItem.bankName}</span>
-                        <span className="text-xs text-emerald-700 dark:text-emerald-400 truncate">
-                          Fatura Paga em {new Date(paidItem.paidAt).toLocaleDateString("pt-BR")}
-                        </span>
-                        <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400 uppercase tracking-wide truncate">
-                          • CARTÃO DE CRÉDITO {paidItem.paymentWalletTitle ? `(Débito: ${paidItem.paymentWalletTitle})` : ""}
+                          {statusLabel}
                         </span>
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                      <div className="flex flex-col items-end">
-                        <span className="text-base font-bold text-slate-800 dark:text-white font-tnum">{formatCurrency(paidItem.amount)}</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full whitespace-nowrap bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                          PAGO
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => handleUndoPayment(paidItem.walletId, paidItem.month, paidItem.year)}
-                        className="text-xs font-semibold text-slate-500 hover:text-rose-600 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950 border border-slate-200 dark:border-slate-700 hover:border-rose-200 px-3 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap"
-                        title="Desfazer pagamento e reabrir fatura"
-                      >
-                        Desfazer
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )
           ) : (
-            /* 3. Tabela Dedicada para Assinaturas e Contas Recorrentes */
-            <div className="overflow-x-auto">
-              {recurringExpensesList.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-                  <Repeat className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                  <p className="text-xs font-semibold text-slate-400">
-                    Nenhuma assinatura ou despesa recorrente cadastrada para este mês.
-                  </p>
-                  <p className="text-[10px] text-slate-400">
-                    Ao lançar uma nova despesa, marque a opção "Despesa Recorrente / Assinatura" para exibi-la aqui.
-                  </p>
-                </div>
-              ) : (
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      <th className="py-3 px-4">Serviço / Conta</th>
-                      <th className="py-3 px-4">Categoria</th>
-                      <th className="py-3 px-4">Vencimento / Cobrança</th>
-                      <th className="py-3 px-4">Forma de Pagamento</th>
-                      <th className="py-3 px-4 text-right">Valor Previsto</th>
-                      <th className="py-3 px-4 text-center">Status</th>
-                      <th className="py-3 px-4 text-center">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                    {recurringExpensesList.map((item) => (
-                      <tr
-                        key={`rec-${item.id}`}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                              <Repeat className="w-3.5 h-3.5" />
-                            </div>
-                            <span>{item.description}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
-                          {item.categoryName}
-                        </td>
-                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 font-semibold">
-                          {item.billingDayText}
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
-                          <span className="inline-flex items-center gap-1">
-                            {item.isCredit ? <CreditCard className="w-3 h-3 text-purple-500" /> : <Wallet className="w-3 h-3 text-indigo-500" />}
-                            {item.formaPagamento}
+            filteredPaidCardInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+                <Clock className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                  Nenhuma fatura de cartão paga encontrada para este período.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2.5">
+                {filteredPaidCardInvoices.map((paidItem: any) => {
+                  const cardTitle = paidItem.cardTitle || paidItem.bankName || "Cartão";
+                  const paidDate = paidItem.paidAt
+                    ? new Date(paidItem.paidAt).toLocaleDateString("pt-BR")
+                    : "Confirmado";
+
+                  return (
+                    <div
+                      key={`paid-inv-${paidItem.id}`}
+                      className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors"
+                    >
+                      {/* Lado Esquerdo: Ícone + Detalhes */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">
+                            {cardTitle}
+                          </h4>
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-normal">
+                            Fatura paga em {paidDate}
+                            {paidItem.paymentWalletTitle ? ` • Débito: ${paidItem.paymentWalletTitle}` : ""}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-black text-slate-900 dark:text-white font-tnum">
-                          {formatCurrency(item.amount)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${item.statusStyle}`}>
-                            {item.status}
+                        </div>
+                      </div>
+
+                      {/* Lado Direito: Valor + Badge */}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white font-tnum tabular-nums">
+                          {formatCurrency(paidItem.amount)}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            PAGA
                           </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          {!item.isCredit && !item.isPaid ? (
-                            <button
-                              type="button"
-                              onClick={() => handleMarkBillPaid(item.id)}
-                              className="px-2.5 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                            >
-                              Dar Baixa
-                            </button>
-                          ) : item.isCredit ? (
-                            <Link
-                              href={`/cartoes/${item.walletId}`}
-                              className="px-2.5 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800"
-                            >
-                              Ver Cartão
-                            </Link>
-                          ) : (
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                              Liquidado
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUndoPayment(paidItem.walletId, paidItem.month, paidItem.year);
+                            }}
+                            className="text-[10px] font-semibold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            title="Desfazer pagamento e reabrir fatura"
+                          >
+                            Desfazer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
           )}
         </div>
       </section>
