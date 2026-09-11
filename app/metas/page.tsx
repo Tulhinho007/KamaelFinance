@@ -638,73 +638,84 @@ export default function MetasPage() {
                 >
                   
                   {/* Cabeçalho do Card */}
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {/* Container do Ícone Circular Translúcido com Glow */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCompleted ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]" : iconStyle}`}>
-                        <IconComponent className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight truncate max-w-[130px]" title={meta.title}>
-                          {meta.title}
-                        </h3>
-                        <p className="text-[9px] font-extrabold text-slate-500 dark:text-slate-300 block mt-0.5">
-                          {formatDateDisplay(meta.dataInicio)} a {formatDateDisplay(meta.dataFim)}
-                        </p>
-                        <div className="mt-1 flex items-center gap-1">
-                          {meta.tipo === "COFRINHO" || meta.isRealSaving ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 tracking-tight">
-                              <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
-                              Cofrinho Vinculado {meta.walletTitle ? `à ${meta.walletTitle}` : ""}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 tracking-tight">
-                              <Target className="w-2.5 h-2.5 text-slate-400" />
-                              Meta de Planejamento
-                            </span>
-                          )}
+                  <div className="flex flex-col gap-2.5">
+                    {/* Barra Superior: Ícone + Tipo / Ações + Progresso */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* Container do Ícone Circular Translúcido com Glow */}
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isCompleted ? "bg-emerald-500/20 text-emerald-400 border border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]" : iconStyle}`}>
+                          <IconComponent className="w-4 h-4" />
                         </div>
+                        {meta.tipo === "COFRINHO" || meta.isRealSaving ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 tracking-tight truncate">
+                            <Coins className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            Cofrinho {meta.walletTitle ? `(${meta.walletTitle})` : ""}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8.5px] font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 tracking-tight">
+                            <Target className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                            Planejamento
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Botões Rápidos e Porcentagem */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-0.5 text-slate-400">
+                          {isCompleted ? (
+                            <button
+                              onClick={() => handleToggleGoalStatus(meta.id.toString(), "ACTIVE")}
+                              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                              title="Reabrir Meta"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleToggleGoalStatus(meta.id.toString(), "COMPLETED")}
+                              className="p-1 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
+                              title="Marcar como Concluída"
+                            >
+                              <Trophy className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          <button 
+                            onClick={() => openEditModal(meta)}
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                            title="Editar Meta"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button 
+                            onClick={() => openDeleteModal(meta)}
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                            title="Excluir Meta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <span className={`text-xs font-black px-2 py-0.5 rounded-full border ${
+                          isCompleted 
+                            ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800/60" 
+                            : "text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200 dark:border-indigo-800/60"
+                        }`}>
+                          {isCompleted ? "100%" : `${meta.pct}%`}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Botões Rápidos (Concluir / Reabrir / Editar / Excluir / Porcentagem) */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isCompleted ? (
-                        <button
-                          onClick={() => handleToggleGoalStatus(meta.id.toString(), "ACTIVE")}
-                          className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                          title="Reabrir Meta"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleToggleGoalStatus(meta.id.toString(), "COMPLETED")}
-                          className="p-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer"
-                          title="Marcar como Concluída"
-                        >
-                          <Trophy className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => openEditModal(meta)}
-                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
-                        title="Editar Meta"
+                    {/* Título com espaço livre total para não truncar */}
+                    <div>
+                      <h3 
+                        className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight leading-snug break-words" 
+                        title={meta.title}
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button 
-                        onClick={() => openDeleteModal(meta)}
-                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                        title="Excluir Meta"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                      <span className={`text-sm font-black pl-1 ${isCompleted ? "text-emerald-600 dark:text-emerald-400" : "text-indigo-600 dark:text-indigo-400"}`}>
-                        {isCompleted ? "100%" : `${meta.pct}%`}
-                      </span>
+                        {meta.title}
+                      </h3>
+                      <p className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 block mt-0.5">
+                        {formatDateDisplay(meta.dataInicio)} a {formatDateDisplay(meta.dataFim)}
+                      </p>
                     </div>
-
                   </div>
 
                   {/* Badge Dinâmico / Selo de Celebração */}

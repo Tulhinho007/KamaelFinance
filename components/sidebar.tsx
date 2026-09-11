@@ -28,6 +28,53 @@ import { useTheme } from "@/components/theme-context";
 import { getUserProfile } from "@/lib/actions";
 import { logoutAction } from "@/lib/auth-actions";
 
+export interface SidebarNavItem {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+  badge?: string;
+}
+
+export interface SidebarNavGroup {
+  group: string;
+  items: SidebarNavItem[];
+}
+
+export const sidebarNavigation: SidebarNavGroup[] = [
+  {
+    group: "VISÃO GERAL",
+    items: [
+      { name: "Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "Despesas & Contas", href: "/despesas", icon: CreditCard },
+      { name: "Receitas", href: "/receitas", icon: TrendingUp },
+      { name: "Histórico de Pagamentos", href: "/historico-pagamentos", icon: History },
+    ],
+  },
+  {
+    group: "GESTÃO DE LIQUIDEZ & CRÉDITO",
+    items: [
+      { name: "PIX no Crédito", href: "/pix-credito", icon: Zap },
+      { name: "Radar de Gastos", href: "/gestao-financeira/radar-gastos", icon: Radar },
+    ],
+  },
+  {
+    group: "PLANEJAMENTO & METAS",
+    items: [
+      { name: "Objetivos & Reservas", href: "/metas", icon: Target },
+      { name: "Planejamento de Viagens", href: "/planejamento", icon: Plane },
+      { name: "Investimentos", href: "/investimentos", icon: PieChart },
+      { name: "Orçamentos", href: "/gestao-financeira/orcamentos", icon: BarChart3, badge: "EM BREVE" },
+    ],
+  },
+  {
+    group: "SISTEMA",
+    items: [
+      { name: "Usuários", href: "/usuarios", icon: Users },
+      { name: "Configurações", href: "/configuracoes", icon: Settings },
+    ],
+  },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
@@ -66,44 +113,32 @@ export function Sidebar() {
 
   const initials = getInitials(userName);
 
-  const menuGroups = [
-    {
-      group: "VISÃO GERAL",
-      items: [
-        { label: "Dashboard", icon: LayoutDashboard, path: "/" },
-        { label: "Planejamento de Viagens", icon: Plane, path: "/planejamento" },
-        { label: "Reserva de Emergência", icon: ShieldCheck, path: "/planejamento/reserva" },
-        { label: "Objetivos & Reservas", icon: Target, path: "/metas" },
-      ],
-    },
-    {
-      group: "GESTÃO FINANCEIRA",
-      items: [
-        { label: "Receitas", icon: TrendingUp, path: "/receitas" },
-        { label: "Despesas & Contas", icon: CreditCard, path: "/despesas" },
-        { label: "PIX no Crédito", icon: Zap, path: "/pix-credito" },
-        { label: "Histórico de Pagamentos", icon: History, path: "/historico-pagamentos" },
-        { label: "Radar de Gastos", icon: Radar, path: "/gestao-financeira/radar-gastos" },
-        { label: "Orçamentos", icon: BarChart3, path: "/gestao-financeira/orcamentos" },
-        { label: "Investimentos", icon: PieChart, path: "/investimentos" },
-      ],
-    },
-    {
-      group: "SISTEMA",
-      items: [
-        { label: "Usuários", icon: Users, path: "/usuarios" },
-        { label: "Configurações", icon: Settings, path: "/configuracoes" },
-      ],
-    },
-  ];
 
-  const navLink = (href: string, label: string, Icon: React.ElementType) => {
+
+  const navLink = (href: string, label: string, Icon: React.ElementType, badge?: string) => {
     const active =
       pathname === href ||
-      (href !== "/" &&
-        (href === "/planejamento"
-          ? pathname.startsWith("/planejamento") && !pathname.startsWith("/planejamento/reserva")
-          : pathname.startsWith(href)));
+      (href !== "/" && pathname.startsWith(href));
+
+    if (badge) {
+      return (
+        <Link
+          key={href}
+          href={href}
+          onClick={() => setIsMobileOpen(false)}
+          className="flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 text-slate-400 dark:text-slate-500 hover:bg-amber-50/60 dark:hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-400 font-semibold group"
+          title="Módulo em manutenção — disponível em breve"
+        >
+          <Icon className="w-4 h-4 flex-shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-amber-500 transition-colors" />
+          <span className="flex-1">{label}</span>
+          <span className="ml-auto inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
+            <Wrench className="w-2.5 h-2.5" />
+            {badge}
+          </span>
+        </Link>
+      );
+    }
+
     return (
       <Link
         key={href}
@@ -131,34 +166,13 @@ export function Sidebar() {
     </span>
   );
 
-  const navLinkMaintenance = (href: string, label: string, Icon: React.ElementType) => {
-    return (
-      <Link
-        key={href}
-        href={href}
-        onClick={() => setIsMobileOpen(false)}
-        className="flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 text-slate-400 dark:text-slate-500 hover:bg-amber-50/60 dark:hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-400 font-semibold group"
-        title="Módulo em manutenção — disponível em breve"
-      >
-        <Icon className="w-4 h-4 flex-shrink-0 text-slate-300 dark:text-slate-600 group-hover:text-amber-500 transition-colors" />
-        <span className="flex-1">{label}</span>
-        <span className="ml-auto inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap">
-          <Wrench className="w-2.5 h-2.5" />
-          Em breve
-        </span>
-      </Link>
-    );
-  };
-
   const navigationContent = (
     <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-      {menuGroups.map((group) => (
+      {sidebarNavigation.map((group) => (
         <div key={group.group} className="space-y-0.5">
           {sectionLabel(group.group)}
           {group.items.map((item) =>
-            item.path === "/gestao-financeira/orcamentos"
-              ? navLinkMaintenance(item.path, item.label, item.icon)
-              : navLink(item.path, item.label, item.icon)
+            navLink(item.href, item.name, item.icon, item.badge)
           )}
         </div>
       ))}
