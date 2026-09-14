@@ -27,6 +27,7 @@ import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
+import { CardSaldoPrevisto } from "@/components/card-saldo-previsto";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1568,61 +1569,17 @@ export default function DespesasPage() {
           }}
         />
 
-        {/* Card 2: Projeção Pós-Contas Fixas & Faturas do Mês */}
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
-              Saldo Previsto Pós-Contas
-            </span>
-            <span className={`py-1 px-2.5 rounded-full text-[10px] font-black tracking-wide ${
-              saldoPrevisto < 0
-                ? "bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60"
-                : "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200/60"
-            }`}>
-              {saldoPrevisto < 0 ? "Atenção ao Caixa" : "Projeção Segura"}
-            </span>
-          </div>
-
-          <div className="mt-4">
-            <h2 className={`text-2xl sm:text-3xl font-black font-sans tracking-tight font-tnum tabular-nums ${
-              saldoPrevisto < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"
-            }`}>
-              <CurrencyValue value={saldoPrevisto} showSign={true} />
-            </h2>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-              {monthlyRollForward?.isFutureMonth
-                ? "Considerando saldo herdado, faturas e boletos a vencer no mês"
-                : "Considerando faturas e boletos a vencer no mês"}
-            </p>
-          </div>
-
-          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs">
-            {monthlyRollForward?.isFutureMonth && (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400 text-[11px] font-semibold">Saldo Inicial Herdado:</span>
-                  {monthlyRollForward.previousMonthLabel && (
-                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                      ({monthlyRollForward.previousMonthLabel})
-                    </span>
-                  )}
-                </div>
-                <span className={`font-bold font-tnum tabular-nums inline-flex items-center gap-1 ${
-                  saldoHerdado >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"
-                }`}>
-                  <CurrencyValue value={saldoHerdado} showSign={true} />
-                </span>
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400 text-[11px] font-semibold">Entradas do Mês:</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums inline-flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" />
-                <CurrencyValue value={totalEntradasMes} />
-              </span>
-            </div>
-          </div>
-        </div>
+        {/* Card 2: Saldo Previsto Pós-Contas com Memória de Cálculo */}
+        <CardSaldoPrevisto
+          saldoContas={saldoTotalContas}
+          saldoHerdado={saldoHerdado}
+          isFutureMonth={Boolean(monthlyRollForward?.isFutureMonth)}
+          previousMonthLabel={monthlyRollForward?.previousMonthLabel}
+          entradasMes={totalEntradasMes}
+          faturasMes={monthlyRollForward?.faturasMes ?? totalFaturasPendentes}
+          boletosMes={monthlyRollForward?.boletosMes ?? (commitmentsData?.totals?.totalPendente ?? 0)}
+          saldoPrevisto={saldoPrevisto}
+        />
       </div>
 
       {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CONTAS BANCÁRIAS / CARTÕES DE CRÉDITO / TICKETS) ── */}

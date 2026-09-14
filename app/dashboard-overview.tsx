@@ -19,6 +19,7 @@ import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
 import { PaymentMethodChart } from "@/components/payment-method-chart";
 import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
+import { CardSaldoPrevisto } from "@/components/card-saldo-previsto";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
 import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart";
@@ -500,65 +501,17 @@ export function DashboardOverview() {
               </div>
             </div>
 
-            {/* Card 2: Saldo Previsto Pós-Contas */}
-            <div className="bg-white dark:bg-[#131B2E] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
-                    Saldo Previsto<br />Pós-Contas
-                  </span>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
-                    saldoPrevisto >= 0
-                      ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200/60 dark:border-indigo-800/60"
-                      : "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border-rose-200/60 dark:border-rose-800/60"
-                  }`}>
-                    {saldoPrevisto >= 0 ? "Projeção Segura" : "Atenção ao Caixa"}
-                  </span>
-                </div>
-
-                <div className="mt-4">
-                  <h2 className={`text-3xl font-extrabold font-tnum tabular-nums tracking-tight ${
-                    saldoPrevisto >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"
-                  }`}>
-                    {saldoPrevisto >= 0 ? "+ R$ " : "- R$ "}
-                    {Math.abs(saldoPrevisto).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </h2>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-                    {monthlyRollForward?.isFutureMonth
-                      ? "Considerando saldo herdado, faturas e boletos a vencer no mês"
-                      : "Considerando faturas e boletos a vencer no mês"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Resumo de Entradas e Herança no Rodapé */}
-              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-                {monthlyRollForward?.isFutureMonth && (
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1.5">
-                      <span>Saldo Inicial Herdado:</span>
-                      {monthlyRollForward.previousMonthLabel && (
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                          ({monthlyRollForward.previousMonthLabel})
-                        </span>
-                      )}
-                    </div>
-                    <span className={`font-bold font-tnum tabular-nums inline-flex items-center gap-1 ${
-                      saldoHerdado >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"
-                    }`}>
-                      {saldoHerdado >= 0 ? "+ R$ " : "- R$ "}
-                      {Math.abs(saldoHerdado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span>Entradas do Mês:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums inline-flex items-center gap-1">
-                    ↗ R$ {totalEntradasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-            </div>
+            {/* Card 2: Saldo Previsto Pós-Contas com Memória de Cálculo */}
+            <CardSaldoPrevisto
+              saldoContas={saldoConsolidado}
+              saldoHerdado={saldoHerdado}
+              isFutureMonth={Boolean(monthlyRollForward?.isFutureMonth)}
+              previousMonthLabel={monthlyRollForward?.previousMonthLabel}
+              entradasMes={totalEntradasMes}
+              faturasMes={monthlyRollForward?.faturasMes ?? 0}
+              boletosMes={monthlyRollForward?.boletosMes ?? 0}
+              saldoPrevisto={saldoPrevisto}
+            />
           </div>
         );
       })()}
