@@ -220,9 +220,11 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 
   if (categoriesData.length === 0 || totalExpenses === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-        <PieChart className="w-8 h-8 text-slate-300 dark:text-slate-600 mb-2" />
-        <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">Nenhum gasto acumulado no cartão para o gráfico.</p>
+      <div className="flex flex-col items-center justify-center p-6 text-slate-400 dark:text-slate-500">
+        <div className="w-32 h-32 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center">
+          <span className="text-sm font-semibold text-slate-400 dark:text-slate-500">R$ 0,00</span>
+        </div>
+        <p className="text-xs mt-3 font-medium">Nenhum pagamento liquidado no mês</p>
       </div>
     );
   }

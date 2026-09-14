@@ -110,9 +110,12 @@ export function PaymentMethodChart({
         )}
       </div>
 
-      {activeMethods.length === 0 ? (
-        <div className="py-12 text-center text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-          Nenhum gasto registrado para o período selecionado.
+      {totalSum === 0 ? (
+        <div className="flex flex-col items-center justify-center p-6 text-slate-400 dark:text-slate-500">
+          <div className="w-32 h-32 rounded-full border-4 border-dashed border-slate-200 dark:border-slate-800 flex items-center justify-center">
+            <span className="text-sm font-semibold text-slate-400 dark:text-slate-500">R$ 0,00</span>
+          </div>
+          <p className="text-xs mt-3 font-medium">Nenhum pagamento liquidado no mês</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
