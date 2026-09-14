@@ -22,14 +22,24 @@ export type RadarDateGroup = {
   transactions: RadarTransactionItem[];
 };
 
+export type RadarCategoryBreakdownItem = {
+  name: string;
+  color: string;
+  total: number;
+  count: number;
+  percentage: number;
+};
+
 export type RadarOverviewData = {
   success: boolean;
   maxAmount: number;
   totalRadarAmount: number;
   countRadar: number;
   averageRadarAmount: number;
+  projectedYearlyAmount: number;
   percentOfTotalBudget: number;
   totalAllExpenses: number;
+  categoryBreakdown: RadarCategoryBreakdownItem[];
   groupedTransactions: RadarDateGroup[];
 };
 
@@ -100,24 +110,62 @@ export async function getRadarExpensesAction({
       orderBy: { date: "desc" },
     });
 
-    // Filtra transações que não sejam pagamentos de fatura nem transferências
+    // 1. Filtra rigorosamente transações para o Radar:
+    // Deve analisar APENAS compras avulsas de cartão de crédito e saídas de débito/dinheiro rotineiras.
+    // Ignorar: compromissos fixos da Central de Boletos, empréstimos, financiamentos e quitações de fatura.
     const validExpenses = allExpenses.filter((t) => {
-      const catName = t.category?.name?.toLowerCase() || "";
-      const desc = t.description.toLowerCase();
-      const tags = (t.tags || "").toLowerCase();
+      // Ignorar compromissos fixos, transferências internas e transações de fatura geradas
+      if (t.source === "COMMITMENT" || t.source === "TRANSFER" || t.source === "INVOICE") {
+        return false;
+      }
 
+      const catName = (t.category?.name || "").toLowerCase();
+      const desc = (t.description || "").toLowerCase();
+      const tags = (t.tags || "").toLowerCase();
+      const pm = (t.paymentMethod || "").toUpperCase();
+
+      // Ignorar pagamentos e quitações de fatura
       if (
         catName.includes("pagamento de fatura") ||
+        catName.includes("fatura") ||
         tags.includes("pagamentodefatura") ||
+        tags.includes("fatura") ||
+        tags.includes("compromisso") ||
+        tags.includes("boleto_fixo") ||
+        tags.includes("transferencia") ||
         desc.includes("pagamento fatura") ||
-        desc.includes("quitacao fatura")
+        desc.includes("quitacao fatura") ||
+        desc.includes("quitação fatura") ||
+        desc.includes("pagamento de fatura")
       ) {
         return false;
       }
+
+      // Ignorar empréstimos, financiamentos e parcelas de dívida
+      if (
+        desc.includes("empréstimo") ||
+        desc.includes("emprestimo") ||
+        desc.includes("financiamento") ||
+        desc.includes("parcela fonte") ||
+        desc.includes("supersim") ||
+        desc.includes("mentore") ||
+        catName.includes("empréstimo") ||
+        catName.includes("emprestimo") ||
+        catName.includes("financiamento") ||
+        tags.includes("emprestimo")
+      ) {
+        return false;
+      }
+
+      // Ignorar boletos fixos contratuais
+      if (pm === "BOLETO" && (t.source === "COMMITMENT" || tags.includes("boleto"))) {
+        return false;
+      }
+
       return true;
     });
 
-    // Total de despesas gerais do mês
+    // Total de despesas gerais do mês (excluindo dívidas/faturas contratuais)
     const totalAllExpenses = validExpenses.reduce(
       (acc, t) => acc + Number(t.amount),
       0
@@ -135,10 +183,47 @@ export async function getRadarExpensesAction({
     const countRadar = radarExpenses.length;
     const averageRadarAmount =
       countRadar > 0 ? totalRadarAmount / countRadar : 0;
+    const projectedYearlyAmount = totalRadarAmount * 12;
     const percentOfTotalBudget =
       totalAllExpenses > 0 ? (totalRadarAmount / totalAllExpenses) * 100 : 0;
 
-    // Agrupamento por Data (YYYY-MM-DD)
+    // 2. Gráfico por Categoria dos Gastos Invisíveis
+    const categoryMap = new Map<
+      string,
+      { name: string; color: string; total: number; count: number }
+    >();
+
+    for (const t of radarExpenses) {
+      const catName = t.category?.name || "Outros";
+      const catColor = t.category?.color || "#6366F1";
+      const amt = Number(t.amount);
+
+      if (!categoryMap.has(catName)) {
+        categoryMap.set(catName, {
+          name: catName,
+          color: catColor,
+          total: 0,
+          count: 0,
+        });
+      }
+      const cur = categoryMap.get(catName)!;
+      cur.total = Math.round((cur.total + amt) * 100) / 100;
+      cur.count += 1;
+    }
+
+    const categoryBreakdown: RadarCategoryBreakdownItem[] = Array.from(
+      categoryMap.values()
+    )
+      .map((c) => ({
+        ...c,
+        percentage:
+          totalRadarAmount > 0
+            ? Math.round((c.total / totalRadarAmount) * 100)
+            : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    // 3. Agrupamento por Data (YYYY-MM-DD)
     const groupsMap = new Map<string, RadarTransactionItem[]>();
 
     for (const t of radarExpenses) {
@@ -181,8 +266,10 @@ export async function getRadarExpensesAction({
       totalRadarAmount,
       countRadar,
       averageRadarAmount,
+      projectedYearlyAmount,
       percentOfTotalBudget: Number(percentOfTotalBudget.toFixed(1)),
       totalAllExpenses,
+      categoryBreakdown,
       groupedTransactions,
     };
   } catch (error) {
@@ -193,8 +280,10 @@ export async function getRadarExpensesAction({
       totalRadarAmount: 0,
       countRadar: 0,
       averageRadarAmount: 0,
+      projectedYearlyAmount: 0,
       percentOfTotalBudget: 0,
       totalAllExpenses: 0,
+      categoryBreakdown: [],
       groupedTransactions: [],
     };
   }
