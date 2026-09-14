@@ -18,6 +18,8 @@ import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
 import { PaymentMethodChart } from "@/components/payment-method-chart";
 import { CurrencyValue } from "@/components/currency-value";
+import { CardContaFluxo } from "@/components/card-conta-fluxo";
+import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
 import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -80,6 +82,8 @@ export function DashboardOverview() {
   const [selectedGoalId, setSelectedGoalId]       = useState("");
 
   // Form states
+  const [injectModalOpen, setInjectModalOpen]   = useState(false);
+  const [injectOrigin, setInjectOrigin]         = useState<BalanceMovementOrigin>("DEPOSITO");
   const [revDesc, setRevDesc]         = useState("Salário");
   const [revCategory, setRevCategory] = useState("Salário");
   const [revAmount, setRevAmount]     = useState<number | "">("");
@@ -407,6 +411,35 @@ export function DashboardOverview() {
           ))}
         </div>
       )}
+
+      {/* ── 1.5. CONTA CAIXA / CONTROLE RÁPIDO DO FLUXO ─────────────────────── */}
+      {(() => {
+        const cashWallet = data.cards.find(
+          (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA"
+        ) || data.cards.find(
+          (c: any) => c.walletType !== "CREDIT_CARD" && c.walletType !== "TICKET"
+        ) || data.cards[0];
+
+        const saldoCaixaGeral = data.cards
+          .filter((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")
+          .reduce((sum: number, c: any) => sum + Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0), 0);
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <CardContaFluxo
+              saldo={saldoCaixaGeral}
+              onAdicionarSaldo={() => {
+                setInjectOrigin("DEPOSITO");
+                setInjectModalOpen(true);
+              }}
+              onRetirarSaldo={() => {
+                setInjectOrigin("SAQUE");
+                setInjectModalOpen(true);
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* ── 2. MEUS CARTÕES & CONTAS ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
@@ -1087,6 +1120,28 @@ export function DashboardOverview() {
         projectionData={null}
         projectionDays={30}
       />
+
+      {/* Modal Global: Injeção de Saldo / Saque Rápido */}
+      {injectModalOpen && (
+        <InjectBalanceModal
+          isOpen={injectModalOpen}
+          onClose={() => setInjectModalOpen(false)}
+          onSuccess={async () => {
+            await loadDashboardData();
+          }}
+          walletId={
+            data.cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")?.id ||
+            data.cards[0]?.id || ""
+          }
+          walletTitle={
+            data.cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")?.title ||
+            "Conta Caixa / Carteira"
+          }
+          defaultMonth={selectedDashboardMonth}
+          defaultYear={selectedDashboardYear}
+          defaultOrigin={injectOrigin}
+        />
+      )}
 
     </div>
   );

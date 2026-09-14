@@ -23,6 +23,8 @@ import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { CurrencyValue } from "@/components/currency-value";
+import { CardContaFluxo } from "@/components/card-conta-fluxo";
+import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const brl = (v: number) =>
@@ -334,6 +336,8 @@ export default function DespesasPage() {
   const [payModalCard, setPayModalCard]             = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice]       = useState(false);
+  const [injectModalOpen, setInjectModalOpen]       = useState(false);
+  const [injectOrigin, setInjectOrigin]             = useState<BalanceMovementOrigin>("DEPOSITO");
 
   const reloadAllData = async () => {
     try {
@@ -896,46 +900,53 @@ export default function DespesasPage() {
         </button>
       </div>
 
-      {/* ── 2.1. MÉTRICA SUPERIOR: SALDO DISPONÍVEL / RECEITA REAL ──────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden group relative">
-          {/* Topo: Título e Ícone */}
+      {/* ── 2.1. MÉTRICA SUPERIOR: SALDO DISPONÍVEL / CONTROLE RÁPIDO DE FLUXO ────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Card 1: Controle Rápido do Saldo em Conta / Caixa Geral */}
+        <CardContaFluxo
+          saldo={saldoTotalContas}
+          onAdicionarSaldo={() => {
+            setInjectOrigin("DEPOSITO");
+            setInjectModalOpen(true);
+          }}
+          onRetirarSaldo={() => {
+            setInjectOrigin("SAQUE");
+            setInjectModalOpen(true);
+          }}
+        />
+
+        {/* Card 2: Projeção Pós-Contas Fixas & Faturas do Mês */}
+        <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Saldo Disponível
+            <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+              Saldo Previsto Pós-Contas
             </span>
-            <div className="shrink-0 p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" title="Total de entradas e receitas confirmadas no período">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
+            <span className={`py-1 px-2.5 rounded-full text-[10px] font-black tracking-wide ${
+              saldoPrevisto < 0
+                ? "bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200/60"
+                : "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200/60"
+            }`}>
+              {saldoPrevisto < 0 ? "Atenção ao Caixa" : "Projeção Segura"}
+            </span>
           </div>
 
-          {/* Meio: Valor em Destaque + Projeção Prevista */}
-          <div className="py-2 my-auto flex flex-col justify-center">
-            <h2 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white font-tnum tabular-nums">
-              <CurrencyValue value={saldoTotalContas} />
+          <div className="mt-4">
+            <h2 className={`text-2xl sm:text-3xl font-black font-sans tracking-tight font-tnum tabular-nums ${
+              saldoPrevisto < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"
+            }`}>
+              <CurrencyValue value={saldoPrevisto} showSign={true} />
             </h2>
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
-              <span>Previsto após contas do mês:</span>
-              <span
-                title={`Saldo Atual (${formatCurrency(saldoAtual)}) + Receitas Previstas (${formatCurrency(receitasPendentesDoMes)}) - Faturas/Contas (${formatCurrency(faturasDespesasPendentesDoMes)})`}
-                className={`font-bold font-tnum ${
-                  saldoPrevisto < 0
-                    ? "text-rose-500 dark:text-rose-400"
-                    : "text-emerald-600 dark:text-emerald-400"
-                }`}
-              >
-                <CurrencyValue value={saldoPrevisto} showSign={true} />
-              </span>
-            </div>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
+              Considerando faturas e boletos a vencer no mês
+            </p>
           </div>
 
-          {/* Base: Indicador Verde */}
-          <div className="min-h-[36px] flex items-center mt-auto pt-2.5 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-            <p className="text-green-600 dark:text-emerald-400 font-semibold text-xs inline-flex items-center gap-1.5">
+          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
+            <span className="text-slate-400 text-[11px] font-semibold">Entradas do Mês:</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums inline-flex items-center gap-1">
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+ <CurrencyValue value={totalEntradasMes} /></span>
-              <span className="text-slate-400 font-normal">Entradas no Mês</span>
-            </p>
+              <CurrencyValue value={totalEntradasMes} />
+            </span>
           </div>
         </div>
       </div>
@@ -1673,6 +1684,26 @@ export default function DespesasPage() {
         onClose={() => setPurchaseModalOpen(false)}
         onSuccess={reloadAllData}
       />
+
+      {/* Modal Global: Injeção de Saldo / Saque Rápido */}
+      {injectModalOpen && (
+        <InjectBalanceModal
+          isOpen={injectModalOpen}
+          onClose={() => setInjectModalOpen(false)}
+          onSuccess={reloadAllData}
+          walletId={
+            cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO")?.id ||
+            cards[0]?.id || ""
+          }
+          walletTitle={
+            cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO")?.title ||
+            "Conta Caixa / Carteira"
+          }
+          defaultMonth={selectedMonthFilter || (new Date().getMonth() + 1)}
+          defaultYear={selectedYear}
+          defaultOrigin={injectOrigin}
+        />
+      )}
 
     </div>
   );
