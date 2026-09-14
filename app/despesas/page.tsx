@@ -19,7 +19,8 @@ import {
   getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction,
   getRecurringExpensesAction, getUpcomingBillsWindowAction,
   getMonthlyCommitmentsAction, createCommitmentAction, payCommitmentAction,
-  undoCommitmentPaymentAction, updateCommitmentAction, deleteCommitmentAction
+  undoCommitmentPaymentAction, updateCommitmentAction, deleteCommitmentAction,
+  getMonthlyCashFlowRollForwardAction, MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -341,6 +342,7 @@ export default function DespesasPage() {
     };
   } | null>(null);
   const [receitasPendentesMes, setReceitasPendentesMes] = useState<number>(0);
+  const [monthlyRollForward, setMonthlyRollForward] = useState<MonthlyCashFlowRollForwardResult | null>(null);
   const [payModalCard, setPayModalCard]             = useState<{ id: string; title: string; amount: number; month: number; year: number } | null>(null);
   const [selectedPaymentWalletId, setSelectedPaymentWalletId] = useState<string>("NONE");
   const [isPayingInvoice, setIsPayingInvoice]       = useState(false);
@@ -548,7 +550,7 @@ export default function DespesasPage() {
 
   const reloadAllData = async () => {
     try {
-      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev, freshCommitments] = await Promise.all([
+      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev, freshCommitments, freshRollForward] = await Promise.all([
         getAllCardsOverview(selectedMonthFilter, selectedYear),
         getPaidInvoicesAction(selectedMonthFilter, selectedYear),
         getRealRevenueAction(selectedMonthFilter, selectedYear),
@@ -558,6 +560,7 @@ export default function DespesasPage() {
         getUpcomingBillsWindowAction(selectedMonthFilter, selectedYear),
         getPendingRevenuesAction(selectedMonthFilter, selectedYear),
         getMonthlyCommitmentsAction(selectedMonthFilter, selectedYear),
+        getMonthlyCashFlowRollForwardAction(selectedMonthFilter, selectedYear),
       ]);
       setCards(freshCards || []);
       setPaidInvoicesList(freshPaidInv || []);
@@ -567,6 +570,7 @@ export default function DespesasPage() {
       setRecurringExpensesList(freshRecurring || []);
       setWindowBills(freshWindow || null);
       setReceitasPendentesMes(freshPendingRev?.total ?? freshWindow?.receitasPendentesDoMes ?? 0);
+      setMonthlyRollForward(freshRollForward || null);
       if (freshCommitments) {
         setCommitmentsData(freshCommitments);
         if (freshCommitments.contasBancarias?.length > 0) {
@@ -711,8 +715,9 @@ export default function DespesasPage() {
       getUpcomingBillsWindowAction(monthParam, selectedYear),
       getPendingRevenuesAction(monthParam, selectedYear),
       getMonthlyCommitmentsAction(monthParam, selectedYear),
+      getMonthlyCashFlowRollForwardAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes, commitmentsRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes, commitmentsRes, rollForwardRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
@@ -722,6 +727,7 @@ export default function DespesasPage() {
         setRecurringExpensesList(recurringRes || []);
         setWindowBills(windowRes || null);
         setReceitasPendentesMes(pendingRevRes?.total ?? windowRes?.receitasPendentesDoMes ?? 0);
+        setMonthlyRollForward(rollForwardRes || null);
         if (commitmentsRes) {
           setCommitmentsData(commitmentsRes);
           if (commitmentsRes.contasBancarias?.length > 0) {
@@ -764,7 +770,6 @@ export default function DespesasPage() {
   const accountCards = bankAccounts;
 
   const contas = cards;
-  const totalEntradasMes = realRevenue;
 
   // 1. Cálculo do saldo consolidado de todas as contas bancárias
   const contasBancarias = bankAccounts.map((c: any) => ({
@@ -902,16 +907,22 @@ export default function DespesasPage() {
     });
   }, [windowBills, unifiedPaidInvoices, activeMonth, selectedYear]);
 
-  // ── Contas e Faturas Pendentes / Pagas (Cálculo Corrigido) ──────────────────
+  // ── Contas e Faturas Pendentes / Pagas (Cálculo Corrigido com Roll-Forward) ──────────────────
   const totalFaturasPendentes = upcomingCardBills.reduce((s, b) => s + Number(b.valor || 0), 0);
   const totalPendentesMes = totalFaturasPendentes;
   const faturasDespesasPendentesDoMes = totalFaturasPendentes;
   const saldoAtual = saldoTotalContas;
   const receitasPendentesDoMes = windowBills?.receitasPendentesDoMes ?? receitasPendentesMes ?? 0;
 
-  // Nova Fórmula do Saldo Previsto:
-  // saldoPrevisto = saldoAtual + receitasPendentesDoMes - faturasDespesasPendentesDoMes;
-  const saldoPrevisto = saldoAtual + receitasPendentesDoMes - faturasDespesasPendentesDoMes;
+  // Projeção Acumulada / Roll-Forward Contínuo
+  const saldoHerdado = monthlyRollForward?.saldoHerdado ?? 0;
+  const saldoPrevisto = monthlyRollForward
+    ? monthlyRollForward.saldoPrevisto
+    : (saldoAtual + receitasPendentesDoMes - faturasDespesasPendentesDoMes);
+
+  const totalEntradasMes = monthlyRollForward
+    ? monthlyRollForward.receitasMes
+    : ((realRevenue || 0) + (receitasPendentesDoMes || 0));
 
   const pagoFaturasMes   = filteredPaidCardInvoices.reduce((s, p) => s + Number(p.amount || 0), 0);
   const totalPagoMes     = pagoFaturasMes;
@@ -1579,16 +1590,37 @@ export default function DespesasPage() {
               <CurrencyValue value={saldoPrevisto} showSign={true} />
             </h2>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-              Considerando faturas e boletos a vencer no mês
+              {monthlyRollForward?.isFutureMonth
+                ? "Considerando saldo herdado, faturas e boletos a vencer no mês"
+                : "Considerando faturas e boletos a vencer no mês"}
             </p>
           </div>
 
-          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs">
-            <span className="text-slate-400 text-[11px] font-semibold">Entradas do Mês:</span>
-            <span className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums inline-flex items-center gap-1">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <CurrencyValue value={totalEntradasMes} />
-            </span>
+          <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs">
+            {monthlyRollForward?.isFutureMonth && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 text-[11px] font-semibold">Saldo Inicial Herdado:</span>
+                  {monthlyRollForward.previousMonthLabel && (
+                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                      ({monthlyRollForward.previousMonthLabel})
+                    </span>
+                  )}
+                </div>
+                <span className={`font-bold font-tnum tabular-nums inline-flex items-center gap-1 ${
+                  saldoHerdado >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"
+                }`}>
+                  <CurrencyValue value={saldoHerdado} showSign={true} />
+                </span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400 text-[11px] font-semibold">Entradas do Mês:</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums inline-flex items-center gap-1">
+                <ArrowUpRight className="w-3.5 h-3.5" />
+                <CurrencyValue value={totalEntradasMes} />
+              </span>
+            </div>
           </div>
         </div>
       </div>

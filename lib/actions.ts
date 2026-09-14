@@ -3791,37 +3791,28 @@ export async function getPendingRevenuesAction(month?: number | null | string, y
 
     // 3. Regra para Capturar as Receitas Pendentes:
     // referenceMonth === '2026-09'
-    if ((t as any).referenceMonth && String((t as any).referenceMonth).substring(0, 7) === targetRefMonth) {
-      return true;
+    if ((t as any).referenceMonth) {
+      return String((t as any).referenceMonth).substring(0, 7) === targetRefMonth;
     }
 
-    // competenceMonth e competenceYear
+    // competenceMonth e competenceYear (se tem competência explícita, respeita estritamente)
     if (t.competenceMonth != null && t.competenceYear != null) {
-      if (t.competenceMonth === targetMonth && t.competenceYear === targetYear) {
-        return true;
-      }
+      return t.competenceMonth === targetMonth && t.competenceYear === targetYear;
     }
 
     // competenceDate
     if (t.competenceDate) {
-      const compStr = new Date(t.competenceDate).toISOString().substring(0, 7);
-      if (compStr === targetRefMonth) {
-        return true;
-      }
       const cDate = new Date(t.competenceDate);
       if (!isNaN(cDate.getTime())) {
-        if (cDate.getUTCFullYear() === targetYear && (cDate.getUTCMonth() + 1) === targetMonth) {
-          return true;
-        }
+        return cDate.getUTCFullYear() === targetYear && (cDate.getUTCMonth() + 1) === targetMonth;
       }
+      return false;
     }
 
-    // Data de recebimento (date ou paymentDate) no mês selecionado
+    // Data de recebimento (date ou paymentDate) no mês selecionado (apenas fallback se não tiver competência)
     const d = new Date(t.paymentDate || t.date);
     if (!isNaN(d.getTime())) {
-      if (d.getUTCFullYear() === targetYear && (d.getUTCMonth() + 1) === targetMonth) {
-        return true;
-      }
+      return d.getUTCFullYear() === targetYear && (d.getUTCMonth() + 1) === targetMonth;
     }
 
     return false;
@@ -4176,6 +4167,263 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
       totalGeral,
       pctGeralPago,
     }
+  };
+}
+
+export interface MonthlyCashFlowRollForwardResult {
+  curMonth: number;
+  curYear: number;
+  targetMonth: number;
+  targetYear: number;
+  isCurrentMonth: boolean;
+  isFutureMonth: boolean;
+  isPastMonth: boolean;
+  isAnnualView: boolean;
+  saldoAtualContas: number;
+  saldoHerdado: number;
+  saldoPrevisto: number;
+  previousMonthLabel?: string;
+  receitasMes: number;
+  receitasPendentes: number;
+  receitasRealizadas: number;
+  faturasMes: number;
+  faturasPendentes: number;
+  faturasPagas: number;
+  boletosMes: number;
+  boletosPendentes: number;
+  boletosPagos: number;
+  totalDespesasMes: number;
+  sobraMes: number;
+}
+
+async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
+  const from = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
+  const to = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+
+  // 1. Receitas
+  const BENEFIT_TYPES = ["TICKET", "BENEFICIO", "BENEFÍCIO"];
+  const incomes = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
+      type: "INCOME",
+      deletedAt: null,
+    },
+    include: { wallet: true },
+  });
+
+  const monthIncomes = incomes.filter((t: any) => {
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      return t.competenceMonth === m && t.competenceYear === y;
+    }
+    if (t.competenceDate) {
+      const cDate = new Date(t.competenceDate);
+      if (!isNaN(cDate.getTime())) {
+        return cDate.getUTCFullYear() === y && (cDate.getUTCMonth() + 1) === m;
+      }
+    }
+    const d = new Date(t.paymentDate || t.date);
+    return d.getUTCFullYear() === y && (d.getUTCMonth() + 1) === m;
+  });
+
+  const totalReceitas = monthIncomes.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const receitasPendentes = monthIncomes
+    .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const receitasRealizadas = totalReceitas - receitasPendentes;
+
+  // 2. Faturas de Cartão
+  const cardExpenses = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId, walletType: "CREDIT_CARD" },
+      type: "EXPENSE",
+      deletedAt: null,
+      source: { not: "RECURRING_PROJECTION" },
+    },
+  });
+
+  const monthCardTxs = cardExpenses.filter((t: any) => {
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      return t.competenceMonth === m && t.competenceYear === y;
+    }
+    const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+    return d >= from && d <= to;
+  });
+
+  const totalFaturas = monthCardTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const faturasPendentes = monthCardTxs
+    .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const faturasPagas = totalFaturas - faturasPendentes;
+
+  // 3. Boletos / Central de Compromissos
+  const commitments = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      source: "COMMITMENT",
+      deletedAt: null,
+    },
+  });
+
+  const monthCommitments = commitments.filter((t: any) => {
+    if (t.competenceMonth != null && t.competenceYear != null) {
+      return t.competenceMonth === m && t.competenceYear === y;
+    }
+    const d = new Date(t.dueDate || t.date);
+    return d >= from && d <= to;
+  });
+
+  const totalBoletos = monthCommitments.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const boletosPendentes = monthCommitments
+    .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
+    .reduce((s, t) => s + Number(t.amount || 0), 0);
+  const boletosPagos = totalBoletos - boletosPendentes;
+
+  const totalDespesas = totalFaturas + totalBoletos;
+  const sobraMes = totalReceitas - totalDespesas;
+
+  return {
+    month: m,
+    year: y,
+    totalReceitas: Math.round(totalReceitas * 100) / 100,
+    receitasPendentes: Math.round(receitasPendentes * 100) / 100,
+    receitasRealizadas: Math.round(receitasRealizadas * 100) / 100,
+    totalFaturas: Math.round(totalFaturas * 100) / 100,
+    faturasPendentes: Math.round(faturasPendentes * 100) / 100,
+    faturasPagas: Math.round(faturasPagas * 100) / 100,
+    totalBoletos: Math.round(totalBoletos * 100) / 100,
+    boletosPendentes: Math.round(boletosPendentes * 100) / 100,
+    boletosPagos: Math.round(boletosPagos * 100) / 100,
+    totalDespesas: Math.round(totalDespesas * 100) / 100,
+    sobraMes: Math.round(sobraMes * 100) / 100,
+  };
+}
+
+export async function getMonthlyCashFlowRollForwardAction(
+  month?: number | null | string,
+  year: number = 2026
+): Promise<MonthlyCashFlowRollForwardResult> {
+  const userId = await getActiveUserId();
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+  const targetMonth = isAnnualView ? curMonth : Number(month);
+  const targetYear = year || curYear;
+
+  // Saldo físico consolidado atual de contas correntes hoje
+  const bankWallets = await prisma.wallet.findMany({
+    where: { userId, walletType: "CONTA_CORRENTE" },
+  });
+  const saldoAtualContas = bankWallets.reduce(
+    (s, w) => s + Number(w.currentBalance || w.initialBalance || 0),
+    0
+  );
+
+  const curMetrics = await getMonthCashFlowMetrics(userId, curMonth, curYear);
+  const saldoPrevistoCurMonth = Math.round(
+    (saldoAtualContas + curMetrics.receitasPendentes - (curMetrics.faturasPendentes + curMetrics.boletosPendentes)) * 100
+  ) / 100;
+
+  const isCurrentMonth = !isAnnualView && targetMonth === curMonth && targetYear === curYear;
+  const isFutureMonth = !isAnnualView && (targetYear > curYear || (targetYear === curYear && targetMonth > curMonth));
+  const isPastMonth = !isAnnualView && (targetYear < curYear || (targetYear === curYear && targetMonth < curMonth));
+
+  let saldoHerdado = 0;
+  let saldoPrevisto = 0;
+  let targetMetrics: any;
+  let prevMonthName = "";
+
+  const MONTH_NAMES_FULL = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+
+  if (isAnnualView) {
+    let anoReceitas = 0;
+    let anoFaturas = 0;
+    let anoBoletos = 0;
+    for (let m = 1; m <= 12; m++) {
+      const met = await getMonthCashFlowMetrics(userId, m, targetYear);
+      anoReceitas += met.totalReceitas;
+      anoFaturas += met.totalFaturas;
+      anoBoletos += met.totalBoletos;
+    }
+    saldoHerdado = saldoAtualContas;
+    saldoPrevisto = Math.round((saldoAtualContas + anoReceitas - (anoFaturas + anoBoletos)) * 100) / 100;
+    targetMetrics = {
+      totalReceitas: anoReceitas,
+      receitasPendentes: 0,
+      receitasRealizadas: anoReceitas,
+      totalFaturas: anoFaturas,
+      faturasPendentes: 0,
+      faturasPagas: anoFaturas,
+      totalBoletos: anoBoletos,
+      boletosPendentes: 0,
+      boletosPagos: anoBoletos,
+      totalDespesas: anoFaturas + anoBoletos,
+      sobraMes: anoReceitas - (anoFaturas + anoBoletos),
+    };
+  } else if (isCurrentMonth) {
+    targetMetrics = curMetrics;
+    saldoHerdado = saldoAtualContas;
+    saldoPrevisto = saldoPrevistoCurMonth;
+  } else if (isFutureMonth) {
+    // Mês Futuro: herda a projeção acumulada a partir do fechamento do mês atual
+    let running = saldoPrevistoCurMonth;
+
+    let m = curMonth + 1;
+    let y = curYear;
+    while (y < targetYear || (y === targetYear && m < targetMonth)) {
+      const inter = await getMonthCashFlowMetrics(userId, m, y);
+      running += inter.sobraMes;
+      m++;
+      if (m > 12) {
+        m = 1;
+        y++;
+      }
+    }
+
+    saldoHerdado = Math.round(running * 100) / 100;
+    targetMetrics = await getMonthCashFlowMetrics(userId, targetMonth, targetYear);
+    saldoPrevisto = Math.round(
+      (saldoHerdado + targetMetrics.totalReceitas - (targetMetrics.totalFaturas + targetMetrics.totalBoletos)) * 100
+    ) / 100;
+
+    const prevM = targetMonth === 1 ? 12 : targetMonth - 1;
+    const prevY = targetMonth === 1 ? targetYear - 1 : targetYear;
+    prevMonthName = `${MONTH_NAMES_FULL[prevM - 1]}/${prevY}`;
+  } else {
+    // Mês Passado: exibe a sobra histórica
+    targetMetrics = await getMonthCashFlowMetrics(userId, targetMonth, targetYear);
+    saldoHerdado = 0;
+    saldoPrevisto = targetMetrics.sobraMes;
+  }
+
+  return {
+    curMonth,
+    curYear,
+    targetMonth,
+    targetYear,
+    isCurrentMonth,
+    isFutureMonth,
+    isPastMonth,
+    isAnnualView,
+    saldoAtualContas: Math.round(saldoAtualContas * 100) / 100,
+    saldoHerdado: Math.round(saldoHerdado * 100) / 100,
+    saldoPrevisto: Math.round(saldoPrevisto * 100) / 100,
+    previousMonthLabel: prevMonthName,
+    receitasMes: targetMetrics.totalReceitas,
+    receitasPendentes: targetMetrics.receitasPendentes,
+    receitasRealizadas: targetMetrics.receitasRealizadas,
+    faturasMes: targetMetrics.totalFaturas,
+    faturasPendentes: targetMetrics.faturasPendentes,
+    faturasPagas: targetMetrics.faturasPagas,
+    boletosMes: targetMetrics.totalBoletos,
+    boletosPendentes: targetMetrics.boletosPendentes,
+    boletosPagos: targetMetrics.boletosPagos,
+    totalDespesasMes: targetMetrics.totalDespesas,
+    sobraMes: targetMetrics.sobraMes,
   };
 }
 
