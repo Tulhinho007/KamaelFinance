@@ -25,7 +25,8 @@ import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
-  getAllTags, getWalletsAction
+  getAllTags, getWalletsAction, getMonthlyCashFlowRollForwardAction,
+  MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -67,6 +68,7 @@ export function DashboardOverview() {
   const [viewMode, setViewMode] = useState<"annual" | "monthly">("annual");
   const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(() => selectedYear || new Date().getFullYear());
   const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
+  const [monthlyRollForward, setMonthlyRollForward] = useState<MonthlyCashFlowRollForwardResult | null>(null);
 
   // Tags, Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
   const [ofxModalOpen, setOfxModalOpen] = useState(false);
@@ -163,11 +165,13 @@ export function DashboardOverview() {
     setLoading(true);
     try {
       const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
-      const [res, wList] = await Promise.all([
+      const [res, wList, rollForwardRes] = await Promise.all([
         getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag),
         getWalletsAction(),
+        getMonthlyCashFlowRollForwardAction(monthParam, selectedDashboardYear),
       ]);
       setData(res);
+      setMonthlyRollForward(rollForwardRes || null);
       const walletsData = wList || [];
       setDashboardWallets(walletsData);
       const defaultBank = walletsData.find((w: any) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && w.walletType !== "TICKET" && w.walletType !== "BENEFICIO");
@@ -424,15 +428,9 @@ export function DashboardOverview() {
         </div>
       )}
 
-      {/* ── 1.5. CONTA CAIXA / CONTROLE RÁPIDO DO FLUXO ─────────────────────── */}
+      {/* ── 1.5. CARDS: SALDO CONSOLIDADO & SALDO PREVISTO PÓS-CONTAS ──────── */}
       {(() => {
-        const cashWallet = data.cards.find(
-          (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA"
-        ) || data.cards.find(
-          (c: any) => c.walletType !== "CREDIT_CARD" && c.walletType !== "TICKET"
-        ) || data.cards[0];
-
-        const bankAccounts = (data.cards || []).filter(
+        const bankAccounts = (data?.cards || []).filter(
           (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO"
         );
         const contasBancarias = bankAccounts.map((c: any) => ({
@@ -440,26 +438,127 @@ export function DashboardOverview() {
           banco: c.bankName || c.title,
           saldo: Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0),
         }));
-        const saldoGeralDisponivel = contasBancarias.reduce(
+        const saldoConsolidado = monthlyRollForward?.saldoAtualContas ?? contasBancarias.reduce(
           (sum: number, c: any) => sum + (Number(c.saldo) || 0),
           0
         );
 
+        const saldoHerdado = monthlyRollForward?.saldoHerdado ?? 0;
+        const saldoPrevisto = monthlyRollForward?.saldoPrevisto ?? 0;
+        const totalEntradasMes = monthlyRollForward?.receitasMes ?? 0;
+
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <CardContaFluxo
-              saldo={saldoGeralDisponivel}
-              title="SALDO CONSOLIDADO (TODAS AS CONTAS)"
-              subtitle="Soma dos saldos em conta corrente"
-              onAdicionarSaldo={() => {
-                setInjectTipoOperacao("ENTRADA");
-                setInjectModalOpen(true);
-              }}
-              onRetirarSaldo={() => {
-                setInjectTipoOperacao("SAIDA");
-                setInjectModalOpen(true);
-              }}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-2">
+            {/* Card 1: Saldo Consolidado */}
+            <div className="bg-white dark:bg-[#131B2E] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl shadow-xs">
+                      👛
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
+                      Saldo Consolidado<br />
+                      <span className="text-slate-400 dark:text-slate-500 font-medium">({contasBancarias.length > 0 ? `${contasBancarias.length} Contas` : "Todas as Contas"})</span>
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
+                    ✽ Todas as Contas
+                  </span>
+                </div>
+
+                <div className="mt-4">
+                  <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums tracking-tight">
+                    R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </h2>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
+                    Soma dos saldos em conta corrente
+                  </p>
+                </div>
+              </div>
+
+              {/* Ações Rápidas */}
+              <div className="flex gap-2.5 mt-5">
+                <button
+                  onClick={() => {
+                    setInjectTipoOperacao("ENTRADA");
+                    setInjectModalOpen(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  ↗ + Adicionar Saldo
+                </button>
+                <button
+                  onClick={() => {
+                    setInjectTipoOperacao("SAIDA");
+                    setInjectModalOpen(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-4 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                >
+                  ↘ - Retirar / Abater
+                </button>
+              </div>
+            </div>
+
+            {/* Card 2: Saldo Previsto Pós-Contas */}
+            <div className="bg-white dark:bg-[#131B2E] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
+                    Saldo Previsto<br />Pós-Contas
+                  </span>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                    saldoPrevisto >= 0
+                      ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-200/60 dark:border-indigo-800/60"
+                      : "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/60 border-rose-200/60 dark:border-rose-800/60"
+                  }`}>
+                    {saldoPrevisto >= 0 ? "Projeção Segura" : "Atenção ao Caixa"}
+                  </span>
+                </div>
+
+                <div className="mt-4">
+                  <h2 className={`text-3xl font-extrabold font-tnum tabular-nums tracking-tight ${
+                    saldoPrevisto >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"
+                  }`}>
+                    {saldoPrevisto >= 0 ? "+ R$ " : "- R$ "}
+                    {Math.abs(saldoPrevisto).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </h2>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
+                    {monthlyRollForward?.isFutureMonth
+                      ? "Considerando saldo herdado, faturas e boletos a vencer no mês"
+                      : "Considerando faturas e boletos a vencer no mês"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Resumo de Entradas e Herança no Rodapé */}
+              <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {monthlyRollForward?.isFutureMonth && (
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-1.5">
+                      <span>Saldo Inicial Herdado:</span>
+                      {monthlyRollForward.previousMonthLabel && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                          ({monthlyRollForward.previousMonthLabel})
+                        </span>
+                      )}
+                    </div>
+                    <span className={`font-bold font-tnum tabular-nums inline-flex items-center gap-1 ${
+                      saldoHerdado >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-rose-600 dark:text-rose-400"
+                    }`}>
+                      {saldoHerdado >= 0 ? "+ R$ " : "- R$ "}
+                      {Math.abs(saldoHerdado).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span>Entradas do Mês:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums inline-flex items-center gap-1">
+                    ↗ R$ {totalEntradasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         );
       })()}
