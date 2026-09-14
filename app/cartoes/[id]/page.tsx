@@ -673,7 +673,7 @@ export default function CartaoDetailPage() {
     });
   const totalPago    = monthExpenseTransactions.filter(t => t.status !== "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
   const totalNaoPago = monthExpenseTransactions.filter(t => t.status === "PENDING").reduce((s, t) => s + (t.amount || 0), 0);
-  const totalDespesasExtrato = totalPago + totalNaoPago;
+  const totalDespesasExtrato = isBank ? totalPago : (totalPago + totalNaoPago);
 
   // Competência do Mês Seguinte (+1)
   const nextDate = new Date(selectedYear, selectedMonth, 1); // mês seguinte
@@ -1389,6 +1389,7 @@ export default function CartaoDetailPage() {
               const monthTransactions = (cardData.allTransactions || [])
                 .filter((t) => {
                   if ((t as any).source === "RECURRING_PROJECTION") return false;
+                  if (isBank && t.status === "PENDING") return false;
                   const { year, month } = getTransactionDisplayYearMonth(t);
                   return year === selectedYear && month === selectedMonth;
                 });

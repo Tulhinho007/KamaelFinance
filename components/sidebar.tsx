@@ -48,7 +48,7 @@ export const sidebarNavigation: SidebarNavGroup[] = [
     group: "VISÃO GERAL",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "Despesas & Contas", href: "/despesas", icon: CreditCard },
+      { name: "Compromissos & Contas", href: "/despesas", icon: CreditCard },
       { name: "Receitas", href: "/receitas", icon: TrendingUp },
       { name: "Histórico de Pagamentos", href: "/historico-pagamentos", icon: History },
     ],

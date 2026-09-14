@@ -7,7 +7,7 @@ import {
   AlertCircle, CheckCircle2, Clock, Sparkles,
   BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
-  HelpCircle, Repeat
+  HelpCircle, Repeat, Receipt, RotateCcw, Search
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -17,7 +17,9 @@ import {
   payCardInvoiceAction, undoCardInvoicePaymentAction, getPaidInvoicesAction,
   getSalaryCycleSummary, getRealRevenueAction, getPendingRevenuesAction,
   getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction,
-  getRecurringExpensesAction, getUpcomingBillsWindowAction
+  getRecurringExpensesAction, getUpcomingBillsWindowAction,
+  getMonthlyCommitmentsAction, createCommitmentAction, payCommitmentAction,
+  undoCommitmentPaymentAction, updateCommitmentAction, deleteCommitmentAction
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -340,9 +342,186 @@ export default function DespesasPage() {
   const [injectModalOpen, setInjectModalOpen]       = useState(false);
   const [injectOrigin, setInjectOrigin]             = useState<BalanceMovementOrigin>("DEPOSITO");
 
+  // ── Central de Compromissos Fixos e Contas a Pagar do Mês ──
+  const [mainView, setMainView] = useState<"compromissos" | "cartoes">("compromissos");
+  const [commitmentsLoading, setCommitmentsLoading] = useState(true);
+  const [commitmentsData, setCommitmentsData] = useState<{
+    items: any[];
+    totals: { totalMes: number; totalPendente: number; totalPago: number };
+    contasBancarias: { id: string; banco: string; saldoAtual: number }[];
+    cartoesCredito: { id: string; nome: string; limiteDisponivel: number; limiteTotal: number; faturaAtual: number }[];
+  }>({
+    items: [],
+    totals: { totalMes: 0, totalPendente: 0, totalPago: 0 },
+    contasBancarias: [],
+    cartoesCredito: [],
+  });
+
+  const [commitmentStatusFilter, setCommitmentStatusFilter] = useState<"TODOS" | "PENDENTE" | "PAGO">("TODOS");
+  const [commitmentSearch, setCommitmentSearch] = useState("");
+
+  // Modal "+ Novo Boleto / Assinatura"
+  const [newCommitmentModalOpen, setNewCommitmentModalOpen] = useState(false);
+  const [savingCommitment, setSavingCommitment] = useState(false);
+  const [newCommitmentDesc, setNewCommitmentDesc] = useState("");
+  const [newCommitmentAmount, setNewCommitmentAmount] = useState("");
+  const [newCommitmentDueDate, setNewCommitmentDueDate] = useState("");
+  const [newCommitmentTipo, setNewCommitmentTipo] = useState<"BOLETO" | "ASSINATURA">("BOLETO");
+  const [newCommitmentRecorrencia, setNewCommitmentRecorrencia] = useState<"MENSAL" | "UNICO">("MENSAL");
+
+  // Modal de Baixa ("Confirmar Pagamento")
+  const [payCommitmentItem, setPayCommitmentItem] = useState<any | null>(null);
+  const [payingCommitment, setPayingCommitment] = useState(false);
+  const [baixaForma, setBaixaForma] = useState<"SALDO_CONTA" | "DEBITO_AUTOMATICO" | "PIX" | "CARTAO_CREDITO" | "DINHEIRO">("SALDO_CONTA");
+  const [baixaContaId, setBaixaContaId] = useState<string>("");
+  const [baixaCartaoId, setBaixaCartaoId] = useState<string>("");
+  const [baixaData, setBaixaData] = useState<string>(new Date().toISOString().split("T")[0]);
+
+  // Modal de Edição
+  const [editCommitmentItem, setEditCommitmentItem] = useState<any | null>(null);
+  const [editingCommitment, setEditingCommitment] = useState(false);
+  const [editCommitmentDesc, setEditCommitmentDesc] = useState("");
+  const [editCommitmentAmount, setEditCommitmentAmount] = useState("");
+  const [editCommitmentDueDate, setEditCommitmentDueDate] = useState("");
+  const [editCommitmentTipo, setEditCommitmentTipo] = useState<"BOLETO" | "ASSINATURA">("BOLETO");
+  const [editCommitmentRecorrencia, setEditCommitmentRecorrencia] = useState<"MENSAL" | "UNICO">("MENSAL");
+
+  const handleSaveNewCommitment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCommitmentDesc.trim() || !newCommitmentAmount || Number(newCommitmentAmount) <= 0 || !newCommitmentDueDate) {
+      showAlert("Preencha todos os campos corretamente.", { variant: "warning" });
+      return;
+    }
+    setSavingCommitment(true);
+    try {
+      await createCommitmentAction({
+        description: newCommitmentDesc.trim(),
+        amount: Number(newCommitmentAmount),
+        dueDate: newCommitmentDueDate,
+        tipo: newCommitmentTipo,
+        recorrencia: newCommitmentRecorrencia,
+      });
+      setNewCommitmentModalOpen(false);
+      setNewCommitmentDesc("");
+      setNewCommitmentAmount("");
+      setNewCommitmentDueDate("");
+      setNewCommitmentTipo("BOLETO");
+      setNewCommitmentRecorrencia("MENSAL");
+      await reloadAllData();
+      showAlert("Compromisso cadastrado com sucesso!", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao salvar compromisso.", { variant: "error" });
+    } finally {
+      setSavingCommitment(false);
+    }
+  };
+
+  const openBaixaModal = (item: any) => {
+    setPayCommitmentItem(item);
+    setBaixaForma("SALDO_CONTA");
+    if (commitmentsData.contasBancarias.length > 0) {
+      setBaixaContaId(commitmentsData.contasBancarias[0].id);
+    }
+    if (commitmentsData.cartoesCredito.length > 0) {
+      setBaixaCartaoId(commitmentsData.cartoesCredito[0].id);
+    }
+    setBaixaData(new Date().toISOString().split("T")[0]);
+  };
+
+  const handleEfetivarBaixa = async () => {
+    if (!payCommitmentItem) return;
+    if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
+      showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+      return;
+    }
+    if (baixaForma === "CARTAO_CREDITO" && !baixaCartaoId) {
+      showAlert("Selecione o cartão de crédito para lançamento.", { variant: "warning" });
+      return;
+    }
+    setPayingCommitment(true);
+    try {
+      await payCommitmentAction({
+        commitmentId: payCommitmentItem.id,
+        formaPagamento: baixaForma,
+        contaBancariaId: baixaContaId,
+        cartaoCreditoId: baixaCartaoId,
+        dataBaixa: baixaData,
+      });
+      setPayCommitmentItem(null);
+      await reloadAllData();
+      showAlert("Baixa confirmada com sucesso! O extrato da conta foi sincronizado.", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao efetivar baixa.", { variant: "error" });
+    } finally {
+      setPayingCommitment(false);
+    }
+  };
+
+  const handleUndoCommitment = async (commitmentId: string) => {
+    try {
+      await undoCommitmentPaymentAction(commitmentId);
+      await reloadAllData();
+      showAlert("Pagamento desfeito! O compromisso retornou para pendente.", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao desfazer pagamento.", { variant: "error" });
+    }
+  };
+
+  const handleDeleteCommitment = async (commitmentId: string) => {
+    if (!confirm("Tem certeza que deseja excluir este compromisso?")) return;
+    try {
+      await deleteCommitmentAction(commitmentId);
+      await reloadAllData();
+      showAlert("Compromisso excluído com sucesso!", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao excluir compromisso.", { variant: "error" });
+    }
+  };
+
+  const openEditCommitment = (item: any) => {
+    setEditCommitmentItem(item);
+    setEditCommitmentDesc(item.description);
+    setEditCommitmentAmount(String(item.amount));
+    setEditCommitmentDueDate(item.dueDateInput || item.dueDateRaw?.split("T")[0] || "");
+    setEditCommitmentTipo(item.tipo || "BOLETO");
+    setEditCommitmentRecorrencia(item.recorrencia || "MENSAL");
+  };
+
+  const handleSaveEditCommitment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editCommitmentItem) return;
+    if (!editCommitmentDesc.trim() || !editCommitmentAmount || Number(editCommitmentAmount) <= 0 || !editCommitmentDueDate) {
+      showAlert("Preencha todos os campos obrigatórios.", { variant: "warning" });
+      return;
+    }
+    setEditingCommitment(true);
+    try {
+      await updateCommitmentAction({
+        id: editCommitmentItem.id,
+        description: editCommitmentDesc.trim(),
+        amount: Number(editCommitmentAmount),
+        dueDate: editCommitmentDueDate,
+        tipo: editCommitmentTipo,
+        recorrencia: editCommitmentRecorrencia,
+      });
+      setEditCommitmentItem(null);
+      await reloadAllData();
+      showAlert("Compromisso atualizado com sucesso!", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao atualizar compromisso.", { variant: "error" });
+    } finally {
+      setEditingCommitment(false);
+    }
+  };
+
   const reloadAllData = async () => {
     try {
-      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev] = await Promise.all([
+      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev, freshCommitments] = await Promise.all([
         getAllCardsOverview(selectedMonthFilter, selectedYear),
         getPaidInvoicesAction(selectedMonthFilter, selectedYear),
         getRealRevenueAction(selectedMonthFilter, selectedYear),
@@ -351,6 +530,7 @@ export default function DespesasPage() {
         getRecurringExpensesAction(selectedMonthFilter, selectedYear),
         getUpcomingBillsWindowAction(selectedMonthFilter, selectedYear),
         getPendingRevenuesAction(selectedMonthFilter, selectedYear),
+        getMonthlyCommitmentsAction(selectedMonthFilter, selectedYear),
       ]);
       setCards(freshCards || []);
       setPaidInvoicesList(freshPaidInv || []);
@@ -360,10 +540,33 @@ export default function DespesasPage() {
       setRecurringExpensesList(freshRecurring || []);
       setWindowBills(freshWindow || null);
       setReceitasPendentesMes(freshPendingRev?.total ?? freshWindow?.receitasPendentesDoMes ?? 0);
+      if (freshCommitments) {
+        setCommitmentsData(freshCommitments);
+        if (freshCommitments.contasBancarias?.length > 0) {
+          setBaixaContaId((prev) => prev || freshCommitments.contasBancarias[0].id);
+        }
+        if (freshCommitments.cartoesCredito?.length > 0) {
+          setBaixaCartaoId((prev) => prev || freshCommitments.cartoesCredito[0].id);
+        }
+      }
+      setCommitmentsLoading(false);
     } catch (e) {
       console.error("Erro ao recarregar dados de despesas:", e);
     }
   };
+
+  const filteredCommitments = (commitmentsData?.items || []).filter((item: any) => {
+    if (commitmentStatusFilter === "PENDENTE" && item.status !== "PENDING") return false;
+    if (commitmentStatusFilter === "PAGO" && item.status !== "COMPLETED") return false;
+    if (commitmentSearch.trim()) {
+      const q = commitmentSearch.toLowerCase().trim();
+      const matchDesc = (item.description || "").toLowerCase().includes(q);
+      const matchTipo = (item.tipoLabel || "").toLowerCase().includes(q);
+      const matchForma = (item.formaPagamentoLabel || "").toLowerCase().includes(q);
+      if (!matchDesc && !matchTipo && !matchForma) return false;
+    }
+    return true;
+  });
 
   const handleMarkBillPaid = async (billId: string) => {
     try {
@@ -480,8 +683,9 @@ export default function DespesasPage() {
       getRecurringExpensesAction(monthParam, selectedYear),
       getUpcomingBillsWindowAction(monthParam, selectedYear),
       getPendingRevenuesAction(monthParam, selectedYear),
+      getMonthlyCommitmentsAction(monthParam, selectedYear),
     ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes]) => {
+      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes, commitmentsRes]) => {
         if (!active) return;
         setCards(cardsRes || []);
         setPaidInvoicesList(paidInvoicesRes || []);
@@ -491,6 +695,16 @@ export default function DespesasPage() {
         setRecurringExpensesList(recurringRes || []);
         setWindowBills(windowRes || null);
         setReceitasPendentesMes(pendingRevRes?.total ?? windowRes?.receitasPendentesDoMes ?? 0);
+        if (commitmentsRes) {
+          setCommitmentsData(commitmentsRes);
+          if (commitmentsRes.contasBancarias?.length > 0) {
+            setBaixaContaId((prev) => prev || commitmentsRes.contasBancarias[0].id);
+          }
+          if (commitmentsRes.cartoesCredito?.length > 0) {
+            setBaixaCartaoId((prev) => prev || commitmentsRes.cartoesCredito[0].id);
+          }
+        }
+        setCommitmentsLoading(false);
         setLoading(false);
       })
       .catch(err => {
@@ -906,24 +1120,390 @@ export default function DespesasPage() {
         </div>
       </div>
 
-      {/* ── 2. BOTÕES CTA ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row flex-wrap gap-3 -mt-4 w-full sm:w-auto">
-        <button
-          id="btn-adicionar-cartao"
-          onClick={openCreate}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.01] cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Adicionar Cartão / Conta
-        </button>
-        <button
-          onClick={() => setPurchaseModalOpen(true)}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01] cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          Lançar Despesa
-        </button>
+      {/* ── 2. SELETOR DE VISÃO & CTA PRINCIPAL ───────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 -mt-2">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 w-full sm:w-auto">
+          <button
+            onClick={() => setMainView("compromissos")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainView === "compromissos"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            <span>Central de Compromissos & Contas a Pagar</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+              {commitmentsData.items.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setMainView("cartoes")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainView === "cartoes"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Meus Cartões & Contas Cadastrados</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+              {cards.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setNewCommitmentModalOpen(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            + Novo Boleto / Assinatura
+          </button>
+        </div>
       </div>
+
+      {/* ── 2.1. CONTEÚDO: CENTRAL DE COMPROMISSOS FIXOS & CONTAS A PAGAR ─────── */}
+      {mainView === "compromissos" && (
+        <div className="flex flex-col gap-6">
+          {/* Cards Resumo do Topo da Página */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Card 1: TOTAL DO MÊS */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                    TOTAL DO MÊS
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {brl(commitmentsData.totals.totalMes)}
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>Soma de todos os boletos e assinaturas do mês</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">{commitmentsData.items.length} itens</span>
+              </div>
+            </div>
+
+            {/* Card 2: A PAGAR (PENDENTES) - Laranja/Amarelo */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-amber-200/70 dark:border-amber-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                    A PAGAR (PENDENTES)
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                  {brl(commitmentsData.totals.totalPendente)}
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>O que ainda precisa ser quitado no período</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">
+                  {commitmentsData.items.filter(i => i.status === "PENDING").length} pendentes
+                </span>
+              </div>
+            </div>
+
+            {/* Card 3: PAGO NO MÊS - Verde */}
+            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-emerald-200/70 dark:border-emerald-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
+                    PAGO NO MÊS
+                  </span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                  {brl(commitmentsData.totals.totalPago)}
+                </div>
+              </div>
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>O montante que já recebeu baixa</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {commitmentsData.items.filter(i => i.status === "COMPLETED").length} liquidados
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabela de Compromissos */}
+          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm overflow-hidden">
+            {/* Header da Tabela com Filtros e Busca */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 w-full sm:w-auto">
+                <button
+                  onClick={() => setCommitmentStatusFilter("TODOS")}
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    commitmentStatusFilter === "TODOS"
+                      ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  Todos ({commitmentsData.items.length})
+                </button>
+                <button
+                  onClick={() => setCommitmentStatusFilter("PENDENTE")}
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    commitmentStatusFilter === "PENDENTE"
+                      ? "bg-amber-500 text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400"
+                  }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  A Pagar ({commitmentsData.items.filter(i => i.status === "PENDING").length})
+                </button>
+                <button
+                  onClick={() => setCommitmentStatusFilter("PAGO")}
+                  className={`flex-1 sm:flex-none px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    commitmentStatusFilter === "PAGO"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Pagos ({commitmentsData.items.filter(i => i.status === "COMPLETED").length})
+                </button>
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="relative flex-1 md:w-64">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={commitmentSearch}
+                    onChange={(e) => setCommitmentSearch(e.target.value)}
+                    placeholder="Buscar boleto ou assinatura..."
+                    className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                  {commitmentSearch && (
+                    <button
+                      onClick={() => setCommitmentSearch("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setNewCommitmentModalOpen(true)}
+                  className="hidden sm:flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Novo</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tabela de Dados */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-900/40">
+                    <th className="py-3 px-4">Vencimento</th>
+                    <th className="py-3 px-4">Descrição / Fornecedor</th>
+                    <th className="py-3 px-4">Tipo</th>
+                    <th className="py-3 px-4 text-right">Valor</th>
+                    <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4">Forma de Pagamento</th>
+                    <th className="py-3 px-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+                  {filteredCommitments.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                          <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
+                            Nenhum compromisso encontrado para este período.
+                          </p>
+                          <p className="text-xs text-slate-400 max-w-sm">
+                            Cadastre contas fixas, boletos ou assinaturas para controlar prazos e dar baixa com débito automático no banco ou cartão.
+                          </p>
+                          <button
+                            onClick={() => setNewCommitmentModalOpen(true)}
+                            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            Cadastrar Primeiro Boleto / Assinatura
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCommitments.map((item) => {
+                      const isPaid = item.status === "COMPLETED";
+                      return (
+                        <tr
+                          key={item.id}
+                          className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group"
+                        >
+                          {/* 1. Vencimento */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {item.dueDateFormatted}
+                              </span>
+                              <span
+                                className={`inline-flex items-center w-max px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}
+                              >
+                                {item.dueBadge.label}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* 2. Descrição / Fornecedor */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                                item.tipo === "ASSINATURA"
+                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              }`}>
+                                {item.tipo === "ASSINATURA" ? <Zap className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white block text-sm">
+                                  {item.description}
+                                </span>
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                  {item.recorrenciaLabel}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 3. Tipo */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                                item.tipo === "ASSINATURA"
+                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                              }`}
+                            >
+                              {item.tipoLabel}
+                            </span>
+                          </td>
+
+                          {/* 4. Valor */}
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <span className="font-black text-slate-900 dark:text-white text-sm">
+                              {brl(item.amount)}
+                            </span>
+                          </td>
+
+                          {/* 5. Status */}
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${
+                                isPaid
+                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              }`}
+                            >
+                              {item.statusLabel}
+                            </span>
+                          </td>
+
+                          {/* 6. Forma de Pagamento */}
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            {isPaid ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                {item.formaPagamentoLabel}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-sm font-bold">-</span>
+                            )}
+                          </td>
+
+                          {/* 7. Ações */}
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isPaid ? (
+                                <button
+                                  onClick={() => openBaixaModal(item)}
+                                  className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
+                                  title="Pagar / Dar Baixa"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Pagar / Baixar</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleUndoCommitment(item.id)}
+                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                                  title="Desfazer pagamento"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>Desfazer</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => openEditCommitment(item)}
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Editar compromisso"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteCommitment(item.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir compromisso"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 2.2. CONTEÚDO: MEUS CARTÕES & CONTAS CADASTRADOS ─────────────────── */}
+      {mainView === "cartoes" && (
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full sm:w-auto">
+            <button
+              id="btn-adicionar-cartao"
+              onClick={openCreate}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-sm transition-all hover:scale-[1.01] cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar Cartão / Conta
+            </button>
+            <button
+              onClick={() => setPurchaseModalOpen(true)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all hover:scale-[1.01] cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              Lançar Despesa
+            </button>
+          </div>
 
       {/* ── 2.1. MÉTRICA SUPERIOR: SALDO DISPONÍVEL / CONTROLE RÁPIDO DE FLUXO ────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -1384,6 +1964,298 @@ export default function DespesasPage() {
           )}
         </div>
       </section>
+        </div>
+      )}
+
+      {/* ── MODAIS DA CENTRAL DE COMPROMISSOS ─────────────────────────────────── */}
+
+      {/* Modal 1: + Novo Boleto / Assinatura */}
+      {newCommitmentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Novo Boleto / Assinatura</h3>
+              </div>
+              <button
+                onClick={() => setNewCommitmentModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNewCommitment} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Descrição</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Aluguel, Netflix, Luz"
+                  value={newCommitmentDesc}
+                  onChange={(e) => setNewCommitmentDesc(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    value={newCommitmentAmount}
+                    onChange={(e) => setNewCommitmentAmount(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Vencimento</label>
+                  <input
+                    type="date"
+                    value={newCommitmentDueDate}
+                    onChange={(e) => setNewCommitmentDueDate(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Tipo</label>
+                  <select
+                    value={newCommitmentTipo}
+                    onChange={(e) => setNewCommitmentTipo(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="BOLETO">Boleto / Conta Fixa</option>
+                    <option value="ASSINATURA">Assinatura / Streaming</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Recorrência</label>
+                  <select
+                    value={newCommitmentRecorrencia}
+                    onChange={(e) => setNewCommitmentRecorrencia(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="MENSAL">Repetir todo mês</option>
+                    <option value="UNICO">Apenas neste mês</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={savingCommitment}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {savingCommitment ? "Salvando..." : "Salvar Compromisso"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Confirmar Pagamento / Baixa */}
+      {payCommitmentItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Confirmar Pagamento</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Conta: <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Forma de Pagamento *</label>
+                <select
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
+                  value={baixaForma}
+                  onChange={(e) => setBaixaForma(e.target.value as any)}
+                >
+                  <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
+                  <option value="DEBITO_AUTOMATICO">Débito Automático (Conta Corrente)</option>
+                  <option value="PIX">Pix (Sai da Conta Corrente)</option>
+                  <option value="CARTAO_CREDITO">Cartão de Crédito (Gera Fatura)</option>
+                  <option value="DINHEIRO">Dinheiro em Espécie (Caixa Físico)</option>
+                </select>
+              </div>
+
+              {/* Se pagar via Conta, Débito Automático ou Pix, seleciona qual banco debitar */}
+              {["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && (
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Corrente Debitar?</label>
+                  <select
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                    value={baixaContaId}
+                    onChange={(e) => setBaixaContaId(e.target.value)}
+                  >
+                    {commitmentsData.contasBancarias.map((conta) => (
+                      <option key={conta.id} value={conta.id}>
+                        {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Se pagar via Cartão de Crédito, escolhe qual cartão vai receber o lançamento */}
+              {baixaForma === "CARTAO_CREDITO" && (
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Cartão de Crédito?</label>
+                  <select
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                    value={baixaCartaoId}
+                    onChange={(e) => setBaixaCartaoId(e.target.value)}
+                  >
+                    {commitmentsData.cartoesCredito.map((cartao) => (
+                      <option key={cartao.id} value={cartao.id}>
+                        {cartao.nome} - Limite Disp: R$ {cartao.limiteDisponivel.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Data da Baixa</label>
+                <input
+                  type="date"
+                  value={baixaData}
+                  onChange={(e) => setBaixaData(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setPayCommitmentItem(null)}
+                disabled={payingCommitment}
+                className="w-1/2 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEfetivarBaixa}
+                disabled={payingCommitment}
+                className="w-1/2 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {payingCommitment ? "Processando..." : "Confirmar Baixa"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Editar Compromisso */}
+      {editCommitmentItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Editar Compromisso</h3>
+              </div>
+              <button
+                onClick={() => setEditCommitmentItem(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditCommitment} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Descrição</label>
+                <input
+                  type="text"
+                  value={editCommitmentDesc}
+                  onChange={(e) => setEditCommitmentDesc(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editCommitmentAmount}
+                    onChange={(e) => setEditCommitmentAmount(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Vencimento</label>
+                  <input
+                    type="date"
+                    value={editCommitmentDueDate}
+                    onChange={(e) => setEditCommitmentDueDate(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Tipo</label>
+                  <select
+                    value={editCommitmentTipo}
+                    onChange={(e) => setEditCommitmentTipo(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="BOLETO">Boleto / Conta Fixa</option>
+                    <option value="ASSINATURA">Assinatura / Streaming</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Recorrência</label>
+                  <select
+                    value={editCommitmentRecorrencia}
+                    onChange={(e) => setEditCommitmentRecorrencia(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="MENSAL">Repetir todo mês</option>
+                    <option value="UNICO">Apenas neste mês</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditCommitmentItem(null)}
+                  disabled={editingCommitment}
+                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={editingCommitment}
+                  className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {editingCommitment ? "Salvando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAIS ─────────────────────────────────────────────────────────────── */}
 

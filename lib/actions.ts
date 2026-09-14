@@ -7560,3 +7560,618 @@ export async function getCashFlowProjectionAction(days: number = 60) {
 
 
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CENTRAL DE COMPROMISSOS FIXOS E CONTAS A PAGAR DO MÊS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {}
+}
+
+async function ensureRecurringCommitmentsForMonth(userId: string, targetMonth: number, targetYear: number) {
+  try {
+    const from = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+    const to = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+    const daysInMonth = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+
+    // Busca templates recorrentes ativos
+    const templates = await prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        type: "EXPENSE",
+        deletedAt: null,
+        isRecurring: true,
+      },
+    });
+
+    const seenGroups = new Set<string>();
+
+    for (const t of templates) {
+      const groupKey = t.installmentGroupId || t.id;
+      if (seenGroups.has(groupKey)) continue;
+      seenGroups.add(groupKey);
+
+      const exists = await prisma.transaction.findFirst({
+        where: {
+          wallet: { userId },
+          deletedAt: null,
+          installmentGroupId: groupKey,
+          OR: [
+            { competenceMonth: targetMonth, competenceYear: targetYear },
+            { dueDate: { gte: from, lte: to } },
+          ],
+        },
+      });
+
+      if (!exists) {
+        const day = Math.min(Math.max(1, t.recurringDay || 10), daysInMonth);
+        const due = new Date(Date.UTC(targetYear, targetMonth - 1, day, 12, 0, 0));
+
+        let cleanDesc = t.description;
+        if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+        if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+        const cleanTags = (t.tags || "")
+          .replace(/#pago/g, "")
+          .replace(/FORMA:[A-Z_]+/g, "")
+          .replace(/origDesc:[^ ]+/g, "")
+          .trim();
+
+        await prisma.transaction.create({
+          data: {
+            walletId: t.walletId,
+            description: cleanDesc,
+            amount: t.amount,
+            type: "EXPENSE",
+            date: due,
+            dueDate: due,
+            competenceMonth: targetMonth,
+            competenceYear: targetYear,
+            status: "PENDING",
+            source: "COMMITMENT",
+            isRecurring: true,
+            recurringDay: day,
+            installmentGroupId: groupKey,
+            paymentMethod: t.paymentMethod || "BOLETO",
+            tags: cleanTags ? cleanTags + " #mensal" : "#compromisso #mensal",
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Erro ao garantir compromissos recorrentes:", err);
+  }
+}
+
+export async function getMonthlyCommitmentsAction(
+  month?: number | null | string,
+  year: number = 2026
+) {
+  const userId = await getActiveUserId();
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+  const numMonth = !isAnnualView ? Number(month) : null;
+
+  // 1. Contas Correntes do usuário (para opções de débito)
+  const userWallets = await prisma.wallet.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      title: true,
+      bankName: true,
+      walletType: true,
+      currentBalance: true,
+      creditLimit: true,
+    },
+    orderBy: { title: "asc" },
+  });
+
+  const contasBancarias = userWallets
+    .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
+    .map((w) => ({
+      id: w.id,
+      banco: w.bankName || w.title,
+      saldoAtual: Number(w.currentBalance || 0),
+    }));
+
+  // 2. Cartões de Crédito do usuário (com cálculo de limite disponível)
+  const targetMonth = numMonth || (new Date().getMonth() + 1);
+  const fromMonth = new Date(Date.UTC(year, targetMonth - 1, 1, 0, 0, 0));
+  const toMonth = new Date(Date.UTC(year, targetMonth, 0, 23, 59, 59, 999));
+
+  const cartoesCredito = await Promise.all(
+    userWallets
+      .filter((w) => w.walletType === "CREDIT_CARD")
+      .map(async (c) => {
+        const cardPurchases = await prisma.transaction.findMany({
+          where: {
+            walletId: c.id,
+            type: "EXPENSE",
+            deletedAt: null,
+            source: { not: "RECURRING_PROJECTION" },
+            OR: [
+              { competenceMonth: targetMonth, competenceYear: year },
+              { competenceDate: { gte: fromMonth, lte: toMonth } },
+              { purchaseDate: { gte: fromMonth, lte: toMonth } },
+              { date: { gte: fromMonth, lte: toMonth } },
+            ],
+          },
+          select: { amount: true },
+        });
+
+        const totalFatura = cardPurchases.reduce((s, t) => s + Number(t.amount || 0), 0);
+        const limiteTotal = Number(c.creditLimit || 0);
+        const limiteDisponivel = Math.max(0, limiteTotal - totalFatura);
+
+        return {
+          id: c.id,
+          nome: c.title || c.bankName || "Cartão de Crédito",
+          limiteDisponivel,
+          limiteTotal,
+          faturaAtual: totalFatura,
+        };
+      })
+  );
+
+  // 3. Replicar compromissos recorrentes para o mês ativo caso ainda não existam
+  if (!isAnnualView && numMonth) {
+    await ensureRecurringCommitmentsForMonth(userId, numMonth, year);
+  }
+
+  // 4. Buscar compromissos do mês selecionado
+  let from: Date;
+  let to: Date;
+  if (!isAnnualView && numMonth) {
+    from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+    to = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+  } else {
+    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  }
+
+  const txs = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      type: "EXPENSE",
+      deletedAt: null,
+      OR: [
+        { source: "COMMITMENT" },
+        { tags: { contains: "#compromisso" } },
+        { tags: { contains: "BOLETO" } },
+        { tags: { contains: "ASSINATURA" } },
+        { paymentMethod: "BOLETO" },
+      ],
+      AND: [
+        {
+          OR: [
+            ...(numMonth ? [{ competenceMonth: numMonth, competenceYear: year }] : []),
+            { dueDate: { gte: from, lte: to } },
+            { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] },
+            { AND: [{ paymentDate: { gte: from, lte: to } }] },
+          ],
+        },
+      ],
+    },
+    include: {
+      wallet: true,
+      category: true,
+    },
+    orderBy: [
+      { dueDate: "asc" },
+      { date: "asc" },
+    ],
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const items = txs.map((t) => {
+    const due = t.dueDate || t.date;
+    const d = new Date(due);
+    const dueFormatted = String(d.getUTCDate()).padStart(2, "0") + "/" + String(d.getUTCMonth() + 1).padStart(2, "0") + "/" + d.getUTCFullYear();
+
+    const dMid = new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    const nowMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const diffDays = Math.round((dMid.getTime() - nowMid.getTime()) / (1000 * 60 * 60 * 24));
+
+    const isPaid = t.status === "COMPLETED" || t.status === "PAID";
+
+    let dueBadge: {
+      label: string;
+      type: "hoje" | "atrasado" | "restante" | "pago";
+      color: string;
+    };
+
+    if (isPaid) {
+      dueBadge = {
+        label: "Pago",
+        type: "pago",
+        color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+      };
+    } else if (diffDays < 0) {
+      dueBadge = {
+        label: "Atrasado (" + Math.abs(diffDays) + "d)",
+        type: "atrasado",
+        color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+      };
+    } else if (diffDays === 0) {
+      dueBadge = {
+        label: "Hoje",
+        type: "hoje",
+        color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+      };
+    } else if (diffDays === 1) {
+      dueBadge = {
+        label: "Amanhã",
+        type: "hoje",
+        color: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+      };
+    } else {
+      dueBadge = {
+        label: "Em " + diffDays + " dias",
+        type: "restante",
+        color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+      };
+    }
+
+    const tagStr = (t.tags || "").toUpperCase();
+    const isAssinatura =
+      tagStr.includes("ASSINATURA") ||
+      t.description.toLowerCase().includes("assinatura") ||
+      t.source === "SUBSCRIPTION";
+    const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
+    const tipoLabel = isAssinatura ? "Assinatura / Streaming" : "Boleto / Conta Fixa";
+
+    const isMensal = t.isRecurring || tagStr.includes("MENSAL");
+    const recorrencia: "MENSAL" | "UNICO" = isMensal ? "MENSAL" : "UNICO";
+    const recorrenciaLabel = isMensal ? "Repetir todo mês" : "Apenas neste mês";
+
+    let cleanDesc = t.description;
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) {
+      cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    } else if (cleanDesc.startsWith("Pagamento: ")) {
+      cleanDesc = cleanDesc.replace("Pagamento: ", "");
+    }
+
+    let formaPagamentoLabel = "-";
+    if (isPaid) {
+      if (tagStr.includes("FORMA:SALDO_CONTA")) {
+        formaPagamentoLabel = "Saldo Conta • " + (t.wallet?.title || "Santander");
+      } else if (tagStr.includes("FORMA:DEBITO_AUTOMATICO")) {
+        formaPagamentoLabel = "Débito Automático • " + (t.wallet?.title || "Santander");
+      } else if (tagStr.includes("FORMA:PIX") || t.paymentMethod === "PIX") {
+        formaPagamentoLabel = "Pix • " + (t.wallet?.title || "Santander");
+      } else if (tagStr.includes("FORMA:CARTAO_CREDITO") || t.paymentMethod === "CREDITO") {
+        formaPagamentoLabel = "Cartão • " + (t.wallet?.title || "Crédito");
+      } else if (tagStr.includes("FORMA:DINHEIRO") || t.paymentMethod === "DINHEIRO") {
+        formaPagamentoLabel = "Dinheiro em Espécie";
+      } else {
+        formaPagamentoLabel = t.wallet?.title ? "Conta • " + t.wallet.title : "Pago";
+      }
+    }
+
+    return {
+      id: t.id,
+      description: cleanDesc,
+      rawDescription: t.description,
+      amount: Number(t.amount),
+      dueDateFormatted: dueFormatted,
+      dueDateRaw: d.toISOString(),
+      dueDateInput: d.toISOString().split("T")[0],
+      dueBadge,
+      tipo,
+      tipoLabel,
+      recorrencia,
+      recorrenciaLabel,
+      status: isPaid ? ("COMPLETED" as const) : ("PENDING" as const),
+      statusLabel: isPaid ? "Pago" : "Pendente",
+      formaPagamentoLabel,
+      walletId: t.walletId,
+      walletTitle: t.wallet?.title || "Conta",
+      paidAt: t.paymentDate ? t.paymentDate.toISOString() : null,
+    };
+  });
+
+  const totalMes = items.reduce((s, it) => s + it.amount, 0);
+  const totalPendente = items.filter((it) => it.status === "PENDING").reduce((s, it) => s + it.amount, 0);
+  const totalPago = items.filter((it) => it.status === "COMPLETED").reduce((s, it) => s + it.amount, 0);
+
+  return {
+    items,
+    totals: {
+      totalMes: Math.round(totalMes * 100) / 100,
+      totalPendente: Math.round(totalPendente * 100) / 100,
+      totalPago: Math.round(totalPago * 100) / 100,
+    },
+    contasBancarias,
+    cartoesCredito,
+  };
+}
+
+export async function createCommitmentAction(input: {
+  description: string;
+  amount: number;
+  dueDate: string;
+  tipo: "BOLETO" | "ASSINATURA";
+  recorrencia: "MENSAL" | "UNICO";
+}) {
+  const userId = await getActiveUserId();
+
+  let defaultWallet = await prisma.wallet.findFirst({
+    where: { userId, walletType: "CONTA_CORRENTE" },
+    orderBy: { title: "asc" },
+  });
+  if (!defaultWallet) {
+    defaultWallet = await prisma.wallet.findFirst({
+      where: { userId },
+      orderBy: { title: "asc" },
+    });
+  }
+  if (!defaultWallet) {
+    throw new Error("Nenhuma conta encontrada no sistema para associar o compromisso.");
+  }
+
+  const due = parseInputDate(input.dueDate);
+  const isMensal = input.recorrencia === "MENSAL";
+  const dueDay = due.getUTCDate();
+  const compMonth = due.getUTCMonth() + 1;
+  const compYear = due.getUTCFullYear();
+
+  const tags = "#compromisso #" + input.tipo.toLowerCase() + " #" + input.recorrencia.toLowerCase();
+
+  const created = await prisma.transaction.create({
+    data: {
+      walletId: defaultWallet.id,
+      description: input.description.trim(),
+      type: "EXPENSE",
+      amount: input.amount,
+      date: due,
+      dueDate: due,
+      competenceMonth: compMonth,
+      competenceYear: compYear,
+      status: "PENDING",
+      source: "COMMITMENT",
+      isRecurring: isMensal,
+      recurringDay: dueDay,
+      paymentMethod: input.tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
+      tags,
+    },
+  });
+
+  if (isMensal) {
+    await prisma.transaction.update({
+      where: { id: created.id },
+      data: { installmentGroupId: created.id },
+    });
+  }
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  return created;
+}
+
+export async function payCommitmentAction(input: {
+  commitmentId: string;
+  formaPagamento: "SALDO_CONTA" | "DEBITO_AUTOMATICO" | "PIX" | "CARTAO_CREDITO" | "DINHEIRO";
+  contaBancariaId?: string;
+  cartaoCreditoId?: string;
+  dataBaixa: string;
+}) {
+  const userId = await getActiveUserId();
+
+  const tx = await prisma.transaction.findFirst({
+    where: { id: input.commitmentId, wallet: { userId } },
+    include: { wallet: true },
+  });
+
+  if (!tx) {
+    throw new Error("Compromisso não encontrado.");
+  }
+
+  const pDate = parseInputDate(input.dataBaixa);
+
+  let cleanDesc = tx.description;
+  if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+  if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+  const newDesc = "Pagamento Boleto: " + cleanDesc;
+
+  let targetWalletId = tx.walletId;
+  let pm: PaymentMethod = "DEBITO";
+
+  if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
+    if (!input.contaBancariaId) throw new Error("Selecione a conta corrente para debitar.");
+    targetWalletId = input.contaBancariaId;
+    pm = input.formaPagamento === "PIX" ? "PIX" : "DEBITO";
+  } else if (input.formaPagamento === "CARTAO_CREDITO") {
+    if (!input.cartaoCreditoId) throw new Error("Selecione o cartão de crédito.");
+    targetWalletId = input.cartaoCreditoId;
+    pm = "CREDITO";
+  } else if (input.formaPagamento === "DINHEIRO") {
+    pm = "DINHEIRO";
+  }
+
+  const tagParts = [
+    "#compromisso",
+    "#pago",
+    "FORMA:" + input.formaPagamento,
+    "origDesc:" + cleanDesc,
+  ];
+  if (tx.isRecurring) tagParts.push("#mensal");
+
+  // 1. Atualiza a transação com a data da baixa, novo status e descrição
+  await prisma.transaction.update({
+    where: { id: tx.id },
+    data: {
+      walletId: targetWalletId,
+      description: newDesc,
+      status: "COMPLETED",
+      paymentDate: pDate,
+      date: pDate,
+      paymentMethod: pm,
+      tags: tagParts.join(" "),
+    },
+  });
+
+  // 2. Se debitado de conta corrente, abate imediatamente do saldo do banco
+  if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
+    await prisma.wallet.update({
+      where: { id: targetWalletId },
+      data: { currentBalance: { decrement: tx.amount } } as any,
+    });
+  }
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  safeRevalidatePath("/cartoes/" + targetWalletId);
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  return { success: true };
+}
+
+export async function undoCommitmentPaymentAction(commitmentId: string) {
+  const userId = await getActiveUserId();
+
+  const tx = await prisma.transaction.findFirst({
+    where: { id: commitmentId, wallet: { userId } },
+    include: { wallet: true },
+  });
+
+  if (!tx) throw new Error("Compromisso não encontrado.");
+
+  const tagStr = (tx.tags || "").toUpperCase();
+  const wasCheckingDebit =
+    tagStr.includes("FORMA:SALDO_CONTA") ||
+    tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
+    tagStr.includes("FORMA:PIX") ||
+    (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED");
+
+  // Estorna o saldo na conta bancária
+  if (wasCheckingDebit && tx.walletId) {
+    await prisma.wallet.update({
+      where: { id: tx.walletId },
+      data: { currentBalance: { increment: tx.amount } } as any,
+    });
+  }
+
+  let cleanDesc = tx.description;
+  if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+  if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+  const cleanTags = (tx.tags || "")
+    .replace(/#pago/g, "")
+    .replace(/FORMA:[A-Z_]+/g, "")
+    .replace(/origDesc:[^ ]+/g, "")
+    .trim();
+
+  await prisma.transaction.update({
+    where: { id: tx.id },
+    data: {
+      description: cleanDesc,
+      status: "PENDING",
+      paymentDate: null,
+      tags: cleanTags || "#compromisso",
+    },
+  });
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  safeRevalidatePath("/cartoes/" + tx.walletId);
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  return { success: true };
+}
+
+export async function updateCommitmentAction(input: {
+  id: string;
+  description: string;
+  amount: number;
+  dueDate: string;
+  tipo: "BOLETO" | "ASSINATURA";
+  recorrencia: "MENSAL" | "UNICO";
+}) {
+  const userId = await getActiveUserId();
+
+  const tx = await prisma.transaction.findFirst({
+    where: { id: input.id, wallet: { userId } },
+  });
+
+  if (!tx) throw new Error("Compromisso não encontrado.");
+
+  const due = parseInputDate(input.dueDate);
+  const isMensal = input.recorrencia === "MENSAL";
+
+  const isPaid = tx.status === "COMPLETED" || tx.status === "PAID";
+  let newDesc = input.description.trim();
+  if (isPaid && !newDesc.startsWith("Pagamento Boleto: ")) {
+    newDesc = "Pagamento Boleto: " + newDesc;
+  }
+
+  const tags = "#compromisso #" + input.tipo.toLowerCase() + " #" + input.recorrencia.toLowerCase() + (isPaid ? " #pago" : "");
+
+  await prisma.transaction.update({
+    where: { id: input.id },
+    data: {
+      description: newDesc,
+      amount: input.amount,
+      dueDate: due,
+      date: due,
+      competenceMonth: due.getUTCMonth() + 1,
+      competenceYear: due.getUTCFullYear(),
+      isRecurring: isMensal,
+      recurringDay: due.getUTCDate(),
+      tags,
+    },
+  });
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  return { success: true };
+}
+
+export async function deleteCommitmentAction(commitmentId: string) {
+  const userId = await getActiveUserId();
+
+  const tx = await prisma.transaction.findFirst({
+    where: { id: commitmentId, wallet: { userId } },
+    include: { wallet: true },
+  });
+
+  if (!tx) throw new Error("Compromisso não encontrado.");
+
+  const tagStr = (tx.tags || "").toUpperCase();
+  const wasCheckingDebit =
+    (tagStr.includes("FORMA:SALDO_CONTA") ||
+      tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
+      tagStr.includes("FORMA:PIX")) &&
+    tx.status === "COMPLETED";
+
+  if (wasCheckingDebit && tx.walletId) {
+    await prisma.wallet.update({
+      where: { id: tx.walletId },
+      data: { currentBalance: { increment: tx.amount } } as any,
+    });
+  }
+
+  await prisma.transaction.delete({
+    where: { id: commitmentId },
+  });
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  return { success: true };
+}
