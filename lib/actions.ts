@@ -7336,6 +7336,9 @@ export async function purgeSubscriptionsDataAction() {
 export async function getPaymentHistoryData(month: number, year: number) {
   const userId = await getActiveUserId();
 
+  // Garante replicação de compromissos recorrentes para o mês ativo
+  await ensureRecurringCommitmentsForMonth(userId, month, year);
+
   const wallets = await prisma.wallet.findMany({
     where: { userId },
     orderBy: { title: "asc" },
@@ -7343,6 +7346,7 @@ export async function getPaymentHistoryData(month: number, year: number) {
 
   const monthName = getMonthName(month);
   const periodStr = `${monthName}/${year}`;
+  const competenciaStr = `${year}-${String(month).padStart(2, "0")}`;
 
   const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
@@ -7389,15 +7393,21 @@ export async function getPaymentHistoryData(month: number, year: number) {
     walletType: string;
     typeLabel: string;
     periodRef: string;
+    competencia?: string;
+    competenciaFormatada?: string;
+    formaPagamento?: "PIX" | "BOLETO" | "SALDO_CONTA" | "DEBITO_CONTA" | "CARTAO_CREDITO" | "DINHEIRO" | "TICKET" | null;
+    formaPagamentoFormatada?: string | null;
+    bancoOuCartaoUtilizado?: string | null;
     amount: number;
     paidAmount?: number;
     pendingAmount?: number;
-    status: "PAGO" | "AGUARDANDO PAGAMENTO" | "LIQUIDADO" | "AGUARDANDO LIQUIDAÇÃO" | "CONCLUÍDO" | "ZERADO";
+    status: "PAGO" | "PENDENTE" | "AGUARDANDO PAGAMENTO" | "LIQUIDADO" | "AGUARDANDO LIQUIDAÇÃO" | "CONCLUÍDO" | "ZERADO";
     statusColor: "emerald" | "amber" | "slate";
     detailsUrl: string;
     cardBrand?: string;
     lastDigits?: string;
     holder?: string;
+    dueDateFormatted?: string;
   }> = [];
 
   const cardsOverview = await getAllCardsOverview(month, year);
@@ -7423,10 +7433,15 @@ export async function getPaymentHistoryData(month: number, year: number) {
         walletType: "CREDIT_CARD",
         typeLabel: "Cartão de Crédito",
         periodRef: periodStr,
+        competencia: competenciaStr,
+        competenciaFormatada: periodStr,
+        formaPagamento: "CARTAO_CREDITO",
+        formaPagamentoFormatada: "Cartão de Crédito",
+        bancoOuCartaoUtilizado: w.title || w.bankName || "Cartão de Crédito",
         amount: invoiceAmount,
         paidAmount: isInvoicePaid ? invoiceAmount : 0,
         pendingAmount: isInvoicePaid ? 0 : invoiceAmount,
-        status: isInvoicePaid ? "PAGO" : invoiceAmount <= 0 ? "ZERADO" : "AGUARDANDO PAGAMENTO",
+        status: isInvoicePaid ? "PAGO" : invoiceAmount <= 0 ? "ZERADO" : "PENDENTE",
         statusColor: isInvoicePaid ? "emerald" : invoiceAmount <= 0 ? "slate" : "amber",
         detailsUrl: `/cartoes/${w.id}`,
         cardBrand: wOverview?.cardBrand || (w as any).cardBrand || undefined,
@@ -7458,49 +7473,147 @@ export async function getPaymentHistoryData(month: number, year: number) {
         walletType: "TICKET",
         typeLabel: "Cartão Benefício / Ticket",
         periodRef: periodStr,
+        competencia: competenciaStr,
+        competenciaFormatada: periodStr,
+        formaPagamento: tExpensesPaid > 0 ? "TICKET" : null,
+        formaPagamentoFormatada: tExpensesPaid > 0 ? "Cartão Benefício / VR" : null,
+        bancoOuCartaoUtilizado: w.title || w.bankName || "Benefício",
         amount: tExpensesTotal,
         paidAmount: tExpensesPaid,
         pendingAmount: tExpensesPending,
-        status: tExpensesTotal <= 0 ? "ZERADO" : (hasPending ? "AGUARDANDO LIQUIDAÇÃO" : "CONCLUÍDO"),
+        status: tExpensesTotal <= 0 ? "ZERADO" : (hasPending ? "PENDENTE" : "PAGO"),
         statusColor: tExpensesTotal <= 0 ? "slate" : (hasPending ? "amber" : "emerald"),
         detailsUrl: `/cartoes/${w.id}`,
         holder: (w as any).holder || undefined,
       });
-    } else {
-      // CONTA DÉBITO / PIX / CONTA CORRENTE
-      const wExpensesList = monthTransactions
-        .filter(t => t.walletId === w.id && t.type === "EXPENSE");
+    }
+  }
 
-      // No Histórico de Pagamentos, mantemos o foco ESTRITAMENTE em boletos de concessionárias e cobranças consolidadas
-      // Exclusão: Despesas com paymentMethod igual a PIX, DEBITO ou DINHEIRO (ex: lanches, apostas) pertencem exclusivamente ao Extrato da Conta.
-      const boletoBills = wExpensesList.filter(t => (t as any).paymentMethod === "BOLETO");
+  // Compromissos e boletos vinculados estritamente à COMPETÊNCIA cadastrada
+  const MONTH_NAMES_FULL = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
 
-      const billsPaid = boletoBills
-        .filter(t => t.status !== "PENDING")
-        .reduce((sum, t) => sum + Number(t.amount), 0);
+  const monthCommitments = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      type: "EXPENSE",
+      deletedAt: null,
+      OR: [
+        { source: "COMMITMENT" },
+        { tags: { contains: "#compromisso" } },
+        { tags: { contains: "BOLETO" } },
+        { tags: { contains: "ASSINATURA" } },
+        { paymentMethod: "BOLETO" },
+      ],
+      AND: [
+        {
+          OR: [
+            { competenceMonth: month, competenceYear: year },
+            {
+              AND: [
+                { competenceMonth: null },
+                { dueDate: { gte: startOfMonth, lte: endOfMonth } },
+              ],
+            },
+            {
+              AND: [
+                { competenceMonth: null },
+                { dueDate: null },
+                { date: { gte: startOfMonth, lte: endOfMonth } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    include: {
+      wallet: true,
+      category: true,
+    },
+    orderBy: [
+      { dueDate: "asc" },
+      { date: "asc" },
+    ],
+  });
 
-      totalDebitPix += billsPaid;
+  for (const bill of monthCommitments) {
+    const isPaid = bill.status === "COMPLETED" || bill.status === "PAID" || (bill.tags && bill.tags.includes("#pago"));
+    const billAmount = Number(bill.amount || 0);
 
-      for (const bill of boletoBills) {
-        const isPaid = bill.status !== "PENDING";
-        const billAmount = Number(bill.amount);
-        historyItems.push({
-          id: bill.id,
-          accountName: bill.description,
-          bankName: w.bankName || w.title || "Conta Corrente",
-          walletType: "CONTA_CORRENTE",
-          typeLabel: "Boleto Bancário",
-          periodRef: periodStr,
-          amount: billAmount,
-          paidAmount: isPaid ? billAmount : 0,
-          pendingAmount: isPaid ? 0 : billAmount,
-          status: isPaid ? "LIQUIDADO" : "AGUARDANDO LIQUIDAÇÃO",
-          statusColor: isPaid ? "emerald" : "amber",
-          detailsUrl: `/cartoes/${w.id}`,
-          holder: (w as any).holder || undefined,
-        });
+    if (isPaid) {
+      totalDebitPix += billAmount;
+    }
+
+    const cMonth = bill.competenceMonth || (bill.dueDate ? new Date(bill.dueDate).getUTCMonth() + 1 : new Date(bill.date).getUTCMonth() + 1);
+    const cYear = bill.competenceYear || (bill.dueDate ? new Date(bill.dueDate).getUTCFullYear() : new Date(bill.date).getUTCFullYear());
+    const cMonthFormatted = `${MONTH_NAMES_FULL[cMonth - 1]}/${cYear}`;
+    const compStr = `${cYear}-${String(cMonth).padStart(2, "0")}`;
+
+    const due = bill.dueDate || bill.date;
+    const dDue = new Date(due);
+    const dueDateFormatted = `${String(dDue.getUTCDate()).padStart(2, "0")}/${String(dDue.getUTCMonth() + 1).padStart(2, "0")}/${dDue.getUTCFullYear()}`;
+
+    let cleanDesc = bill.description;
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+    const tagStr = (bill.tags || "").toUpperCase();
+
+    let formaPagamento: "PIX" | "BOLETO" | "SALDO_CONTA" | "DEBITO_CONTA" | "CARTAO_CREDITO" | "DINHEIRO" | null = null;
+    let formaPagamentoFormatada: string | null = null;
+    let bancoOuCartaoUtilizado: string | null = null;
+
+    if (isPaid) {
+      if (tagStr.includes("FORMA:PIX") || bill.paymentMethod === "PIX") {
+        formaPagamento = "PIX";
+        formaPagamentoFormatada = "Pix";
+        bancoOuCartaoUtilizado = bill.wallet?.title || bill.wallet?.bankName || "Conta Corrente";
+      } else if (tagStr.includes("FORMA:CARTAO_CREDITO") || bill.paymentMethod === "CREDITO") {
+        formaPagamento = "CARTAO_CREDITO";
+        formaPagamentoFormatada = "Cartão de Crédito";
+        bancoOuCartaoUtilizado = bill.wallet?.title || bill.wallet?.bankName || "Cartão de Crédito";
+      } else if (tagStr.includes("FORMA:DINHEIRO") || bill.paymentMethod === "DINHEIRO") {
+        formaPagamento = "DINHEIRO";
+        formaPagamentoFormatada = "Dinheiro";
+        bancoOuCartaoUtilizado = "Dinheiro em Espécie";
+      } else if (tagStr.includes("FORMA:SALDO_CONTA") || tagStr.includes("FORMA:DEBITO_AUTOMATICO") || bill.paymentMethod === "DEBITO") {
+        formaPagamento = "SALDO_CONTA";
+        formaPagamentoFormatada = tagStr.includes("FORMA:DEBITO_AUTOMATICO") ? "Débito Automático" : "Saldo da Conta / Débito";
+        bancoOuCartaoUtilizado = bill.wallet?.title || bill.wallet?.bankName || "Conta Corrente";
+      } else if (tagStr.includes("FORMA:BOLETO") || bill.paymentMethod === "BOLETO") {
+        formaPagamento = "BOLETO";
+        formaPagamentoFormatada = "Boleto Bancário";
+        bancoOuCartaoUtilizado = bill.wallet?.title || bill.wallet?.bankName || "Conta Corrente";
+      } else {
+        formaPagamento = "SALDO_CONTA";
+        formaPagamentoFormatada = "Débito em Conta";
+        bancoOuCartaoUtilizado = bill.wallet?.title || bill.wallet?.bankName || "Conta Corrente";
       }
     }
+
+    historyItems.push({
+      id: bill.id,
+      accountName: cleanDesc,
+      bankName: bill.wallet?.bankName || bill.wallet?.title || "Conta Corrente",
+      walletType: "CONTA_CORRENTE",
+      typeLabel: formaPagamentoFormatada || "— Não definido",
+      periodRef: cMonthFormatted,
+      competencia: compStr,
+      competenciaFormatada: cMonthFormatted,
+      amount: billAmount,
+      paidAmount: isPaid ? billAmount : 0,
+      pendingAmount: isPaid ? 0 : billAmount,
+      status: isPaid ? "PAGO" : "PENDENTE",
+      statusColor: isPaid ? "emerald" : "amber",
+      detailsUrl: "/despesas",
+      holder: (bill.wallet as any)?.holder || undefined,
+      dueDateFormatted,
+      formaPagamento,
+      formaPagamentoFormatada,
+      bancoOuCartaoUtilizado,
+    });
   }
 
   const totalGeral = totalCreditPaid + totalDebitPix + totalTickets;
@@ -7513,12 +7626,43 @@ export async function getPaymentHistoryData(month: number, year: number) {
     prevCreditPaid = prevPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
   } catch (e) {}
 
-  const prevDebitPix = prevMonthTransactions
-    .filter(t => {
-      const w = wallets.find(wall => wall.id === t.walletId);
-      return w?.walletType === "CONTA_CORRENTE" && t.type === "EXPENSE" && (t as any).paymentMethod === "BOLETO" && t.status !== "PENDING";
-    })
-    .reduce((s, t) => s + Number(t.amount), 0);
+  const prevMonthCommitments = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      type: "EXPENSE",
+      deletedAt: null,
+      status: { in: ["COMPLETED", "PAID"] },
+      OR: [
+        { source: "COMMITMENT" },
+        { tags: { contains: "#compromisso" } },
+        { tags: { contains: "BOLETO" } },
+        { tags: { contains: "ASSINATURA" } },
+        { paymentMethod: "BOLETO" },
+      ],
+      AND: [
+        {
+          OR: [
+            { competenceMonth: prevMonth, competenceYear: prevYear },
+            {
+              AND: [
+                { competenceMonth: null },
+                { dueDate: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+              ],
+            },
+            {
+              AND: [
+                { competenceMonth: null },
+                { dueDate: null },
+                { date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: { amount: true },
+  });
+  const prevDebitPix = prevMonthCommitments.reduce((s, t) => s + Number(t.amount || 0), 0);
 
   const prevTickets = prevMonthTransactions
     .filter(t => {
@@ -8356,6 +8500,7 @@ export async function createCommitmentAction(input: {
   safeRevalidatePath("/cartoes");
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
 
   return created;
 }
@@ -8436,6 +8581,7 @@ export async function payCommitmentAction(input: {
   safeRevalidatePath("/cartoes/" + targetWalletId);
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
 }
@@ -8490,6 +8636,7 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
   safeRevalidatePath("/cartoes/" + tx.walletId);
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
 }
@@ -8546,6 +8693,7 @@ export async function updateCommitmentAction(input: {
   safeRevalidatePath("/cartoes");
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
 }
@@ -8582,6 +8730,7 @@ export async function deleteCommitmentAction(commitmentId: string) {
   safeRevalidatePath("/cartoes");
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
 }

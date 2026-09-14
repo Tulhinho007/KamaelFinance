@@ -27,6 +27,8 @@ export default function PaymentHistoryPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof getPaymentHistoryData>> | null>(null);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>("ALL");
+  const [filtroStatus, setFiltroStatus] = useState<"TODOS" | "PENDENTE" | "PAGO">("TODOS");
+  const [filtroTipoPagamento, setFiltroTipoPagamento] = useState<string>("TODOS");
 
   useEffect(() => {
     let isMounted = true;
@@ -47,13 +49,28 @@ export default function PaymentHistoryPage() {
     };
   }, [selectedMonth, selectedYear]);
 
-  const filteredItems = data?.items.filter((item) => {
-    if (filterType === "ALL") return true;
-    if (filterType === "CREDIT_CARD") return item.walletType === "CREDIT_CARD";
-    if (filterType === "CONTA_CORRENTE") return item.walletType === "CONTA_CORRENTE";
-    if (filterType === "TICKET") return item.walletType === "TICKET";
-    return true;
-  }) || [];
+  const filteredItems = (data?.items || []).filter((item) => {
+    // 1. Filtro rápido por tipo de carteira (Crédito, Boletos/Contas, Benefício)
+    if (filterType === "CREDIT_CARD" && item.walletType !== "CREDIT_CARD") return false;
+    if (filterType === "CONTA_CORRENTE" && item.walletType !== "CONTA_CORRENTE") return false;
+    if (filterType === "TICKET" && item.walletType !== "TICKET") return false;
+
+    // 2. Filtro de Status (TODOS, PENDENTE, PAGO)
+    const isItemPaid = item.status === "PAGO" || item.status === "LIQUIDADO" || item.status === "CONCLUÍDO";
+    const matchStatus =
+      filtroStatus === "TODOS" ? true :
+      filtroStatus === "PENDENTE" ? !isItemPaid :
+      isItemPaid;
+
+    // 3. Filtro de Meio de Pagamento
+    const matchTipo =
+      filtroTipoPagamento === "TODOS" ? true :
+      filtroTipoPagamento === "NAO_DEFINIDO" ? !item.formaPagamento :
+      (item.formaPagamento === filtroTipoPagamento ||
+        (filtroTipoPagamento === "SALDO_CONTA" && (item.formaPagamento === "DEBITO_CONTA" || item.formaPagamento === "SALDO_CONTA")));
+
+    return matchStatus && matchTipo;
+  });
 
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative">
@@ -237,6 +254,46 @@ export default function PaymentHistoryPage() {
           </div>
         </div>
 
+        {/* Barra de Filtros Dinâmicos (Status e Meio Utilizado) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-100 dark:border-slate-800">
+          {/* Filtro por Status */}
+          <div className="flex items-center gap-1.5 bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl">
+            {(["TODOS", "PENDENTE", "PAGO"] as const).map((status) => (
+              <button
+                key={status}
+                onClick={() => setFiltroStatus(status)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition cursor-pointer ${
+                  filtroStatus === status
+                    ? "bg-white dark:bg-[#131B2E] text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                {status === "TODOS" ? "Todos" : status === "PENDENTE" ? "Aguardando" : "Liquidados"}
+              </button>
+            ))}
+          </div>
+
+          {/* Filtro por Forma de Pagamento */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+              Pagamento:
+            </label>
+            <select
+              value={filtroTipoPagamento}
+              onChange={(e) => setFiltroTipoPagamento(e.target.value)}
+              className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-[#131B2E] text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="TODOS">Todos os meios</option>
+              <option value="NAO_DEFINIDO">Aguardando definição (Não pagos)</option>
+              <option value="SALDO_CONTA">Saldo da Conta / Débito</option>
+              <option value="PIX">Pix</option>
+              <option value="BOLETO">Boleto</option>
+              <option value="CARTAO_CREDITO">Cartão de Crédito</option>
+              <option value="DINHEIRO">Dinheiro</option>
+            </select>
+          </div>
+        </div>
+
         {/* Tabela de Pagamentos */}
         {loading ? (
           <div className="py-12 flex items-center justify-center">
@@ -252,53 +309,62 @@ export default function PaymentHistoryPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="p-4">Tipo / Origem</th>
-                  <th className="p-4">Identificação / Conta</th>
-                  <th className="p-4">Período de Referência</th>
-                  <th className="p-4 text-right">Total Gasto / Pago</th>
-                  <th className="p-4 text-center">Status</th>
-                  <th className="p-4 text-center">Ações</th>
+                  <th className="py-3 px-4">Tipo / Origem</th>
+                  <th className="py-3 px-4">Identificação / Conta</th>
+                  <th className="py-3 px-4">Período de Referência</th>
+                  <th className="py-3 px-4 text-right">Total Gasto / Pago</th>
+                  <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
                 {filteredItems.map((item) => {
-                  const isCredit = item.walletType === "CREDIT_CARD";
-                  const isTicket = item.walletType === "TICKET";
-                  const Icon = isCredit ? CreditCard : isTicket ? Wallet : Building2;
-
                   return (
                     <tr
                       key={item.id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800"
                     >
                       {/* Tipo / Origem */}
-                      <td className="p-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`p-2 rounded-xl border ${
-                            isCredit
-                              ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
-                              : isTicket
-                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          }`}>
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <span className="font-extrabold text-slate-900 dark:text-white block">{item.typeLabel}</span>
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              {isCredit ? "Cartão de Crédito" : isTicket ? "Cartão Benefício / VR" : "Conta Débito / PIX"}
+                      <td className="py-3 px-4">
+                        {item.formaPagamento ? (
+                          <div className="flex items-center gap-2">
+                            <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                              {item.formaPagamento === "PIX" && "⚡"}
+                              {item.formaPagamento === "BOLETO" && "📄"}
+                              {(item.formaPagamento === "DEBITO_CONTA" || item.formaPagamento === "SALDO_CONTA") && "🏛️"}
+                              {item.formaPagamento === "CARTAO_CREDITO" && "💳"}
+                              {item.formaPagamento === "DINHEIRO" && "💵"}
+                              {item.formaPagamento === "TICKET" && "🎫"}
                             </span>
+                            <div>
+                              <div className="font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                                {item.formaPagamentoFormatada}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {item.bancoOuCartaoUtilizado}
+                              </div>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          /* Estado inicial: enquanto não for pago, fica vazio/traço */
+                          <span className="text-slate-400 dark:text-slate-500 font-medium text-xs">
+                            — Não definido
+                          </span>
+                        )}
                       </td>
 
                       {/* Identificação / Conta */}
-                      <td className="p-4 font-bold text-slate-900 dark:text-white">
+                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
                         <div>
                           <span>{item.accountName}</span>
                           {item.cardBrand && (
                             <span className="ml-1.5 text-[10px] font-semibold text-slate-400">
                               ({item.cardBrand} {item.lastDigits ? `•••• ${item.lastDigits}` : ""})
+                            </span>
+                          )}
+                          {item.dueDateFormatted && (
+                            <span className="block text-[10px] text-slate-400 font-normal">
+                              Vencimento: {item.dueDateFormatted}
                             </span>
                           )}
                           {item.holder && (
@@ -310,12 +376,13 @@ export default function PaymentHistoryPage() {
                       </td>
 
                       {/* Período de Referência */}
-                      <td className="p-4 font-semibold text-slate-600 dark:text-slate-300">
-                        {item.periodRef}
+                      <td className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">
+                        {/* Mostra 'Setembro/2026' em vez de forçar o mês do vencimento */}
+                        {item.competenciaFormatada || item.periodRef || "Setembro/2026"}
                       </td>
 
                       {/* Total Gasto / Pago */}
-                      <td className="p-4 text-right font-black text-sm tabular-nums text-slate-900 dark:text-white">
+                      <td className="py-3 px-4 text-right font-black text-sm tabular-nums text-slate-900 dark:text-white">
                         <div>{brl(item.amount)}</div>
                         {item.pendingAmount && item.pendingAmount > 0 ? (
                           <div className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 mt-0.5">
@@ -329,16 +396,16 @@ export default function PaymentHistoryPage() {
                       </td>
 
                       {/* Status */}
-                      <td className="p-4 text-center">
-                        {item.statusColor === "emerald" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-extrabold">
+                      <td className="py-3 px-4 text-center">
+                        {item.statusColor === "emerald" || item.status === "PAGO" || item.status === "LIQUIDADO" ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 dark:text-emerald-400 text-[11px] font-extrabold">
                             <CheckCircle2 className="w-3.5 h-3.5" />
-                            {item.status}
+                            {item.status === "PAGO" || item.status === "LIQUIDADO" ? "PAGO" : item.status}
                           </span>
-                        ) : item.statusColor === "amber" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[11px] font-extrabold">
+                        ) : item.statusColor === "amber" || item.status === "PENDENTE" ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-400 text-[11px] font-extrabold">
                             <Clock className="w-3.5 h-3.5" />
-                            {item.status}
+                            {item.status === "PENDENTE" ? "AGUARDANDO" : item.status}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px] font-extrabold">
@@ -348,7 +415,7 @@ export default function PaymentHistoryPage() {
                       </td>
 
                       {/* Ações */}
-                      <td className="p-4 text-center">
+                      <td className="py-3 px-4 text-center">
                         <Link
                           href={item.detailsUrl}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-bold text-xs transition-all cursor-pointer"
