@@ -19,9 +19,9 @@ export function CardContaFluxo({
   saldo,
   onAdicionarSaldo,
   onRetirarSaldo,
-  title = "Saldo Disponível (Caixa Geral)",
-  badgeLabel = "Fluxo Livre",
-  subtitle = "Controle direto sem lançamentos miúdos",
+  title = "SALDO CONSOLIDADO (TODAS AS CONTAS)",
+  badgeLabel = "Todas as Contas",
+  subtitle = "Soma dos saldos em conta corrente",
   className = "",
   isLoading = false,
 }: CardContaFluxoProps) {

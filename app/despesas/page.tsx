@@ -341,6 +341,7 @@ export default function DespesasPage() {
   const [isPayingInvoice, setIsPayingInvoice]       = useState(false);
   const [injectModalOpen, setInjectModalOpen]       = useState(false);
   const [injectOrigin, setInjectOrigin]             = useState<BalanceMovementOrigin>("DEPOSITO");
+  const [injectTipoOperacao, setInjectTipoOperacao] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
 
   // ── Central de Compromissos Fixos e Contas a Pagar do Mês ──
   const [mainView, setMainView] = useState<"compromissos" | "cartoes">("compromissos");
@@ -739,11 +740,14 @@ export default function DespesasPage() {
   const contas = cards;
   const totalEntradasMes = realRevenue;
 
-  // 1. Calcule o saldo somando apenas contas do tipo conta corrente / débito:
-  const saldoTotalContas = contas
-    .filter((c: any) => c.tipo === "CONTA_CORRENTE" || c.tipo === "DEBITO" || c.walletType === "CONTA_CORRENTE" || c.walletType === "DEBITO")
-    .reduce((acc, conta: any) => acc + Number(conta.saldoAtual ?? conta.finalBalance ?? conta.limitTotal ?? 0), 0);
-
+  // 1. Cálculo do saldo consolidado de todas as contas bancárias
+  const contasBancarias = bankAccounts.map((c: any) => ({
+    id: c.id,
+    banco: c.bankName || c.title,
+    saldo: Number(c.saldoAtual ?? c.finalBalance ?? c.limitTotal ?? 0),
+  }));
+  const saldoGeralDisponivel = contasBancarias.reduce((acc, conta) => acc + (Number(conta.saldo) || 0), 0);
+  const saldoTotalContas = saldoGeralDisponivel;
   const saldoTotalConta   = saldoTotalContas;
   const totalFaturas      = creditCards.reduce((s, c) => s + c.faturaAtual, 0);
   const limiteConsolidado = creditCards.reduce((s, c) => s + (c.limitTotal - c.limitUsed), 0);
@@ -1509,13 +1513,15 @@ export default function DespesasPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* Card 1: Controle Rápido do Saldo em Conta / Caixa Geral */}
         <CardContaFluxo
-          saldo={saldoTotalContas}
+          saldo={saldoGeralDisponivel}
+          title="SALDO CONSOLIDADO (TODAS AS CONTAS)"
+          subtitle="Soma dos saldos em conta corrente"
           onAdicionarSaldo={() => {
-            setInjectOrigin("DEPOSITO");
+            setInjectTipoOperacao("ENTRADA");
             setInjectModalOpen(true);
           }}
           onRetirarSaldo={() => {
-            setInjectOrigin("SAQUE");
+            setInjectTipoOperacao("SAIDA");
             setInjectModalOpen(true);
           }}
         />
@@ -2677,23 +2683,19 @@ export default function DespesasPage() {
         onSuccess={reloadAllData}
       />
 
-      {/* Modal Global: Injeção de Saldo / Saque Rápido */}
+      {/* Modal Global: Adicionar Saldo / Retirar Saldo com Extrato Automático */}
       {injectModalOpen && (
         <InjectBalanceModal
           isOpen={injectModalOpen}
           onClose={() => setInjectModalOpen(false)}
           onSuccess={reloadAllData}
+          tipoOperacao={injectTipoOperacao}
+          contasBancarias={contasBancarias}
           walletId={
+            contasBancarias[0]?.id ||
             cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO")?.id ||
             cards[0]?.id || ""
           }
-          walletTitle={
-            cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO")?.title ||
-            "Conta Caixa / Carteira"
-          }
-          defaultMonth={selectedMonthFilter || (new Date().getMonth() + 1)}
-          defaultYear={selectedYear}
-          defaultOrigin={injectOrigin}
         />
       )}
 

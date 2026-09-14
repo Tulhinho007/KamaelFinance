@@ -3058,6 +3058,14 @@ export async function createBankAccountMovementAction(input: {
     }
   });
 
+  // Atualiza o saldo real da conta selecionada
+  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
+  const updatedBalance = isEntrada ? currentVal + amount : currentVal - amount;
+  await prisma.wallet.update({
+    where: { id: wallet.id },
+    data: { currentBalance: updatedBalance }
+  });
+
   revalidatePath("/cartoes");
   revalidatePath(`/cartoes/${wallet.id}`);
   revalidatePath("/despesas");
@@ -3065,6 +3073,116 @@ export async function createBankAccountMovementAction(input: {
   revalidatePath("/receitas");
 
   return tx;
+}
+
+export async function recordBankAccountMovementAction(input: {
+  contaId: string;
+  valor: number | string;
+  dataOperacao: string;
+  descricao: string;
+  tipoOperacao: "ENTRADA" | "SAIDA";
+}) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.contaId, userId }
+  });
+  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+
+  const valorNumerico = Math.abs(parseFloat(String(input.valor)));
+  if (!valorNumerico || isNaN(valorNumerico) || valorNumerico <= 0) {
+    throw new Error("Valor deve ser maior que zero.");
+  }
+
+  const isEntrada = input.tipoOperacao === "ENTRADA";
+  const dateParts = input.dataOperacao.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  const defaultCategoryName = isEntrada ? "Entrada / Depósito" : "Saída / Retirada";
+  const defaultCategoryColor = isEntrada ? "#10B981" : "#EF4444";
+
+  let category = await prisma.category.findFirst({
+    where: { name: { equals: defaultCategoryName, mode: "insensitive" } }
+  });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { name: defaultCategoryName, color: defaultCategoryColor }
+    });
+  }
+
+  // 1. Cria a transação oficial no extrato daquela conta
+  const tx = await prisma.transaction.create({
+    data: {
+      walletId: wallet.id,
+      categoryId: category.id,
+      description: input.descricao.trim() || (isEntrada ? "Depósito em Conta" : "Saque / Retirada"),
+      type: isEntrada ? "INCOME" : "EXPENSE",
+      amount: valorNumerico,
+      status: "COMPLETED",
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+      paymentMethod: isEntrada ? PaymentMethod.PIX : PaymentMethod.DEBITO,
+      tags: isEntrada ? "ENTRADA_CONTA" : "SAIDA_CONTA",
+      source: "MANUAL"
+    }
+  });
+
+  // 2. Atualiza o saldo real da conta selecionada
+  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
+  const updatedBalance = isEntrada ? currentVal + valorNumerico : currentVal - valorNumerico;
+  await prisma.wallet.update({
+    where: { id: wallet.id },
+    data: { currentBalance: updatedBalance }
+  });
+
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${wallet.id}`);
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/receitas");
+  revalidatePath("/historico-pagamentos");
+
+  return {
+    id: tx.id,
+    contaId: wallet.id,
+    data: input.dataOperacao,
+    descricao: tx.description,
+    tipo: input.tipoOperacao,
+    valor: isEntrada ? valorNumerico : -valorNumerico,
+    saldoAtualizado: updatedBalance
+  };
+}
+
+export async function getBankAccountsListAction() {
+  const userId = await getActiveUserId();
+  const wallets = await prisma.wallet.findMany({
+    where: {
+      userId,
+      walletType: { in: ["CONTA_CORRENTE", "DEBITO", "CONTA"] }
+    },
+    orderBy: { title: "asc" }
+  });
+
+  const now = new Date();
+  const curMonth = now.getUTCMonth() + 1;
+  const curYear = now.getUTCFullYear();
+
+  return await Promise.all(
+    wallets.map(async (w) => {
+      const bInfo = await calculateAccountBalance(w.id, curMonth, curYear);
+      return {
+        id: w.id,
+        banco: w.bankName || w.title,
+        saldo: bInfo.finalBalance
+      };
+    })
+  );
 }
 
 export async function updateBankAccountMovementAction(input: {

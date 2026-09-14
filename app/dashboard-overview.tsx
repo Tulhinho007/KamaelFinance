@@ -84,6 +84,7 @@ export function DashboardOverview() {
   // Form states
   const [injectModalOpen, setInjectModalOpen]   = useState(false);
   const [injectOrigin, setInjectOrigin]         = useState<BalanceMovementOrigin>("DEPOSITO");
+  const [injectTipoOperacao, setInjectTipoOperacao] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
   const [revDesc, setRevDesc]         = useState("Salário");
   const [revCategory, setRevCategory] = useState("Salário");
   const [revAmount, setRevAmount]     = useState<number | "">("");
@@ -431,20 +432,31 @@ export function DashboardOverview() {
           (c: any) => c.walletType !== "CREDIT_CARD" && c.walletType !== "TICKET"
         ) || data.cards[0];
 
-        const saldoCaixaGeral = data.cards
-          .filter((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")
-          .reduce((sum: number, c: any) => sum + Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0), 0);
+        const bankAccounts = (data.cards || []).filter(
+          (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO"
+        );
+        const contasBancarias = bankAccounts.map((c: any) => ({
+          id: c.id,
+          banco: c.bankName || c.title,
+          saldo: Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0),
+        }));
+        const saldoGeralDisponivel = contasBancarias.reduce(
+          (sum: number, c: any) => sum + (Number(c.saldo) || 0),
+          0
+        );
 
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <CardContaFluxo
-              saldo={saldoCaixaGeral}
+              saldo={saldoGeralDisponivel}
+              title="SALDO CONSOLIDADO (TODAS AS CONTAS)"
+              subtitle="Soma dos saldos em conta corrente"
               onAdicionarSaldo={() => {
-                setInjectOrigin("DEPOSITO");
+                setInjectTipoOperacao("ENTRADA");
                 setInjectModalOpen(true);
               }}
               onRetirarSaldo={() => {
-                setInjectOrigin("SAQUE");
+                setInjectTipoOperacao("SAIDA");
                 setInjectModalOpen(true);
               }}
             />
@@ -1169,7 +1181,7 @@ export function DashboardOverview() {
         projectionDays={30}
       />
 
-      {/* Modal Global: Injeção de Saldo / Saque Rápido */}
+      {/* Modal Global: Adicionar Saldo / Retirar Saldo com Extrato Automático */}
       {injectModalOpen && (
         <InjectBalanceModal
           isOpen={injectModalOpen}
@@ -1177,17 +1189,20 @@ export function DashboardOverview() {
           onSuccess={async () => {
             await loadDashboardData();
           }}
+          tipoOperacao={injectTipoOperacao}
+          contasBancarias={
+            (data?.cards || [])
+              .filter((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")
+              .map((c: any) => ({
+                id: c.id,
+                banco: c.bankName || c.title,
+                saldo: Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0),
+              }))
+          }
           walletId={
-            data.cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")?.id ||
-            data.cards[0]?.id || ""
+            data?.cards?.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")?.id ||
+            data?.cards?.[0]?.id || ""
           }
-          walletTitle={
-            data.cards.find((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")?.title ||
-            "Conta Caixa / Carteira"
-          }
-          defaultMonth={selectedDashboardMonth}
-          defaultYear={selectedDashboardYear}
-          defaultOrigin={injectOrigin}
         />
       )}
 

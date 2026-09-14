@@ -1629,9 +1629,16 @@ export default function CartaoDetailPage() {
         }}
         walletId={cardData.walletId}
         walletTitle={cardData.title}
-        defaultMonth={selectedMonth}
-        defaultYear={selectedYear}
-        defaultOrigin={modalType === "cargaRemove" ? "SAQUE" : "DEPOSITO"}
+        tipoOperacao={modalType === "cargaRemove" ? "SAIDA" : "ENTRADA"}
+        contasBancarias={
+          checkingWallets && checkingWallets.length > 0
+            ? checkingWallets.map((w: any) => ({
+                id: w.id,
+                banco: w.bankName || w.title,
+                saldo: Number(w.saldoAtual ?? w.finalBalance ?? 0),
+              }))
+            : [{ id: cardData.walletId, banco: cardData.title, saldo: Number(cardData.balanceInfo?.finalBalance ?? cardData.initialBalance ?? 0) }]
+        }
       />
 
       {/* Modal Ajustar Limite do Cartão */}
