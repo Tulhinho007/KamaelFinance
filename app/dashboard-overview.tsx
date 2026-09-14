@@ -66,7 +66,6 @@ export function DashboardOverview() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
 
-  const [viewMode, setViewMode] = useState<"annual" | "monthly">("annual");
   const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(() => selectedYear || new Date().getFullYear());
   const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
   const [monthlyRollForward, setMonthlyRollForward] = useState<MonthlyCashFlowRollForwardResult | null>(null);
@@ -165,11 +164,10 @@ export function DashboardOverview() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
       const [res, wList, rollForwardRes] = await Promise.all([
-        getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag),
+        getDashboardOverviewData(selectedDashboardYear, selectedDashboardMonth, selectedTag),
         getWalletsAction(),
-        getMonthlyCashFlowRollForwardAction(monthParam, selectedDashboardYear),
+        getMonthlyCashFlowRollForwardAction(selectedDashboardMonth, selectedDashboardYear),
       ]);
       setData(res);
       setMonthlyRollForward(rollForwardRes || null);
@@ -201,14 +199,13 @@ export function DashboardOverview() {
     const curMonth = now.getMonth() + 1;
     setSelectedDashboardYear(curYear);
     setSelectedDashboardMonth(curMonth);
-    setViewMode("monthly");
     setPeriod(curMonth, curYear);
   };
 
   useEffect(() => {
     loadDashboardData();
     loadTags();
-  }, [viewMode, selectedDashboardYear, selectedDashboardMonth, selectedTag]);
+  }, [selectedDashboardYear, selectedDashboardMonth, selectedTag]);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,7 +285,7 @@ export function DashboardOverview() {
       {/* ── 0. BANNER DE ALERTAS DE VENCIMENTO IMINENTE (D-3 e D-1) ─────────── */}
       <UpcomingDueAlertBanner bills={upcomingBills} />
 
-      {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO FLEXÍVEL (VISÃO ANUAL vs MENSAL) ── */}
+      {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO (EXCLUSIVO MENSAL) ── */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -296,43 +293,16 @@ export function DashboardOverview() {
               Dashboard Financeiro
             </h1>
             <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              {viewMode === "annual" ? `ANO ${selectedDashboardYear}` : `MÊS ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+              MÊS {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            {viewMode === "annual"
-              ? `Visão consolidada do ano de ${selectedDashboardYear}.`
-              : `Detalhamento pontual das movimentações de ${selectedDashboardMonth}/${selectedDashboardYear}.`}
+            Detalhamento pontual das movimentações de {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}.
           </p>
         </div>
 
-        {/* Controles de Período Flexível (Modo Anual vs Mensal) */}
+        {/* Barra de Filtros Limpa (Ano, Mês e Mês Atual) */}
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
-          
-          {/* Toggle de Modo: Anual (Ano Completo) vs Mensal (Por Mês) */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 w-full sm:w-auto justify-between sm:justify-start">
-            <button
-              onClick={() => setViewMode("annual")}
-              className={`flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                viewMode === "annual"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Ano Completo
-            </button>
-            <button
-              onClick={() => setViewMode("monthly")}
-              className={`flex-1 sm:flex-initial text-center px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                viewMode === "monthly"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Filtrar por Mês
-            </button>
-          </div>
-
           <div className="flex items-center gap-2 flex-1 sm:flex-initial flex-wrap">
             {/* Seletor de Ano */}
             <select
@@ -345,24 +315,23 @@ export function DashboardOverview() {
               ))}
             </select>
 
-            {/* Seletor de Mês (Visível quando em Modo Mensal) */}
-            {viewMode === "monthly" && (
-              <select
-                value={selectedDashboardMonth}
-                onChange={(e) => handleMonthChange(Number(e.target.value))}
-                className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer animate-in fade-in min-w-[100px]"
-              >
-                {[
-                  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-                ].map((mName, idx) => (
-                  <option key={idx + 1} value={idx + 1}>{mName}</option>
-                ))}
-              </select>
-            )}
+            {/* Seletor de Mês */}
+            <select
+              value={selectedDashboardMonth}
+              onChange={(e) => handleMonthChange(Number(e.target.value))}
+              className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer min-w-[110px]"
+            >
+              {[
+                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+              ].map((mName, idx) => (
+                <option key={idx + 1} value={idx + 1}>{mName}</option>
+              ))}
+            </select>
 
-            {/* Botão MÊS ATUAL */}
+            {/* Botão Mês Atual */}
             <button
+              type="button"
               onClick={handleGoToCurrentMonth}
               className="px-3.5 py-2 text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
               title="Ir para o Mês Atual"
@@ -534,7 +503,6 @@ export function DashboardOverview() {
             const isBank = !isCredit && !isTicket;
             const saldoDisp = isCredit ? card.limitTotal - card.limitUsed : (card.finalBalance ?? card.limitTotal);
             const Icon = walletIcon(card.walletType);
-            const isYearlyFilter = viewMode === "annual";
             const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
             const entradasNoMes = card.accountIncomes ?? card.monthIncome ?? card.recargaMes ?? 0;
             const saidasNoMes = card.accountExpenses ?? card.monthExpense ?? card.gastoMes ?? 0;
@@ -594,7 +562,7 @@ export function DashboardOverview() {
                   ) : isTicket ? (
                     <>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
-                        {isYearlyFilter ? "Gasto no Ano:" : "Gasto no Mês:"}
+                        Gasto no Mês:
                       </span>
                       <span className="text-xs font-black font-tnum tabular-nums text-slate-800 dark:text-slate-200">
                         <CurrencyValue value={accountSpentInPeriod} />
@@ -633,9 +601,7 @@ export function DashboardOverview() {
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Evolução Financeira</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {viewMode === "annual"
-                    ? `Comparativo de receitas vs. gastos no ano de ${selectedDashboardYear}`
-                    : `Comparativo de receitas vs. gastos nos últimos 7 meses até ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+                  Comparativo de receitas vs. gastos nos últimos 7 meses até {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
                 </p>
               </div>
             </div>
@@ -703,9 +669,7 @@ export function DashboardOverview() {
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Distribuição por Categoria</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  {viewMode === "annual"
-                    ? `Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`
-                    : `Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+                  Divisão dos gastos consolidados do mês {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
                 </p>
               </div>
             </div>
@@ -742,7 +706,7 @@ export function DashboardOverview() {
                         {brl(totalCatSum)}
                       </span>
                       <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
-                        {viewMode === "annual" ? "Total Ano" : "Total Mês"}
+                        Total Mês
                       </span>
                     </div>
                   </div>
@@ -867,11 +831,7 @@ export function DashboardOverview() {
           {/* BLOCO 2: Gastos por Meio de Pagamento */}
           <PaymentMethodChart
             data={data.paymentMethodBreakdown}
-            periodLabel={
-              viewMode === "annual"
-                ? `Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`
-                : `Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`
-            }
+            periodLabel={`Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
           />
 
           {/* BLOCO 3: Resumo de Metas */}
