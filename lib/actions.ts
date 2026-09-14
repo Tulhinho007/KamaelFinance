@@ -4,7 +4,7 @@ import { CATEGORIES, getCategoryColor, getMonthName } from "./constants";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
 import { z } from "zod";
-import type { Goal, GoalHistory, Prisma } from "@prisma/client";
+import { PaymentMethod, type Goal, type GoalHistory, type Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
 import { getInvoiceDueDateInfo } from "./invoice-utils";
 
@@ -2974,6 +2974,169 @@ export async function recordBalanceMovementAction(
       targetYear
     );
   }
+}
+
+function mapMovementToPaymentMethod(movementType: string): PaymentMethod {
+  switch (movementType) {
+    case "PIX_RECEBIDO":
+    case "PIX_ENVIADO":
+      return PaymentMethod.PIX;
+    case "BOLETO":
+      return PaymentMethod.BOLETO;
+    case "SAQUE":
+      return PaymentMethod.DINHEIRO;
+    default:
+      return PaymentMethod.DEBITO;
+  }
+}
+
+export async function createBankAccountMovementAction(input: {
+  walletId: string;
+  type: "ENTRADA" | "SAIDA";
+  description: string;
+  amount: number;
+  dateStr: string;
+  movementType: "SALARIO" | "PIX_RECEBIDO" | "INJECAO" | "BOLETO" | "FATURA_CARTAO" | "PIX_ENVIADO" | "SAQUE" | string;
+}) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.walletId, userId }
+  });
+  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+
+  const amount = Math.abs(Number(input.amount));
+  if (!amount || isNaN(amount)) throw new Error("Valor inválido.");
+
+  const dateParts = input.dateStr.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  const isEntrada = input.type === "ENTRADA";
+
+  // Mapeamento amigável de Categoria pelo Tipo de Lançamento
+  const categoryMap: Record<string, string> = {
+    SALARIO: "Salário",
+    PIX_RECEBIDO: "Pix / Transferência",
+    INJECAO: "Ajuste de Saldo",
+    BOLETO: "Pagamento de Boleto",
+    FATURA_CARTAO: "Pagamento de Fatura",
+    PIX_ENVIADO: "Pix / Transferência",
+    SAQUE: "Saque em Dinheiro",
+  };
+
+  const categoryName = categoryMap[input.movementType] || (isEntrada ? "Entrada em Conta" : "Saída da Conta");
+  const categoryColor = isEntrada ? "#10B981" : "#EF4444";
+
+  let category = await prisma.category.findFirst({
+    where: { name: { equals: categoryName, mode: "insensitive" } }
+  });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { name: categoryName, color: categoryColor }
+    });
+  }
+
+  const tx = await prisma.transaction.create({
+    data: {
+      walletId: wallet.id,
+      categoryId: category.id,
+      description: input.description.trim() || categoryName,
+      type: isEntrada ? "INCOME" : "EXPENSE",
+      amount,
+      status: "COMPLETED",
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+      paymentMethod: mapMovementToPaymentMethod(input.movementType),
+      tags: input.movementType,
+      source: "MANUAL"
+    }
+  });
+
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${wallet.id}`);
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/receitas");
+
+  return tx;
+}
+
+export async function updateBankAccountMovementAction(input: {
+  transactionId: string;
+  type: "ENTRADA" | "SAIDA";
+  description: string;
+  amount: number;
+  dateStr: string;
+  movementType: string;
+}) {
+  const userId = await getActiveUserId();
+  const tx = await prisma.transaction.findUnique({
+    where: { id: input.transactionId },
+    include: { wallet: true }
+  });
+  if (!tx || tx.wallet.userId !== userId) throw new Error("Transação não encontrada.");
+
+  const amount = Math.abs(Number(input.amount));
+  const isEntrada = input.type === "ENTRADA";
+
+  const dateParts = input.dateStr.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  const categoryMap: Record<string, string> = {
+    SALARIO: "Salário",
+    PIX_RECEBIDO: "Pix / Transferência",
+    INJECAO: "Ajuste de Saldo",
+    BOLETO: "Pagamento de Boleto",
+    FATURA_CARTAO: "Pagamento de Fatura",
+    PIX_ENVIADO: "Pix / Transferência",
+    SAQUE: "Saque em Dinheiro",
+  };
+
+  const categoryName = categoryMap[input.movementType] || (isEntrada ? "Entrada em Conta" : "Saída da Conta");
+  const categoryColor = isEntrada ? "#10B981" : "#EF4444";
+
+  let category = await prisma.category.findFirst({
+    where: { name: { equals: categoryName, mode: "insensitive" } }
+  });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { name: categoryName, color: categoryColor }
+    });
+  }
+
+  await prisma.transaction.update({
+    where: { id: input.transactionId },
+    data: {
+      description: input.description.trim() || categoryName,
+      amount,
+      type: isEntrada ? "INCOME" : "EXPENSE",
+      categoryId: category.id,
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+      paymentMethod: mapMovementToPaymentMethod(input.movementType),
+      tags: input.movementType,
+      status: "COMPLETED",
+    }
+  });
+
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${tx.walletId}`);
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/receitas");
 }
 
 export async function createTicketExpense(

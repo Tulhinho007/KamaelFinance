@@ -8,7 +8,8 @@ import {
   deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
   duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
   addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction,
-  createRevenueAction, payCardInvoiceAction, undoCardInvoicePaymentAction, getAllCardsOverview
+  createRevenueAction, payCardInvoiceAction, undoCardInvoicePaymentAction, getAllCardsOverview,
+  createBankAccountMovementAction, updateBankAccountMovementAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
@@ -167,6 +168,16 @@ export default function CartaoDetailPage() {
   const [formInstallmentsCount, setFormInstallmentsCount] = useState(2);
   const [formDate, setFormDate] = useState("");
 
+  // Modal de Movimentação Simplificada para Conta Corrente (Extrato Puro)
+  const [bankMovModalOpen, setBankMovModalOpen] = useState(false);
+  const [bankMovTipo, setBankMovTipo] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
+  const [bankMovDesc, setBankMovDesc] = useState("");
+  const [bankMovValor, setBankMovValor] = useState<number | "">("");
+  const [bankMovData, setBankMovData] = useState(new Date().toISOString().split("T")[0]);
+  const [bankMovTipoLancamento, setBankMovTipoLancamento] = useState<string>("SALARIO");
+  const [bankMovEditingId, setBankMovEditingId] = useState<string | null>(null);
+  const [bankMovSaving, setBankMovSaving] = useState(false);
+
   // Cálculo da soma total das despesas selecionadas (Hook posicionado no topo, ANTES de retornos condicionais)
   const selectedTotalAmount = React.useMemo(() => {
     if (!cardData || selectedIds.length === 0) return 0;
@@ -241,6 +252,119 @@ export default function CartaoDetailPage() {
 
   const isCredit = cardData.walletType === "CREDIT_CARD";
   const isTicket = cardData.walletType === "TICKET";
+  const isBank = !isCredit && !isTicket;
+
+  const openBankMovementModal = (tipo: "ENTRADA" | "SAIDA" = "ENTRADA") => {
+    setBankMovEditingId(null);
+    setBankMovTipo(tipo);
+    setBankMovDesc("");
+    setBankMovValor("");
+    const now = new Date();
+    const curYear = selectedYear;
+    const curMonth = String(selectedMonth).padStart(2, "0");
+    const curDay = String(Math.min(now.getDate(), 28)).padStart(2, "0");
+    setBankMovData(`${curYear}-${curMonth}-${curDay}`);
+    setBankMovTipoLancamento(tipo === "ENTRADA" ? "SALARIO" : "BOLETO");
+    setBankMovModalOpen(true);
+  };
+
+  const openBankMovementEdit = (tx: any) => {
+    setBankMovEditingId(tx.id);
+    const tipo: "ENTRADA" | "SAIDA" = tx.type === "INCOME" ? "ENTRADA" : "SAIDA";
+    setBankMovTipo(tipo);
+    setBankMovDesc(tx.description || "");
+    setBankMovValor(tx.amount || "");
+    const d = ((tx.purchaseDate || tx.date || "").split("T")[0]) || new Date().toISOString().split("T")[0];
+    setBankMovData(d);
+    
+    const pm = ((tx.tags || (tx as any).paymentMethod) || "").toUpperCase();
+    if (tipo === "ENTRADA") {
+      if (["SALARIO", "PIX_RECEBIDO", "INJECAO"].includes(pm)) {
+        setBankMovTipoLancamento(pm);
+      } else {
+        setBankMovTipoLancamento("SALARIO");
+      }
+    } else {
+      if (["BOLETO", "FATURA_CARTAO", "PIX_ENVIADO", "SAQUE"].includes(pm)) {
+        setBankMovTipoLancamento(pm);
+      } else {
+        setBankMovTipoLancamento("BOLETO");
+      }
+    }
+    setBankMovModalOpen(true);
+  };
+
+  const handleSalvarMovimentacao = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cardData || bankMovValor === "" || Number(bankMovValor) <= 0 || !bankMovDesc.trim() || !bankMovData) {
+      showAlert("Por favor, preencha todos os campos corretamente.", { variant: "warning" });
+      return;
+    }
+    setBankMovSaving(true);
+    try {
+      if (bankMovEditingId) {
+        await updateBankAccountMovementAction({
+          transactionId: bankMovEditingId,
+          type: bankMovTipo,
+          description: bankMovDesc.trim(),
+          amount: Number(bankMovValor),
+          dateStr: bankMovData,
+          movementType: bankMovTipoLancamento
+        });
+        showAlert("Lançamento atualizado com sucesso!", { variant: "success" });
+      } else {
+        await createBankAccountMovementAction({
+          walletId: cardData.walletId,
+          type: bankMovTipo,
+          description: bankMovDesc.trim(),
+          amount: Number(bankMovValor),
+          dateStr: bankMovData,
+          movementType: bankMovTipoLancamento
+        });
+        showAlert("Lançamento registrado com sucesso!", { variant: "success" });
+      }
+      setBankMovModalOpen(false);
+      await loadData();
+    } catch (err) {
+      console.error("Erro ao salvar movimentação:", err);
+      showAlert("Erro ao salvar movimentação na conta.", { variant: "error" });
+    } finally {
+      setBankMovSaving(false);
+    }
+  };
+
+  const getMovementTypeBadge = (t: any) => {
+    const pm = ((t.tags || (t as any).paymentMethod) || "").toUpperCase();
+    const desc = (t.description || "").toLowerCase();
+    const isIncome = t.type === "INCOME";
+
+    if (isIncome) {
+      if (pm === "SALARIO" || desc.includes("salário") || desc.includes("salario")) {
+        return { label: "Salário", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
+      }
+      if (pm === "PIX_RECEBIDO" || desc.includes("pix") || desc.includes("transferência") || desc.includes("ted")) {
+        return { label: "Pix Recebido", color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" };
+      }
+      if (pm === "INJECAO" || desc.includes("injeção") || desc.includes("aporte") || desc.includes("saldo")) {
+        return { label: "Injeção / Saldo", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" };
+      }
+      return { label: "Entrada / Depósito", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
+    } else {
+      if (pm === "BOLETO" || desc.includes("boleto") || desc.includes("luz") || desc.includes("água") || desc.includes("internet")) {
+        return { label: "Boleto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
+      }
+      if (pm === "FATURA_CARTAO" || desc.includes("fatura") || desc.includes("cartão") || desc.includes("cartao")) {
+        return { label: "Fatura de Cartão", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" };
+      }
+      if (pm === "PIX_ENVIADO" || desc.includes("pix") || desc.includes("transferência") || desc.includes("ted")) {
+        return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
+      }
+      if (pm === "SAQUE" || desc.includes("saque") || desc.includes("retirada")) {
+        return { label: "Saque", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20" };
+      }
+      return { label: "Pagamento / Saída", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
+    }
+  };
 
   // Cálculos do Ticket
   const purchasesList = (cardData.purchases || []).filter(p => (p as any).source !== "RECURRING_PROJECTION");
@@ -773,58 +897,113 @@ export default function CartaoDetailPage() {
             </button>
           </>
         ) : (
-          <div className="relative">
-            <button 
-              onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
-              className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              + Nova Transação
-              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${actionDropdownOpen ? "rotate-180" : ""}`} />
-            </button>
-
-            {actionDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center gap-2">
+            {isBank && (
+              <div className="hidden sm:flex items-center gap-2">
                 <button
-                  onClick={() => { setActionDropdownOpen(false); setPurchaseModalOpen(true); }}
-                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                  type="button"
+                  onClick={() => openBankMovementModal("ENTRADA")}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                    <Minus className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-900 dark:text-white">Lançar Despesa / Gasto</span>
-                    <span className="block text-[10px] font-normal text-slate-400">Registrar saída da conta</span>
-                  </div>
+                  <Plus className="w-4 h-4" />
+                  + Entrada / Depósito
                 </button>
-
                 <button
-                  onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("carga"); }}
-                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                  type="button"
+                  onClick={() => openBankMovementModal("SAIDA")}
+                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                    <Plus className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Adicionar Carga" : "Adicionar Saldo / Entrada"}</span>
-                    <span className="block text-[10px] font-normal text-slate-400">Injeção de capital ou salário</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("cargaRemove"); }}
-                  className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                >
-                  <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                    <Settings className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Remover Carga" : "Subtrair / Ajustar Saldo"}</span>
-                    <span className="block text-[10px] font-normal text-slate-400">Ajuste de saldo manual</span>
-                  </div>
+                  <Minus className="w-4 h-4" />
+                  - Saída / Pagamento
                 </button>
               </div>
             )}
+
+            <div className="relative">
+              <button 
+                onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
+                className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                + Nova Transação
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${actionDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {actionDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
+                  {isBank ? (
+                    <>
+                      <button
+                        onClick={() => { setActionDropdownOpen(false); openBankMovementModal("ENTRADA"); }}
+                        className="w-full px-3 py-2.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-extrabold text-sm">
+                          +
+                        </div>
+                        <div>
+                          <span className="block font-bold text-emerald-600 dark:text-emerald-400">+ Entrada / Depósito</span>
+                          <span className="block text-[10px] font-normal text-slate-400">Salário, Pix recebido, injeção de saldo</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => { setActionDropdownOpen(false); openBankMovementModal("SAIDA"); }}
+                        className="w-full px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 font-extrabold text-sm">
+                          -
+                        </div>
+                        <div>
+                          <span className="block font-bold text-rose-600 dark:text-rose-400">- Saída / Pagamento</span>
+                          <span className="block text-[10px] font-normal text-slate-400">Pagamento de boleto, fatura, Pix enviado, saque</span>
+                        </div>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setActionDropdownOpen(false); setPurchaseModalOpen(true); }}
+                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                          <Minus className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block font-bold text-slate-900 dark:text-white">Lançar Despesa / Gasto</span>
+                          <span className="block text-[10px] font-normal text-slate-400">Registrar saída da conta</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("carga"); }}
+                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                          <Plus className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Adicionar Carga" : "Adicionar Saldo / Entrada"}</span>
+                          <span className="block text-[10px] font-normal text-slate-400">Injeção de capital ou benefício</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("cargaRemove"); }}
+                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                          <Settings className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Remover Carga" : "Subtrair / Ajustar Saldo"}</span>
+                          <span className="block text-[10px] font-normal text-slate-400">Ajuste de saldo manual</span>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1137,110 +1316,72 @@ export default function CartaoDetailPage() {
           })()}
         </div>
       ) : (
-        // ── VISÃO EXECUTIVA DARK GLASSMORPHISM PARA CONTA SANTANDER / BANCOS (5 CARDS DE MÉTRICAS) ──
-        <div className="flex flex-col gap-8">
+        // ── VISÃO EXECUTIVA DE EXTRATO BANCÁRIO PURO (FLUXO DE CAIXA: ENTRADAS & SAÍDAS) ──
+        <div className="flex flex-col gap-6">
           
-          {/* TOPO: 5 CARDS DE MÉTRICAS EM LINHA (SALDO, ENTRADAS, CONSUMO, PAGO, PENDENTE) */}
-          <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-
+          {/* TOPO: 4 CARDS ESSENCIAIS DE FLUXO DE CAIXA PURO (EXTRATO BANCÁRIO) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
             {/* Card 1: Saldo Disponível */}
-            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm gap-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight">Saldo Disponível</span>
-                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </div>
-              </div>
-              <div className="flex items-center my-0.5">
-                <h3 className={`text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>{brl(saldoAtualCalculado)}</h3>
-              </div>
+            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Balanço consolidado da conta</p>
-              </div>
-            </div>
-
-            {/* Card 2: Entradas no Mês */}
-            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/30 shadow-sm gap-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider leading-tight">Entradas no Mês</span>
-                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </div>
-              </div>
-              <div className="flex items-center my-0.5">
-                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{`+ ${brl(totalEntradasMes)}`}</h3>
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Depósitos e receitas creditadas</p>
-              </div>
-            </div>
-
-            {/* Card 3: Consumo no Mês */}
-            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-slate-200 dark:border-slate-800/80 shadow-sm gap-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-400 uppercase tracking-wider leading-tight">Consumo no Mês</span>
-                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400">
-                  <TrendingDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </div>
-              </div>
-              <div className="flex items-center my-0.5">
-                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-slate-900 dark:text-white">{brl(totalGastosMes)}</h3>
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Lançamentos debitados no mês</p>
-              </div>
-            </div>
-
-            {/* Card 4: Total Pago */}
-            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-emerald-200 dark:border-emerald-500/20 shadow-sm gap-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider leading-tight">Total Pago</span>
-                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </div>
-              </div>
-              <div className="flex items-center my-0.5">
-                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-emerald-600 dark:text-emerald-400">{brl(totalPago)}</h3>
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">Despesas quitadas no mês</p>
-              </div>
-            </div>
-
-            {/* Card 5: Total Pendente */}
-            <div className="card-glow flex flex-col justify-between min-h-[110px] p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#111625] border border-amber-200 dark:border-amber-500/20 shadow-sm gap-1.5">
-              <div className="flex items-start justify-between gap-2">
-                <span className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 uppercase tracking-wider leading-tight">Total Pendente</span>
-                <div className="shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
-                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </div>
-              </div>
-              <div className="flex flex-col my-0.5">
-                <h3 className="text-lg xl:text-xl font-bold tracking-tight leading-none tabular-nums whitespace-nowrap text-amber-600 dark:text-amber-400">
-                  <CurrencyValue value={totalNaoPago > 0 ? totalNaoPago : (totalPendenteProximoMes > 0 ? totalPendenteProximoMes : 0)} />
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Saldo Disponível</span>
+                <h3 className={`text-2xl font-bold mt-1 tabular-nums ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>
+                  {brl(saldoAtualCalculado)}
                 </h3>
-                {totalPendenteProximoMes > 0 && totalNaoPago === 0 ? (
-                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/60 px-2 py-0.5 rounded-md mt-1.5 inline-block w-fit">
-                    Competência {nextMonthLabel}
-                  </span>
-                ) : totalPendenteProximoMes > 0 && totalNaoPago > 0 ? (
-                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-1">
-                    + <CurrencyValue value={totalPendenteProximoMes} /> em {nextMonthLabel}
-                  </span>
-                ) : null}
+                <p className="text-xs text-slate-400 mt-0.5">Saldo real em conta</p>
               </div>
-              <div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">
-                  {totalNaoPago > 0
-                    ? "Aguardando pagamento no mês"
-                    : totalPendenteProximoMes > 0
-                    ? `Compromisso agendado para ${nextMonthLabel}`
-                    : "Aguardando pagamento"}
-                </p>
+              <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 text-lg">
+                🏛️
               </div>
             </div>
 
-          </section>
+            {/* Card 2: Total Entradas */}
+            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Entradas no Mês</span>
+                <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
+                  + {brl(totalEntradasMes)}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Salário, Pix e depósitos</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-lg">
+                ↗️
+              </div>
+            </div>
+
+            {/* Card 3: Total Saídas */}
+            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Saídas no Mês</span>
+                <h3 className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1 tabular-nums">
+                  - {brl(totalGastosMes)}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Boletos, faturas e transferências</p>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-lg">
+                ↘️
+              </div>
+            </div>
+
+            {/* Card 4: Balanço do Mês */}
+            {(() => {
+              const balancoMes = totalEntradasMes - totalGastosMes;
+              return (
+                <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Balanço do Mês</span>
+                    <h3 className={`text-2xl font-bold mt-1 tabular-nums ${balancoMes >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                      {balancoMes >= 0 ? `+ ${brl(balancoMes)}` : `- ${brl(Math.abs(balancoMes))}`}
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Entradas menos Saídas</p>
+                  </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${balancoMes >= 0 ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400"}`}>
+                    ⚖️
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
 
           {/* EXTRATO CRONOLÓGICO — CONTA BANCÁRIA */}
           <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-xl overflow-hidden">
@@ -1250,12 +1391,35 @@ export default function CartaoDetailPage() {
                   if ((t as any).source === "RECURRING_PROJECTION") return false;
                   const { year, month } = getTransactionDisplayYearMonth(t);
                   return year === selectedYear && month === selectedMonth;
-                })
-                .sort((a, b) => {
-                  const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
-                  const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
-                  return db - da;
                 });
+
+              // Ordenação cronológica crescente para cálculo de saldo acumulado
+              const startingBalance = cardData.balanceInfo?.previousBalance ?? ((cardData.initialBalance || 0) + carryoverBalance);
+              const sortedAsc = [...monthTransactions].sort((a, b) => {
+                const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
+                const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
+                if (da !== db) return da - db;
+                return a.id.localeCompare(b.id);
+              });
+
+              let running = startingBalance;
+              const withBalanceMap = new Map<string, number>();
+              for (const tx of sortedAsc) {
+                if (tx.type === "INCOME") {
+                  running += (tx.amount || 0);
+                } else {
+                  running -= (tx.amount || 0);
+                }
+                withBalanceMap.set(tx.id, running);
+              }
+
+              // Ordenação decrescente (mais recentes primeiro) para exibição clássica de extrato bancário
+              const sortedDesc = [...monthTransactions].sort((a, b) => {
+                const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
+                const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
+                if (da !== db) return db - da;
+                return b.id.localeCompare(a.id);
+              });
 
               const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
               const totalSaidasExtrato = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
@@ -1263,7 +1427,7 @@ export default function CartaoDetailPage() {
               const entradasCount = monthTransactions.filter(t => t.type === "INCOME").length;
               const saidasCount = monthTransactions.filter(t => t.type === "EXPENSE").length;
 
-              const filtered = monthTransactions.filter(t => {
+              const filtered = sortedDesc.filter(t => {
                 if (bankFlowFilter === "income" && t.type !== "INCOME") return false;
                 if (bankFlowFilter === "expense" && t.type !== "EXPENSE") return false;
                 return true;
@@ -1309,52 +1473,131 @@ export default function CartaoDetailPage() {
                     </div>
                   </div>
 
-                  {/* Tabela Estruturada de Extrato da Conta */}
-                  <CreditCardInvoiceTable
-                    dateColumnHeader="Data"
-                    transactions={filtered.map(t => {
-                      const match = t.description.match(/\((\d+)\/(\d+)\)/);
-                      const currInst = (t as any).currentInstallment || (match ? Number(match[1]) : null);
-                      const totalInst = t.installmentsCount || (match ? Number(match[2]) : null);
-                      const installmentLabel = currInst && totalInst ? `${currInst}/${totalInst}` : undefined;
+                  {/* Tabela Estruturada de Extrato Bancário Clássico: DATA | DESCRIÇÃO | TIPO / MEIO | VALOR | SALDO ACUMULADO | AÇÕES */}
+                  <div className="w-full overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
+                      <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4 w-10">
+                            <input
+                              type="checkbox"
+                              checked={filtered.length > 0 && selectedIds.length === filtered.length}
+                              onChange={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
+                              className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          </th>
+                          <th className="py-3 px-4">DATA</th>
+                          <th className="py-3 px-4">DESCRIÇÃO</th>
+                          <th className="py-3 px-4">TIPO / MEIO</th>
+                          <th className="py-3 px-4 text-right">VALOR</th>
+                          <th className="py-3 px-4 text-right">SALDO ACUMULADO</th>
+                          <th className="py-3 px-4 text-center w-28">AÇÕES</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                        {filtered.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                              Nenhuma movimentação registrada para este filtro.
+                            </td>
+                          </tr>
+                        ) : (
+                          filtered.map(t => {
+                            const isIncome = t.type === "INCOME";
+                            const badge = getMovementTypeBadge(t);
+                            const runningBalance = withBalanceMap.get(t.id) ?? 0;
+                            const isSelected = selectedIds.includes(t.id);
+                            const rawDate = (t as any).purchaseDate || t.date || "";
+                            const dateBR = formatDateBR(rawDate);
 
-                      return {
-                        id: t.id,
-                        description: t.description,
-                        category: t.category,
-                        amount: t.amount,
-                        date: t.date,
-                        purchaseDate: (t as any).purchaseDate || t.date,
-                        competenceDate: (t as any).competenceDate || t.date,
-                        type: t.type,
-                        status: t.status,
-                        installmentLabel,
-                        currentInstallment: currInst ?? undefined,
-                        installmentsCount: totalInst ?? undefined,
-                        isRecurring: Boolean((t as any).isRecurring || (t as any).tags?.toLowerCase().includes("recorrente")),
-                        tags: t.tags,
-                        paymentMethod: (t as any).paymentMethod,
-                      };
-                    })}
-                    selectedIds={selectedIds}
-                    onToggleSelect={(id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
-                    onToggleSelectAll={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
-                    onToggleStatus={togglePaymentStatus}
-                    togglingId={togglingId}
-                    onEdit={(tx) => openEditModal(tx as any)}
-                    onDelete={(tx) => { setSelectedPurchase(tx as any); setModalType("delete"); }}
-                    onDuplicate={async (tx) => {
-                      try {
-                        const res = await duplicateExpenseToNextMonthAction(tx.id);
-                        await loadData();
-                        showAlert(`"${tx.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" });
-                      } catch (e) {
-                        showAlert("Erro ao duplicar.", { variant: "error" });
-                      }
-                    }}
-                    emptyMessage="Nenhuma movimentação para este filtro."
-                    className="w-full overflow-x-auto"
-                  />
+                            return (
+                              <tr
+                                key={t.id}
+                                className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                                  isSelected ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""
+                                }`}
+                              >
+                                <td className="py-3 px-4">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(i => i !== t.id) : [...prev, t.id])}
+                                    className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                </td>
+                                <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                  {dateBR}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs font-black ${
+                                      isIncome ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                                    }`}>
+                                      {isIncome ? "↑" : "↓"}
+                                    </div>
+                                    <span className="font-bold text-slate-900 dark:text-white">
+                                      {t.description}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.color}`}>
+                                    {badge.label}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right whitespace-nowrap font-black text-sm tabular-nums">
+                                  {isIncome ? (
+                                    <span className="text-emerald-600 dark:text-emerald-400">+ {brl(t.amount)}</span>
+                                  ) : (
+                                    <span className="text-rose-600 dark:text-rose-400">- {brl(t.amount)}</span>
+                                  )}
+                                </td>
+                                <td className={`py-3 px-4 text-right whitespace-nowrap font-bold text-xs tabular-nums ${runningBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-300"}`}>
+                                  {brl(runningBalance)}
+                                </td>
+                                <td className="py-3 px-4 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      title="Editar lançamento"
+                                      onClick={() => openBankMovementEdit(t)}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Replicar para o próximo mês"
+                                      onClick={async () => {
+                                        try {
+                                          const res = await duplicateExpenseToNextMonthAction(t.id);
+                                          await loadData();
+                                          showAlert(`"${t.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" });
+                                        } catch (e) {
+                                          showAlert("Erro ao duplicar.", { variant: "error" });
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    >
+                                      <CopyPlus className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Excluir lançamento"
+                                      onClick={() => { setSelectedPurchase(t as any); setModalType("delete"); }}
+                                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Rodapé fixo */}
                   {monthTransactions.length > 0 && (
@@ -1363,7 +1606,7 @@ export default function CartaoDetailPage() {
                       <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums">Entradas: + {brl(totalEntradasExtrato)}</span>
                       <span className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums">Saídas: - {brl(totalSaidasExtrato)}</span>
                       <span className={`ml-auto text-xs font-black tabular-nums ${ balancoLiquidoExtrato >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400" }`}>
-                        Resultado: {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
+                        Balanço do Mês: {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
                       </span>
                     </div>
                   )}
@@ -1808,6 +2051,139 @@ export default function CartaoDetailPage() {
                 {isPayingInvoice ? "Registrando..." : "Confirmar Pagamento"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Simplificado para Conta Corrente (Único para Entradas e Saídas) */}
+      {bankMovModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-7 w-full max-w-md flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {bankMovEditingId ? "Editar Lançamento" : "Novo Lançamento em Conta"}
+                </h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  {cardData.title} • Extrato Financeiro
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBankMovModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarMovimentacao} className="space-y-4">
+              {/* Tipo de Operação */}
+              <div className="flex gap-4 p-2 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                <label className="flex-1 flex items-center justify-center gap-2 p-2 rounded-lg cursor-pointer transition-all hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+                  <input 
+                    type="radio" 
+                    name="tipo" 
+                    value="ENTRADA" 
+                    checked={bankMovTipo === 'ENTRADA'} 
+                    onChange={() => {
+                      setBankMovTipo('ENTRADA');
+                      setBankMovTipoLancamento('SALARIO');
+                    }} 
+                    className="accent-emerald-600 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">+ Entrada (Salário / Injeção)</span>
+                </label>
+                
+                <label className="flex-1 flex items-center justify-center gap-2 p-2 rounded-lg cursor-pointer transition-all hover:bg-rose-50 dark:hover:bg-rose-950/30">
+                  <input 
+                    type="radio" 
+                    name="tipo" 
+                    value="SAIDA" 
+                    checked={bankMovTipo === 'SAIDA'} 
+                    onChange={() => {
+                      setBankMovTipo('SAIDA');
+                      setBankMovTipoLancamento('BOLETO');
+                    }} 
+                    className="accent-rose-600 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400">- Saída (Boleto / Pagamento)</span>
+                </label>
+              </div>
+
+              {/* Descrição simples */}
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Descrição</label>
+                <input 
+                  type="text" 
+                  value={bankMovDesc}
+                  onChange={e => setBankMovDesc(e.target.value)}
+                  placeholder="Ex: Salário Empresa, Pagamento Boleto Luz, Pix Fulano" 
+                  className="w-full mt-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required 
+                />
+              </div>
+
+              {/* Valor e Data */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Valor (R$)</label>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    min="0.01"
+                    value={bankMovValor}
+                    onChange={e => setBankMovValor(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="0,00" 
+                    className="w-full mt-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Data</label>
+                  <input 
+                    type="date" 
+                    value={bankMovData}
+                    onChange={e => setBankMovData(e.target.value)}
+                    className="w-full mt-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    required 
+                  />
+                </div>
+              </div>
+
+              {/* Tipo de Movimento / Origem (Sem categorias de gastos miúdos) */}
+              <div>
+                <label className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400">Tipo de Lançamento</label>
+                <select 
+                  value={bankMovTipoLancamento}
+                  onChange={e => setBankMovTipoLancamento(e.target.value)}
+                  className="w-full mt-1 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 rounded-lg p-2.5 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {bankMovTipo === 'ENTRADA' ? (
+                    <>
+                      <option value="SALARIO">Salário</option>
+                      <option value="PIX_RECEBIDO">Pix / Transferência Recebida</option>
+                      <option value="INJECAO">Ajuste de Saldo / Injeção</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="BOLETO">Pagamento de Boleto</option>
+                      <option value="FATURA_CARTAO">Pagamento de Fatura</option>
+                      <option value="PIX_ENVIADO">Pix / Transferência Enviada</option>
+                      <option value="SAQUE">Saque / Ajuste Negativo</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={bankMovSaving}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg disabled:opacity-50 transition-all cursor-pointer shadow-md shadow-indigo-600/30"
+              >
+                {bankMovSaving ? "Salvando..." : (bankMovEditingId ? "Salvar Alterações" : "Confirmar Lançamento")}
+              </button>
+            </form>
           </div>
         </div>
       )}
