@@ -7865,10 +7865,24 @@ export async function getMonthlyCommitmentsAction(
       AND: [
         {
           OR: [
-            ...(numMonth ? [{ competenceMonth: numMonth, competenceYear: year }] : []),
-            { dueDate: { gte: from, lte: to } },
-            { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] },
-            { AND: [{ paymentDate: { gte: from, lte: to } }] },
+            ...(numMonth
+              ? [
+                  { competenceMonth: numMonth, competenceYear: year },
+                  {
+                    AND: [
+                      { competenceMonth: null },
+                      { dueDate: { gte: from, lte: to } },
+                    ],
+                  },
+                  {
+                    AND: [
+                      { competenceMonth: null },
+                      { dueDate: null },
+                      { date: { gte: from, lte: to } },
+                    ],
+                  },
+                ]
+              : [{ competenceYear: year }]),
           ],
         },
       ],
@@ -7886,6 +7900,15 @@ export async function getMonthlyCommitmentsAction(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const MONTH_NAMES_FULL = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+  const MONTH_NAMES_SHORT = [
+    "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+    "Jul", "Ago", "Set", "Out", "Nov", "Dez"
+  ];
+
   const items = txs.map((t) => {
     const due = t.dueDate || t.date;
     const d = new Date(due);
@@ -7896,6 +7919,12 @@ export async function getMonthlyCommitmentsAction(
     const diffDays = Math.round((dMid.getTime() - nowMid.getTime()) / (1000 * 60 * 60 * 24));
 
     const isPaid = t.status === "COMPLETED" || t.status === "PAID";
+
+    const cMonth = t.competenceMonth || d.getUTCMonth() + 1;
+    const cYear = t.competenceYear || d.getUTCFullYear();
+    const competencia = `${cYear}-${String(cMonth).padStart(2, "0")}`;
+    const competenciaLabel = `${MONTH_NAMES_FULL[cMonth - 1]}/${cYear}`;
+    const competenciaShort = `${MONTH_NAMES_SHORT[cMonth - 1]}/${cYear}`;
 
     let dueBadge: {
       label: string;
@@ -7976,6 +8005,11 @@ export async function getMonthlyCommitmentsAction(
       description: cleanDesc,
       rawDescription: t.description,
       amount: Number(t.amount),
+      competencia,
+      competenciaLabel,
+      competenciaShort,
+      competenceMonth: cMonth,
+      competenceYear: cYear,
       dueDateFormatted: dueFormatted,
       dueDateRaw: d.toISOString(),
       dueDateInput: d.toISOString().split("T")[0],
@@ -8015,6 +8049,8 @@ export async function createCommitmentAction(input: {
   dueDate: string;
   tipo: "BOLETO" | "ASSINATURA";
   recorrencia: "MENSAL" | "UNICO";
+  competenceMonth?: number;
+  competenceYear?: number;
 }) {
   const userId = await getActiveUserId();
 
@@ -8035,8 +8071,9 @@ export async function createCommitmentAction(input: {
   const due = parseInputDate(input.dueDate);
   const isMensal = input.recorrencia === "MENSAL";
   const dueDay = due.getUTCDate();
-  const compMonth = due.getUTCMonth() + 1;
-  const compYear = due.getUTCFullYear();
+  const compMonth = input.competenceMonth || (due.getUTCMonth() + 1);
+  const compYear = input.competenceYear || due.getUTCFullYear();
+  const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
   const tags = "#compromisso #" + input.tipo.toLowerCase() + " #" + input.recorrencia.toLowerCase();
 
@@ -8050,6 +8087,7 @@ export async function createCommitmentAction(input: {
       dueDate: due,
       competenceMonth: compMonth,
       competenceYear: compYear,
+      competenceDate: compDate,
       status: "PENDING",
       source: "COMMITMENT",
       isRecurring: isMensal,
@@ -8215,6 +8253,8 @@ export async function updateCommitmentAction(input: {
   dueDate: string;
   tipo: "BOLETO" | "ASSINATURA";
   recorrencia: "MENSAL" | "UNICO";
+  competenceMonth?: number;
+  competenceYear?: number;
 }) {
   const userId = await getActiveUserId();
 
@@ -8226,6 +8266,9 @@ export async function updateCommitmentAction(input: {
 
   const due = parseInputDate(input.dueDate);
   const isMensal = input.recorrencia === "MENSAL";
+  const compMonth = input.competenceMonth || tx.competenceMonth || (due.getUTCMonth() + 1);
+  const compYear = input.competenceYear || tx.competenceYear || due.getUTCFullYear();
+  const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
   const isPaid = tx.status === "COMPLETED" || tx.status === "PAID";
   let newDesc = input.description.trim();
@@ -8242,8 +8285,9 @@ export async function updateCommitmentAction(input: {
       amount: input.amount,
       dueDate: due,
       date: due,
-      competenceMonth: due.getUTCMonth() + 1,
-      competenceYear: due.getUTCFullYear(),
+      competenceMonth: compMonth,
+      competenceYear: compYear,
+      competenceDate: compDate,
       isRecurring: isMensal,
       recurringDay: due.getUTCDate(),
       tags,

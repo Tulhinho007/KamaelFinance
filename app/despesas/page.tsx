@@ -33,6 +33,11 @@ const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const formatCurrency = brl;
 
+const MONTH_NAMES_LIST = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 // ─── Constantes & Enums ───────────────────────────────────────────────────────
 export const TIPOS_CARTAO = [
   { label: "Conta Bancária", value: "CONTA_CORRENTE" },
@@ -369,6 +374,8 @@ export default function DespesasPage() {
   const [newCommitmentDueDate, setNewCommitmentDueDate] = useState("");
   const [newCommitmentTipo, setNewCommitmentTipo] = useState<"BOLETO" | "ASSINATURA">("BOLETO");
   const [newCommitmentRecorrencia, setNewCommitmentRecorrencia] = useState<"MENSAL" | "UNICO">("MENSAL");
+  const [newCommitmentCompMonth, setNewCommitmentCompMonth] = useState<number>(() => selectedMonthFilter || (new Date().getMonth() + 1));
+  const [newCommitmentCompYear, setNewCommitmentCompYear] = useState<number>(() => selectedYear || 2026);
 
   // Modal de Baixa ("Confirmar Pagamento")
   const [payCommitmentItem, setPayCommitmentItem] = useState<any | null>(null);
@@ -386,6 +393,19 @@ export default function DespesasPage() {
   const [editCommitmentDueDate, setEditCommitmentDueDate] = useState("");
   const [editCommitmentTipo, setEditCommitmentTipo] = useState<"BOLETO" | "ASSINATURA">("BOLETO");
   const [editCommitmentRecorrencia, setEditCommitmentRecorrencia] = useState<"MENSAL" | "UNICO">("MENSAL");
+  const [editCommitmentCompMonth, setEditCommitmentCompMonth] = useState<number>(() => selectedMonthFilter || 9);
+  const [editCommitmentCompYear, setEditCommitmentCompYear] = useState<number>(() => selectedYear || 2026);
+
+  const openNewCommitmentModal = () => {
+    setNewCommitmentDesc("");
+    setNewCommitmentAmount("");
+    setNewCommitmentDueDate("");
+    setNewCommitmentTipo("BOLETO");
+    setNewCommitmentRecorrencia("MENSAL");
+    setNewCommitmentCompMonth(selectedMonthFilter || (new Date().getMonth() + 1));
+    setNewCommitmentCompYear(selectedYear || 2026);
+    setNewCommitmentModalOpen(true);
+  };
 
   const handleSaveNewCommitment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,6 +421,8 @@ export default function DespesasPage() {
         dueDate: newCommitmentDueDate,
         tipo: newCommitmentTipo,
         recorrencia: newCommitmentRecorrencia,
+        competenceMonth: newCommitmentCompMonth,
+        competenceYear: newCommitmentCompYear,
       });
       setNewCommitmentModalOpen(false);
       setNewCommitmentDesc("");
@@ -490,6 +512,8 @@ export default function DespesasPage() {
     setEditCommitmentDueDate(item.dueDateInput || item.dueDateRaw?.split("T")[0] || "");
     setEditCommitmentTipo(item.tipo || "BOLETO");
     setEditCommitmentRecorrencia(item.recorrencia || "MENSAL");
+    setEditCommitmentCompMonth(item.competenceMonth || (item.dueDateRaw ? new Date(item.dueDateRaw).getUTCMonth() + 1 : (selectedMonthFilter || 9)));
+    setEditCommitmentCompYear(item.competenceYear || (item.dueDateRaw ? new Date(item.dueDateRaw).getUTCFullYear() : (selectedYear || 2026)));
   };
 
   const handleSaveEditCommitment = async (e: React.FormEvent) => {
@@ -508,6 +532,8 @@ export default function DespesasPage() {
         dueDate: editCommitmentDueDate,
         tipo: editCommitmentTipo,
         recorrencia: editCommitmentRecorrencia,
+        competenceMonth: editCommitmentCompMonth,
+        competenceYear: editCommitmentCompYear,
       });
       setEditCommitmentItem(null);
       await reloadAllData();
@@ -1160,7 +1186,7 @@ export default function DespesasPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setNewCommitmentModalOpen(true)}
+            onClick={openNewCommitmentModal}
             className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -1304,7 +1330,7 @@ export default function DespesasPage() {
                 </div>
 
                 <button
-                  onClick={() => setNewCommitmentModalOpen(true)}
+                  onClick={openNewCommitmentModal}
                   className="hidden sm:flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1340,7 +1366,7 @@ export default function DespesasPage() {
                             Cadastre contas fixas, boletos ou assinaturas para controlar prazos e dar baixa com débito automático no banco ou cartão.
                           </p>
                           <button
-                            onClick={() => setNewCommitmentModalOpen(true)}
+                            onClick={openNewCommitmentModal}
                             className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
                           >
                             <Plus className="w-3.5 h-3.5" />
@@ -1385,9 +1411,14 @@ export default function DespesasPage() {
                                 <span className="font-bold text-slate-900 dark:text-white block text-sm">
                                   {item.description}
                                 </span>
-                                <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                                  {item.recorrenciaLabel}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                    {item.recorrenciaLabel}
+                                  </span>
+                                  <span className="inline-flex items-center text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 px-1.5 py-0.5 rounded-md">
+                                    Ref: {item.competenciaLabel || `${item.competenceMonth}/${item.competenceYear}`}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -2007,6 +2038,36 @@ export default function DespesasPage() {
                 />
               </div>
 
+              {/* Mês de Referência / Competência */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Mês de Referência / Competência *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={newCommitmentCompMonth}
+                    onChange={(e) => setNewCommitmentCompMonth(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {MONTH_NAMES_LIST.map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={newCommitmentCompYear}
+                    onChange={(e) => setNewCommitmentCompYear(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Mês financeiro a que o gasto pertence (ex: Setembro/2026 mesmo com vencimento em Outubro).
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$)</label>
@@ -2021,7 +2082,7 @@ export default function DespesasPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Vencimento</label>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Data de Vencimento</label>
                   <input
                     type="date"
                     value={newCommitmentDueDate}
@@ -2192,6 +2253,36 @@ export default function DespesasPage() {
                 />
               </div>
 
+              {/* Mês de Referência / Competência */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Mês de Referência / Competência *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={editCommitmentCompMonth}
+                    onChange={(e) => setEditCommitmentCompMonth(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {MONTH_NAMES_LIST.map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={editCommitmentCompYear}
+                    onChange={(e) => setEditCommitmentCompYear(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Mês financeiro a que o gasto pertence (ex: Setembro/2026 mesmo com vencimento em Outubro).
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$)</label>
@@ -2205,7 +2296,7 @@ export default function DespesasPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Vencimento</label>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Data de Vencimento</label>
                   <input
                     type="date"
                     value={editCommitmentDueDate}
