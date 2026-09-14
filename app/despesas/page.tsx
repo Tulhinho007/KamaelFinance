@@ -29,6 +29,12 @@ const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const formatCurrency = brl;
 
+// ─── Constantes & Enums ───────────────────────────────────────────────────────
+export const TIPOS_CARTAO = [
+  { label: "Cartão de Crédito", value: "CREDIT_CARD" },
+  { label: "Ticket / Benefício", value: "TICKET" }
+];
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type CardOverview = {
   id: string;
@@ -37,6 +43,8 @@ type CardOverview = {
   walletType: string;
   tipo?: string;
   saldoAtual?: number;
+  gastoMes?: number;
+  recargaMes?: number;
   holder?: string;
   agencia?: string;
   conta?: string;
@@ -46,6 +54,8 @@ type CardOverview = {
   limitUsed: number;
   faturaAtual: number;
   vencimento: number;
+  diaFechamento?: number;
+  diaRecarga?: number;
   color: string;
   accountExpenses?: number;
   totalSpentInPeriod?: number;
@@ -54,6 +64,8 @@ type CardOverview = {
   periodExpenseCount?: number;
   periodIncomeCount?: number;
   finalBalance?: number;
+  monthExpense?: number;
+  monthIncome?: number;
 };
 
 type UpcomingBill = {
@@ -142,22 +154,20 @@ function calculateNextDueDate(
 }
 
 function walletIcon(type: string) {
-  if (type === "CREDIT_CARD") return CreditCard;
-  if (type === "TICKET")      return Zap;
-  return Building2;
+  if (type === "CREDIT_CARD" || type === "CREDITO") return CreditCard;
+  if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return Zap;
+  return CreditCard;
 }
 
 function walletLabel(type: string) {
-  if (type === "CREDIT_CARD")    return "Cartão de Crédito";
-  if (type === "TICKET")         return "VA / VR / Benefício";
-  if (type === "CONTA_CORRENTE") return "Conta Corrente";
-  return "Carteira";
+  if (type === "CREDIT_CARD" || type === "CREDITO") return "Cartão de Crédito";
+  if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return "Ticket / Benefício";
+  return "Cartão";
 }
 
 function walletBadgeStyle(type: string) {
-  if (type === "CREDIT_CARD")    return "bg-purple-500/20 text-purple-200 border-purple-400/30";
-  if (type === "CONTA_CORRENTE") return "bg-emerald-500/20 text-emerald-200 border-emerald-400/30";
-  if (type === "TICKET")         return "bg-teal-500/20 text-teal-200 border-teal-400/30";
+  if (type === "CREDIT_CARD" || type === "CREDITO") return "bg-purple-500/20 text-purple-200 border-purple-400/30";
+  if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return "bg-amber-500/20 text-amber-200 border-amber-400/30";
   return "bg-white/20 text-white border-white/30";
 }
 
@@ -291,8 +301,8 @@ export default function DespesasPage() {
   const [loading, setLoading]     = useState(true);
   const [selectedHolder, setSelectedHolder] = useState<string>("TODOS");
 
-  // ── Navegação por Abas (Visão Geral / Cartões de Crédito / Contas & Débito) ──
-  const [activeTab, setActiveTab] = useState<"overview" | "credit" | "debit">("overview");
+  // ── Navegação por Abas (Visão Geral / Cartões de Crédito / Tickets) ──
+  const [activeTab, setActiveTab] = useState<"overview" | "credit" | "ticket">("overview");
 
   // ── Modais e Abas de Fatura ──────────────────────────────────────────────────
   const [modalMode, setModalMode]           = useState<"create" | "edit" | "delete" | null>(null);
@@ -439,18 +449,14 @@ export default function DespesasPage() {
     }
   };
 
-  // ── Form de cartão (compartilhado entre criar e editar) ─────────────────────
+  // ── Form de cartão / ticket (compartilhado entre criar e editar) ───────────
   const [formBank,        setFormBank]        = useState("");
   const [formType,        setFormType]        = useState("CREDIT_CARD");
   const [formHolder,      setFormHolder]      = useState("");
-  const [formAgencia,     setFormAgencia]     = useState("");
-  const [formConta,       setFormConta]       = useState("");
   const [formLimit,       setFormLimit]       = useState<number | "">("");
   const [formDiaFech,     setFormDiaFech]     = useState<number>(1);
   const [formDiaVenc,     setFormDiaVenc]     = useState<number>(10);
-  const [formOrigin,      setFormOrigin]      = useState<"ROLLOVER" | "SALARIO" | "RECARGA" | "FREELANCE" | "INVESTIMENTO" | "APORTE">("ROLLOVER");
-  const [formTargetMonth, setFormTargetMonth] = useState<number>(selectedMonthFilter || (new Date().getMonth() + 1));
-  const [formTargetYear,  setFormTargetYear]  = useState<number>(selectedYear);
+  const [formDiaRecarga,  setFormDiaRecarga]  = useState<number>(1);
   const [formSaving,      setFormSaving]      = useState(false);
 
   // ── Carrega dados em modo Anual ou Mensal ─────────────────────────────────
@@ -500,8 +506,9 @@ export default function DespesasPage() {
   );
 
   // ── KPIs consolidados ────────────────────────────────────────────────────────
-  const creditCards  = cards.filter(c => c.walletType === "CREDIT_CARD");
-  const accountCards = cards.filter(c => c.walletType !== "CREDIT_CARD");
+  const creditCards  = cards.filter(c => c.walletType === "CREDIT_CARD" || (c as any).tipo === "CREDITO");
+  const ticketCards  = cards.filter(c => c.walletType === "TICKET" || (c as any).tipo === "TICKET");
+  const accountCards = ticketCards;
 
   const contas = cards;
   const totalEntradasMes = realRevenue;
@@ -665,8 +672,7 @@ export default function DespesasPage() {
   // ── Helpers de modal ─────────────────────────────────────────────────────────
   const resetForm = () => {
     setFormBank(""); setFormType("CREDIT_CARD"); setFormHolder("");
-    setFormAgencia(""); setFormConta(""); setFormLimit(""); setFormDiaFech(1); setFormDiaVenc(10);
-    setFormOrigin("ROLLOVER"); setFormTargetMonth(selectedMonthFilter || (new Date().getMonth() + 1)); setFormTargetYear(selectedYear);
+    setFormLimit(""); setFormDiaFech(1); setFormDiaVenc(10); setFormDiaRecarga(1);
   };
 
   const openCreate = () => {
@@ -678,16 +684,12 @@ export default function DespesasPage() {
   const openEdit = (card: CardOverview) => {
     setSelectedCard(card);
     setFormBank(card.bankName || card.title);
-    setFormType(card.walletType);
+    setFormType(card.walletType === "TICKET" || (card as any).tipo === "TICKET" ? "TICKET" : "CREDIT_CARD");
     setFormHolder(card.holder || "");
-    setFormAgencia(card.agencia || "");
-    setFormConta(card.conta || "");
-    setFormLimit(card.limitTotal);
+    setFormLimit(card.walletType === "TICKET" ? (card.saldoAtual ?? card.finalBalance ?? card.limitTotal ?? "") : (card.limitTotal || ""));
     setFormDiaFech((card as any).diaFechamento || 1);
-    setFormDiaVenc(card.vencimento);
-    setFormOrigin("ROLLOVER");
-    setFormTargetMonth(selectedMonthFilter || (new Date().getMonth() + 1));
-    setFormTargetYear(selectedYear);
+    setFormDiaVenc(card.vencimento || 10);
+    setFormDiaRecarga((card as any).diaFechamento || card.vencimento || 1);
     setModalMode("edit");
   };
 
@@ -713,22 +715,22 @@ export default function DespesasPage() {
         walletType:     formType,
         alias:          formBank,
         holder:         formHolder,
-        agencia:        formAgencia,
-        conta:          formConta,
+        agencia:        "",
+        conta:          "",
         limitOrBalance: formLimit === "" ? 0 : Number(formLimit),
-        diaFechamento:  formDiaFech,
-        diaVencimento:  formDiaVenc,
-        originType:     formOrigin,
-        targetMonth:    formTargetMonth,
-        targetYear:     formTargetYear,
+        diaFechamento:  formType === "TICKET" ? formDiaRecarga : formDiaFech,
+        diaVencimento:  formType === "TICKET" ? formDiaRecarga : formDiaVenc,
+        originType:     "ROLLOVER",
+        targetMonth:    selectedMonthFilter || (new Date().getMonth() + 1),
+        targetYear:     selectedYear,
       });
       const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
 
-      if (formType === "CREDIT_CARD") {
+      if (formType === "CREDIT_CARD" || formType === "CREDITO") {
         setActiveTab("credit");
       } else {
-        setActiveTab("debit");
+        setActiveTab("ticket");
       }
 
       closeModal();
@@ -751,11 +753,11 @@ export default function DespesasPage() {
         walletType:     formType,
         alias:          formBank,
         holder:         formHolder,
-        agencia:        formAgencia,
-        conta:          formConta,
+        agencia:        "",
+        conta:          "",
         limitOrBalance: formLimit === "" ? 0 : Number(formLimit),
-        diaFechamento:  formDiaFech,
-        diaVencimento:  formDiaVenc,
+        diaFechamento:  formType === "TICKET" ? formDiaRecarga : formDiaFech,
+        diaVencimento:  formType === "TICKET" ? formDiaRecarga : formDiaVenc,
       });
       const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
@@ -938,7 +940,7 @@ export default function DespesasPage() {
         </div>
       </div>
 
-      {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / CONTAS & DÉBITO) ── */}
+      {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / TICKETS) ── */}
       <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-1.5 sm:p-2 rounded-2xl shadow-sm">
         <button
           type="button"
@@ -974,17 +976,17 @@ export default function DespesasPage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab("debit")}
+          onClick={() => setActiveTab("ticket")}
           className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
-            activeTab === "debit"
-              ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+            activeTab === "ticket"
+              ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
-          <Building2 className="w-4 h-4" />
-          <span>Contas & Débito</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "debit" ? "bg-white/20 text-white" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300"}`}>
-            {accountCards.length}
+          <Zap className="w-4 h-4" />
+          <span>Tickets</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "ticket" ? "bg-white/20 text-white" : "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"}`}>
+            {ticketCards.length}
           </span>
         </button>
       </div>
@@ -1010,16 +1012,16 @@ export default function DespesasPage() {
       {/* ── 5. GRID DE CARTÕES E CONTAS COM FILTRO POR TITULAR ──────────────────── */}
       {(() => {
         const displayedCards = activeTab === "credit"
-          ? filteredCards.filter(c => c.walletType === "CREDIT_CARD")
-          : activeTab === "debit"
-          ? filteredCards.filter(c => c.walletType !== "CREDIT_CARD")
+          ? filteredCards.filter(c => c.walletType === "CREDIT_CARD" || (c as any).tipo === "CREDITO")
+          : activeTab === "ticket"
+          ? filteredCards.filter(c => c.walletType === "TICKET" || (c as any).tipo === "TICKET")
           : filteredCards;
 
         const tabTitle = activeTab === "credit"
           ? "Meus Cartões de Crédito"
-          : activeTab === "debit"
-          ? "Minhas Contas e Carteiras de Débito"
-          : "Meus Cartões e Contas";
+          : activeTab === "ticket"
+          ? "Meus Tickets & Benefícios"
+          : "Meus Cartões e Tickets";
 
         return (
           <section className="flex flex-col gap-4">
@@ -1073,15 +1075,15 @@ export default function DespesasPage() {
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
                   {activeTab === "credit"
                     ? "Nenhum cartão de crédito cadastrado nesta visualização."
-                    : activeTab === "debit"
-                    ? "Nenhuma conta corrente ou de débito cadastrada nesta visualização."
-                    : "Nenhum cartão ou conta cadastrado."}
+                    : activeTab === "ticket"
+                    ? "Nenhum ticket ou benefício cadastrado nesta visualização."
+                    : "Nenhum cartão ou ticket cadastrado."}
                 </p>
                 <button
                   onClick={openCreate}
                   className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-500 cursor-pointer"
                 >
-                  + Adicionar Novo Item
+                  {activeTab === "ticket" ? "+ Adicionar Novo Ticket" : "+ Adicionar Novo Cartão"}
                 </button>
               </div>
             ) : (
@@ -1339,12 +1341,12 @@ export default function DespesasPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 tracking-tight">
-                    {modalMode === "edit" ? "Editar Cartão / Conta" : "Novo Cartão / Conta"}
+                    {modalMode === "edit" ? "Editar Cartão / Ticket" : "Novo Cartão / Ticket"}
                   </h3>
                   <p className="text-[10px] font-semibold text-slate-400">
                     {modalMode === "edit"
                       ? `Atualizando: ${selectedCard?.title}`
-                      : "Preencha os dados do seu cartão ou conta"}
+                      : "Preencha os dados do seu cartão de crédito ou ticket de benefício"}
                   </p>
                 </div>
               </div>
@@ -1361,17 +1363,17 @@ export default function DespesasPage() {
               onSubmit={modalMode === "edit" ? handleEditCard : handleCreateCard}
               className="flex flex-col gap-5 px-7 py-6 overflow-y-auto max-h-[70vh]"
             >
-              {/* Instituição */}
+              {/* Instituição / Nome */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  Instituição / Banco *
+                  Instituição / Nome do Cartão ou Ticket *
                 </label>
                 <input
                   required
                   type="text"
                   value={formBank}
                   onChange={e => setFormBank(e.target.value)}
-                  placeholder="Ex: Nubank, Itaú, Bradesco..."
+                  placeholder={formType === "TICKET" ? "Ex: Ticket Restaurante, Alelo, VR, Flash..." : "Ex: Nubank, Itaú, Bradesco..."}
                   className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300 transition-shadow"
                 />
               </div>
@@ -1380,18 +1382,16 @@ export default function DespesasPage() {
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Tipo *</label>
                 <div className="flex gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-100">
-                  {[
-                    { value: "CREDIT_CARD",    label: "Cartão de Crédito" },
-                    { value: "CONTA_CORRENTE", label: "Conta Corrente"    },
-                    { value: "TICKET",         label: "VA / VR"           },
-                  ].map(opt => (
+                  {TIPOS_CARTAO.map(opt => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setFormType(opt.value)}
-                      className={`flex-1 py-2 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                      className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                         formType === opt.value
-                          ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20"
+                          ? (opt.value === "TICKET"
+                              ? "bg-amber-600 text-white shadow-sm shadow-amber-600/20"
+                              : "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20")
                           : "text-slate-400 hover:text-slate-600"
                       }`}
                     >
@@ -1401,10 +1401,10 @@ export default function DespesasPage() {
                 </div>
               </div>
 
-              {/* Titular do Cartão */}
+              {/* Titular */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  Titular do Cartão
+                  Titular (Opcional)
                 </label>
                 <input
                   type="text"
@@ -1415,148 +1415,106 @@ export default function DespesasPage() {
                 />
               </div>
 
-              {/* Agência e Conta (Editável em ambos os modos) */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Agência</label>
-                  <input
-                    type="text"
-                    value={formAgencia}
-                    onChange={e => setFormAgencia(e.target.value)}
-                    placeholder="0001"
-                    className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Nº da Conta</label>
-                  <input
-                    type="text"
-                    value={formConta}
-                    onChange={e => setFormConta(e.target.value)}
-                    placeholder="00000-0"
-                    className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300"
-                  />
-                </div>
-              </div>
-
-              {/* Limite / Saldo */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  {formType === "CREDIT_CARD" ? "Limite Total do Cartão (R$)" : "Saldo Inicial / Aporte (R$)"}
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formLimit}
-                  onChange={e => setFormLimit(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0,00"
-                  className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300"
-                />
-              </div>
-
-              {/* Origem do Saldo Inicial e Mês de Aplicação (para Conta Corrente e VA/VR) */}
-              {formType !== "CREDIT_CARD" && (
+              {/* Campos para Cartão de Crédito */}
+              {formType === "CREDIT_CARD" && (
                 <>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      Origem do Saldo / Entrada
+                      Limite Total do Cartão (R$) *
                     </label>
-                    <select
-                      value={formOrigin}
-                      onChange={e => setFormOrigin(e.target.value as any)}
-                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                    >
-                      <option value="ROLLOVER">Saldo do Mês Anterior (Rollover Automático)</option>
-                      <option value="SALARIO">Injeção de Capital / Salário</option>
-                      <option value="RECARGA">Recarga de Saldo</option>
-                      <option value="FREELANCE">Renda Extra / Freelance</option>
-                      <option value="INVESTIMENTO">Resgate de Investimento</option>
-                      <option value="APORTE">Outra Fonte / Aporte Direto</option>
-                    </select>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formLimit}
+                      onChange={e => setFormLimit(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0,00"
+                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300"
+                    />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Mês de Aplicação
+                        Dia de Fechamento
                       </label>
-                      <select
-                        value={formTargetMonth}
-                        onChange={e => setFormTargetMonth(Number(e.target.value))}
-                        className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      >
-                        {[
-                          "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                          "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-                        ].map((m, i) => (
-                          <option key={m} value={i + 1}>{m}</option>
-                        ))}
-                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={formDiaFech}
+                        onChange={e => setFormDiaFech(Number(e.target.value))}
+                        className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700"
+                      />
                     </div>
-
                     <div className="flex flex-col gap-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                        Ano de Aplicação
+                        Dia de Vencimento
                       </label>
-                      <select
-                        value={formTargetYear}
-                        onChange={e => setFormTargetYear(Number(e.target.value))}
-                        className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-                      >
-                        {Array.from({ length: 11 }, (_, i) => 2020 + i).map(y => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
+                      <input
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={formDiaVenc}
+                        onChange={e => setFormDiaVenc(Number(e.target.value))}
+                        className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700"
+                      />
                     </div>
                   </div>
                 </>
               )}
 
-              {/* Dia de Fechamento & Dia de Vencimento (somente Cartão de Crédito) */}
-              {formType === "CREDIT_CARD" && (
-                <div className="grid grid-cols-2 gap-3">
+              {/* Campos para Ticket / Benefício */}
+              {formType === "TICKET" && (
+                <>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      Dia de Fechamento
+                      Saldo Atual Disponível (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formLimit}
+                      onChange={e => setFormLimit(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="0,00"
+                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700 placeholder:text-slate-300"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                      Dia da Recarga Mensal
                     </label>
                     <input
                       type="number"
                       min="1"
                       max="31"
-                      value={formDiaFech}
-                      onChange={e => setFormDiaFech(Number(e.target.value))}
-                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700"
+                      value={formDiaRecarga}
+                      onChange={e => setFormDiaRecarga(Number(e.target.value))}
+                      placeholder="Ex: Dia 1 ou 15"
+                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-200 text-slate-700"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      Dia de Vencimento
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={formDiaVenc}
-                      onChange={e => setFormDiaVenc(Number(e.target.value))}
-                      className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-3.5 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700"
-                    />
-                  </div>
-                </div>
+                </>
               )}
 
               {/* Preview visual */}
               {formBank && (
                 <div
                   className="rounded-2xl p-4 flex items-center gap-3 transition-all duration-300"
-                  style={{ background: bankGradientStyle(formBank) }}
+                  style={{
+                    background: formType === "TICKET"
+                      ? "linear-gradient(135deg, #d97706, #b45309, #ea580c)"
+                      : bankGradientStyle(formBank)
+                  }}
                 >
                   <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center">
                     {React.createElement(walletIcon(formType), { className: "w-4 h-4 text-white" })}
                   </div>
                   <div>
                     <p className="text-xs font-black text-white leading-none">{formBank || "Nome da instituição"}</p>
-                    <p className="text-[10px] font-bold text-white/70 mt-0.5">{formBank} · {walletLabel(formType)}</p>
+                    <p className="text-[10px] font-bold text-white/80 mt-0.5">{formBank} · {walletLabel(formType)}</p>
                   </div>
                 </div>
               )}
@@ -1565,11 +1523,15 @@ export default function DespesasPage() {
               <button
                 type="submit"
                 disabled={formSaving}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/25 transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                className={`w-full py-3.5 rounded-2xl text-white font-extrabold text-xs tracking-wider shadow-lg transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
+                  formType === "TICKET"
+                    ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-amber-600/25"
+                    : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-indigo-600/25"
+                }`}
               >
                 {formSaving
                   ? (modalMode === "edit" ? "SALVANDO..." : "CADASTRANDO...")
-                  : (modalMode === "edit" ? "SALVAR ALTERAÇÕES" : "CADASTRAR CARTÃO / CONTA")
+                  : (modalMode === "edit" ? "SALVAR ALTERAÇÕES" : (formType === "TICKET" ? "CADASTRAR TICKET" : "CADASTRAR CARTÃO"))
                 }
               </button>
             </form>
@@ -1745,18 +1707,23 @@ function CardTile({
     usagePct >= 70 ? "bg-amber-500" :
     "bg-indigo-500";
 
-  const gradient = bankColor(card.bankName || card.title);
+  const isCredit = card.walletType === "CREDIT_CARD" || (card as any).tipo === "CREDITO";
+  const isTicket = card.walletType === "TICKET" || (card as any).tipo === "TICKET";
+
+  const gradient = isTicket
+    ? "from-amber-600 via-amber-700 to-orange-700"
+    : bankColor(card.bankName || card.title);
+
   const Icon     = walletIcon(card.walletType);
-  const isCredit = card.walletType === "CREDIT_CARD";
 
   const isZero = card.faturaAtual === 0;
   const dueDateInfo = (card as any).vencimentoStr
     ? { dateStr: (card as any).vencimentoStr }
     : calculateNextDueDate(card.vencimento, selectedMonth || (new Date().getMonth() + 1), selectedYear, isPaid || isZero);
 
-  const isYearlyFilter = selectedMonth === null || selectedMonth === undefined || card.isAnnualView;
-  const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
-  const accountIncomes = card.accountIncomes ?? 0;
+  const saldoAtualVal = card.saldoAtual ?? card.finalBalance ?? card.limitTotal ?? 0;
+  const gastoMesVal = card.gastoMes ?? card.monthExpense ?? card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
+  const recargaMesVal = card.recargaMes ?? card.monthIncome ?? card.accountIncomes ?? 0;
 
   return (
     <div className="relative group">
@@ -1767,138 +1734,122 @@ function CardTile({
           {/* Marca d'água sutil */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.12)_0%,_transparent_60%)] pointer-events-none" />
 
-          {/* Topo: Banco + Titular + Badge de Tipo */}
-          <div className="flex justify-between items-start z-10">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8.5 h-8.5 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20">
-                <Icon className="w-4 h-4 text-white" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-black text-white/90 leading-none truncate">{card.bankName || card.title}</p>
-                </div>
-                <span className={`inline-block mt-1 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border backdrop-blur-xs ${walletBadgeStyle(card.walletType)}`}>
-                  {walletLabel(card.walletType)}
-                </span>
-                {card.holder && (
-                  <p className="text-[9px] font-extrabold text-white/95 uppercase tracking-wide mt-0.5 drop-shadow-sm truncate">
-                    👤 {card.holder}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* Agência, Conta e Dígitos */}
-            <div className="text-right pr-8 shrink-0">
-              <p className="text-[9px] font-black text-white/80 uppercase tracking-wider">{card.cardBrand || "CARTÃO"}</p>
-              {(card.agencia || card.conta) && (
-                <p className="text-[9px] font-bold text-white/90 mt-0.5">
-                  {card.agencia ? `Ag: ${card.agencia}` : ""} {card.conta ? `Cc: ${card.conta}` : ""}
-                </p>
-              )}
-              <p className="text-[10px] font-bold text-white/60 mt-0.5">{card.lastDigits || "**** ----"}</p>
-            </div>
-          </div>
-
-          {/* Centro: Saldo / Limite Disponível & Gasto no Período */}
-          {isCredit ? (
-            <div className="z-10 -mt-1">
-              <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest block">
-                Disponível
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5 font-tnum tabular-nums">
-                {brl(card.limitTotal - card.limitUsed)}
-              </h3>
-            </div>
-          ) : (
-            <div className="z-10 my-auto flex flex-col justify-center space-y-1.5">
-              <div>
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-white/80 block">
-                  Saldo Atual
-                </span>
-                <p className="text-xl sm:text-2xl font-black tracking-tight text-white font-tnum tabular-nums mt-0.5">
-                  {brl(card.finalBalance ?? card.limitTotal)}
-                </p>
-              </div>
-
-              {/* Bloco dinâmico de gasto conforme o filtro */}
-              <div className="flex items-center justify-between pt-1.5 border-t border-white/15 text-xs">
-                <span className="text-white/80 text-[10px] font-bold uppercase tracking-wider">
-                  {isYearlyFilter ? "Gasto no Ano:" : "Gasto no Mês:"}
-                </span>
-                <span className="font-black text-white text-xs font-tnum tabular-nums">
-                  {brl(accountSpentInPeriod)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Base: Fatura + Vencimento + Barra (Crédito) OU Detalhamento de Saídas/Entradas (Débito/Conta) */}
-          {isCredit ? (
-            <div className="z-10 flex flex-col gap-1">
-              <div className="flex justify-between items-center text-[9px] font-bold text-white/70">
-                <span>Fatura: <span className="text-white font-black">{brl(card.faturaAtual)}</span></span>
-                <span>
-                  {isPaid ? (
-                    <span className="text-emerald-300 font-extrabold bg-white/20 px-2 py-0.5 rounded-full">✓ Fatura Paga</span>
-                  ) : isZero ? (
-                    <span className="text-white/80 font-bold">Fatura Zerada</span>
-                  ) : (
-                    <>Vence <span className="text-white font-black">{dueDateInfo.dateStr}</span></>
-                  )}
-                </span>
-              </div>
-
-              <div className="flex justify-between text-[8px] font-extrabold text-white/60 uppercase tracking-wider">
-                <span>Fech: Dia {String((card as any).diaFechamento || 1).padStart(2, "0")}</span>
-                <span>Melhor Dia: Dia {String((card as any).melhorDiaCompra || 2).padStart(2, "0")}</span>
-              </div>
-
-              <div className="flex flex-col gap-0.5">
-                <div className="h-1.5 w-full bg-white/15 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${usageColor} rounded-full transition-all duration-700`}
-                    style={{ width: `${usagePct}%` }}
-                  />
-                </div>
-                <span className="text-[8px] font-bold text-white/50">{usagePct}% do limite utilizado</span>
-              </div>
-            </div>
-          ) : (
-            /* Rodapé / Detalhe Adicional para equilibrar perfeitamente o card com o cartão de crédito roxo ao lado */
-            <div className="z-10 flex flex-col gap-1.5 pt-2 border-t border-white/15">
-              <div className="flex justify-between items-center text-[9px] font-bold">
-                <span className="text-white/85">
-                  Saídas: <strong className="text-white font-black">{brl(accountSpentInPeriod)}</strong>
-                </span>
-                <span className="text-emerald-300 font-bold">
-                  Entradas: <strong className="text-white font-black">{brl(accountIncomes)}</strong>
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center text-[8px] font-extrabold text-white/75 uppercase tracking-wider">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="bg-white/20 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase backdrop-blur-xs">
-                    REF: {isYearlyFilter ? `${selectedYear}` : `${String(selectedMonth || (new Date().getMonth() + 1)).padStart(2, "0")}/${selectedYear}`}
-                  </span>
-                  {Number((card as any).totalPendenteProximoMes || 0) > 0 && (
-                    <span className="bg-amber-400/20 text-amber-200 border border-amber-300/30 text-[10px] font-medium px-2 py-0.5 rounded-full backdrop-blur-xs">
-                      Pendente ({(() => {
-                        const curM = selectedMonth || (new Date().getMonth() + 1);
-                        const curY = selectedYear || new Date().getFullYear();
-                        const nextDate = new Date(curY, curM, 1);
-                        return nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
-                      })()}): <CurrencyValue value={(card as any).totalPendenteProximoMes} />
+          {isTicket ? (
+            /* ── Layout Visual do Card de TICKET ── */
+            <>
+              {/* Topo do Ticket: Nome + Badge TICKET */}
+              <div className="flex justify-between items-start z-10">
+                <div className="flex items-center gap-2 min-w-0 pr-8">
+                  <div className="w-8.5 h-8.5 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/30 shadow-xs">
+                    <Zap className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-semibold text-white text-base leading-tight truncate block drop-shadow-xs">
+                      {card.bankName || card.title}
                     </span>
-                  )}
+                    {card.holder && (
+                      <p className="text-[9px] font-semibold text-white/80 uppercase tracking-wide truncate mt-0.5">
+                        👤 {card.holder}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <span>
-                  {card.periodExpenseCount !== undefined
-                    ? `${card.periodExpenseCount} ${card.periodExpenseCount === 1 ? 'saída' : 'saídas'}`
-                    : "Conta Ativa"}
-                </span>
+
+                <div className="pr-8 shrink-0">
+                  <span className="text-xs uppercase px-2 py-0.5 bg-black/20 rounded font-extrabold text-white border border-white/10 tracking-wider">
+                    TICKET
+                  </span>
+                </div>
               </div>
-            </div>
+
+              {/* Centro: Saldo Disponível */}
+              <div className="z-10 mt-3">
+                <span className="text-xs opacity-80 uppercase font-bold tracking-wider block text-white/90">
+                  SALDO DISPONÍVEL
+                </span>
+                <h3 className="text-2xl font-bold tracking-tight text-white mt-0.5 font-tnum tabular-nums">
+                  {brl(saldoAtualVal)}
+                </h3>
+              </div>
+
+              {/* Base: Gasto no mês & Recarga */}
+              <div className="z-10 mt-3 pt-2 border-t border-white/20 flex justify-between items-center text-xs font-semibold text-white/95">
+                <span>Gasto no mês: <strong className="font-bold">{brl(gastoMesVal)}</strong></span>
+                <span>Recarga: <strong className="font-bold">{brl(recargaMesVal)}</strong></span>
+              </div>
+            </>
+          ) : (
+            /* ── Layout Visual do Card de CRÉDITO ── */
+            <>
+              {/* Topo: Banco + Titular + Badge de Tipo */}
+              <div className="flex justify-between items-start z-10">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8.5 h-8.5 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20">
+                    <Icon className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-[10px] font-black text-white/90 leading-none truncate">{card.bankName || card.title}</p>
+                    </div>
+                    <span className={`inline-block mt-1 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full border backdrop-blur-xs ${walletBadgeStyle(card.walletType)}`}>
+                      {walletLabel(card.walletType)}
+                    </span>
+                    {card.holder && (
+                      <p className="text-[9px] font-extrabold text-white/95 uppercase tracking-wide mt-0.5 drop-shadow-sm truncate">
+                        👤 {card.holder}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dígitos */}
+                <div className="text-right pr-8 shrink-0">
+                  <p className="text-[9px] font-black text-white/80 uppercase tracking-wider">{card.cardBrand || "CARTÃO"}</p>
+                  <p className="text-[10px] font-bold text-white/60 mt-0.5">{card.lastDigits || "**** ----"}</p>
+                </div>
+              </div>
+
+              {/* Centro: Limite Disponível */}
+              <div className="z-10 -mt-1">
+                <span className="text-[9px] font-bold text-white/60 uppercase tracking-widest block">
+                  Disponível
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5 font-tnum tabular-nums">
+                  {brl(card.limitTotal - card.limitUsed)}
+                </h3>
+              </div>
+
+              {/* Base: Fatura + Vencimento + Barra */}
+              <div className="z-10 flex flex-col gap-1">
+                <div className="flex justify-between items-center text-[9px] font-bold text-white/70">
+                  <span>Fatura: <span className="text-white font-black">{brl(card.faturaAtual)}</span></span>
+                  <span>
+                    {isPaid ? (
+                      <span className="text-emerald-300 font-extrabold bg-white/20 px-2 py-0.5 rounded-full">✓ Fatura Paga</span>
+                    ) : isZero ? (
+                      <span className="text-white/80 font-bold">Fatura Zerada</span>
+                    ) : (
+                      <>Vence <span className="text-white font-black">{dueDateInfo.dateStr}</span></>
+                    )}
+                  </span>
+                </div>
+
+                <div className="flex justify-between text-[8px] font-extrabold text-white/60 uppercase tracking-wider">
+                  <span>Fech: Dia {String((card as any).diaFechamento || 1).padStart(2, "0")}</span>
+                  <span>Melhor Dia: Dia {String((card as any).melhorDiaCompra || 2).padStart(2, "0")}</span>
+                </div>
+
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-1.5 w-full bg-white/15 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${usageColor} rounded-full transition-all duration-700`}
+                      style={{ width: `${usagePct}%` }}
+                    />
+                  </div>
+                  <span className="text-[8px] font-bold text-white/50">{usagePct}% do limite utilizado</span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </Link>
@@ -1946,7 +1897,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
               >
                 <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                Editar Cartão
+                {isTicket ? "Editar Ticket" : "Editar Cartão"}
               </button>
 
               <button
@@ -1959,7 +1910,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
               >
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
-                Ajustar Limite / Saldo
+                {isTicket ? "Ajustar Saldo / Recarga" : "Ajustar Limite"}
               </button>
 
               {isCredit && card.faturaAtual > 0 && (
@@ -1992,7 +1943,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Excluir Cartão
+                {isTicket ? "Excluir Ticket" : "Excluir Cartão"}
               </button>
             </div>
           </>

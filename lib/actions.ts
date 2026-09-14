@@ -3296,6 +3296,8 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         monthIncome:      balanceInfo.monthIncome,
         monthExpense:     balanceInfo.monthExpense,
         finalBalance:     balanceInfo.finalBalance,
+        gastoMes:         balanceInfo.monthExpense,
+        recargaMes:       balanceInfo.monthIncome,
         totalPendenteProximoMes: Math.round(totalPendenteProximoMes * 100) / 100,
         vencimento:       w.vencimento ?? 10,
         diaFechamento:    (w as any).diaFechamento ?? 1,
@@ -4155,8 +4157,8 @@ export async function createNewCard(input: {
   walletType:      string;
   alias:           string;
   holder?:         string;
-  agencia:         string;
-  conta:           string;
+  agencia?:        string;
+  conta?:          string;
   limitOrBalance:  number;
   diaFechamento:   number;
   diaVencimento:   number;
@@ -4166,17 +4168,18 @@ export async function createNewCard(input: {
 }) {
   const userId = await getActiveUserId();
 
-  const isCredit = input.walletType === "CREDIT_CARD";
+  const normalizedType = input.walletType === "CREDITO" ? "CREDIT_CARD" : input.walletType;
+  const isCredit = normalizedType === "CREDIT_CARD";
 
   const wallet = await prisma.wallet.create({
     data: {
       userId,
       title:          input.alias || input.bankName,
       bankName:       input.bankName,
-      walletType:     input.walletType,
+      walletType:     normalizedType,
       holder:         input.holder || null,
-      agencia:        input.agencia,
-      conta:          input.conta,
+      agencia:        input.agencia || null,
+      conta:          input.conta || null,
       vencimento:     Number(input.diaVencimento) || 10,
       diaFechamento:  Number(input.diaFechamento) || 1,
       initialBalance: isCredit ? 0 : (!input.originType || input.originType === "ROLLOVER" ? input.limitOrBalance : 0),
@@ -4217,19 +4220,22 @@ export async function updateCardAccount(
     diaVencimento:  number;
   }
 ) {
+  const normalizedType = input.walletType === "CREDITO" ? "CREDIT_CARD" : input.walletType;
+  const isCredit = normalizedType === "CREDIT_CARD";
+
   await prisma.wallet.update({
     where: { id: walletId },
     data: {
       title:          input.alias || input.bankName,
       bankName:       input.bankName,
-      walletType:     input.walletType,
+      walletType:     normalizedType,
       holder:         input.holder || null,
-      agencia:        input.agencia,
-      conta:          input.conta,
+      agencia:        input.agencia || null,
+      conta:          input.conta || null,
       vencimento:     Number(input.diaVencimento) || 10,
       diaFechamento:  input.diaFechamento ? Number(input.diaFechamento) : 1,
-      initialBalance: input.walletType === "CREDIT_CARD" ? 0 : input.limitOrBalance,
-      creditLimit:    input.walletType === "CREDIT_CARD" ? input.limitOrBalance : null,
+      initialBalance: isCredit ? 0 : input.limitOrBalance,
+      creditLimit:    isCredit ? input.limitOrBalance : null,
     } as any,
   });
 
