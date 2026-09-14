@@ -7,7 +7,7 @@ import {
   AlertCircle, CheckCircle2, Clock, Sparkles,
   BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
-  HelpCircle, Repeat, Receipt, RotateCcw, Search
+  HelpCircle, Repeat, Receipt, RotateCcw, Search, Copy
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -352,7 +352,7 @@ export default function DespesasPage() {
   const [injectTipoOperacao, setInjectTipoOperacao] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
 
   // ── Central de Compromissos Fixos e Contas a Pagar do Mês ──
-  const [mainView, setMainView] = useState<"compromissos" | "cartoes">("compromissos");
+  const [mainView, setMainView] = useState<"compromissos" | "cartoes">("cartoes");
   const [commitmentsLoading, setCommitmentsLoading] = useState(true);
   const [commitmentsData, setCommitmentsData] = useState<{
     items: any[];
@@ -505,6 +505,78 @@ export default function DespesasPage() {
     } catch (err: any) {
       console.error(err);
       showAlert(err?.message || "Erro ao excluir compromisso.", { variant: "error" });
+    }
+  };
+
+  const [replicatingId, setReplicatingId] = useState<string | null>(null);
+
+  const handleReplicateCommitment = async (itemOriginal: any) => {
+    try {
+      setReplicatingId(itemOriginal.id);
+
+      // 1. Calcula o próximo mês de competência (Ex: de "2026-09" para "2026-10")
+      let anoComp = itemOriginal.competenceYear;
+      let mesComp = itemOriginal.competenceMonth;
+      if (!anoComp || !mesComp) {
+        if (itemOriginal.competencia && itemOriginal.competencia.includes("-")) {
+          const parts = itemOriginal.competencia.split("-").map(Number);
+          anoComp = parts[0];
+          mesComp = parts[1];
+        } else {
+          anoComp = selectedYear || 2026;
+          mesComp = selectedMonthFilter || 9;
+        }
+      }
+
+      let novoAnoComp = anoComp;
+      let novoMesComp = mesComp + 1;
+      if (novoMesComp > 12) {
+        novoMesComp = 1;
+        novoAnoComp += 1;
+      }
+
+      // 2. Calcula o vencimento exato no mês seguinte mantendo o mesmo dia
+      // (Ex: se vence em 06/10/2026, passa a vencer em 06/11/2026)
+      const dueDateStr = itemOriginal.dueDateInput || (itemOriginal.dueDateRaw ? itemOriginal.dueDateRaw.split("T")[0] : "");
+      let novoVencimento = "";
+      if (dueDateStr && dueDateStr.includes("-")) {
+        const [vYear, vMonth, vDay] = dueDateStr.split("-").map(Number);
+        let nextVMonth = vMonth + 1;
+        let nextVYear = vYear;
+        if (nextVMonth > 12) {
+          nextVMonth = 1;
+          nextVYear += 1;
+        }
+        const maxDaysInNextMonth = new Date(nextVYear, nextVMonth, 0).getDate();
+        const adjustedDay = Math.min(vDay, maxDaysInNextMonth);
+        novoVencimento = `${nextVYear}-${String(nextVMonth).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+      } else {
+        const now = new Date();
+        const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, 10);
+        novoVencimento = nextDate.toISOString().split("T")[0];
+      }
+
+      // 3. Salva no banco via createCommitmentAction (nasce PENDENTE com novo ID)
+      await createCommitmentAction({
+        description: itemOriginal.description,
+        amount: Number(itemOriginal.amount),
+        dueDate: novoVencimento,
+        tipo: itemOriginal.tipo || "BOLETO",
+        recorrencia: itemOriginal.recorrencia || "MENSAL",
+        competenceMonth: novoMesComp,
+        competenceYear: novoAnoComp,
+      });
+
+      await reloadAllData();
+      showAlert(
+        `"${itemOriginal.description}" replicado com sucesso para a competência ${String(novoMesComp).padStart(2, "0")}/${novoAnoComp}!`,
+        { variant: "success" }
+      );
+    } catch (err: any) {
+      console.error("Erro ao replicar compromisso:", err);
+      showAlert(err?.message || "Erro ao replicar compromisso para o mês seguinte.", { variant: "error" });
+    } finally {
+      setReplicatingId(null);
     }
   };
 
@@ -1165,21 +1237,7 @@ export default function DespesasPage() {
       {/* ── 2. SELETOR DE VISÃO & CTA PRINCIPAL ───────────────────────────────── */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 -mt-2">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 w-full sm:w-auto">
-          <button
-            onClick={() => setMainView("compromissos")}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              mainView === "compromissos"
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Receipt className="w-4 h-4" />
-            <span>Central de Compromissos & Contas a Pagar</span>
-            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
-              {commitmentsData.items.length}
-            </span>
-          </button>
-
+          {/* 1º Botão: Meus Cartões & Contas (PRIMEIRO) */}
           <button
             onClick={() => setMainView("cartoes")}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -1194,16 +1252,42 @@ export default function DespesasPage() {
               {cards.length}
             </span>
           </button>
+
+          {/* 2º Botão: Central de Compromissos (SEGUNDO) */}
+          <button
+            onClick={() => setMainView("compromissos")}
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mainView === "compromissos"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <Receipt className="w-4 h-4" />
+            <span>Central de Compromissos & Contas a Pagar</span>
+            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+              {commitmentsData.items.length}
+            </span>
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={openNewCommitmentModal}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            + Novo Boleto / Assinatura
-          </button>
+          {mainView === "cartoes" ? (
+            <button
+              onClick={openCreate}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              + Adicionar Cartão / Conta
+            </button>
+          ) : (
+            <button
+              onClick={openNewCommitmentModal}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              + Novo Boleto / Assinatura
+            </button>
+          )}
         </div>
       </div>
 
@@ -1502,6 +1586,17 @@ export default function DespesasPage() {
                                   <span>Desfazer</span>
                                 </button>
                               )}
+
+                              {/* NOVO: Botão Replicar para o Mês Seguinte */}
+                              <button
+                                type="button"
+                                disabled={replicatingId === item.id}
+                                onClick={() => handleReplicateCommitment(item)}
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                                title="Replicar compromisso para o próximo mês"
+                              >
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
 
                               <button
                                 onClick={() => openEditCommitment(item)}
