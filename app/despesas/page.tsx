@@ -33,6 +33,7 @@ const formatCurrency = brl;
 
 // ─── Constantes & Enums ───────────────────────────────────────────────────────
 export const TIPOS_CARTAO = [
+  { label: "Conta Bancária", value: "CONTA_CORRENTE" },
   { label: "Cartão de Crédito", value: "CREDIT_CARD" },
   { label: "Ticket / Benefício", value: "TICKET" }
 ];
@@ -158,19 +159,19 @@ function calculateNextDueDate(
 function walletIcon(type: string) {
   if (type === "CREDIT_CARD" || type === "CREDITO") return CreditCard;
   if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return Zap;
-  return CreditCard;
+  return Building2;
 }
 
 function walletLabel(type: string) {
   if (type === "CREDIT_CARD" || type === "CREDITO") return "Cartão de Crédito";
   if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return "Ticket / Benefício";
-  return "Cartão";
+  return "Conta Bancária";
 }
 
 function walletBadgeStyle(type: string) {
   if (type === "CREDIT_CARD" || type === "CREDITO") return "bg-purple-500/20 text-purple-200 border-purple-400/30";
   if (type === "TICKET" || type === "BENEFICIO" || type === "BENEFÍCIO") return "bg-amber-500/20 text-amber-200 border-amber-400/30";
-  return "bg-white/20 text-white border-white/30";
+  return "bg-emerald-500/20 text-emerald-200 border-emerald-400/30";
 }
 
 // ─── Exportador CSV ──────────────────────────────────────────────────────────
@@ -303,8 +304,8 @@ export default function DespesasPage() {
   const [loading, setLoading]     = useState(true);
   const [selectedHolder, setSelectedHolder] = useState<string>("TODOS");
 
-  // ── Navegação por Abas (Visão Geral / Cartões de Crédito / Tickets) ──
-  const [activeTab, setActiveTab] = useState<"overview" | "credit" | "ticket">("overview");
+  // ── Navegação por Abas (Visão Geral / Contas Bancárias / Cartões de Crédito / Tickets) ──
+  const [activeTab, setActiveTab] = useState<"overview" | "bank" | "credit" | "ticket">("overview");
 
   // ── Modais e Abas de Fatura ──────────────────────────────────────────────────
   const [modalMode, setModalMode]           = useState<"create" | "edit" | "delete" | null>(null);
@@ -509,10 +510,17 @@ export default function DespesasPage() {
     c => selectedHolder === "TODOS" || c.holder === selectedHolder
   );
 
-  // ── KPIs consolidados ────────────────────────────────────────────────────────
-  const creditCards  = cards.filter(c => c.walletType === "CREDIT_CARD" || (c as any).tipo === "CREDITO");
-  const ticketCards  = cards.filter(c => c.walletType === "TICKET" || (c as any).tipo === "TICKET");
-  const accountCards = ticketCards;
+  // ── Separação dos 3 Pilares: Contas Bancárias, Cartões de Crédito e Tickets ─
+  const bankAccounts = cards.filter(
+    (c) => c.walletType === "CONTA_CORRENTE" || (c as any).tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO" || c.walletType === "CONTA"
+  );
+  const creditCards  = cards.filter(
+    (c) => c.walletType === "CREDIT_CARD" || (c as any).tipo === "CREDITO"
+  );
+  const ticketCards  = cards.filter(
+    (c) => c.walletType === "TICKET" || (c as any).tipo === "TICKET" || (c as any).tipo === "BENEFICIO" || (c as any).tipo === "BENEFÍCIO"
+  );
+  const accountCards = bankAccounts;
 
   const contas = cards;
   const totalEntradasMes = realRevenue;
@@ -675,8 +683,13 @@ export default function DespesasPage() {
 
   // ── Helpers de modal ─────────────────────────────────────────────────────────
   const resetForm = () => {
-    setFormBank(""); setFormType("CREDIT_CARD"); setFormHolder("");
-    setFormLimit(""); setFormDiaFech(1); setFormDiaVenc(10); setFormDiaRecarga(1);
+    setFormBank("");
+    setFormType(activeTab === "bank" ? "CONTA_CORRENTE" : activeTab === "ticket" ? "TICKET" : "CREDIT_CARD");
+    setFormHolder("");
+    setFormLimit("");
+    setFormDiaFech(1);
+    setFormDiaVenc(10);
+    setFormDiaRecarga(1);
   };
 
   const openCreate = () => {
@@ -688,9 +701,19 @@ export default function DespesasPage() {
   const openEdit = (card: CardOverview) => {
     setSelectedCard(card);
     setFormBank(card.bankName || card.title);
-    setFormType(card.walletType === "TICKET" || (card as any).tipo === "TICKET" ? "TICKET" : "CREDIT_CARD");
+    const resolvedType =
+      card.walletType === "TICKET" || (card as any).tipo === "TICKET" || (card as any).tipo === "BENEFICIO"
+        ? "TICKET"
+        : card.walletType === "CONTA_CORRENTE" || (card as any).tipo === "CONTA_CORRENTE" || card.walletType === "DEBITO" || card.walletType === "CONTA"
+        ? "CONTA_CORRENTE"
+        : "CREDIT_CARD";
+    setFormType(resolvedType);
     setFormHolder(card.holder || "");
-    setFormLimit(card.walletType === "TICKET" ? (card.saldoAtual ?? card.finalBalance ?? card.limitTotal ?? "") : (card.limitTotal || ""));
+    setFormLimit(
+      resolvedType === "CREDIT_CARD"
+        ? (card.limitTotal || "")
+        : (card.saldoAtual ?? card.finalBalance ?? card.limitTotal ?? "")
+    );
     setFormDiaFech((card as any).diaFechamento || 1);
     setFormDiaVenc(card.vencimento || 10);
     setFormDiaRecarga((card as any).diaFechamento || card.vencimento || 1);
@@ -708,7 +731,7 @@ export default function DespesasPage() {
     resetForm();
   };
 
-  // ── Handler: Criar cartão ────────────────────────────────────────────────────
+  // ── Handler: Criar cartão ou conta ───────────────────────────────────────────
   const handleCreateCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formBank) return;
@@ -722,8 +745,8 @@ export default function DespesasPage() {
         agencia:        "",
         conta:          "",
         limitOrBalance: formLimit === "" ? 0 : Number(formLimit),
-        diaFechamento:  formType === "TICKET" ? formDiaRecarga : formDiaFech,
-        diaVencimento:  formType === "TICKET" ? formDiaRecarga : formDiaVenc,
+        diaFechamento:  formType === "CREDIT_CARD" ? formDiaFech : formDiaRecarga,
+        diaVencimento:  formType === "CREDIT_CARD" ? formDiaVenc : formDiaRecarga,
         originType:     "ROLLOVER",
         targetMonth:    selectedMonthFilter || (new Date().getMonth() + 1),
         targetYear:     selectedYear,
@@ -733,14 +756,16 @@ export default function DespesasPage() {
 
       if (formType === "CREDIT_CARD" || formType === "CREDITO") {
         setActiveTab("credit");
-      } else {
+      } else if (formType === "TICKET") {
         setActiveTab("ticket");
+      } else {
+        setActiveTab("bank");
       }
 
       closeModal();
     } catch (err) {
       console.error(err);
-      showAlert("Erro ao cadastrar cartão. Tente novamente.", { variant: "error" });
+      showAlert("Erro ao cadastrar. Tente novamente.", { variant: "error" });
     } finally {
       setFormSaving(false);
     }
@@ -760,8 +785,8 @@ export default function DespesasPage() {
         agencia:        "",
         conta:          "",
         limitOrBalance: formLimit === "" ? 0 : Number(formLimit),
-        diaFechamento:  formType === "TICKET" ? formDiaRecarga : formDiaFech,
-        diaVencimento:  formType === "TICKET" ? formDiaRecarga : formDiaVenc,
+        diaFechamento:  formType === "CREDIT_CARD" ? formDiaFech : formType === "TICKET" ? formDiaRecarga : 1,
+        diaVencimento:  formType === "CREDIT_CARD" ? formDiaVenc : formType === "TICKET" ? formDiaRecarga : 1,
       });
       const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
@@ -951,7 +976,7 @@ export default function DespesasPage() {
         </div>
       </div>
 
-      {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CARTÕES DE CRÉDITO / TICKETS) ── */}
+      {/* ── 3. NAVEGAÇÃO POR ABAS (VISÃO GERAL / CONTAS BANCÁRIAS / CARTÕES DE CRÉDITO / TICKETS) ── */}
       <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 sm:pb-0 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 p-1.5 sm:p-2 rounded-2xl shadow-sm">
         <button
           type="button"
@@ -966,6 +991,22 @@ export default function DespesasPage() {
           <span>Visão Geral</span>
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "overview" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
             {cards.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("bank")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
+            activeTab === "bank"
+              ? "bg-slate-900 dark:bg-indigo-600 text-white shadow-md shadow-slate-900/30 dark:shadow-indigo-600/30"
+              : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Contas Bancárias</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "bank" ? "bg-white/20 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
+            {bankAccounts.length}
           </span>
         </button>
 
@@ -988,7 +1029,7 @@ export default function DespesasPage() {
         <button
           type="button"
           onClick={() => setActiveTab("ticket")}
-          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-4 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap shrink-0 ${
             activeTab === "ticket"
               ? "bg-amber-600 text-white shadow-md shadow-amber-600/30"
               : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -1022,17 +1063,21 @@ export default function DespesasPage() {
 
       {/* ── 5. GRID DE CARTÕES E CONTAS COM FILTRO POR TITULAR ──────────────────── */}
       {(() => {
-        const displayedCards = activeTab === "credit"
+        const displayedCards = activeTab === "bank"
+          ? filteredCards.filter(c => c.walletType === "CONTA_CORRENTE" || (c as any).tipo === "CONTA_CORRENTE" || c.walletType === "DEBITO" || c.walletType === "CONTA")
+          : activeTab === "credit"
           ? filteredCards.filter(c => c.walletType === "CREDIT_CARD" || (c as any).tipo === "CREDITO")
           : activeTab === "ticket"
-          ? filteredCards.filter(c => c.walletType === "TICKET" || (c as any).tipo === "TICKET")
+          ? filteredCards.filter(c => c.walletType === "TICKET" || (c as any).tipo === "TICKET" || (c as any).tipo === "BENEFICIO")
           : filteredCards;
 
-        const tabTitle = activeTab === "credit"
+        const tabTitle = activeTab === "bank"
+          ? "Minhas Contas Bancárias & Liquidez"
+          : activeTab === "credit"
           ? "Meus Cartões de Crédito"
           : activeTab === "ticket"
           ? "Meus Tickets & Benefícios"
-          : "Meus Cartões e Tickets";
+          : "Meus Cartões, Contas & Tickets";
 
         return (
           <section className="flex flex-col gap-4">
@@ -1084,17 +1129,23 @@ export default function DespesasPage() {
               <div className="flex flex-col items-center justify-center py-12 text-center bg-white dark:bg-[#131B2E] rounded-[28px] border border-slate-200 dark:border-slate-800 p-6">
                 <Building2 className="w-8 h-8 text-slate-400 mb-2" />
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {activeTab === "credit"
+                  {activeTab === "bank"
+                    ? "Nenhuma conta bancária cadastrada nesta visualização."
+                    : activeTab === "credit"
                     ? "Nenhum cartão de crédito cadastrado nesta visualização."
                     : activeTab === "ticket"
                     ? "Nenhum ticket ou benefício cadastrado nesta visualização."
-                    : "Nenhum cartão ou ticket cadastrado."}
+                    : "Nenhuma conta, cartão ou ticket cadastrado."}
                 </p>
                 <button
                   onClick={openCreate}
                   className="mt-3 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-500 cursor-pointer"
                 >
-                  {activeTab === "ticket" ? "+ Adicionar Novo Ticket" : "+ Adicionar Novo Cartão"}
+                  {activeTab === "bank"
+                    ? "+ Adicionar Nova Conta Bancária"
+                    : activeTab === "ticket"
+                    ? "+ Adicionar Novo Ticket"
+                    : "+ Adicionar Novo Cartão de Crédito"}
                 </button>
               </div>
             ) : (
@@ -1344,20 +1395,36 @@ export default function DespesasPage() {
             {/* Header */}
             <div className="flex justify-between items-center px-7 pt-7 pb-5 border-b border-slate-100/60">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center shadow-md shadow-indigo-500/20">
+                <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shadow-md ${
+                  formType === "CONTA_CORRENTE"
+                    ? "bg-slate-900 text-white shadow-slate-900/20"
+                    : formType === "TICKET"
+                    ? "bg-gradient-to-tr from-amber-500 to-orange-500 text-white shadow-amber-500/20"
+                    : "bg-gradient-to-tr from-indigo-500 to-purple-500 text-white shadow-indigo-500/20"
+                }`}>
                   {modalMode === "edit"
                     ? <Pencil className="w-4 h-4 text-white" />
+                    : formType === "CONTA_CORRENTE"
+                    ? <Building2 className="w-4 h-4 text-white" />
+                    : formType === "TICKET"
+                    ? <Zap className="w-4 h-4 text-white" />
                     : <CreditCard className="w-4 h-4 text-white" />
                   }
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 tracking-tight">
-                    {modalMode === "edit" ? "Editar Cartão / Ticket" : "Novo Cartão / Ticket"}
+                    {modalMode === "edit"
+                      ? (formType === "CONTA_CORRENTE" ? "Editar Conta Bancária" : formType === "TICKET" ? "Editar Ticket" : "Editar Cartão")
+                      : (formType === "CONTA_CORRENTE" ? "Nova Conta Bancária" : formType === "TICKET" ? "Novo Ticket" : "Novo Cartão")}
                   </h3>
                   <p className="text-[10px] font-semibold text-slate-400">
                     {modalMode === "edit"
                       ? `Atualizando: ${selectedCard?.title}`
-                      : "Preencha os dados do seu cartão de crédito ou ticket de benefício"}
+                      : formType === "CONTA_CORRENTE"
+                      ? "Cadastre sua conta onde entra dinheiro líquido (Salário, Pix, TED)"
+                      : formType === "TICKET"
+                      ? "Cadastre seu cartão ou benefício corporativo (VR/VA)"
+                      : "Cadastre seu cartão de crédito pós-pago e limites"}
                   </p>
                 </div>
               </div>
@@ -1377,14 +1444,24 @@ export default function DespesasPage() {
               {/* Instituição / Nome */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  Instituição / Nome do Cartão ou Ticket *
+                  {formType === "CONTA_CORRENTE"
+                    ? "Banco / Instituição *"
+                    : formType === "TICKET"
+                    ? "Instituição / Nome do Ticket *"
+                    : "Instituição / Nome do Cartão *"}
                 </label>
                 <input
                   required
                   type="text"
                   value={formBank}
                   onChange={e => setFormBank(e.target.value)}
-                  placeholder={formType === "TICKET" ? "Ex: Ticket Restaurante, Alelo, VR, Flash..." : "Ex: Nubank, Itaú, Bradesco..."}
+                  placeholder={
+                    formType === "CONTA_CORRENTE"
+                      ? "Ex: Santander, Nubank, Itaú, Bradesco..."
+                      : formType === "TICKET"
+                      ? "Ex: Ticket Restaurante, Alelo, VR, Flash..."
+                      : "Ex: Hypercard, Nubank Mastercard..."
+                  }
                   className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300 transition-shadow"
                 />
               </div>
@@ -1400,7 +1477,9 @@ export default function DespesasPage() {
                       onClick={() => setFormType(opt.value)}
                       className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                         formType === opt.value
-                          ? (opt.value === "TICKET"
+                          ? (opt.value === "CONTA_CORRENTE"
+                              ? "bg-slate-900 text-white shadow-sm shadow-slate-900/20"
+                              : opt.value === "TICKET"
                               ? "bg-amber-600 text-white shadow-sm shadow-amber-600/20"
                               : "bg-indigo-600 text-white shadow-sm shadow-indigo-600/20")
                           : "text-slate-400 hover:text-slate-600"
@@ -1425,6 +1504,26 @@ export default function DespesasPage() {
                   className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-200 text-slate-700 placeholder:text-slate-300 transition-shadow"
                 />
               </div>
+
+              {/* Campos para Conta Bancária */}
+              {formType === "CONTA_CORRENTE" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Saldo em Conta / Saldo Atual (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formLimit}
+                    onChange={e => setFormLimit(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="0,00"
+                    className="w-full rounded-2xl bg-slate-50 border border-slate-100 px-4 py-3 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-200 text-slate-700 placeholder:text-slate-300"
+                  />
+                  <span className="text-[10px] text-slate-400">
+                    O saldo real disponível nesta conta para pagamentos, Pix e transferências.
+                  </span>
+                </div>
+              )}
 
               {/* Campos para Cartão de Crédito */}
               {formType === "CREDIT_CARD" && (
@@ -1515,7 +1614,9 @@ export default function DespesasPage() {
                 <div
                   className="rounded-2xl p-4 flex items-center gap-3 transition-all duration-300"
                   style={{
-                    background: formType === "TICKET"
+                    background: formType === "CONTA_CORRENTE"
+                      ? "linear-gradient(135deg, #1e293b, #0f172a)"
+                      : formType === "TICKET"
                       ? "linear-gradient(135deg, #d97706, #b45309, #ea580c)"
                       : bankGradientStyle(formBank)
                   }}
@@ -1535,14 +1636,22 @@ export default function DespesasPage() {
                 type="submit"
                 disabled={formSaving}
                 className={`w-full py-3.5 rounded-2xl text-white font-extrabold text-xs tracking-wider shadow-lg transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer ${
-                  formType === "TICKET"
+                  formType === "CONTA_CORRENTE"
+                    ? "bg-slate-900 hover:bg-slate-800 shadow-slate-900/25"
+                    : formType === "TICKET"
                     ? "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-amber-600/25"
                     : "bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 shadow-indigo-600/25"
                 }`}
               >
                 {formSaving
                   ? (modalMode === "edit" ? "SALVANDO..." : "CADASTRANDO...")
-                  : (modalMode === "edit" ? "SALVAR ALTERAÇÕES" : (formType === "TICKET" ? "CADASTRAR TICKET" : "CADASTRAR CARTÃO"))
+                  : (modalMode === "edit"
+                      ? "SALVAR ALTERAÇÕES"
+                      : (formType === "CONTA_CORRENTE"
+                          ? "CADASTRAR CONTA BANCÁRIA"
+                          : formType === "TICKET"
+                          ? "CADASTRAR TICKET"
+                          : "CADASTRAR CARTÃO"))
                 }
               </button>
             </form>
@@ -1562,7 +1671,13 @@ export default function DespesasPage() {
                   <Trash2 className="w-4 h-4 text-rose-500" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-800 tracking-tight">Excluir Cartão</h3>
+                  <h3 className="text-sm font-black text-slate-800 tracking-tight">
+                    {selectedCard.walletType === "CONTA_CORRENTE" || (selectedCard as any).tipo === "CONTA_CORRENTE"
+                      ? "Excluir Conta Bancária"
+                      : selectedCard.walletType === "TICKET" || (selectedCard as any).tipo === "TICKET"
+                      ? "Excluir Ticket"
+                      : "Excluir Cartão"}
+                  </h3>
                   <p className="text-[10px] font-semibold text-slate-400">Esta ação não poderá ser desfeita</p>
                 </div>
               </div>
@@ -1577,7 +1692,12 @@ export default function DespesasPage() {
             {/* Corpo */}
             <div className="px-7 py-6 flex flex-col gap-6">
               <p className="text-xs font-semibold text-slate-500 leading-relaxed text-center">
-                Tem certeza que deseja excluir o cartão{" "}
+                Tem certeza que deseja excluir{" "}
+                {selectedCard.walletType === "CONTA_CORRENTE" || (selectedCard as any).tipo === "CONTA_CORRENTE"
+                  ? "a conta bancária "
+                  : selectedCard.walletType === "TICKET" || (selectedCard as any).tipo === "TICKET"
+                  ? "o ticket "
+                  : "o cartão "}
                 <strong className="text-slate-800 font-black">"{selectedCard.title}"</strong>?
                 <br />
                 <span className="text-rose-500 font-bold">Todos os dados e lançamentos serão removidos permanentemente.</span>
@@ -1642,9 +1762,9 @@ export default function DespesasPage() {
                   className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   <option value="NONE">Sem débito direto em conta (Somente marcar como Paga)</option>
-                  {cards.filter(c => c.walletType === "CONTA_CORRENTE" || c.walletType === "TICKET").map(bankAcc => (
+                  {bankAccounts.map(bankAcc => (
                     <option key={bankAcc.id} value={bankAcc.id}>
-                      {bankAcc.title} ({bankAcc.bankName}) · Saldo: {brl(bankAcc.limitTotal)}
+                      {bankAcc.bankName || bankAcc.title} · Saldo: {brl(bankAcc.saldoAtual ?? bankAcc.finalBalance ?? bankAcc.limitTotal ?? 0)}
                     </option>
                   ))}
                 </select>
@@ -1739,9 +1859,12 @@ function CardTile({
     "bg-indigo-500";
 
   const isCredit = card.walletType === "CREDIT_CARD" || (card as any).tipo === "CREDITO";
-  const isTicket = card.walletType === "TICKET" || (card as any).tipo === "TICKET";
+  const isTicket = card.walletType === "TICKET" || (card as any).tipo === "TICKET" || (card as any).tipo === "BENEFICIO";
+  const isBank   = !isCredit && !isTicket;
 
-  const gradient = isTicket
+  const gradient = isBank
+    ? "from-slate-800 via-slate-850 to-slate-900"
+    : isTicket
     ? "from-amber-600 via-amber-700 to-orange-700"
     : bankColor(card.bankName || card.title);
 
@@ -1765,7 +1888,54 @@ function CardTile({
           {/* Marca d'água sutil */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(255,255,255,0.12)_0%,_transparent_60%)] pointer-events-none" />
 
-          {isTicket ? (
+          {isBank ? (
+            /* ── Layout Visual do Card de CONTA BANCÁRIA ── */
+            <>
+              {/* Topo da Conta: Nome + Titular + Badge CONTA BANCÁRIA */}
+              <div className="flex justify-between items-start z-10">
+                <div className="flex items-center gap-2 min-w-0 pr-8">
+                  <div className="w-8.5 h-8.5 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center shrink-0 border border-white/20 shadow-xs">
+                    <Building2 className="w-4 h-4 text-emerald-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      CONTA BANCÁRIA
+                    </span>
+                    <h4 className="font-bold text-white text-base leading-tight truncate block drop-shadow-xs">
+                      {card.bankName || card.title}
+                    </h4>
+                    {card.holder && (
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {card.holder}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pr-8 shrink-0">
+                  <span className="text-[10px] uppercase px-2 py-0.5 bg-emerald-500/20 rounded font-extrabold text-emerald-300 border border-emerald-500/30 tracking-wider">
+                    SALDO REAL
+                  </span>
+                </div>
+              </div>
+
+              {/* Centro: Saldo em Conta */}
+              <div className="z-10 mt-3">
+                <span className="text-xs uppercase font-bold tracking-wider block text-slate-400">
+                  Saldo em Conta
+                </span>
+                <h3 className="text-2xl font-bold tracking-tight text-white mt-0.5 font-tnum tabular-nums">
+                  {brl(saldoAtualVal)}
+                </h3>
+              </div>
+
+              {/* Base: Entradas & Saídas */}
+              <div className="z-10 mt-3 pt-3 border-t border-slate-700/60 flex justify-between items-center text-xs text-slate-300">
+                <span>Entradas: <b className="text-emerald-400 font-bold">+{brl(recargaMesVal)}</b></span>
+                <span>Saídas: <b className="text-rose-400 font-bold">-{brl(gastoMesVal)}</b></span>
+              </div>
+            </>
+          ) : isTicket ? (
             /* ── Layout Visual do Card de TICKET ── */
             <>
               {/* Topo do Ticket: Nome + Badge TICKET */}
@@ -1928,7 +2098,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
               >
                 <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                {isTicket ? "Editar Ticket" : "Editar Cartão"}
+                {isBank ? "Editar Conta Bancária" : isTicket ? "Editar Ticket" : "Editar Cartão"}
               </button>
 
               <button
@@ -1941,7 +2111,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 transition-colors text-left cursor-pointer"
               >
                 <Layers className="w-3.5 h-3.5 text-slate-400" />
-                {isTicket ? "Ajustar Saldo / Recarga" : "Ajustar Limite"}
+                {isBank ? "Ajustar Saldo em Conta" : isTicket ? "Ajustar Saldo / Recarga" : "Ajustar Limite"}
               </button>
 
               {isCredit && card.faturaAtual > 0 && (
@@ -1974,7 +2144,7 @@ function CardTile({
                 className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors text-left cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                {isTicket ? "Excluir Ticket" : "Excluir Cartão"}
+                {isBank ? "Excluir Conta Bancária" : isTicket ? "Excluir Ticket" : "Excluir Cartão"}
               </button>
             </div>
           </>

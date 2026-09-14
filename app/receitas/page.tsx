@@ -418,8 +418,9 @@ export default function ReceitasPage() {
     setFormCompetenceYear(compY);
     setCompetenceSuggested(true);
 
-    const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
-    setFormWalletId(validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || ""));
+    const validWallets = wallets.filter(w => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && !isBenefitWallet(w.walletType));
+    const benefitWallets = wallets.filter(w => isBenefitWallet(w.walletType));
+    setFormWalletId(validWallets.length > 0 ? validWallets[0].id : (benefitWallets.length > 0 ? benefitWallets[0].id : ""));
     setFormSkipDeduction(false);
     setModalType("create");
   };
@@ -471,8 +472,9 @@ export default function ReceitasPage() {
       setFormCompetenceMonth(Number(parts[1]));
     }
     setCompetenceSuggested(false);
-    const validWallets = wallets.filter(w => !isBenefitWallet(w.walletType));
-    setFormWalletId(rev.walletId || (validWallets.length > 0 ? validWallets[0].id : (wallets[0]?.id || "")));
+    const validWallets = wallets.filter(w => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && !isBenefitWallet(w.walletType));
+    const benefitWallets = wallets.filter(w => isBenefitWallet(w.walletType));
+    setFormWalletId(rev.walletId || (validWallets.length > 0 ? validWallets[0].id : (benefitWallets.length > 0 ? benefitWallets[0].id : "")));
     setFormSkipDeduction(false);
     setModalType("edit");
   };
@@ -748,7 +750,13 @@ export default function ReceitasPage() {
                       <td className="hidden md:table-cell px-4 py-3.5 text-slate-700 dark:text-slate-200 font-semibold">
                         <div className="flex items-center gap-1.5">
                           <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                          <span>{rev.account || (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) || (wallets[0]?.bankName || wallets[0]?.title) || "Santander"}</span>
+                          <span>
+                            {rev.account ||
+                              (wallets.find(w => w.id === rev.walletId)?.bankName || wallets.find(w => w.id === rev.walletId)?.title) ||
+                              (wallets.find(w => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO")?.bankName ||
+                               wallets.find(w => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO")?.title) ||
+                              "Conta Bancária"}
+                          </span>
                         </div>
                       </td>
 
@@ -1005,18 +1013,31 @@ export default function ReceitasPage() {
                     required
                     value={formWalletId}
                     onChange={(e) => setFormWalletId(e.target.value)}
-                    className="w-full appearance-none rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 pl-4 pr-10 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white cursor-pointer"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-4 py-2.5 text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-900 dark:text-white cursor-pointer"
                   >
                     <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-500">
                       Selecione a conta de destino...
                     </option>
-                    {wallets
-                      .filter((w) => !isBenefitWallet(w.walletType))
-                      .map((w) => (
-                        <option key={w.id} value={w.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
-                          {formatWalletDropdownLabel(w)}
-                        </option>
-                      ))}
+                    <optgroup label="Contas Bancárias" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                      {wallets
+                        .filter((w) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && !isBenefitWallet(w.walletType))
+                        .map((conta) => (
+                          <option key={conta.id} value={conta.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                            {conta.bankName || conta.title} - Saldo: {brl(conta.currentTotal ?? 0)}
+                          </option>
+                        ))}
+                    </optgroup>
+                    {wallets.some((w) => isBenefitWallet(w.walletType)) && (
+                      <optgroup label="Tickets / Benefícios" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                        {wallets
+                          .filter((w) => isBenefitWallet(w.walletType))
+                          .map((ticket) => (
+                            <option key={ticket.id} value={ticket.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                              {ticket.bankName || ticket.title} - Saldo: {brl(ticket.currentTotal ?? 0)}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 

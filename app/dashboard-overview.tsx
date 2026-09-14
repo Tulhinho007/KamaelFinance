@@ -25,7 +25,7 @@ import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
-  getAllTags
+  getAllTags, getWalletsAction
 } from "@/lib/actions";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -92,6 +92,8 @@ export function DashboardOverview() {
   const [revCompetenceYear, setRevCompetenceYear]   = useState<number>(() => selectedYear || new Date().getFullYear());
   const [revCompetenceSuggested, setRevCompetenceSuggested] = useState(false);
   const [savingRev, setSavingRev]     = useState(false);
+  const [dashboardWallets, setDashboardWallets] = useState<any[]>([]);
+  const [revWalletId, setRevWalletId] = useState<string>("");
 
   const checkAndSuggestSalaryCompetence = (dateStr: string, desc: string, cat?: string) => {
     if (!dateStr) return;
@@ -160,8 +162,17 @@ export function DashboardOverview() {
     setLoading(true);
     try {
       const monthParam = viewMode === "monthly" ? selectedDashboardMonth : null;
-      const res = await getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag);
+      const [res, wList] = await Promise.all([
+        getDashboardOverviewData(selectedDashboardYear, monthParam, selectedTag),
+        getWalletsAction(),
+      ]);
       setData(res);
+      const walletsData = wList || [];
+      setDashboardWallets(walletsData);
+      const defaultBank = walletsData.find((w: any) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && w.walletType !== "TICKET" && w.walletType !== "BENEFICIO");
+      if (defaultBank) {
+        setRevWalletId(prev => prev || defaultBank.id);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -204,7 +215,7 @@ export function DashboardOverview() {
         revDesc,
         val,
         revDate,
-        undefined,
+        revWalletId || undefined,
         "COMPLETED",
         compDateStr,
         revCategory,
@@ -941,6 +952,43 @@ export function DashboardOverview() {
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight">
                   Mês/ano a que a receita pertence no balanço (ex: Salário trabalhado em Agosto e recebido em Setembro confronta com as despesas de Agosto).
                 </p>
+              </div>
+
+              {/* Conta de Destino */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Conta de Destino *
+                </label>
+                <select
+                  required
+                  value={revWalletId}
+                  onChange={(e) => setRevWalletId(e.target.value)}
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-500">
+                    Selecione a conta de destino...
+                  </option>
+                  <optgroup label="Contas Bancárias" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                    {dashboardWallets
+                      .filter((w) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && w.walletType !== "TICKET" && w.walletType !== "BENEFICIO")
+                      .map((conta) => (
+                        <option key={conta.id} value={conta.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                          {conta.bankName || conta.title} - Saldo: {brl(conta.currentTotal ?? 0)}
+                        </option>
+                      ))}
+                  </optgroup>
+                  {dashboardWallets.some((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO") && (
+                    <optgroup label="Tickets / Benefícios" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                      {dashboardWallets
+                        .filter((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO")
+                        .map((ticket) => (
+                          <option key={ticket.id} value={ticket.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                            {ticket.bankName || ticket.title} - Saldo: {brl(ticket.currentTotal ?? 0)}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">

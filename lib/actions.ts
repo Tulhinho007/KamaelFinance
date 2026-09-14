@@ -378,12 +378,18 @@ export async function createRevenueAction(
     });
   }
 
+  // Cartão de Crédito NUNCA recebe receita/salário. Se por ventura um cartão for passado, redireciona para Conta Bancária.
+  if (wallet && (wallet.walletType === "CREDIT_CARD" || (wallet as any).tipo === "CREDITO")) {
+    wallet = null;
+  }
+
   if (!wallet) {
     wallet = await prisma.wallet.findFirst({
-      where: { userId, walletType: { in: ["CONTA_CORRENTE", "Conta Corrente"] } },
+      where: { userId, walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA"] } },
       orderBy: { title: "asc" }
     }) || await prisma.wallet.findFirst({
-      where: { userId }
+      where: { userId, walletType: { notIn: ["CREDIT_CARD", "CREDITO"] } },
+      orderBy: { title: "asc" }
     });
   }
 
@@ -391,7 +397,8 @@ export async function createRevenueAction(
     wallet = await prisma.wallet.create({
       data: {
         userId,
-        title: "Conta Corrente",
+        title: "Conta Bancária",
+        bankName: "Conta Bancária",
         walletType: "CONTA_CORRENTE",
         initialBalance: 0
       }
