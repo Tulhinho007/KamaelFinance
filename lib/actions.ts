@@ -3388,6 +3388,8 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         orderBy: { date: "asc" },
       });
 
+      const isBank = !isCredit && w.walletType !== "TICKET";
+
       const transactions = (rawTransactions as any[]).filter((t: any) => {
         if (isCredit) {
           if (t.competenceMonth != null && t.competenceYear != null) {
@@ -3400,7 +3402,14 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
           return d >= from && d <= to;
         }
 
-        // Para contas correntes / débito:
+        // Para conta corrente:
+        // Conta corrente não possui "Pendente" nem "Gasto no Mês" projetado.
+        // Apenas despesas que foram de fato efetivadas/liquidadas (status !== "PENDING")
+        // e compromissos que já receberam baixa transitam pelo extrato!
+        if (isBank && (t.status === "PENDING" || (t.source === "COMMITMENT" && t.status !== "COMPLETED" && t.status !== "PAID"))) {
+          return false;
+        }
+
         if (isAnnualView) {
           const compYear = t.competenceYear || new Date(t.paymentDate || t.date).getUTCFullYear();
           return compYear === year;
@@ -3466,7 +3475,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
       const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
 
       // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
-      // Somar todas as saídas vinculadas a essa conta registradas no período
+      // Para conta corrente, apenas saídas efetivadas no extrato
       const accountExpenses = transactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
       const totalSpentInPeriod = accountExpenses;
 
@@ -3482,9 +3491,13 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
           ],
           deletedAt: null,
         },
-        select: { amount: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true },
+        select: { amount: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true, status: true },
       });
       const periodIncomes = rawPeriodIncomes.filter((t) => {
+        // Para conta corrente, apenas entradas efetivadas contam como recebidas
+        if (isBank && (t as any).status === "PENDING") {
+          return false;
+        }
         if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
           if (!isAnnualView) {
             return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
@@ -3515,7 +3528,7 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         where: paidWhere
       });
 
-      // Pendência do Próximo Mês (vencimento/lançamento no próximo mês, sem filtrar por referenceMonth)
+      // Pendência do Próximo Mês: Conta Corrente NÃO tem pendente (apenas cartão / benefícios)
       const nextMonthNum = effectiveMonth === 12 ? 1 : effectiveMonth + 1;
       const nextYearNum = effectiveMonth === 12 ? year + 1 : year;
 
@@ -3536,22 +3549,21 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
         return (utcY === nextYearNum && utcM === nextMonthNum) || (brtY === nextYearNum && brtM === nextMonthNum);
       };
 
-      const totalPendenteProximoMes = allExpenses
-        .filter((t: any) => {
-          const isPending = t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado" && t.status !== "RECEBIDO");
-          if (!isPending) return false;
+      const totalPendenteProximoMes = isBank
+        ? 0
+        : allExpenses
+            .filter((t: any) => {
+              const isPending = t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado" && t.status !== "RECEBIDO");
+              if (!isPending) return false;
 
-          // Se for cartão de crédito com competência explicitamente definida:
-          if (isCredit && t.competenceMonth != null && t.competenceYear != null) {
-            return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
-          }
+              // Se for cartão de crédito com competência explicitamente definida:
+              if (isCredit && t.competenceMonth != null && t.competenceYear != null) {
+                return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
+              }
 
-          // Para conta bancária (débito, pix, boleto, etc.) e tickets:
-          // Avalia a data de vencimento ou lançamento (dueDate / date / purchaseDate) dentro da janela do próximo mês,
-          // NUNCA filtrando por referenceMonth / competenceMonth.
-          return isDateInTargetMonth(t.dueDate) || isDateInTargetMonth(t.date) || isDateInTargetMonth(t.purchaseDate);
-        })
-        .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+              return isDateInTargetMonth(t.dueDate) || isDateInTargetMonth(t.date) || isDateInTargetMonth(t.purchaseDate);
+            })
+            .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
       const isCardFullyPaid = isCredit
         ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))

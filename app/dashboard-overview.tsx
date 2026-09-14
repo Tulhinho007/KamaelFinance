@@ -530,10 +530,14 @@ export function DashboardOverview() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {data.cards.map((card: any) => {
             const isCredit = card.walletType === "CREDIT_CARD";
+            const isTicket = card.walletType === "TICKET";
+            const isBank = !isCredit && !isTicket;
             const saldoDisp = isCredit ? card.limitTotal - card.limitUsed : (card.finalBalance ?? card.limitTotal);
             const Icon = walletIcon(card.walletType);
             const isYearlyFilter = viewMode === "annual";
             const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
+            const entradasNoMes = card.accountIncomes ?? card.monthIncome ?? card.recargaMes ?? 0;
+            const saidasNoMes = card.accountExpenses ?? card.monthExpense ?? card.gastoMes ?? 0;
 
             return (
               <Link
@@ -547,7 +551,7 @@ export function DashboardOverview() {
                       {card.title}
                     </p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
-                      {isCredit ? "Cartão de Crédito" : card.walletType === "TICKET" ? "VA / VR Benefícios" : "Conta Corrente"}
+                      {isCredit ? "Cartão de Crédito" : isTicket ? "VA / VR Benefícios" : "Conta Corrente"}
                     </p>
                   </div>
                   <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
@@ -562,7 +566,8 @@ export function DashboardOverview() {
                   <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                     <CurrencyValue value={saldoDisp} />
                   </p>
-                  {!isCredit && Number(card.totalPendenteProximoMes || 0) > 0 && (
+                  {/* Badge de Pendente: Apenas para Cartões de Benefício (Conta Corrente NÃO possui pendente) */}
+                  {isTicket && Number(card.totalPendenteProximoMes || 0) > 0 && (
                     <div className="mt-1.5">
                       <span className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                         Pendente ({(() => {
@@ -577,18 +582,35 @@ export function DashboardOverview() {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
-                    {isCredit
-                      ? "Fatura:"
-                      : isYearlyFilter
-                      ? "Gasto no Ano:"
-                      : "Gasto no Mês:"}
-                  </span>
-                  <span className={`text-xs font-black font-tnum tabular-nums ${
-                    isCredit ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-200"
-                  }`}>
-                    <CurrencyValue value={isCredit ? card.faturaAtual : accountSpentInPeriod} />
-                  </span>
+                  {isCredit ? (
+                    <>
+                      <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                        Fatura:
+                      </span>
+                      <span className="text-xs font-black font-tnum tabular-nums text-rose-600 dark:text-rose-400">
+                        <CurrencyValue value={card.faturaAtual} />
+                      </span>
+                    </>
+                  ) : isTicket ? (
+                    <>
+                      <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                        {isYearlyFilter ? "Gasto no Ano:" : "Gasto no Mês:"}
+                      </span>
+                      <span className="text-xs font-black font-tnum tabular-nums text-slate-800 dark:text-slate-200">
+                        <CurrencyValue value={accountSpentInPeriod} />
+                      </span>
+                    </>
+                  ) : (
+                    /* Conta Corrente: Apenas o que de fato transitou por ela */
+                    <>
+                      <span className="text-slate-500 dark:text-slate-400 text-[10px]">
+                        Entradas: <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400 text-[10px]">
+                        Saídas: <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
+                      </span>
+                    </>
+                  )}
                 </div>
               </Link>
             );
