@@ -66,7 +66,7 @@ export const sidebarNavigation: SidebarNavGroup[] = [
       { name: "Objetivos & Reservas", href: "/metas", icon: Target },
       { name: "Planejamento de Viagens", href: "/planejamento", icon: Plane },
       { name: "Investimentos", href: "/investimentos", icon: PieChart },
-      { name: "Orçamentos", href: "/gestao-financeira/orcamentos", icon: BarChart3, badge: "EM BREVE" },
+      { name: "Orçamentos", href: "/gestao-financeira/orcamentos", icon: BarChart3 },
     ],
   },
   {
