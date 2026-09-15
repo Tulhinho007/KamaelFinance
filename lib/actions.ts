@@ -8504,31 +8504,37 @@ export async function getMonthlyCommitmentsAction(
       dueBadge = {
         label: "Pago",
         type: "pago",
-        color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+        color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
       };
     } else if (diffDays < 0) {
       dueBadge = {
         label: "Atrasado (" + Math.abs(diffDays) + "d)",
         type: "atrasado",
-        color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
       };
     } else if (diffDays === 0) {
       dueBadge = {
         label: "Hoje",
         type: "hoje",
-        color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
       };
     } else if (diffDays === 1) {
       dueBadge = {
         label: "Amanhã",
         type: "hoje",
-        color: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
+        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
+      };
+    } else if (diffDays <= 5) {
+      dueBadge = {
+        label: "Em " + diffDays + " dias",
+        type: "restante",
+        color: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 font-bold",
       };
     } else {
       dueBadge = {
         label: "Em " + diffDays + " dias",
         type: "restante",
-        color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+        color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700",
       };
     }
 
@@ -8538,7 +8544,7 @@ export async function getMonthlyCommitmentsAction(
       t.description.toLowerCase().includes("assinatura") ||
       t.source === "SUBSCRIPTION";
     const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
-    const tipoLabel = isAssinatura ? "Assinatura / Streaming" : "Boleto / Conta Fixa";
+    const tipoLabel = isAssinatura ? "Assinatura / Mensalidade" : "Boleto / Conta Fixa";
 
     const isMensal = t.isRecurring || tagStr.includes("MENSAL");
     const recorrencia: "MENSAL" | "UNICO" = isMensal ? "MENSAL" : "UNICO";
@@ -8760,6 +8766,97 @@ export async function payCommitmentAction(input: {
   safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
+}
+
+export async function payBatchCommitmentsAction(input: {
+  commitmentIds: string[];
+  formaPagamento: "SALDO_CONTA" | "DEBITO_AUTOMATICO" | "PIX" | "CARTAO_CREDITO" | "DINHEIRO";
+  contaBancariaId?: string;
+  cartaoCreditoId?: string;
+  dataBaixa: string;
+}) {
+  const userId = await getActiveUserId();
+  if (!input.commitmentIds || input.commitmentIds.length === 0) {
+    throw new Error("Nenhum compromisso selecionado.");
+  }
+
+  const pDate = parseInputDate(input.dataBaixa);
+
+  let targetWalletId: string | undefined;
+  let pm: PaymentMethod = "DEBITO";
+
+  if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
+    if (!input.contaBancariaId) throw new Error("Selecione a conta corrente para debitar.");
+    targetWalletId = input.contaBancariaId;
+    pm = input.formaPagamento === "PIX" ? "PIX" : "DEBITO";
+  } else if (input.formaPagamento === "CARTAO_CREDITO") {
+    if (!input.cartaoCreditoId) throw new Error("Selecione o cartão de crédito.");
+    targetWalletId = input.cartaoCreditoId;
+    pm = "CREDITO";
+  } else if (input.formaPagamento === "DINHEIRO") {
+    pm = "DINHEIRO";
+  }
+
+  const txs = await prisma.transaction.findMany({
+    where: {
+      id: { in: input.commitmentIds },
+      wallet: { userId },
+      status: "PENDING",
+    },
+  });
+
+  if (txs.length === 0) {
+    throw new Error("Nenhum compromisso pendente encontrado para liquidação.");
+  }
+
+  let totalAmount = 0;
+
+  for (const tx of txs) {
+    totalAmount += Number(tx.amount || 0);
+
+    let cleanDesc = tx.description;
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+    const newDesc = "Pagamento Boleto: " + cleanDesc;
+
+    const tagParts = [
+      "#compromisso",
+      "#pago",
+      "FORMA:" + input.formaPagamento,
+      "origDesc:" + cleanDesc,
+    ];
+    if (tx.isRecurring) tagParts.push("#mensal");
+
+    await prisma.transaction.update({
+      where: { id: tx.id },
+      data: {
+        walletId: targetWalletId || tx.walletId,
+        description: newDesc,
+        status: "COMPLETED",
+        paymentDate: pDate,
+        date: pDate,
+        paymentMethod: pm,
+        tags: tagParts.join(" "),
+      },
+    });
+  }
+
+  if (targetWalletId && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento) && totalAmount > 0) {
+    await prisma.wallet.update({
+      where: { id: targetWalletId },
+      data: { currentBalance: { decrement: totalAmount } } as any,
+    });
+  }
+
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/cartoes");
+  if (targetWalletId) safeRevalidatePath("/cartoes/" + targetWalletId);
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/historico-pagamentos");
+
+  return { success: true, count: txs.length, totalAmount };
 }
 
 export async function undoCommitmentPaymentAction(commitmentId: string) {

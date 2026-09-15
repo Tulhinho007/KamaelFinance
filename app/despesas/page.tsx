@@ -19,6 +19,7 @@ import {
   getPendingExpensesAction, markExpenseAsPaidAction, undoExpensePaymentAction, getPaidExpensesAction,
   getRecurringExpensesAction, getUpcomingBillsWindowAction,
   getMonthlyCommitmentsAction, createCommitmentAction, payCommitmentAction,
+  payBatchCommitmentsAction,
   undoCommitmentPaymentAction, updateCommitmentAction, deleteCommitmentAction,
   getMonthlyCashFlowRollForwardAction, MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
@@ -390,6 +391,58 @@ export default function DespesasPage() {
   const [baixaCartaoId, setBaixaCartaoId] = useState<string>("");
   const [baixaData, setBaixaData] = useState<string>(new Date().toISOString().split("T")[0]);
 
+  // Seleção e Baixa em Lote ("Dar Baixa em Múltiplos")
+  const [selectedCommitmentIds, setSelectedCommitmentIds] = useState<string[]>([]);
+  const [batchBaixaModalOpen, setBatchBaixaModalOpen] = useState(false);
+  const [payingBatchCommitment, setPayingBatchCommitment] = useState(false);
+  const [batchBaixaForma, setBatchBaixaForma] = useState<"SALDO_CONTA" | "DEBITO_AUTOMATICO" | "PIX" | "CARTAO_CREDITO" | "DINHEIRO">("SALDO_CONTA");
+  const [batchBaixaContaId, setBatchBaixaContaId] = useState<string>("");
+  const [batchBaixaCartaoId, setBatchBaixaCartaoId] = useState<string>("");
+  const [batchBaixaData, setBatchBaixaData] = useState<string>(new Date().toISOString().split("T")[0]);
+
+  const openBatchBaixaModal = () => {
+    setBatchBaixaForma("SALDO_CONTA");
+    if (commitmentsData.contasBancarias.length > 0) {
+      setBatchBaixaContaId(commitmentsData.contasBancarias[0].id);
+    }
+    if (commitmentsData.cartoesCredito.length > 0) {
+      setBatchBaixaCartaoId(commitmentsData.cartoesCredito[0].id);
+    }
+    setBatchBaixaData(new Date().toISOString().split("T")[0]);
+    setBatchBaixaModalOpen(true);
+  };
+
+  const handleEfetivarBaixaLote = async () => {
+    if (selectedCommitmentIds.length === 0) return;
+    if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(batchBaixaForma) && !batchBaixaContaId) {
+      showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+      return;
+    }
+    if (batchBaixaForma === "CARTAO_CREDITO" && !batchBaixaCartaoId) {
+      showAlert("Selecione o cartão de crédito para lançamento.", { variant: "warning" });
+      return;
+    }
+    setPayingBatchCommitment(true);
+    try {
+      await payBatchCommitmentsAction({
+        commitmentIds: selectedCommitmentIds,
+        formaPagamento: batchBaixaForma,
+        contaBancariaId: batchBaixaContaId,
+        cartaoCreditoId: batchBaixaCartaoId,
+        dataBaixa: batchBaixaData,
+      });
+      setBatchBaixaModalOpen(false);
+      setSelectedCommitmentIds([]);
+      await reloadAllData();
+      showAlert("Baixa em lote confirmada com sucesso! O extrato da conta foi sincronizado.", { variant: "success" });
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao efetivar baixa em lote.", { variant: "error" });
+    } finally {
+      setPayingBatchCommitment(false);
+    }
+  };
+
   // Modal de Edição
   const [editCommitmentItem, setEditCommitmentItem] = useState<any | null>(null);
   const [editingCommitment, setEditingCommitment] = useState(false);
@@ -673,6 +726,11 @@ export default function DespesasPage() {
     }
     return true;
   });
+
+  const pendingCommitments = filteredCommitments.filter((c: any) => c.status === "PENDING");
+  const allPendingSelected = pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id));
+  const selectedCommitmentItems = (commitmentsData?.items || []).filter((i: any) => selectedCommitmentIds.includes(i.id));
+  const selectedTotalAmount = selectedCommitmentItems.reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
 
   const handleMarkBillPaid = async (billId: string) => {
     try {
@@ -1279,7 +1337,7 @@ export default function DespesasPage() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              + Adicionar Cartão / Conta
+              Adicionar Cartão / Conta
             </button>
           ) : (
             <button
@@ -1287,7 +1345,7 @@ export default function DespesasPage() {
               className="w-full sm:w-auto flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              + Novo Boleto / Assinatura
+              Novo Boleto / Assinatura
             </button>
           )}
         </div>
@@ -1426,14 +1484,6 @@ export default function DespesasPage() {
                     </button>
                   )}
                 </div>
-
-                <button
-                  onClick={openNewCommitmentModal}
-                  className="hidden sm:flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Novo</span>
-                </button>
               </div>
             </div>
 
@@ -1442,6 +1492,22 @@ export default function DespesasPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-900/40">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id))}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCommitmentIds(pendingCommitments.map((c: any) => c.id));
+                          } else {
+                            setSelectedCommitmentIds([]);
+                          }
+                        }}
+                        disabled={pendingCommitments.length === 0}
+                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
+                        title={pendingCommitments.length > 0 ? "Selecionar todas as pendentes" : "Nenhum compromisso pendente"}
+                      />
+                    </th>
                     <th className="py-3 px-4">Vencimento</th>
                     <th className="py-3 px-4">Descrição / Fornecedor</th>
                     <th className="py-3 px-4">Tipo</th>
@@ -1454,7 +1520,7 @@ export default function DespesasPage() {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                   {filteredCommitments.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                      <td colSpan={8} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                           <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
@@ -1474,13 +1540,38 @@ export default function DespesasPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredCommitments.map((item) => {
+                    filteredCommitments.map((item: any) => {
                       const isPaid = item.status === "COMPLETED";
+                      const isSelected = selectedCommitmentIds.includes(item.id);
                       return (
                         <tr
                           key={item.id}
-                          className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors group"
+                          className={`transition-colors group ${
+                            isSelected
+                              ? "bg-indigo-50/60 dark:bg-indigo-950/40"
+                              : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                          }`}
                         >
+                          {/* 0. Checkbox */}
+                          <td className="py-3.5 px-3 text-center">
+                            {!isPaid ? (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedCommitmentIds((prev) => [...prev, item.id]);
+                                  } else {
+                                    setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-700 text-xs">—</span>
+                            )}
+                          </td>
+
                           {/* 1. Vencimento */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
                             <div className="flex flex-col gap-1">
@@ -1534,9 +1625,9 @@ export default function DespesasPage() {
                             </span>
                           </td>
 
-                          {/* 4. Valor */}
+                          {/* 4. Valor (Alinhado à direita com tabular-nums) */}
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                            <span className="font-black text-slate-900 dark:text-white text-sm">
+                            <span className="font-black text-slate-900 dark:text-white text-sm font-tnum tabular-nums">
                               {brl(item.amount)}
                             </span>
                           </td>
@@ -1589,7 +1680,7 @@ export default function DespesasPage() {
                                 </button>
                               )}
 
-                              {/* NOVO: Botão Replicar para o Mês Seguinte */}
+                              {/* Botão Replicar para o Mês Seguinte */}
                               <button
                                 type="button"
                                 disabled={replicatingId === item.id}
@@ -1622,9 +1713,61 @@ export default function DespesasPage() {
                     })
                   )}
                 </tbody>
+                {/* ── 5. Totalizador / Linha de Rodapé na Tabela (tfoot) ── */}
+                {filteredCommitments.length > 0 && (
+                  <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/70 text-xs font-bold">
+                    <tr>
+                      <td className="py-3.5 px-3 text-center text-slate-400">—</td>
+                      <td className="py-3.5 px-4 text-slate-900 dark:text-white font-extrabold whitespace-nowrap">
+                        TOTAL LISTADO
+                        <span className="ml-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                          ({filteredCommitments.length} {filteredCommitments.length === 1 ? "item" : "itens"})
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]" colSpan={2}>
+                        {filteredCommitments.filter((i: any) => i.status === "PENDING").length} a pagar • {filteredCommitments.filter((i: any) => i.status === "COMPLETED").length} pagos
+                      </td>
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <span className="font-black text-slate-900 dark:text-white text-sm font-tnum tabular-nums">
+                          {brl(filteredCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0))}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4" colSpan={3}></td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
+
+          {/* ── BARRA FLUTUANTE DE BAIXA EM LOTE ── */}
+          {selectedCommitmentIds.length > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-[#131B2E]/95 border border-indigo-500/30 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-xs">
+                  {selectedCommitmentIds.length} {selectedCommitmentIds.length === 1 ? "conta selecionada" : "contas selecionadas"}
+                </span>
+                <span className="text-emerald-400 font-black text-xs font-tnum tabular-nums">
+                  ({brl(selectedTotalAmount)})
+                </span>
+              </div>
+              <div className="h-4 w-px bg-slate-700" />
+              <button
+                onClick={openBatchBaixaModal}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Pagar Selecionadas Juntas</span>
+              </button>
+              <button
+                onClick={() => setSelectedCommitmentIds([])}
+                className="text-slate-400 hover:text-white p-1 ml-1 cursor-pointer"
+                title="Cancelar seleção"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -2188,7 +2331,7 @@ export default function DespesasPage() {
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="BOLETO">Boleto / Conta Fixa</option>
-                    <option value="ASSINATURA">Assinatura / Streaming</option>
+                    <option value="ASSINATURA">Assinatura / Mensalidade</option>
                   </select>
                 </div>
                 <div>
@@ -2402,7 +2545,7 @@ export default function DespesasPage() {
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
                     <option value="BOLETO">Boleto / Conta Fixa</option>
-                    <option value="ASSINATURA">Assinatura / Streaming</option>
+                    <option value="ASSINATURA">Assinatura / Mensalidade</option>
                   </select>
                 </div>
                 <div>
@@ -2436,6 +2579,124 @@ export default function DespesasPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 4: Confirmar Pagamento / Baixa em Lote */}
+      {batchBaixaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Pagar Contas em Lote</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {selectedCommitmentIds.length} contas selecionadas • Total: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{brl(selectedTotalAmount)}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBatchBaixaModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mini resumo das contas selecionadas */}
+            <div className="max-h-36 overflow-y-auto mb-4 divide-y divide-slate-100 dark:divide-slate-800/60 bg-slate-50 dark:bg-slate-950/50 rounded-xl p-2.5 border border-slate-200/60 dark:border-slate-800">
+              {commitmentsData.items
+                .filter((it: any) => selectedCommitmentIds.includes(it.id))
+                .map((it: any) => (
+                  <div key={it.id} className="py-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium text-slate-800 dark:text-slate-200 truncate pr-2">{it.description}</span>
+                    <span className="font-bold text-slate-900 dark:text-white font-tnum tabular-nums shrink-0">{brl(it.amount)}</span>
+                  </div>
+                ))}
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Forma de Pagamento *</label>
+                <select
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
+                  value={batchBaixaForma}
+                  onChange={(e) => setBatchBaixaForma(e.target.value as any)}
+                >
+                  <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
+                  <option value="DEBITO_AUTOMATICO">Débito Automático (Conta Corrente)</option>
+                  <option value="PIX">Pix (Sai da Conta Corrente)</option>
+                  <option value="CARTAO_CREDITO">Cartão de Crédito (Gera Fatura)</option>
+                  <option value="DINHEIRO">Dinheiro em Espécie (Caixa Físico)</option>
+                </select>
+              </div>
+
+              {["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(batchBaixaForma) && (
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Corrente Debitar?</label>
+                  <select
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                    value={batchBaixaContaId}
+                    onChange={(e) => setBatchBaixaContaId(e.target.value)}
+                  >
+                    {commitmentsData.contasBancarias.map((conta: any) => (
+                      <option key={conta.id} value={conta.id}>
+                        {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {batchBaixaForma === "CARTAO_CREDITO" && (
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Cartão de Crédito?</label>
+                  <select
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                    value={batchBaixaCartaoId}
+                    onChange={(e) => setBatchBaixaCartaoId(e.target.value)}
+                  >
+                    {commitmentsData.cartoesCredito.map((cartao: any) => (
+                      <option key={cartao.id} value={cartao.id}>
+                        {cartao.nome} - Limite Disp: R$ {cartao.limiteDisponivel.toFixed(2)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Data da Baixa</label>
+                <input
+                  type="date"
+                  value={batchBaixaData}
+                  onChange={(e) => setBatchBaixaData(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setBatchBaixaModalOpen(false)}
+                disabled={payingBatchCommitment}
+                className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-bold text-xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEfetivarBaixaLote}
+                disabled={payingBatchCommitment}
+                className="w-1/2 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{payingBatchCommitment ? "Processando..." : `Confirmar (${brl(selectedTotalAmount)})`}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
