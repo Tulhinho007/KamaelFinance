@@ -42,6 +42,31 @@ async function getActiveUserId(): Promise<string> {
   return user.id;
 }
 
+export function extractCategoryAndNotes(rawNotes: string | null = ""): { category: string; cleanNotes: string } {
+  if (!rawNotes) return { category: "", cleanNotes: "" };
+  const catMatch = rawNotes.match(/\[cat:([^\]]+)\]/i);
+  const category = catMatch ? catMatch[1].trim() : "";
+  const cleanNotes = rawNotes.replace(/\[cat:[^\]]+\]/gi, "").trim();
+  return { category, cleanNotes };
+}
+
+export function detectCategory(description: string = "", notes: string = ""): string {
+  const text = `${description} ${notes}`.toLowerCase();
+  if (/(hotel|hospedagem|pousada|resort|airbnb|estadia|diária|diaria|hostel|quarto|chalé|chale|pouso)/i.test(text)) {
+    return "Hospedagem";
+  }
+  if (/(transporte|passagem|passagens|ônibus|onibus|voo|aéreo|aereo|avião|aviao|uber|táxi|taxi|combustível|combustivel|gasolina|pedágio|pedagio|transfer|carro|aluguel|rodoviária|rodoviaria|embarque)/i.test(text)) {
+    return "Transporte";
+  }
+  if (/(ingresso|ingressos|passaporte|ticket|tickets|evento|eventos|festival|show|shows|festa|festas|vip|camarote|imagine|legend|atração|atracao|parque|museu)/i.test(text)) {
+    return "Ingressos / Eventos";
+  }
+  if (/(alimentação|alimentacao|comida|comidas|restaurante|restaurantes|almoço|almoco|jantar|lanche|lanches|café|cafe|mercado|supermercado|bebida|bebidas|gasto local|gastos locais|consumo|petisco)/i.test(text)) {
+    return "Gastos no Local";
+  }
+  return "Outros Gastos";
+}
+
 export async function getEventProjects() {
   const userId = await getActiveUserId();
 
@@ -122,16 +147,22 @@ export async function getEventProjects() {
     status: p.status || "Em Planejamento",
     notes: p.notes || "",
     checklist: p.checklist || null,
-    items: (p.items || []).map((i: any) => ({
-      id: i.id,
-      description: i.description,
-      minAmount: i.minAmount ? Number(i.minAmount) : null,
-      maxAmount: Number(i.maxAmount),
-      paidAmount: Number(i.paidAmount || 0),
-      isPaid: Boolean(i.isPaid),
-      notes: i.notes || "",
-      transactionId: i.transactionId || null,
-    }))
+    items: (p.items || []).map((i: any) => {
+      const { category: savedCat, cleanNotes } = extractCategoryAndNotes(i.notes || "");
+      const category = savedCat || detectCategory(i.description, i.notes || "");
+      return {
+        id: i.id,
+        description: i.description,
+        minAmount: i.minAmount ? Number(i.minAmount) : null,
+        maxAmount: Number(i.maxAmount),
+        paidAmount: Number(i.paidAmount || 0),
+        isPaid: Boolean(i.isPaid),
+        notes: cleanNotes,
+        rawNotes: i.notes || "",
+        category,
+        transactionId: i.transactionId || null,
+      };
+    })
   }));
 }
 
@@ -236,10 +267,15 @@ export async function createEventItemAction(
     paidAmount?: number | null;
     isPaid?: boolean;
     notes?: string;
+    category?: string;
   }
 ) {
   const isPaid = data.isPaid || false;
   const paidVal = isPaid ? (data.paidAmount ?? data.maxAmount) : (data.paidAmount ?? 0);
+  let finalNotes = (data.notes || "").trim();
+  if (data.category && data.category.trim()) {
+    finalNotes = finalNotes ? `${finalNotes} [cat:${data.category.trim()}]` : `[cat:${data.category.trim()}]`;
+  }
 
   const item = await db.eventItem.create({
     data: {
@@ -249,7 +285,7 @@ export async function createEventItemAction(
       maxAmount: data.maxAmount,
       paidAmount: paidVal,
       isPaid,
-      notes: data.notes || "",
+      notes: finalNotes,
     }
   });
 
@@ -266,6 +302,7 @@ export async function updateEventItemAction(
     paidAmount?: number | null;
     isPaid?: boolean;
     notes?: string | null;
+    category?: string;
   }
 ) {
   const item = await db.eventItem.findUnique({ where: { id } });
@@ -275,7 +312,17 @@ export async function updateEventItemAction(
   if (data.description !== undefined) updateData.description = data.description;
   if (data.minAmount !== undefined) updateData.minAmount = data.minAmount;
   if (data.maxAmount !== undefined) updateData.maxAmount = data.maxAmount;
-  if (data.notes !== undefined) updateData.notes = data.notes;
+
+  if (data.notes !== undefined || data.category !== undefined) {
+    let baseNotes = data.notes !== undefined ? (data.notes || "") : (item.notes || "");
+    // Remove qualquer tag [cat:...] existente
+    baseNotes = baseNotes.replace(/\[cat:[^\]]+\]/gi, "").trim();
+    const catToSave = data.category !== undefined ? data.category.trim() : "";
+    if (catToSave) {
+      baseNotes = baseNotes ? `${baseNotes} [cat:${catToSave}]` : `[cat:${catToSave}]`;
+    }
+    updateData.notes = baseNotes;
+  }
 
   if (data.isPaid !== undefined) {
     updateData.isPaid = data.isPaid;
@@ -422,6 +469,15 @@ export async function convertItemToExpenseAction(
     firstTransactionId = transaction.id;
   }
 
+  // Se a carteira for conta bancária corrente / débito / investimento / ticket (não cartão de crédito), debita automaticamente do saldo
+  const targetWallet = await prisma.wallet.findUnique({ where: { id: walletId } });
+  if (targetWallet && targetWallet.walletType !== "CREDIT_CARD") {
+    await prisma.wallet.update({
+      where: { id: walletId },
+      data: { currentBalance: { decrement: finalPaid } } as any,
+    }).catch(err => console.error("Erro ao decrementar saldo da conta:", err));
+  }
+
   await db.eventItem.update({
     where: { id: itemId },
     data: {
@@ -435,6 +491,9 @@ export async function convertItemToExpenseAction(
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
+  revalidatePath("/contas");
+  revalidatePath("/extrato");
+  revalidatePath("/transacoes");
 
   return { success: true };
 }

@@ -178,6 +178,13 @@ export function ConvertToExpenseModal({
                 </option>
               ))}
             </select>
+            {currentWallet && (
+              <p className={`text-[11px] font-semibold mt-0.5 ${isCredit ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {isCredit 
+                  ? "💳 O lançamento entrará na fatura do cartão de crédito selecionado."
+                  : "🏦 O valor será debitado automaticamente do saldo desta conta corrente."}
+              </p>
+            )}
           </div>
 
           {/* Forma de Pagamento (À Vista vs Parcelado) */}
