@@ -12,7 +12,7 @@ import { CompoundInterestSimulator } from "@/components/compound-interest-simula
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Line
 } from "recharts";
 import {
   getInvestmentsData, createInvestmentAction, updateInvestmentAction, deleteInvestmentAction, toggleInvestmentStatusAction, InvestmentItem,
@@ -20,7 +20,8 @@ import {
   getCryptoAssetsData, createCryptoAssetAction, addCryptoTransactionAction, updateCryptoAssetCotacaoAction, updateFullCryptoAssetAction, updateCryptoTransactionAction, deleteCryptoTransactionAction, deleteCryptoAssetAction, CryptoAssetItem,
   getBettingAccountsData, createBettingAccountAction, addBettingTransactionAction, updateBettingAccountSaldoAction, deleteBettingAccountAction, deleteBettingTransactionAction, updateBettingTransactionAction, BettingAccountItem,
   getOtherInvestmentsData, createOtherInvestmentAction, updateOtherInvestmentAction, deleteOtherInvestmentAction, OtherInvestmentItem,
-  getConsolidatedInvestmentsOverview, getMonthlyNetWorthEvolution
+  getConsolidatedInvestmentsOverview, getMonthlyNetWorthEvolution,
+  createQuickInvestmentAporteAction, getWalletsAction
 } from "@/lib/actions";
 
 const brl = (v: number) => {
@@ -45,6 +46,7 @@ export default function InvestimentosPage() {
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<any>(null);
   const [netWorthEvolution, setNetWorthEvolution] = useState<any[]>([]);
+  const [wallets, setWallets] = useState<any[]>([]);
   const [rendaFixaData, setRendaFixaData] = useState<{ investimentos: InvestmentItem[]; resumo: any; destaques: any } | null>(null);
   const [rendaVariavelData, setRendaVariavelData] = useState<VariableAssetItem[]>([]);
   const [criptoData, setCriptoData] = useState<CryptoAssetItem[]>([]);
@@ -84,8 +86,19 @@ export default function InvestimentosPage() {
     "rv-create" | "rv-tx" | "rv-edit-asset" | "rv-tx-edit" | "rv-delete" |
     "crypto-create" | "crypto-tx" | "crypto-edit-asset" | "crypto-tx-edit" | "crypto-delete" |
     "bet-create" | "bet-tx" | "bet-tx-edit" | "bet-edit" | "bet-delete" |
-    "outro-create" | "outro-edit" | "outro-delete" | null
+    "outro-create" | "outro-edit" | "outro-delete" | "quick-aporte" | null
   >(null);
+
+  // Estados do Modal de Novo Aporte Rápido / Investimento
+  const [quickClasse, setQuickClasse] = useState<"RENDA_FIXA" | "RENDA_VARIAVEL" | "CRIPTO" | "APOSTAS">("RENDA_FIXA");
+  const [quickTitulo, setQuickTitulo] = useState("");
+  const [quickValor, setQuickValor] = useState<number | "">("");
+  const [quickData, setQuickData] = useState("");
+  const [quickWalletId, setQuickWalletId] = useState("");
+  const [quickRfCategoria, setQuickRfCategoria] = useState("CDB");
+  const [quickRvCategoria, setQuickRvCategoria] = useState("Ação");
+  const [quickRvQuantidade, setQuickRvQuantidade] = useState<number | "">("");
+  const [quickCryptoToken, setQuickCryptoToken] = useState("");
 
   const [saving, setSaving] = useState(false);
 
@@ -171,14 +184,15 @@ export default function InvestimentosPage() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [ov, nw, rf, rv, cr, bet, out] = await Promise.all([
+      const [ov, nw, rf, rv, cr, bet, out, wl] = await Promise.all([
         getConsolidatedInvestmentsOverview(),
         getMonthlyNetWorthEvolution(),
         getInvestmentsData(),
         getVariableAssetsData(),
         getCryptoAssetsData(),
         getBettingAccountsData(),
-        getOtherInvestmentsData()
+        getOtherInvestmentsData(),
+        getWalletsAction()
       ]);
       setOverview(ov);
       setNetWorthEvolution(nw);
@@ -187,6 +201,7 @@ export default function InvestimentosPage() {
       setCriptoData(cr);
       setApostasData(bet);
       setOutrosData(out);
+      setWallets(wl || []);
 
       if (selectedRv) {
         const updated = rv.find(a => a.id === selectedRv.id);
@@ -742,6 +757,46 @@ export default function InvestimentosPage() {
     }
   };
 
+  const handleSaveQuickAporte = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTitulo.trim()) {
+      showAlert("Informe o nome ou título do ativo/aplicação.", { variant: "warning" });
+      return;
+    }
+    const val = typeof quickValor === "number" ? quickValor : Number(quickValor);
+    if (!val || val <= 0) {
+      showAlert("Informe um valor válido maior que zero.", { variant: "warning" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createQuickInvestmentAporteAction({
+        classe: quickClasse,
+        titulo: quickTitulo.trim(),
+        valor: val,
+        data: quickData || new Date().toISOString().split("T")[0],
+        debitedWalletId: quickWalletId || undefined,
+        rfCategoria: quickRfCategoria,
+        rvCategoria: quickRvCategoria,
+        rvQuantidade: typeof quickRvQuantidade === "number" ? quickRvQuantidade : undefined,
+        cryptoToken: quickCryptoToken || undefined,
+      });
+
+      const debitedWallet = wallets.find(w => w.id === quickWalletId);
+      const debitMsg = debitedWallet ? ` Valor debitado de ${debitedWallet.bankName || debitedWallet.title}.` : "";
+
+      showAlert(`Aporte registrado com sucesso!${debitMsg}`, { variant: "success" });
+      setActiveModal(null);
+      await loadAllData();
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err.message || "Erro ao salvar aporte de investimento.", { variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Listas Filtradas
   const filteredRendaVariavel = [...rendaVariavelData]
     .filter(asset => filterRvStatus === "TODOS" || asset.status === filterRvStatus)
@@ -754,11 +809,32 @@ export default function InvestimentosPage() {
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-8 select-none relative">
       
-      {/* 1. HEADER */}
-      <PeriodHeader 
-        title="Módulo de Investimentos"
-        tagline="Gestão patrimonial integrada: Renda Fixa, Ciclos de Ações & FIIs, Cripto e Bancas."
-      />
+      {/* 1. HEADER COM BOTÃO DE NOVO APORTE */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <PeriodHeader 
+          title="Módulo de Investimentos"
+          tagline="Gestão patrimonial integrada: Renda Fixa, Ciclos de Ações & FIIs, Cripto e Bancas."
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setQuickClasse("RENDA_FIXA");
+            setQuickTitulo("");
+            setQuickValor("");
+            setQuickData(new Date().toISOString().split("T")[0]);
+            setQuickWalletId("");
+            setQuickRfCategoria("CDB");
+            setQuickRvCategoria("Ação");
+            setQuickRvQuantidade("");
+            setQuickCryptoToken("");
+            setActiveModal("quick-aporte");
+          }}
+          className="h-11 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs shadow-lg shadow-emerald-600/20 hover:shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 self-start sm:self-center"
+        >
+          <Plus className="w-4 h-4 stroke-[3]" />
+          + Novo Aporte / Investimento
+        </button>
+      </div>
 
       {/* 2. SUB-MENU DE NAVEGAÇÃO DE ABAS */}
       <div className="flex flex-wrap items-center bg-white border border-slate-200/80 p-1.5 rounded-2xl shadow-sm gap-1.5 -mt-3">
@@ -840,30 +916,46 @@ export default function InvestimentosPage() {
         <section className="space-y-6 animate-in fade-in">
           
           {/* KPIs Consolidados */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
               <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Bruto</span>
-              <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+              <h3 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioBruto || 0)}
               </h3>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">Total acumulado na carteira corporativa</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">Total acumulado na carteira</span>
             </div>
 
-            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
               <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Líquido</span>
-              <h3 className="text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
+              <h3 className="text-2xl lg:text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioLiquido || 0)}
               </h3>
               <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mt-3 block">Após impostos e taxas estimadas</span>
             </div>
 
-            <div className="card-glow p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
               <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Lucro Total Acumulado</span>
-              <h3 className={`text-3xl font-bold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
+              <h3 className={`text-2xl lg:text-3xl font-bold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
                 {(overview?.lucroTotal || 0) >= 0 ? "+" : ""}{brl(overview?.lucroTotal || 0)}
               </h3>
               <span className={`text-xs font-bold mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-800 dark:text-emerald-400" : "text-rose-800 dark:text-rose-400"}`}>
-                Rentabilidade geral: {(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}{(overview?.rentabilidadeGeral || 0).toFixed(2)}%
+                Rentabilidade: {(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}{(overview?.rentabilidadeGeral || 0).toFixed(2)}%
+              </span>
+            </div>
+
+            {/* 4. Métrica: Proventos / Dividendos Recebidos no Mês */}
+            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Proventos do Mês</span>
+                <span className="text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-500/30">
+                  Renda Passiva
+                </span>
+              </div>
+              <h3 className="text-2xl lg:text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
+                +{brl(overview?.proventosMes || 0)}
+              </h3>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">
+                Fluxo de caixa livre sem venda de ativos
               </span>
             </div>
           </div>
@@ -978,7 +1070,7 @@ export default function InvestimentosPage() {
           {/* ── 2. SEÇÃO DE GRÁFICOS: ALOCAÇÃO DE ATIVOS & EVOLUÇÃO PATRIMONIAL ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Gráfico 1: Alocação de Ativos (Donut / Pizza) */}
+            {/* Gráfico 1: Alocação de Ativos (Donut / Pizza) com Centro e Legenda Corrigida */}
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-center mb-4">
                 <div>
@@ -993,16 +1085,17 @@ export default function InvestimentosPage() {
 
               {overview?.allocationDonutData && overview.allocationDonutData.length > 0 ? (
                 <div className="flex flex-col sm:flex-row items-center gap-4 h-64">
-                  <div className="w-full sm:w-1/2 h-full">
+                  {/* Container Donut com Centro Preenchido */}
+                  <div className="w-full sm:w-1/2 h-full relative flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsPieChart>
                         <Pie
                           data={overview.allocationDonutData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={55}
-                          outerRadius={85}
-                          paddingAngle={4}
+                          innerRadius={60}
+                          outerRadius={88}
+                          paddingAngle={3}
                           dataKey="value"
                         >
                           {overview.allocationDonutData.map((entry: any, index: number) => (
@@ -1012,18 +1105,24 @@ export default function InvestimentosPage() {
                         <RechartsTooltip formatter={(val: any) => [brl(Number(val)), "Valor Atual"]} />
                       </RechartsPieChart>
                     </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</span>
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        {overview?.patrimonioBruto >= 1000 ? `R$ ${(overview.patrimonioBruto / 1000).toFixed(1)}k` : brl(overview.patrimonioBruto)}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Legenda Dinâmica com Percentuais */}
+                  {/* Legenda Dinâmica com Espaçamento e Sem Colar Texto */}
                   <div className="w-full sm:w-1/2 flex flex-col gap-2.5">
                     {overview.allocationDonutData.map((item: any) => (
-                      <div key={item.name} className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-2">
+                      <div key={item.name} className="flex justify-between items-center text-xs gap-3">
+                        <div className="flex items-center gap-2 min-w-0 pr-1">
                           <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                          <span className="font-bold text-slate-700 dark:text-slate-300">{item.name}</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
                         </div>
-                        <div className="flex items-center gap-2 font-tnum tabular-nums">
-                          <span className="font-semibold text-slate-500">{brl(item.value)}</span>
+                        <div className="flex items-center gap-2 font-tnum tabular-nums shrink-0 ml-auto">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400">{brl(item.value)}</span>
                           <span className="font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px]">
                             {item.pct}%
                           </span>
@@ -1039,7 +1138,7 @@ export default function InvestimentosPage() {
               )}
             </div>
 
-            {/* Gráfico 2: Evolução Patrimonial Mensal (Empilhado) */}
+            {/* Gráfico 2: Evolução Patrimonial Mensal (Área com Gradiente de Corretora + Projeção Tracejada) */}
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-center mb-4">
                 <div>
@@ -1047,15 +1146,29 @@ export default function InvestimentosPage() {
                     <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({new Date().getFullYear()})
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                    Crescimento do patrimônio líquido consolidado mês a mês.
+                    Curva contínua com histórico consolidado e projeção futura.
                   </p>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] font-bold">
+                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Realizado
+                  </span>
+                  <span className="flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
+                    <span className="w-3.5 border-t-2 border-dashed border-indigo-500 inline-block" /> Projeção
+                  </span>
                 </div>
               </div>
 
               <div className="w-full h-64">
                 {netWorthEvolution.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={netWorthEvolution} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <AreaChart data={netWorthEvolution} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorRealizado" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.15} vertical={false} />
                       <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
                       <YAxis
@@ -1064,10 +1177,33 @@ export default function InvestimentosPage() {
                         tickLine={false}
                         tickFormatter={(v) => Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`}
                       />
-                      <RechartsTooltip formatter={(val: any, name: any) => [brl(Number(val)), name === "contas" ? "Contas Correntes" : name === "investimentos" ? "Investimentos Totais" : "Passivos/Faturas"]} />
-                      <Bar dataKey="contas" name="Contas Correntes" stackId="a" fill="#6366F1" radius={[0, 0, 4, 4]} />
-                      <Bar dataKey="investimentos" name="Investimentos Totais" stackId="a" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                      <RechartsTooltip
+                        formatter={(val: any, name: any) => [
+                          brl(Number(val)),
+                          name === "realizado" ? "Patrimônio Consolidado" : "Projeção Futura (CDI)"
+                        ]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="realizado"
+                        name="realizado"
+                        stroke="#10b981"
+                        strokeWidth={2.5}
+                        fillOpacity={1}
+                        fill="url(#colorRealizado)"
+                        connectNulls={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="projetado"
+                        name="projetado"
+                        stroke="#6366f1"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={{ r: 3, fill: "#6366f1" }}
+                        connectNulls={false}
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full flex items-center justify-center text-xs font-bold text-slate-400 animate-pulse">
@@ -1080,7 +1216,7 @@ export default function InvestimentosPage() {
           </div>
 
           {/* ── 3. SIMULADOR DE JUROS COMPOSTOS INTEGRADO ── */}
-          <CompoundInterestSimulator />
+          <CompoundInterestSimulator currentNetWorth={overview?.patrimonioLiquido || 0} />
 
         </section>
       )}
@@ -2666,6 +2802,271 @@ export default function InvestimentosPage() {
                 EXCLUIR
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL RÁPIDO: NOVO APORTE / INVESTIMENTO COM DÉBITO EM CONTA ─── */}
+      {activeModal === "quick-aporte" && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-6 sm:p-7 w-full max-w-lg flex flex-col gap-5 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 my-8">
+            
+            {/* Header do Modal */}
+            <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-500" />
+                  Novo Aporte / Investimento
+                </h3>
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                  Lance novos aportes com débito automático da sua conta corrente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickAporte} className="flex flex-col gap-4">
+              
+              {/* Seleção da Classe de Ativo */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  Classe do Investimento
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQuickClasse("RENDA_FIXA")}
+                    className={`p-3 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      quickClasse === "RENDA_FIXA"
+                        ? "bg-blue-50/80 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20"
+                        : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    <Landmark className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs font-extrabold">Renda Fixa</span>
+                    <span className="text-[9px] font-medium opacity-75">CDB, LCI, Tesouro</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuickClasse("RENDA_VARIAVEL")}
+                    className={`p-3 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      quickClasse === "RENDA_VARIAVEL"
+                        ? "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-300 ring-2 ring-emerald-500/20"
+                        : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                    <span className="text-xs font-extrabold">Ações & FIIs</span>
+                    <span className="text-[9px] font-medium opacity-75">Bolsa B3, ETFs</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuickClasse("CRIPTO")}
+                    className={`p-3 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      quickClasse === "CRIPTO"
+                        ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-500 text-amber-700 dark:text-amber-300 ring-2 ring-amber-500/20"
+                        : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    <Coins className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-extrabold">Criptomoedas</span>
+                    <span className="text-[9px] font-medium opacity-75">BTC, ETH, etc.</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuickClasse("APOSTAS")}
+                    className={`p-3 rounded-2xl border text-left flex flex-col gap-1.5 transition-all cursor-pointer ${
+                      quickClasse === "APOSTAS"
+                        ? "bg-purple-50/80 dark:bg-purple-950/40 border-purple-500 text-purple-700 dark:text-purple-300 ring-2 ring-purple-500/20"
+                        : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    <Dice5 className="w-4 h-4 text-purple-500" />
+                    <span className="text-xs font-extrabold">Banca / Bets</span>
+                    <span className="text-[9px] font-medium opacity-75">Bankroll</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Título / Nome do Ativo */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                  {quickClasse === "RENDA_FIXA" && "Título ou Emissor (ex: CDB Sofisa Direto 110% CDI)"}
+                  {quickClasse === "RENDA_VARIAVEL" && "Ticker ou Código do Ativo (ex: PETR4, HGLG11, IVVB11)"}
+                  {quickClasse === "CRIPTO" && "Nome do Criptoativo (ex: Bitcoin, Solana, Ethereum)"}
+                  {quickClasse === "APOSTAS" && "Nome da Plataforma / Casa (ex: Betano, Bet365)"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={quickTitulo}
+                  onChange={(e) => setQuickTitulo(e.target.value)}
+                  placeholder={
+                    quickClasse === "RENDA_FIXA" ? "Ex: Tesouro Selic 2029" :
+                    quickClasse === "RENDA_VARIAVEL" ? "Ex: WEGE3" :
+                    quickClasse === "CRIPTO" ? "Ex: Bitcoin (BTC)" : "Ex: Betano"
+                  }
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-3 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Valor & Data do Aporte */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Valor do Aporte (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    value={quickValor}
+                    onChange={(e) => setQuickValor(e.target.value === "" ? "" : Number(e.target.value))}
+                    placeholder="0,00"
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-3 text-xs font-black text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-tnum"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
+                    Data da Aplicação
+                  </label>
+                  <input
+                    type="date"
+                    value={quickData}
+                    onChange={(e) => setQuickData(e.target.value)}
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* INTEGRAÇÃO COM CONTA CORRENTE */}
+              <div className="p-3.5 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-500/30 rounded-2xl flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    Debitar este valor de qual conta?
+                  </label>
+                  <span className="text-[9px] font-bold bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full">
+                    Integração Automática
+                  </span>
+                </div>
+                <select
+                  value={quickWalletId}
+                  onChange={(e) => setQuickWalletId(e.target.value)}
+                  className="w-full rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-500/40 px-3 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Não debitar de conta (Já liquidado fora / Sem saída de caixa)</option>
+                  {wallets
+                    .filter((w: any) => w.walletType !== "CREDIT_CARD")
+                    .map((w: any) => (
+                      <option key={w.id} value={w.id}>
+                        {w.bankName || w.title} {w.walletType ? `(${w.walletType})` : ""} — Saldo Atual: {brl(Number(w.currentTotal ?? w.initialBalance ?? 0))}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-indigo-700/80 dark:text-indigo-300/80 font-medium">
+                  {quickWalletId ? (
+                    <>✨ O valor será lançado como saída na conta selecionada e abatido do saldo automaticamente.</>
+                  ) : (
+                    <>Selecione uma conta para registrar a saída financeira automaticamente sem precisar lançar manual na tela de contas.</>
+                  )}
+                </p>
+              </div>
+
+              {/* Campos adicionais por classe */}
+              {quickClasse === "RENDA_FIXA" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Subtipo</label>
+                    <select
+                      value={quickRfCategoria}
+                      onChange={(e) => setQuickRfCategoria(e.target.value)}
+                      className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="CDB">CDB</option>
+                      <option value="Tesouro Direto">Tesouro Direto</option>
+                      <option value="LCI">LCI</option>
+                      <option value="LCA">LCA</option>
+                      <option value="CRI / CRA">CRI / CRA</option>
+                      <option value="Debênture">Debênture</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {quickClasse === "RENDA_VARIAVEL" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Categoria</label>
+                    <select
+                      value={quickRvCategoria}
+                      onChange={(e) => setQuickRvCategoria(e.target.value)}
+                      className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-900 dark:text-white"
+                    >
+                      <option value="Ação">Ação</option>
+                      <option value="FII">Fundo Imobiliário (FII)</option>
+                      <option value="ETF">ETF</option>
+                      <option value="BDR">BDR</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Quantidade (Cotas)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quickRvQuantidade}
+                      onChange={(e) => setQuickRvQuantidade(e.target.value === "" ? "" : Number(e.target.value))}
+                      placeholder="Ex: 100"
+                      className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-3 text-xs font-bold text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {quickClasse === "CRIPTO" && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Símbolo / Token</label>
+                  <input
+                    type="text"
+                    value={quickCryptoToken}
+                    onChange={(e) => setQuickCryptoToken(e.target.value)}
+                    placeholder="Ex: BTC, ETH, SOL"
+                    className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-3 text-xs font-bold text-slate-900 dark:text-white uppercase"
+                  />
+                </div>
+              )}
+
+              {/* Ações do Modal */}
+              <div className="flex gap-3 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveModal(null)}
+                  className="flex-1 py-3 text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-2xl transition-all cursor-pointer"
+                >
+                  CANCELAR
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 py-3 text-xs font-extrabold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 rounded-2xl shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {saving ? "REGISTRANDO..." : "CONFIRMAR APORTE"}
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>
       )}

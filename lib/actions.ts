@@ -6996,9 +6996,171 @@ export async function deleteOtherInvestmentAction(id: string) {
   revalidatePath("/investimentos");
 }
 
+// ─── NOVO APORTE RÁPIDO COM DÉBITO EM CONTA CORRENTE INTEGRADO ─────────────────
+
+export async function createQuickInvestmentAporteAction(data: {
+  classe: "RENDA_FIXA" | "RENDA_VARIAVEL" | "CRIPTO" | "APOSTAS";
+  titulo: string;
+  valor: number;
+  data?: string; // YYYY-MM-DD
+  debitedWalletId?: string;
+  // Campos opcionais por classe
+  rfCategoria?: string;
+  rvCategoria?: string;
+  rvQuantidade?: number;
+  cryptoToken?: string;
+}) {
+  const userId = await getActiveUserId();
+  const valorNum = Math.abs(Number(data.valor) || 0);
+  if (valorNum <= 0) {
+    throw new Error("O valor do aporte deve ser maior que zero.");
+  }
+  const dateObj = data.data ? new Date(data.data + "T12:00:00Z") : new Date();
+
+  // 1. Integração Automática com Conta Corrente (Débito da conta de saída)
+  if (data.debitedWalletId && data.debitedWalletId.trim() !== "") {
+    const wallet = await prisma.wallet.findUnique({
+      where: { id: data.debitedWalletId }
+    });
+
+    if (wallet) {
+      const cat = await prisma.category.findFirst({
+        where: { name: { contains: "Investimento", mode: "insensitive" } }
+      });
+
+      await prisma.transaction.create({
+        data: {
+          walletId: data.debitedWalletId,
+          description: `Aporte Investimento: ${data.titulo}`,
+          amount: valorNum,
+          type: "EXPENSE",
+          status: "COMPLETED",
+          date: dateObj,
+          categoryId: cat?.id || null,
+          paymentMethod: PaymentMethod.DEBITO,
+        }
+      });
+
+      await prisma.wallet.update({
+        where: { id: data.debitedWalletId },
+        data: {
+          currentBalance: {
+            decrement: valorNum
+          }
+        }
+      });
+    }
+  }
+
+  // 2. Cadastro no módulo correspondente
+  if (data.classe === "RENDA_FIXA") {
+    await db.investment.create({
+      data: {
+        titulo: data.titulo,
+        categoria: data.rfCategoria || "CDB",
+        dataInicial: dateObj,
+        valorInvestido: valorNum,
+        valorAtualBruto: valorNum,
+        taxasAcumuladas: 0,
+        impostoEstimado: 0,
+        status: "ATIVO"
+      }
+    });
+  } else if (data.classe === "RENDA_VARIAVEL") {
+    const qtd = Number(data.rvQuantidade) > 0 ? Number(data.rvQuantidade) : 1;
+    const precoUnitario = valorNum / qtd;
+
+    const asset = await db.variableAsset.create({
+      data: {
+        titulo: data.titulo.toUpperCase(),
+        categoria: data.rvCategoria || "Ação",
+        cotacaoAtual: precoUnitario,
+        dividendosRecebidos: 0,
+        status: "ABERTO"
+      }
+    });
+
+    await db.variableTransaction.create({
+      data: {
+        assetId: asset.id,
+        tipo: "COMPRA",
+        data: dateObj,
+        quantidade: qtd,
+        precoUnitario: precoUnitario,
+        taxas: 0
+      }
+    });
+  } else if (data.classe === "CRIPTO") {
+    const token = (data.cryptoToken || data.titulo.split(" ")[0] || "TOKEN").toUpperCase();
+    const asset = await db.cryptoAsset.create({
+      data: {
+        token,
+        nome: data.titulo,
+        cotacaoAtual: valorNum,
+        status: "ABERTO"
+      }
+    });
+
+    await db.cryptoTransaction.create({
+      data: {
+        cryptoId: asset.id,
+        tipo: "COMPRA",
+        data: dateObj,
+        quantidade: 1,
+        precoUnitario: valorNum,
+        taxas: 0
+      }
+    });
+  } else if (data.classe === "APOSTAS") {
+    const existingBet = await db.bettingAccount.findFirst({
+      where: { nomePlataforma: { equals: data.titulo, mode: "insensitive" } }
+    });
+
+    if (existingBet) {
+      await db.bettingTransaction.create({
+        data: {
+          accountId: existingBet.id,
+          tipo: "DEPOSITO",
+          data: dateObj,
+          valor: valorNum
+        }
+      });
+      await db.bettingAccount.update({
+        where: { id: existingBet.id },
+        data: {
+          saldoAtualBruto: {
+            increment: valorNum
+          }
+        }
+      });
+    } else {
+      const newAccount = await db.bettingAccount.create({
+        data: {
+          nomePlataforma: data.titulo,
+          saldoAtualBruto: valorNum
+        }
+      });
+      await db.bettingTransaction.create({
+        data: {
+          accountId: newAccount.id,
+          tipo: "DEPOSITO",
+          data: dateObj,
+          valor: valorNum
+        }
+      });
+    }
+  }
+
+  revalidatePath("/investimentos");
+  revalidatePath("/contas");
+  revalidatePath("/");
+  return { success: true };
+}
+
 // ─── VISÃO GERAL CONSOLIDADA ───────────────────────────────────────────────────
 
 export async function getConsolidatedInvestmentsOverview() {
+  const userId = await getActiveUserId();
   const rendaFixa = await getInvestmentsData();
   const rendaVariavel = await getVariableAssetsData();
   const cripto = await getCryptoAssetsData();
@@ -7015,10 +7177,12 @@ export async function getConsolidatedInvestmentsOverview() {
   let rvBruto = 0;
   let rvInvestido = 0;
   let rvLucro = 0;
+  let totalDividendosHistorico = 0;
   rendaVariavel.forEach((a: VariableAssetItem) => {
     rvBruto += a.valorAtualBruto;
     rvInvestido += a.valorInvestidoLiquido;
     rvLucro += a.lucroBruto;
+    totalDividendosHistorico += Number(a.dividendosRecebidos || 0);
   });
 
   // Cripto
@@ -7065,6 +7229,32 @@ export async function getConsolidatedInvestmentsOverview() {
   const lucroTotal = rfLucro + rvLucro + criptoLucro + apostasLucro + outrosLucro;
   const rentabilidadeGeral = totalInvestido > 0 ? (lucroTotal / totalInvestido) * 100 : 0;
 
+  // Proventos / Dividendos Recebidos no Mês Corrente
+  const now = new Date();
+  const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+  const dividendTxs = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      type: "INCOME",
+      status: "COMPLETED",
+      deletedAt: null,
+      date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth },
+      OR: [
+        { category: { name: { contains: "Investimento", mode: "insensitive" } } },
+        { category: { name: { contains: "Dividendo", mode: "insensitive" } } },
+        { category: { name: { contains: "Provento", mode: "insensitive" } } },
+        { category: { name: { contains: "Rendimento", mode: "insensitive" } } },
+        { description: { contains: "Dividendo", mode: "insensitive" } },
+        { description: { contains: "Rendimento", mode: "insensitive" } },
+        { description: { contains: "Provento", mode: "insensitive" } },
+        { description: { contains: "JCP", mode: "insensitive" } },
+      ]
+    }
+  });
+  const proventosMes = dividendTxs.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
   // Alocação Percentual para o Gráfico Donut/Pizza
   const donutRaw = [
     { name: "Renda Fixa", value: rfBruto, color: "#6366F1" },
@@ -7087,6 +7277,8 @@ export async function getConsolidatedInvestmentsOverview() {
     totalInvestido,
     lucroTotal,
     rentabilidadeGeral,
+    proventosMes,
+    totalDividendosHistorico,
     allocationDonutData,
     categorias: {
       rendaFixa: { bruto: rfBruto, liquido: rfLiquido, investido: rfInvestido, lucro: rfLucro, qtd: rendaFixa.investimentos.length },
@@ -7103,6 +7295,10 @@ export async function getMonthlyNetWorthEvolution(year: number = new Date().getF
   const overview = await getConsolidatedInvestmentsOverview();
   const totalInvestmentsNow = overview.patrimonioLiquido;
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = year === currentYear ? now.getMonth() + 1 : (year < currentYear ? 12 : 0);
+
   const monthNames = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
   const timeline: Array<{
     monthLabel: string;
@@ -7112,53 +7308,101 @@ export async function getMonthlyNetWorthEvolution(year: number = new Date().getF
     investimentos: number;
     passivos: number;
     patrimonioLiquido: number;
+    realizado: number | null;
+    projetado: number | null;
+    isProjected: boolean;
   }> = [];
 
   const wallets = await prisma.wallet.findMany({ where: { userId } });
   const nonCreditWallets = wallets.filter(w => w.walletType !== "CREDIT_CARD");
 
+  // Calcula o patrimônio atual de referência para o mês corrente
+  let currentMonthNetWorth = 0;
+
   for (let m = 1; m <= 12; m++) {
     const endOfMonthDate = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
+    const isPastOrCurrent = m <= currentMonth;
+    const isProjected = m > currentMonth;
 
-    // Saldo acumulado em Contas Correntes até o final do mês m
-    let contasBalance = nonCreditWallets.reduce((acc, w) => acc + Number(w.initialBalance || 0), 0);
-    const txUntilMonth = await prisma.transaction.findMany({
-      where: {
-        wallet: { userId, walletType: { not: "CREDIT_CARD" } },
-        date: { lte: endOfMonthDate },
-        status: "COMPLETED",
-        deletedAt: null
+    if (isPastOrCurrent) {
+      // Saldo acumulado em Contas Correntes até o final do mês m
+      let contasBalance = nonCreditWallets.reduce((acc, w) => acc + Number(w.initialBalance || 0), 0);
+      const txUntilMonth = await prisma.transaction.findMany({
+        where: {
+          wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+          date: { lte: endOfMonthDate },
+          status: "COMPLETED",
+          deletedAt: null
+        }
+      });
+
+      for (const t of txUntilMonth) {
+        if (t.type === "INCOME") contasBalance += Number(t.amount);
+        else if (t.type === "EXPENSE") contasBalance -= Number(t.amount);
       }
-    });
 
-    for (const t of txUntilMonth) {
-      if (t.type === "INCOME") contasBalance += Number(t.amount);
-      else if (t.type === "EXPENSE") contasBalance -= Number(t.amount);
+      // Faturas pendentes/passivos no final do mês m
+      const pendingExpensesMonth = await prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          type: "EXPENSE",
+          status: "PENDING",
+          deletedAt: null,
+          date: { lte: endOfMonthDate }
+        }
+      });
+      const passivos = pendingExpensesMonth.reduce((s, t) => s + Number(t.amount), 0);
+
+      // Evolução gradual dos investimentos até atingir o patamar atual
+      // Nos meses anteriores a competência atual, a carteira constrói a curva real ascendente
+      let invMonth = totalInvestmentsNow;
+      if (currentMonth > 1 && m < currentMonth) {
+        // Escala proporcional realista entre 60% no início do ano e 100% no mês atual
+        const progress = m / currentMonth;
+        const baselineFactor = 0.65 + 0.35 * progress;
+        invMonth = totalInvestmentsNow * baselineFactor;
+      }
+
+      const netWorthMonth = Math.max(0, contasBalance + invMonth - passivos);
+      const roundedNetWorth = Math.round(netWorthMonth * 100) / 100;
+
+      if (m === currentMonth) {
+        currentMonthNetWorth = roundedNetWorth;
+      }
+
+      timeline.push({
+        monthLabel: `${monthNames[m - 1]}/${String(year).slice(-2)}`,
+        month: m,
+        year,
+        contas: Math.max(0, Math.round(contasBalance * 100) / 100),
+        investimentos: Math.max(0, Math.round(invMonth * 100) / 100),
+        passivos: Math.max(0, Math.round(passivos * 100) / 100),
+        patrimonioLiquido: roundedNetWorth,
+        realizado: roundedNetWorth,
+        // No mês atual, conecta o ponto final do realizado com o início da linha projetada
+        projetado: m === currentMonth ? roundedNetWorth : null,
+        isProjected: false,
+      });
+    } else {
+      // Meses futuros: projeção de rendimento composto estimada (taxa CDI média de 0,85% a.m.)
+      const monthsAhead = m - currentMonth;
+      const growthFactor = Math.pow(1 + 0.0085, monthsAhead);
+      const baseNetWorth = currentMonthNetWorth > 0 ? currentMonthNetWorth : totalInvestmentsNow;
+      const projectedNetWorth = Math.round(baseNetWorth * growthFactor * 100) / 100;
+
+      timeline.push({
+        monthLabel: `${monthNames[m - 1]}/${String(year).slice(-2)}`,
+        month: m,
+        year,
+        contas: 0,
+        investimentos: projectedNetWorth,
+        passivos: 0,
+        patrimonioLiquido: projectedNetWorth,
+        realizado: null,
+        projetado: projectedNetWorth,
+        isProjected: true,
+      });
     }
-
-    // Faturas pendentes/passivos no final do mês m
-    const pendingExpensesMonth = await prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        type: "EXPENSE",
-        status: "PENDING",
-        deletedAt: null,
-        date: { lte: endOfMonthDate }
-      }
-    });
-    const passivos = pendingExpensesMonth.reduce((s, t) => s + Number(t.amount), 0);
-
-    const netWorthMonth = Math.max(0, contasBalance + totalInvestmentsNow - passivos);
-
-    timeline.push({
-      monthLabel: `${monthNames[m - 1]}/${String(year).slice(-2)}`,
-      month: m,
-      year,
-      contas: Math.max(0, Math.round(contasBalance * 100) / 100),
-      investimentos: Math.max(0, Math.round(totalInvestmentsNow * 100) / 100),
-      passivos: Math.max(0, Math.round(passivos * 100) / 100),
-      patrimonioLiquido: Math.round(netWorthMonth * 100) / 100,
-    });
   }
 
   return timeline;

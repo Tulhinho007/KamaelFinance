@@ -6,12 +6,17 @@ import { Calculator, Sparkles, TrendingUp, DollarSign, Calendar, RefreshCw, Tabl
 
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function CompoundInterestSimulator() {
-  const [initialAmount, setInitialAmount] = useState<number | "">("");
-  const [monthlyAmount, setMonthlyAmount] = useState<number | "">("");
-  const [rate, setRate]                   = useState<number | "">("");
+interface CompoundInterestSimulatorProps {
+  currentNetWorth?: number;
+}
+
+export function CompoundInterestSimulator({ currentNetWorth }: CompoundInterestSimulatorProps = {}) {
+  // Inicia com valores didáticos padrão para já exibir uma curva clara
+  const [initialAmount, setInitialAmount] = useState<number | "">(5000);
+  const [monthlyAmount, setMonthlyAmount] = useState<number | "">(500);
+  const [rate, setRate]                   = useState<number | "">(12);
   const [rateType, setRateType]           = useState<"ANNUAL" | "MONTHLY">("ANNUAL");
-  const [period, setPeriod]               = useState<number | "">("");
+  const [period, setPeriod]               = useState<number | "">(5);
   const [periodType, setPeriodType]       = useState<"YEARS" | "MONTHS">("YEARS");
   const [showTable, setShowTable]         = useState(false);
 
@@ -66,14 +71,16 @@ export function CompoundInterestSimulator() {
 
     const finalTotal       = currentTotal;
     const finalInvested    = totalInvested;
-    const finalInterest    = finalTotal - finalInvested;
+    const finalInterest    = Math.max(0, finalTotal - finalInvested);
     const yieldPercentage  = finalInvested > 0 ? (finalInterest / finalInvested) * 100 : 0;
+    const interestShare    = finalTotal > 0 ? (finalInterest / finalTotal) * 100 : 0;
 
     return {
       finalTotal,
       finalInvested,
       finalInterest,
       yieldPercentage,
+      interestShare,
       timeline,
       totalMonths,
     };
@@ -119,20 +126,32 @@ export function CompoundInterestSimulator() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         {/* Card 1 — Valor Inicial */}
         <div className="h-full flex flex-col justify-between p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm">
-          <div className="h-8 flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
               <DollarSign className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Aporte Inicial
             </span>
           </div>
-          <input
-            type="number"
-            min="0"
-            step="100"
-            value={initialAmount}
-            onChange={(e) => setInitialAmount(e.target.value === "" ? "" : Number(e.target.value))}
-            placeholder="0,00"
-            className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-          />
+          <div>
+            <input
+              type="number"
+              min="0"
+              step="100"
+              value={initialAmount}
+              onChange={(e) => setInitialAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              placeholder="0,00"
+              className="w-full h-11 px-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold text-base focus:bg-white dark:focus:bg-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
+            />
+            {currentNetWorth !== undefined && currentNetWorth > 0 && (
+              <button
+                type="button"
+                onClick={() => setInitialAmount(Math.round(currentNetWorth * 100) / 100)}
+                className="mt-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-400/20 transition-all flex items-center gap-1 cursor-pointer w-full justify-center"
+              >
+                <Sparkles className="w-3 h-3 text-indigo-500" />
+                Usar meu patrimônio ({brl(currentNetWorth)})
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Card 2 — Aporte Mensal */}
@@ -242,13 +261,20 @@ export function CompoundInterestSimulator() {
           </span>
         </div>
 
-        {/* Total Juros */}
-        <div className="bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-900/40 dark:via-slate-900 dark:to-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 shadow-sm">
-          <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">Total em Juros Ganhos</span>
-          <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 font-tnum tabular-nums">+{brl(simulation.finalInterest)}</p>
-          <span className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/30 px-2 py-0.5 rounded-full inline-block mt-2">
-            Efeito Juros Compostos 🚀
-          </span>
+        {/* Total Juros com "Poder dos Juros" */}
+        <div className="bg-emerald-50 dark:bg-gradient-to-br dark:from-emerald-900/40 dark:via-slate-900 dark:to-slate-900 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider">Total em Juros Ganhos</span>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 mt-1 font-tnum tabular-nums">+{brl(simulation.finalInterest)}</p>
+          </div>
+          <div className="mt-2 space-y-1">
+            <span className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/30 px-2 py-0.5 rounded-full inline-block">
+              Efeito Juros Compostos 🚀
+            </span>
+            <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+              Os juros representam <span className="underline font-black">{simulation.interestShare.toFixed(1)}%</span> do seu patrimônio final acumulado.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -258,44 +284,58 @@ export function CompoundInterestSimulator() {
           <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
             <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Curva de Crescimento Patrimonial
           </h4>
-          <button
-            type="button"
-            onClick={() => setShowTable((prev) => !prev)}
-            className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-400/20 cursor-pointer"
-          >
-            <Table className="w-3 h-3" />
-            {showTable ? "Ocultar Tabela" : "Ver Tabela Mês a Mês"}
-          </button>
+          {simulation.finalTotal > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowTable((prev) => !prev)}
+              className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-400/20 cursor-pointer"
+            >
+              <Table className="w-3 h-3" />
+              {showTable ? "Ocultar Tabela" : "Ver Tabela Mês a Mês"}
+            </button>
+          )}
         </div>
 
-        <div className="w-full h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={simulation.timeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.3} vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
-              <YAxis
-                tick={{ fontSize: 10, fill: "#64748b" }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
-              />
-              <Tooltip formatter={(val: any) => [brl(Number(val)), ""]} />
-              <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-              <Area type="monotone" dataKey="total" name="Patrimônio Total" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTotal)" />
-              <Area type="monotone" dataKey="invested" name="Total Investido" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorInvested)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        {simulation.finalTotal > 0 ? (
+          <div className="w-full h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={simulation.timeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.3} vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "#64748b" }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(v) => (v >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
+                />
+                <Tooltip formatter={(val: any) => [brl(Number(val)), ""]} />
+                <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
+                <Area type="monotone" dataKey="total" name="Patrimônio Total" stroke="#10b981" strokeWidth={2.5} fillOpacity={1} fill="url(#colorTotal)" />
+                <Area type="monotone" dataKey="invested" name="Total Investido" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorInvested)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="w-full h-64 flex flex-col items-center justify-center p-6 text-center rounded-2xl bg-slate-50/60 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-800">
+            <Sparkles className="w-8 h-8 text-indigo-500 mb-2 opacity-80" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+              Preencha o aporte inicial ou mensal acima para projetar sua curva de crescimento
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-sm">
+              Visualize o poder multiplicador dos juros compostos ao longo do tempo.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Optional Table Breakdown */}
