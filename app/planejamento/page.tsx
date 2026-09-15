@@ -37,9 +37,9 @@ import {
   deleteEventProjectAction,
   createEventItemAction,
   updateEventItemAction,
-  deleteEventItemAction,
-  detectCategory
+  deleteEventItemAction
 } from "@/lib/planning-actions";
+import { detectCategory } from "@/lib/planning-utils";
 import { ConvertToExpenseModal } from "@/components/convert-to-expense-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
