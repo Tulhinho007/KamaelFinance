@@ -351,3 +351,94 @@ export async function logoutAction() {
   cookieStore.delete(COOKIE_NAME);
   redirect("/login");
 }
+
+export async function changeCurrentUserPasswordAction(data: {
+  currentPassword?: string;
+  newPassword: string;
+}) {
+  try {
+    const currentUser = await getCurrentUserAction();
+    let targetUserId = currentUser?.id;
+
+    if (!targetUserId) {
+      const firstUser = await prisma.user.findFirst({
+        where: { role: "MASTER" },
+        select: { id: true, password: true, email: true },
+      });
+      if (firstUser) {
+        targetUserId = firstUser.id;
+      } else {
+        const anyUser = await prisma.user.findFirst({
+          select: { id: true, password: true, email: true },
+        });
+        targetUserId = anyUser?.id;
+      }
+    }
+
+    if (!targetUserId) {
+      return { success: false, error: "Usuário não autenticado." };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    if (!user) {
+      return { success: false, error: "Usuário não encontrado." };
+    }
+
+    // Se o usuário já tem senha definida, valida a senha atual fornecida
+    if (user.password) {
+      if (!data.currentPassword) {
+        return { success: false, error: "Informe sua senha atual." };
+      }
+      const currentHash = hashPassword(data.currentPassword);
+      if (user.password !== currentHash && user.password !== data.currentPassword) {
+        return { success: false, error: "Senha atual incorreta." };
+      }
+    }
+
+    // Validação da nova senha (mínimo de 8 caracteres)
+    if (!data.newPassword || data.newPassword.length < 8) {
+      return { success: false, error: "A nova senha deve conter no mínimo 8 caracteres." };
+    }
+
+    const newHashed = hashPassword(data.newPassword);
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: newHashed,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    // Atualiza a sessão nos cookies para refletir a nova tokenVersion sem desconectar o usuário atual
+    const cookieStore = await cookies();
+    const sessionData: SessionUser = {
+      id: updatedUser.id,
+      name: updatedUser.name || "Usuário",
+      email: updatedUser.email || "",
+      role: updatedUser.role || "MEMBRO",
+      tokenVersion: updatedUser.tokenVersion,
+    };
+    cookieStore.set(COOKIE_NAME, JSON.stringify(sessionData), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+      path: "/",
+    });
+
+    await recordAuditLog({
+      userId: user.id,
+      action: "PASSWORD_CHANGED",
+      details: "Senha de acesso atualizada pelo próprio usuário.",
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao alterar senha:", error);
+    return { success: false, error: error.message || "Erro ao atualizar senha." };
+  }
+}
+

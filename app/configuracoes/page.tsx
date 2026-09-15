@@ -35,6 +35,9 @@ import {
   updateUserProfile
 } from "@/lib/actions";
 
+import { changeCurrentUserPasswordAction } from "@/lib/auth-actions";
+import { Camera, Image as ImageIcon, Check, AlertTriangle } from "lucide-react";
+
 type CategoryItem = {
   id: string;
   name: string;
@@ -49,18 +52,80 @@ export default function ConfiguracoesPage() {
   // ── ABA 1: Perfil & Conta State ──
   const [userName, setUserName] = useState("Túlio Cavalcanti");
   const [userEmail, setUserEmail] = useState("tulio.cavalcanti@kamael.com");
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  // Estados de Dados Pessoais
+  const [dataSaving, setDataSaving] = useState(false);
+  const [dataSuccess, setDataSuccess] = useState(false);
+  const [dataError, setDataError] = useState("");
+
+  // Estados de Senha & Segurança
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [profileSaving, setProfileSaving] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState(false);
+  const [showCurrentPass, setShowCurrentPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
 
   useEffect(() => {
     getUserProfile().then((u) => {
       if (u?.name) setUserName(u.name);
       if (u?.email) setUserEmail(u.email);
     });
+
+    const savedAvatar = localStorage.getItem("kamael-user-avatar");
+    if (savedAvatar) {
+      setUserAvatar(savedAvatar);
+    }
   }, []);
+
+  // ── Validação de Força da Nova Senha em Tempo Real ──
+  const passwordCriteria = {
+    minLength: newPassword.length >= 8,
+    hasNumber: /\d/.test(newPassword),
+    hasSpecialOrUpper: /[^a-z0-9]/i.test(newPassword) || /[A-Z]/.test(newPassword),
+  };
+
+  const passwordScore =
+    (passwordCriteria.minLength ? 1 : 0) +
+    (passwordCriteria.hasNumber ? 1 : 0) +
+    (passwordCriteria.hasSpecialOrUpper ? 1 : 0);
+
+  const getStrengthLabel = () => {
+    if (!newPassword) return { text: "Não preenchida", color: "text-slate-400", bg: "bg-slate-200" };
+    if (passwordScore <= 1) return { text: "Fraca", color: "text-rose-500", bg: "bg-rose-500" };
+    if (passwordScore === 2) return { text: "Média", color: "text-amber-500", bg: "bg-amber-500" };
+    return { text: "Forte", color: "text-emerald-500", bg: "bg-emerald-500" };
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showAlert("A imagem deve ter no máximo 2MB.", { variant: "warning" });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setUserAvatar(base64);
+      localStorage.setItem("kamael-user-avatar", base64);
+      window.dispatchEvent(new Event("storage"));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveAvatar = () => {
+    setUserAvatar(null);
+    localStorage.removeItem("kamael-user-avatar");
+    window.dispatchEvent(new Event("storage"));
+  };
 
   // ── ABA 2: Preferências State ──
   const [hideBalances, setHideBalances] = useState(false);
@@ -103,28 +168,75 @@ export default function ConfiguracoesPage() {
   // ── ABA 4: Exportação State ──
   const [exportingCSV, setExportingCSV] = useState(false);
 
-  // ── HANDLERS ──
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  // ── HANDLERS INDEPENDENTES ──
+
+  // 1. Salvar Apenas Dados Pessoais
+  const handleSaveUserData = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newPassword && newPassword !== confirmPassword) {
-      showAlert("A nova senha e a confirmação não conferem.", { variant: "warning" });
+    if (!userName.trim()) {
+      setDataError("O nome completo é obrigatório.");
       return;
     }
-    setProfileSaving(true);
+    setDataSaving(true);
+    setDataError("");
+    setDataSuccess(false);
     try {
-      await updateUserProfile(userName, userEmail);
-      localStorage.setItem("kamael-user-name", userName);
+      await updateUserProfile(userName.trim(), userEmail.trim());
+      localStorage.setItem("kamael-user-name", userName.trim());
       window.dispatchEvent(new Event("storage"));
-      setProfileSuccess(true);
+      setDataSuccess(true);
+      setTimeout(() => setDataSuccess(false), 3500);
+    } catch (err: any) {
+      console.error(err);
+      setDataError(err.message || "Erro ao salvar dados do perfil.");
+    } finally {
+      setDataSaving(false);
+    }
+  };
+
+  // 2. Atualizar Apenas Senha
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess(false);
+
+    if (!newPassword) {
+      setPasswordError("Informe a nova senha.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError("A nova senha deve ter no mínimo 8 caracteres.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("A nova senha e a confirmação não conferem.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const res = await changeCurrentUserPasswordAction({
+        currentPassword: currentPassword.trim(),
+        newPassword: newPassword.trim(),
+      });
+
+      if (!res.success) {
+        setPasswordError(res.error || "Erro ao atualizar senha.");
+        return;
+      }
+
+      setPasswordSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setTimeout(() => setProfileSuccess(false), 3000);
+      setTimeout(() => setPasswordSuccess(false), 3500);
     } catch (err: any) {
       console.error(err);
-      showAlert(err.message || "Erro ao salvar perfil.", { variant: "error" });
+      setPasswordError(err.message || "Erro ao atualizar senha.");
     } finally {
-      setProfileSaving(false);
+      setPasswordSaving(false);
     }
   };
 
@@ -216,6 +328,13 @@ export default function ConfiguracoesPage() {
     window.print();
   };
 
+  const getInitials = (name: string) => {
+    if (!name) return "TC";
+    const parts = name.trim().split(" ");
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
       
@@ -276,111 +395,343 @@ export default function ConfiguracoesPage() {
         {/* Área Principal de Conteúdo da Aba (9 colunas) */}
         <main className="lg:col-span-9">
           
-          {/* ── ABA 1: PERFIL & CONTA ───────────────────────────────────────── */}
+          {/* ── ABA 1: PERFIL & CONTA (2 CARDS INDEPENDENTES) ──────────────── */}
           {activeTab === "profile" && (
             <div className="space-y-6 animate-in fade-in duration-200">
               
-              {profileSuccess && (
-                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Perfil e preferências de segurança atualizados com sucesso!</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSaveProfile} className="space-y-6">
-                
-                {/* Bloco 1: Dados Pessoais */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-                  <div className="border-b border-slate-100 pb-3">
+              {/* CARD 1: DADOS DO USUÁRIO & FOTO DE PERFIL */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
+                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                  <div>
                     <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                       <User className="w-4 h-4 text-indigo-600" />
                       Dados do Usuário
                     </h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5">Informações de exibição no sistema.</p>
+                    <p className="text-xs font-medium text-slate-500 mt-0.5">
+                      Informações de identidade e exibição no sistema.
+                    </p>
+                  </div>
+                </div>
+
+                {dataSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Dados do usuário atualizados com sucesso!</span>
+                  </div>
+                )}
+
+                {dataError && (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{dataError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSaveUserData} className="space-y-6">
+                  {/* Seção de Avatar / Foto de Perfil */}
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 p-4 rounded-2xl bg-slate-50/70 border border-slate-100">
+                    <div className="relative group shrink-0">
+                      {userAvatar ? (
+                        <img
+                          src={userAvatar}
+                          alt="Foto de Perfil"
+                          className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500 shadow-md"
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 text-white font-black text-xl flex items-center justify-center shadow-md border-2 border-white">
+                          {getInitials(userName)}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Alterar Imagem"
+                        className="absolute bottom-0 right-0 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow-md transition-colors cursor-pointer"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 text-center sm:text-left space-y-2">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">Foto de Perfil</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Formatos aceitos: JPG, PNG ou GIF. Tamanho máximo recomendado: 2MB.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarChange}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          <span>Alterar Foto</span>
+                        </button>
+                        {userAvatar && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveAvatar}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remover</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
+                  {/* Inputs Nome e E-mail */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Nome Completo</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Nome Completo *
+                      </label>
                       <input
                         type="text"
+                        required
                         value={userName}
-                        onChange={e => setUserName(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        onChange={(e) => setUserName(e.target.value)}
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                         placeholder="Seu nome"
                       />
                     </div>
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Endereço de E-mail</label>
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Endereço de E-mail *
+                      </label>
                       <input
                         type="email"
+                        required
                         value={userEmail}
-                        onChange={e => setUserEmail(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        onChange={(e) => setUserEmail(e.target.value)}
+                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                         placeholder="seu.email@dominio.com"
                       />
                     </div>
                   </div>
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={dataSaving}
+                      className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-60"
+                    >
+                      <Save className="w-4 h-4" />
+                      {dataSaving ? "SALVANDO..." : "SALVAR DADOS"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* CARD 2: SEGURANÇA & SENHA */}
+              <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-6">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-indigo-600" />
+                    Segurança & Senha
+                  </h3>
+                  <p className="text-xs font-medium text-slate-500 mt-0.5">
+                    Atualize suas credenciais de acesso de forma independente.
+                  </p>
                 </div>
 
-                {/* Bloco 2: Alterar Senha */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm space-y-4">
-                  <div className="border-b border-slate-100 pb-3">
-                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                      <Lock className="w-4 h-4 text-indigo-600" />
-                      Segurança & Senha
-                    </h3>
-                    <p className="text-xs font-medium text-slate-500 mt-0.5">Atualize suas credenciais de acesso.</p>
+                {passwordSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Senha atualizada com sucesso!</span>
+                  </div>
+                )}
+
+                {passwordError && (
+                  <div className="bg-rose-50 border border-rose-200 text-rose-600 px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                    <span>{passwordError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleUpdatePassword} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Senha Atual */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Senha Atual
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPass ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-3.5 pr-10 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPass(!showCurrentPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                          {showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Nova Senha */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Nova Senha
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showNewPass ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-3.5 pr-10 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          placeholder="Mínimo 8 caracteres"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPass(!showNewPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                          {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Confirmar Nova Senha */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Confirmar Nova Senha
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPass ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full rounded-xl bg-slate-50 border border-slate-200 pl-3.5 pr-10 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          placeholder="••••••••"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPass(!showConfirmPass)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                        >
+                          {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-4 max-w-md">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Senha Atual</label>
-                      <input
-                        type="password"
-                        value={currentPassword}
-                        onChange={e => setCurrentPassword(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        placeholder="••••••••"
-                      />
-                    </div>
+                  {/* Validador de Força da Nova Senha em Tempo Real */}
+                  {newPassword && (
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3 animate-in fade-in">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700">Força da Senha:</span>
+                        <span className={`font-black ${getStrengthLabel().color}`}>
+                          {getStrengthLabel().text}
+                        </span>
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Nova Senha</label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={e => setNewPassword(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        placeholder="••••••••"
-                      />
-                    </div>
+                      {/* Barra de Progresso */}
+                      <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden flex gap-1">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            passwordScore >= 1 ? getStrengthLabel().bg : "bg-transparent"
+                          }`}
+                          style={{ width: "33.3%" }}
+                        />
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            passwordScore >= 2 ? getStrengthLabel().bg : "bg-transparent"
+                          }`}
+                          style={{ width: "33.3%" }}
+                        />
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            passwordScore >= 3 ? getStrengthLabel().bg : "bg-transparent"
+                          }`}
+                          style={{ width: "33.4%" }}
+                        />
+                      </div>
 
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-semibold text-slate-700">Confirmar Nova Senha</label>
-                      <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={e => setConfirmPassword(e.target.value)}
-                        className="w-full rounded-xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                        placeholder="••••••••"
-                      />
+                      {/* Checklist de Critérios */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-[11px]">
+                        <div
+                          className={`flex items-center gap-1.5 font-semibold ${
+                            passwordCriteria.minLength ? "text-emerald-600" : "text-slate-400"
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                              passwordCriteria.minLength
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {passwordCriteria.minLength ? <Check className="w-2.5 h-2.5" /> : "•"}
+                          </div>
+                          <span>Mínimo 8 caracteres</span>
+                        </div>
+
+                        <div
+                          className={`flex items-center gap-1.5 font-semibold ${
+                            passwordCriteria.hasNumber ? "text-emerald-600" : "text-slate-400"
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                              passwordCriteria.hasNumber
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {passwordCriteria.hasNumber ? <Check className="w-2.5 h-2.5" /> : "•"}
+                          </div>
+                          <span>Contém números (0-9)</span>
+                        </div>
+
+                        <div
+                          className={`flex items-center gap-1.5 font-semibold ${
+                            passwordCriteria.hasSpecialOrUpper ? "text-emerald-600" : "text-slate-400"
+                          }`}
+                        >
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                              passwordCriteria.hasSpecialOrUpper
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-200 text-slate-500"
+                            }`}
+                          >
+                            {passwordCriteria.hasSpecialOrUpper ? <Check className="w-2.5 h-2.5" /> : "•"}
+                          </div>
+                          <span>Símbolos ou maiúsculas</span>
+                        </div>
+                      </div>
                     </div>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <button
+                      type="submit"
+                      disabled={passwordSaving || !newPassword}
+                      className="flex items-center gap-2 bg-slate-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Lock className="w-4 h-4 text-indigo-400" />
+                      {passwordSaving ? "ATUALIZANDO..." : "ATUALIZAR SENHA"}
+                    </button>
                   </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={profileSaving}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-60"
-                  >
-                    <Save className="w-4 h-4" />
-                    {profileSaving ? "SALVANDO..." : "SALVAR ALTERAÇÕES"}
-                  </button>
-                </div>
-              </form>
+                </form>
+              </div>
             </div>
           )}
 
