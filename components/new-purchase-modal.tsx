@@ -11,7 +11,35 @@ type SimpleWallet = {
   title: string;
   bankName?: string;
   walletType: string;
+  diaFechamento?: number;
+  diaVencimento?: number;
 };
+
+// Calcula automaticamente a fatura de destino baseado na Data da Compra e no Dia de Fechamento do Cartão
+export function calcularFaturaDestino(dataCompraStr: string, diaFechamentoCartao: number = 1): string {
+  if (!dataCompraStr) return "";
+  const parts = dataCompraStr.split("-");
+  if (parts.length < 3) return dataCompraStr.substring(0, 7);
+
+  const ano = parseInt(parts[0], 10);
+  const mes = parseInt(parts[1], 10) - 1; // 0 a 11
+  const dia = parseInt(parts[2], 10);
+
+  let mesFatura = mes;
+  let anoFatura = ano;
+
+  // Se comprou no dia do fechamento ou depois, vai para a fatura seguinte
+  if (dia >= diaFechamentoCartao) {
+    mesFatura += 1;
+    if (mesFatura > 11) {
+      mesFatura = 0;
+      anoFatura += 1;
+    }
+  }
+
+  const mm = String(mesFatura + 1).padStart(2, "0");
+  return `${anoFatura}-${mm}`;
+}
 
 export type ExpenseInitialData = {
   id?: string;
@@ -91,7 +119,8 @@ export function NewPurchaseModal({
         .then(data => {
           setWallets(data);
           if (initialData) {
-            setSelectedWalletId(initialData.walletId || defaultWalletId || (data.length > 0 ? data[0].id : ""));
+            const activeWalletId = initialData.walletId || defaultWalletId || (data.length > 0 ? data[0].id : "");
+            setSelectedWalletId(activeWalletId);
             setFormType(initialData.type || (initialData.installmentsCount && initialData.installmentsCount > 1 ? "parcelado" : "vista"));
             setFormDescription(initialData.description || "");
             setFormCategory(initialData.category || "Alimentação");
@@ -101,7 +130,7 @@ export function NewPurchaseModal({
               ? (initialData.status !== "PENDING" && (initialData as any).status !== "pendente")
               : (initialData.isPaid ?? true);
             setFormIsPaid(isInitiallyPaid);
-            const wObj = data.find(w => w.id === (initialData.walletId || defaultWalletId));
+            const wObj = data.find(w => w.id === activeWalletId);
             const isCred = wObj?.walletType === "CREDIT_CARD";
             const rawPm = (initialData.paymentMethod || "").toUpperCase();
             if (rawPm === "CARTAO_CREDITO" || rawPm === "CREDITO") {
@@ -126,7 +155,7 @@ export function NewPurchaseModal({
                 : (initialData.date ? initialData.date.split("T")[0] : (initialData.dueDate ? initialData.dueDate.split("T")[0] : new Date().toISOString().split("T")[0])));
             setFormPurchaseDate(targetDate);
 
-            // Mês de referência (competência)
+            // Mês de referência (competência da fatura ou da despesa)
             let initialRef = "";
             if (initialData.referenceMonth) {
               initialRef = initialData.referenceMonth.substring(0, 7);
@@ -134,6 +163,8 @@ export function NewPurchaseModal({
               initialRef = initialData.competenceDate.split("T")[0].substring(0, 7);
             } else if (initialData.competenceYear && initialData.competenceMonth) {
               initialRef = `${initialData.competenceYear}-${String(initialData.competenceMonth).padStart(2, "0")}`;
+            } else if (isCred) {
+              initialRef = calcularFaturaDestino(targetDate, wObj?.diaFechamento ?? 1);
             } else {
               initialRef = targetDate.substring(0, 7);
             }
@@ -141,16 +172,22 @@ export function NewPurchaseModal({
           } else {
             const initialWallet = defaultWalletId || (data.length > 0 ? data[0].id : "");
             const todayStr = new Date().toISOString().split("T")[0];
+            const wObj = data.find(w => w.id === initialWallet);
+            const isCred = wObj?.walletType === "CREDIT_CARD";
+
             setSelectedWalletId(initialWallet);
             setFormDescription("");
             setFormCategory("Alimentação");
             setFormAmount("");
             setFormType("vista");
             setFormPurchaseDate(todayStr);
-            setFormReferenceMonth(todayStr.substring(0, 7));
             
-            const wObj = data.find(w => w.id === initialWallet);
-            const isCred = wObj?.walletType === "CREDIT_CARD";
+            // Se for cartão de crédito, calcula a fatura de destino pelo dia de fechamento
+            const autoRef = isCred
+              ? calcularFaturaDestino(todayStr, wObj?.diaFechamento ?? 1)
+              : todayStr.substring(0, 7);
+            setFormReferenceMonth(autoRef);
+            
             // Compras no cartão de crédito nascem como PENDENTE por padrão
             setFormIsPaid(isCred ? false : true);
             setFormPaymentMethod(isCred ? "CREDITO" : "PIX");
@@ -167,13 +204,15 @@ export function NewPurchaseModal({
   const isCredit = !currentWallet || currentWallet.walletType === "CREDIT_CARD";
 
   const handlePurchaseDateChange = (val: string) => {
-    const oldMonth = formPurchaseDate.substring(0, 7);
     setFormPurchaseDate(val);
-    // Se o mês de referência ainda estava alinhado com a data anterior, atualiza automaticamente
-    if (!formReferenceMonth || formReferenceMonth === oldMonth) {
-      if (val && val.length >= 7) {
-        setFormReferenceMonth(val.substring(0, 7));
-      }
+    const isCreditOperation = formPaymentMethod === "CREDITO" || isCredit;
+
+    if (isCreditOperation && val) {
+      const closingDay = currentWallet?.diaFechamento ?? 1;
+      const autoRef = calcularFaturaDestino(val, closingDay);
+      setFormReferenceMonth(autoRef);
+    } else if (val && val.length >= 7) {
+      setFormReferenceMonth(val.substring(0, 7));
     }
   };
 
@@ -326,13 +365,21 @@ export function NewPurchaseModal({
                 if (!isEditMode) {
                   setFormIsPaid(isCred ? false : true);
                 }
-                setFormPaymentMethod(isCred ? "CREDITO" : (formPaymentMethod === "CREDITO" ? "PIX" : formPaymentMethod));
+                const nextPm = isCred ? "CREDITO" : (formPaymentMethod === "CREDITO" ? "PIX" : formPaymentMethod);
+                setFormPaymentMethod(nextPm);
+
+                // Recalcula competência da fatura se for cartão
+                if (isCred && formPurchaseDate) {
+                  const closingDay = w?.diaFechamento ?? 1;
+                  const autoRef = calcularFaturaDestino(formPurchaseDate, closingDay);
+                  setFormReferenceMonth(autoRef);
+                }
               }}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
             >
               {wallets.map(w => (
                 <option key={w.id} value={w.id}>
-                  {w.bankName ? `${w.bankName} - ` : ""}{w.title} ({w.walletType === "CREDIT_CARD" ? "Cartão de Crédito" : "Conta Corrente / Carteira"})
+                  {w.bankName ? `${w.bankName} - ` : ""}{w.title} ({w.walletType === "CREDIT_CARD" ? `Cartão de Crédito - Fecha dia ${w.diaFechamento ?? 1}, Vence dia ${w.diaVencimento ?? 10}` : "Conta Corrente / Carteira"})
                 </option>
               ))}
             </select>
@@ -498,10 +545,13 @@ export function NewPurchaseModal({
             </div>
           </div>
 
-          {/* 6. Data da Operação (Pagamento ou Vencimento) */}
+          {/* 6. Campo de Data com Label Dinâmica (Data da Compra para Cartão de Crédito ou Data de Vencimento/Pagamento) */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-              {formIsPaid ? "Data do Pagamento" : "Data de Vencimento"}
+              {formPaymentMethod === "CREDITO" || isCredit
+                ? "Data da Compra *"
+                : (formIsPaid ? "Data do Pagamento *" : "Data de Vencimento *")
+              }
             </label>
             <input
               required
@@ -510,18 +560,23 @@ export function NewPurchaseModal({
               onChange={e => handlePurchaseDateChange(e.target.value)}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
             />
+            {(formPaymentMethod === "CREDITO" || isCredit) && (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
+                O vencimento será o da própria fatura ({currentWallet?.diaVencimento ? `Dia ${currentWallet.diaVencimento}` : "definido no cartão"}).
+              </span>
+            )}
           </div>
 
-          {/* 7. Mês de Referência da Compra (Substitui o Vencimento Original da Conta) */}
+          {/* 7. Mês de Referência da Compra / Fatura de Destino */}
           <div className="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                <span>Mês de Referência da Compra</span>
+                <span>{formPaymentMethod === "CREDITO" || isCredit ? "Fatura de Destino (Competência)" : "Mês de Referência da Despesa"}</span>
               </label>
               {formReferenceMonth && (
                 <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                  {getMonthYearLabel(formReferenceMonth)}
+                  {formPaymentMethod === "CREDITO" || isCredit ? `Fatura: ${getMonthYearLabel(formReferenceMonth)}` : getMonthYearLabel(formReferenceMonth)}
                 </span>
               )}
             </div>
@@ -532,7 +587,9 @@ export function NewPurchaseModal({
               className="w-full rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-xs"
             />
             <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-              Mês da competência ou fatura a que a despesa pertence (padrão: mês do pagamento).
+              {formPaymentMethod === "CREDITO" || isCredit
+                ? `Fatura calculada automaticamente pelo fechamento (dia ${currentWallet?.diaFechamento ?? 1}) do cartão.`
+                : "Mês da competência a que a despesa pertence (padrão: mês do vencimento/pagamento)."}
             </p>
           </div>
 

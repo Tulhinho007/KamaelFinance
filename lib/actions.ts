@@ -2199,7 +2199,9 @@ export async function getAllWalletsSimple() {
     id: w.id,
     title: w.title,
     bankName: w.bankName || w.title,
-    walletType: w.walletType
+    walletType: w.walletType,
+    diaFechamento: w.diaFechamento ?? 1,
+    diaVencimento: w.vencimento ?? 10
   }));
 }
 
