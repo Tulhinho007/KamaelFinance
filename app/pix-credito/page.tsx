@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import React, { useState, useEffect } from "react";
 import {
   Zap,
@@ -46,6 +48,8 @@ export default function CreditPixPage() {
   const [selectedOpForDetails, setSelectedOpForDetails] = useState<CreditPixOperationItem | null>(null);
   const [expandedOpId, setExpandedOpId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const operations = data?.operations || [];
 
   const loadData = async () => {
     try {
@@ -244,7 +248,7 @@ export default function CreditPixPage() {
           <div>
             <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
               <FileText className="w-4 h-4 text-purple-500" />
-              Operações de PIX no Crédito ({data?.operations.length || 0})
+              Operações de PIX no Crédito ({operations.length})
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
               Histórico de liquidez captada, cronograma de parcelas e controle de amortização nas faturas.
@@ -252,7 +256,12 @@ export default function CreditPixPage() {
           </div>
         </div>
 
-        {data?.operations.length === 0 ? (
+        {loading ? (
+          <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
+            <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
+            <p className="text-xs text-slate-400 font-medium">Carregando operações...</p>
+          </div>
+        ) : operations.length === 0 ? (
           <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
             <div className="p-4 rounded-3xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
               <Zap className="w-8 h-8" />
@@ -288,7 +297,7 @@ export default function CreditPixPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
-                {data?.operations.map((op: CreditPixOperationItem) => {
+                {operations.map((op: CreditPixOperationItem) => {
                   const isExpanded = expandedOpId === op.id;
                   const isCompleted = op.paidInstallmentsCount >= op.installmentsCount;
 

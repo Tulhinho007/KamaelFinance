@@ -102,7 +102,7 @@ export async function getCreditPixOptionsAction() {
     prisma.wallet.findMany({
       where: {
         userId,
-        walletType: { in: ["CONTA_CORRENTE", "DEBIT", "INVESTIMENTO"] },
+        walletType: { notIn: ["CREDIT_CARD", "TICKET", "BENEFICIO"] },
       },
       orderBy: { title: "asc" },
       select: {
@@ -129,6 +129,26 @@ export async function getCreditPixOptionsAction() {
       bankName: a.bankName || a.title,
     })),
   };
+}
+
+function parseDateSafe(dateInput?: string | Date | null): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? new Date() : dateInput;
+  if (typeof dateInput === "string") {
+    const trimmed = dateInput.trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(trimmed)) {
+      const [day, month, year] = trimmed.split("/").map(Number);
+      const d = new Date(year, month - 1, day, 12, 0, 0);
+      if (!isNaN(d.getTime())) return d;
+    }
+    const fallback = new Date(trimmed);
+    if (!isNaN(fallback.getTime())) return fallback;
+  }
+  return new Date();
 }
 
 /**
@@ -163,7 +183,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
   const feeAmount = Math.max(0, Math.round((totalAmount - netAmount) * 100) / 100);
   const feePercentage = netAmount > 0 ? Math.round((feeAmount / netAmount) * 10000) / 100 : 0;
 
-  const opDate = input.operationDate ? new Date(input.operationDate) : new Date();
+  const opDate = parseDateSafe(input.operationDate);
   const groupId = `cpix-${crypto.randomUUID()}`;
   const operationId = crypto.randomUUID();
 
@@ -210,7 +230,30 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
       });
     }
 
-    // 2. Cria a transação de entrada (INCOME) na conta corrente vinculada à operação
+    // 2. CRIA PRIMEIRO O REGISTRO PAI (CreditPixOperation) PARA SATISFAZER A FOREIGN KEY
+    const operation = await (tx as any).creditPixOperation.create({
+      data: {
+        id: operationId,
+        userId,
+        sourceCardWalletId: sourceCard.id,
+        destAccountWalletId: destAccount.id,
+        netAmount,
+        totalAmount,
+        feeAmount,
+        feePercentage,
+        installmentsCount,
+        installmentAmount,
+        firstBillingMonth: resolvedBillingMonth,
+        firstBillingYear: resolvedBillingYear,
+        operationDate: opDate,
+        installmentGroupId: groupId,
+        incomeTransactionId: null,
+        description: input.description || null,
+        status: "ACTIVE",
+      },
+    });
+
+    // 3. Cria a transação de entrada (INCOME) na conta corrente vinculada à operação
     const incomeTx = await tx.transaction.create({
       data: {
         walletId: destAccount.id,
@@ -223,8 +266,14 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
         status: "COMPLETED",
         source: "MANUAL",
         tags: "#pixcredito",
-        pixCreditOperationId: operationId,
+        pixCreditOperationId: operation.id,
       },
+    });
+
+    // Vincula a transação de entrada de volta à operação de PIX no Crédito
+    await (tx as any).creditPixOperation.update({
+      where: { id: operation.id },
+      data: { incomeTransactionId: incomeTx.id },
     });
 
     // Injeta o saldo imediatamente na conta de destino
@@ -233,7 +282,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
       data: { currentBalance: { increment: netAmount } } as any,
     });
 
-    // 3. Cria as N transações de despesa parcelada no cartão de crédito vinculadas à operação
+    // 4. Cria as N transações de despesa parcelada no cartão de crédito vinculadas à operação
     for (let i = 1; i <= installmentsCount; i++) {
       // Cálculo da competência de fatura de cada parcela
       const rawMonth = resolvedBillingMonth + (i - 1);
@@ -261,33 +310,10 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
           status: "COMPLETED",
           source: "MANUAL",
           tags: "#pixcredito",
-          pixCreditOperationId: operationId,
+          pixCreditOperationId: operation.id,
         },
       });
     }
-
-    // 4. Cria o registro mestre de CreditPixOperation
-    const operation = await (tx as any).creditPixOperation.create({
-      data: {
-        id: operationId,
-        userId,
-        sourceCardWalletId: sourceCard.id,
-        destAccountWalletId: destAccount.id,
-        netAmount,
-        totalAmount,
-        feeAmount,
-        feePercentage,
-        installmentsCount,
-        installmentAmount,
-        firstBillingMonth: resolvedBillingMonth,
-        firstBillingYear: resolvedBillingYear,
-        operationDate: opDate,
-        installmentGroupId: groupId,
-        incomeTransactionId: incomeTx.id,
-        description: input.description || null,
-        status: "ACTIVE",
-      },
-    });
 
     return operation;
   });
@@ -309,186 +335,196 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
  * Consulta todas as operações de PIX no Crédito com métricas consolidadas e cronograma de faturas
  */
 export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewData> {
-  const userId = await getActiveUserId();
+  const fallbackData: CreditPixOverviewData = {
+    totalNet: 0,
+    totalFees: 0,
+    totalDebt: 0,
+    totalInstallments: 0,
+    paidInstallments: 0,
+    amortizationPct: 0,
+    avgFeePct: 0,
+    avgMonthlyFeePct: 0,
+    operations: [],
+  };
 
-  const operations = await (prisma as any).creditPixOperation.findMany({
-    where: { userId },
-    include: {
-      sourceCardWallet: true,
-      destAccountWallet: true,
-    },
-    orderBy: { operationDate: "desc" },
-  });
+  try {
+    const userId = await getActiveUserId();
+    if (!userId) return fallbackData;
 
-  if (!operations || operations.length === 0) {
-    return {
-      totalNet: 0,
-      totalFees: 0,
-      totalDebt: 0,
-      totalInstallments: 0,
-      paidInstallments: 0,
-      amortizationPct: 0,
-      avgFeePct: 0,
-      avgMonthlyFeePct: 0,
-      operations: [],
-    };
-  }
-
-  // Busca todos os pagamentos de fatura para conferência do status de cada parcela
-  const allCardIds = Array.from(new Set(operations.map((o: any) => o.sourceCardWalletId)));
-  const paidInvoices = await (prisma as any).invoicePayment.findMany({
-    where: {
-      walletId: { in: allCardIds },
-    },
-  });
-
-  const paidSet = new Set<string>();
-  paidInvoices.forEach((p: any) => {
-    paidSet.add(`${p.walletId}-${p.month}-${p.year}`);
-  });
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let totalNet = 0;
-  let totalFees = 0;
-  let totalDebt = 0;
-  let totalInstallments = 0;
-  let paidInstallments = 0;
-
-  const operationItems: CreditPixOperationItem[] = operations.map((op: any) => {
-    const net = Number(op.netAmount || 0);
-    const total = Number(op.totalAmount || 0);
-    const fee = Number(op.feeAmount || 0);
-    const count = Number(op.installmentsCount || 1);
-    const instAmt = Number(op.installmentAmount || 0);
-
-    totalNet += net;
-    totalFees += fee;
-    totalDebt += total;
-    totalInstallments += count;
-
-    const sourceCard = op.sourceCardWallet;
-    const destAccount = op.destAccountWallet;
-
-    const titleDigits = sourceCard.title?.replace(/\D/g, "").slice(-4).padStart(4, "0");
-    const lastDigits = titleDigits ? `**** ${titleDigits}` : "**** ----";
-
-    const installments: CreditPixInstallmentDetail[] = [];
-    let opPaidCount = 0;
-
-    for (let i = 1; i <= count; i++) {
-      const rawMonth = op.firstBillingMonth + (i - 1);
-      const bMonth = ((rawMonth - 1) % 12) + 1;
-      const bYear = op.firstBillingYear + Math.floor((rawMonth - 1) / 12);
-
-      const dueDateInfo = getInvoiceDueDateInfo(
-        sourceCard.diaFechamento ?? 1,
-        sourceCard.vencimento ?? 10,
-        bMonth,
-        bYear
-      );
-
-      const isPaid = paidSet.has(`${sourceCard.id}-${bMonth}-${bYear}`) ||
-                     paidSet.has(`${sourceCard.id}-${dueDateInfo.billingMonth}-${dueDateInfo.billingYear}`);
-
-      let status: "Paga" | "Pendente" | "Atrasada" = "Pendente";
-      if (isPaid) {
-        status = "Paga";
-        opPaidCount++;
-      } else if (dueDateInfo.dueDate < today) {
-        status = "Atrasada";
-      }
-
-      installments.push({
-        installmentNumber: i,
-        installmentsCount: count,
-        amount: instAmt,
-        billingMonth: bMonth,
-        billingYear: bYear,
-        dueDateStr: dueDateInfo.dateStr,
-        isPaid,
-        status,
-      });
-    }
-
-    paidInstallments += opPaidCount;
-
-    const opDate = new Date(op.operationDate);
-    const formattedDate = opDate.toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    const operations = await (prisma as any).creditPixOperation.findMany({
+      where: { userId },
+      include: {
+        sourceCardWallet: true,
+        destAccountWallet: true,
+      },
+      orderBy: { operationDate: "desc" },
     });
 
-    const pendingInst = installments.find((inst: any) => !inst.isPaid);
-    const nextInstallment = pendingInst
-      ? {
-          installmentNumber: pendingInst.installmentNumber,
-          installmentsCount: pendingInst.installmentsCount,
-          amount: pendingInst.amount,
-          dueDateStr: pendingInst.dueDateStr,
+    if (!operations || operations.length === 0) {
+      return fallbackData;
+    }
+
+    // Busca todos os pagamentos de fatura para conferência do status de cada parcela
+    const allCardIds = Array.from(new Set(operations.map((o: any) => o.sourceCardWalletId).filter(Boolean)));
+    const paidInvoices = allCardIds.length > 0 ? await (prisma as any).invoicePayment.findMany({
+      where: {
+        walletId: { in: allCardIds },
+      },
+    }) : [];
+
+    const paidSet = new Set<string>();
+    paidInvoices.forEach((p: any) => {
+      paidSet.add(`${p.walletId}-${p.month}-${p.year}`);
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let totalNet = 0;
+    let totalFees = 0;
+    let totalDebt = 0;
+    let totalInstallments = 0;
+    let paidInstallments = 0;
+
+    const operationItems: CreditPixOperationItem[] = operations.map((op: any) => {
+      const net = Number(op.netAmount || 0);
+      const total = Number(op.totalAmount || 0);
+      const fee = Number(op.feeAmount || 0);
+      const count = Number(op.installmentsCount || 1);
+      const instAmt = Number(op.installmentAmount || 0);
+
+      totalNet += net;
+      totalFees += fee;
+      totalDebt += total;
+      totalInstallments += count;
+
+      const sourceCard = op.sourceCardWallet || { id: "", title: "Cartão de Crédito", bankName: "Banco" };
+      const destAccount = op.destAccountWallet || { id: "", title: "Conta Corrente", bankName: "Banco" };
+
+      const titleDigits = sourceCard.title?.replace(/\D/g, "").slice(-4).padStart(4, "0");
+      const lastDigits = titleDigits ? `**** ${titleDigits}` : "**** ----";
+
+      const installments: CreditPixInstallmentDetail[] = [];
+      let opPaidCount = 0;
+
+      for (let i = 1; i <= count; i++) {
+        const rawMonth = (op.firstBillingMonth || 1) + (i - 1);
+        const bMonth = ((rawMonth - 1) % 12) + 1;
+        const bYear = (op.firstBillingYear || today.getFullYear()) + Math.floor((rawMonth - 1) / 12);
+
+        const dueDateInfo = getInvoiceDueDateInfo(
+          sourceCard.diaFechamento ?? 1,
+          sourceCard.vencimento ?? 10,
+          bMonth,
+          bYear
+        );
+
+        const isPaid = paidSet.has(`${sourceCard.id}-${bMonth}-${bYear}`) ||
+                       paidSet.has(`${sourceCard.id}-${dueDateInfo.billingMonth}-${dueDateInfo.billingYear}`);
+
+        let status: "Paga" | "Pendente" | "Atrasada" = "Pendente";
+        if (isPaid) {
+          status = "Paga";
+          opPaidCount++;
+        } else if (dueDateInfo.dueDate < today) {
+          status = "Atrasada";
         }
-      : null;
+
+        installments.push({
+          installmentNumber: i,
+          installmentsCount: count,
+          amount: instAmt,
+          billingMonth: bMonth,
+          billingYear: bYear,
+          dueDateStr: dueDateInfo.dateStr,
+          isPaid,
+          status,
+        });
+      }
+
+      paidInstallments += opPaidCount;
+
+      const opDate = op.operationDate ? new Date(op.operationDate) : new Date();
+      const formattedDate = !isNaN(opDate.getTime())
+        ? opDate.toLocaleDateString("pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+        : "--/--/----";
+
+      const pendingInst = installments.find((inst: any) => !inst.isPaid);
+      const nextInstallment = pendingInst
+        ? {
+            installmentNumber: pendingInst.installmentNumber,
+            installmentsCount: pendingInst.installmentsCount,
+            amount: pendingInst.amount,
+            dueDateStr: pendingInst.dueDateStr,
+          }
+        : null;
+
+      return {
+        id: op.id,
+        operationDate: opDate.toISOString(),
+        operationDateFormatted: formattedDate,
+        sourceCard: {
+          id: sourceCard.id,
+          title: sourceCard.title,
+          bankName: sourceCard.bankName || sourceCard.title,
+          lastDigits,
+        },
+        destAccount: {
+          id: destAccount.id,
+          title: destAccount.title,
+          bankName: destAccount.bankName || destAccount.title,
+        },
+        netAmount: net,
+        totalAmount: total,
+        feeAmount: fee,
+        feePercentage: Number(op.feePercentage || 0),
+        installmentsCount: count,
+        installmentAmount: instAmt,
+        firstBillingMonth: op.firstBillingMonth,
+        firstBillingYear: op.firstBillingYear,
+        description: op.description || "",
+        status: op.status,
+        paidInstallmentsCount: opPaidCount,
+        nextInstallment,
+        installments,
+      };
+    });
+
+    const amortizationPct = totalInstallments > 0
+      ? Math.round((paidInstallments / totalInstallments) * 100)
+      : 0;
+
+    const avgFeePct = totalNet > 0 ? (totalFees / totalNet) * 100 : 0;
+    let weightedMonthlyRateSum = 0;
+    operations.forEach((op: any) => {
+      const net = Number(op.netAmount || 0);
+      const fee = Number(op.feeAmount || 0);
+      const n = Math.max(1, Number(op.installmentsCount || 1));
+      const opFeeRatio = net > 0 ? fee / net : 0;
+      const monthlyRate = n > 0 ? (Math.pow(1 + opFeeRatio, 1 / n) - 1) * 100 : 0;
+      weightedMonthlyRateSum += monthlyRate * net;
+    });
+    const avgMonthlyFeePct = totalNet > 0 ? weightedMonthlyRateSum / totalNet : 0;
 
     return {
-      id: op.id,
-      operationDate: op.operationDate.toISOString(),
-      operationDateFormatted: formattedDate,
-      sourceCard: {
-        id: sourceCard.id,
-        title: sourceCard.title,
-        bankName: sourceCard.bankName || sourceCard.title,
-        lastDigits,
-      },
-      destAccount: {
-        id: destAccount.id,
-        title: destAccount.title,
-        bankName: destAccount.bankName || destAccount.title,
-      },
-      netAmount: net,
-      totalAmount: total,
-      feeAmount: fee,
-      feePercentage: Number(op.feePercentage || 0),
-      installmentsCount: count,
-      installmentAmount: instAmt,
-      firstBillingMonth: op.firstBillingMonth,
-      firstBillingYear: op.firstBillingYear,
-      description: op.description || "",
-      status: op.status,
-      paidInstallmentsCount: opPaidCount,
-      nextInstallment,
-      installments,
+      totalNet: Math.round(totalNet * 100) / 100,
+      totalFees: Math.round(totalFees * 100) / 100,
+      totalDebt: Math.round(totalDebt * 100) / 100,
+      totalInstallments,
+      paidInstallments,
+      amortizationPct,
+      avgFeePct: Math.round(avgFeePct * 100) / 100,
+      avgMonthlyFeePct: Math.round(avgMonthlyFeePct * 100) / 100,
+      operations: operationItems,
     };
-  });
-
-  const amortizationPct = totalInstallments > 0
-    ? Math.round((paidInstallments / totalInstallments) * 100)
-    : 0;
-
-  const avgFeePct = totalNet > 0 ? (totalFees / totalNet) * 100 : 0;
-  let weightedMonthlyRateSum = 0;
-  operations.forEach((op: any) => {
-    const net = Number(op.netAmount || 0);
-    const fee = Number(op.feeAmount || 0);
-    const n = Math.max(1, Number(op.installmentsCount || 1));
-    const opFeeRatio = net > 0 ? fee / net : 0;
-    const monthlyRate = n > 0 ? (Math.pow(1 + opFeeRatio, 1 / n) - 1) * 100 : 0;
-    weightedMonthlyRateSum += monthlyRate * net;
-  });
-  const avgMonthlyFeePct = totalNet > 0 ? weightedMonthlyRateSum / totalNet : 0;
-
-  return {
-    totalNet: Math.round(totalNet * 100) / 100,
-    totalFees: Math.round(totalFees * 100) / 100,
-    totalDebt: Math.round(totalDebt * 100) / 100,
-    totalInstallments,
-    paidInstallments,
-    amortizationPct,
-    avgFeePct: Math.round(avgFeePct * 100) / 100,
-    avgMonthlyFeePct: Math.round(avgMonthlyFeePct * 100) / 100,
-    operations: operationItems,
-  };
+  } catch (err) {
+    console.error("Erro em getCreditPixOverviewAction:", err);
+    return fallbackData;
+  }
 }
 
 /**
