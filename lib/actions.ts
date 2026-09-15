@@ -350,12 +350,159 @@ export async function toggleTransactionStatusAction(id: string) {
     data: { status: newStatus }
   });
 
+  // Atualiza saldo da conta bancária vinculada
+  if (transaction.walletId && Number(transaction.amount) > 0) {
+    if (transaction.type === "INCOME") {
+      const factor = newStatus === "COMPLETED" ? 1 : -1;
+      await prisma.wallet.update({
+        where: { id: transaction.walletId },
+        data: { currentBalance: { increment: factor * Number(transaction.amount) } } as any
+      }).catch(() => {});
+    } else if (transaction.type === "EXPENSE") {
+      const factor = newStatus === "COMPLETED" ? -1 : 1;
+      await prisma.wallet.update({
+        where: { id: transaction.walletId },
+        data: { currentBalance: { increment: factor * Number(transaction.amount) } } as any
+      }).catch(() => {});
+    }
+  }
+
   revalidatePath("/receitas");
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
+  revalidatePath("/contas");
 
   return { id: updated.id, status: updated.status };
+}
+
+/**
+ * Marca um lote de receitas selecionadas como RECEBIDAS (COMPLETED) e credita seus saldos nas contas
+ */
+export async function markBatchRevenuesAsReceivedAction(ids: string[]) {
+  if (!ids || ids.length === 0) return { count: 0 };
+
+  const txs = await prisma.transaction.findMany({
+    where: { id: { in: ids }, type: "INCOME" }
+  });
+
+  let updatedCount = 0;
+  for (const t of txs) {
+    if (t.status !== "COMPLETED") {
+      await prisma.transaction.update({
+        where: { id: t.id },
+        data: { status: "COMPLETED" }
+      });
+      if (t.walletId && Number(t.amount) > 0) {
+        await prisma.wallet.update({
+          where: { id: t.walletId },
+          data: { currentBalance: { increment: Number(t.amount) } } as any
+        }).catch(() => {});
+      }
+      updatedCount++;
+    }
+  }
+
+  revalidatePath("/receitas");
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  revalidatePath("/contas");
+
+  return { count: updatedCount };
+}
+
+/**
+ * Clona uma receita para o mês seguinte (+1 mês na data prevista e +1 mês na competência de referência)
+ */
+export async function duplicateRevenueToNextMonthAction(
+  revenueId: string,
+  baseMonth?: number,
+  baseYear?: number
+) {
+  const original = await prisma.transaction.findUnique({
+    where: { id: revenueId }
+  });
+  if (!original) throw new Error("Receita não encontrada.");
+
+  // Data base da receita de origem
+  const origDate = new Date(
+    original.date || (original as any).paymentDate || new Date()
+  );
+
+  const sourceYear = baseYear ?? origDate.getUTCFullYear();
+  const sourceMonth = baseMonth ?? (origDate.getUTCMonth() + 1);
+  const sourceDay = origDate.getUTCDate();
+
+  // Mês seguinte (+1 mês na data prevista de recebimento)
+  let targetMonth = sourceMonth + 1;
+  let targetYear = sourceYear;
+  if (targetMonth > 12) {
+    targetMonth = 1;
+    targetYear += 1;
+  }
+
+  // Ajuste de dias seguro
+  const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+  const safeDay = Math.min(Math.max(1, sourceDay), maxDays);
+  const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+
+  // Competência de referência também avança +1 mês
+  const origCompDate = original.competenceDate ? new Date(original.competenceDate) : origDate;
+  let origCompMonth = original.competenceMonth ?? (origCompDate.getUTCMonth() + 1);
+  let origCompYear = original.competenceYear ?? origCompDate.getUTCFullYear();
+
+  let targetCompMonth = origCompMonth + 1;
+  let targetCompYear = origCompYear;
+  if (targetCompMonth > 12) {
+    targetCompMonth = 1;
+    targetCompYear += 1;
+  }
+  const nextCompDate = new Date(Date.UTC(targetCompYear, targetCompMonth - 1, 1, 12, 0, 0));
+
+  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
+
+  // Idempotência
+  const existing = await prisma.transaction.findFirst({
+    where: {
+      walletId: original.walletId,
+      description: original.description,
+      deletedAt: null,
+      type: "INCOME",
+      date: nextDate,
+    }
+  });
+  if (existing) {
+    return { success: true, newMonthLabel, id: existing.id };
+  }
+
+  const newTx = await prisma.transaction.create({
+    data: {
+      walletId: original.walletId,
+      categoryId: original.categoryId,
+      description: original.description,
+      type: "INCOME",
+      amount: original.amount,
+      date: nextDate,
+      purchaseDate: nextDate,
+      dueDate: nextDate,
+      status: "PENDING",
+      competenceDate: nextCompDate,
+      competenceMonth: targetCompMonth,
+      competenceYear: targetCompYear,
+      source: original.source || "MANUAL",
+      tags: original.tags,
+      isRecurring: false,
+      recurringDay: safeDay,
+    } as any
+  });
+
+  revalidatePath("/receitas");
+  revalidatePath("/dashboard");
+  revalidatePath("/contas");
+
+  return { success: true, newMonthLabel, id: newTx.id };
 }
 
 export async function createRevenueAction(
@@ -431,6 +578,7 @@ export async function createRevenueAction(
     });
   }
 
+  const effectiveStatus = status || "COMPLETED";
   const transaction: any = await prisma.transaction.create({
     data: {
       walletId: wallet.id,
@@ -438,7 +586,7 @@ export async function createRevenueAction(
       description,
       type: "INCOME",
       amount: amount,
-      status: status || "COMPLETED",
+      status: effectiveStatus,
       date,
       competenceDate,
       competenceMonth: compMonth,
@@ -447,10 +595,18 @@ export async function createRevenueAction(
     } as any
   });
 
+  if (effectiveStatus === "COMPLETED" && wallet?.id && Number(amount) > 0) {
+    await prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { currentBalance: { increment: Number(amount) } } as any
+    }).catch(() => {});
+  }
+
   revalidatePath("/receitas");
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
   revalidatePath("/dashboard");
+  revalidatePath("/contas");
 
   return {
     id: transaction.id,
@@ -658,6 +814,14 @@ export async function deleteRevenueAction(id: string) {
             } as any
           });
         }
+      }
+    } else {
+      // Receita padrão recebida: estorna o saldo creditado na conta bancária
+      if (transaction.status === "COMPLETED" && transaction.walletId && Number(transaction.amount) > 0) {
+        await tx.wallet.update({
+          where: { id: transaction.walletId },
+          data: { currentBalance: { decrement: transaction.amount } } as any
+        }).catch(() => {});
       }
     }
 

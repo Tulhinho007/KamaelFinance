@@ -11,7 +11,7 @@ import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction,
-  duplicateExpenseToNextMonthAction
+  duplicateRevenueToNextMonthAction, markBatchRevenuesAsReceivedAction
 } from "@/lib/actions";
 import { parseCurrencyInput } from "@/lib/constants";
 
@@ -136,25 +136,33 @@ function exportRevenuesCSV(list: Revenue[], month: number, year: number) {
   document.body.removeChild(link);
 }
 
-function RevenueDonutChart({ list }: { list: Revenue[] }) {
+function RevenueAnalytics({ list }: { list: Revenue[] }) {
   const total = list.reduce((s, r) => s + r.amount, 0);
+  const totalReceived = list.filter((r) => r.status !== "PENDING").reduce((s, r) => s + r.amount, 0);
+  const totalPending = list.filter((r) => r.status === "PENDING").reduce((s, r) => s + r.amount, 0);
+  const pctReceived = total > 0 ? Math.round((totalReceived / total) * 100) : 0;
+  const pctPending = total > 0 ? 100 - pctReceived : 0;
 
   const categoryTotals: Record<string, number> = {};
-  list.forEach(r => {
+  list.forEach((r) => {
     const cat = getCategoryName(r.description, r.category);
     categoryTotals[cat] = (categoryTotals[cat] || 0) + r.amount;
   });
 
-  const categoriesData = Object.entries(categoryTotals).map(([name, value]) => ({
-    name,
-    value,
-  })).sort((a, b) => b.value - a.value);
+  const categoriesData = Object.entries(categoryTotals)
+    .map(([name, value]) => ({
+      name,
+      value,
+    }))
+    .sort((a, b) => b.value - a.value);
 
   if (categoriesData.length === 0 || total === 0) {
     return (
-      <div className="card-glow flex flex-col items-center justify-center py-8 text-center">
+      <div className="card-glow flex flex-col items-center justify-center py-8 text-center bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl">
         <PieChart className="w-8 h-8 text-slate-500 mb-2" />
-        <p className="text-xs font-semibold text-secondary-light">Nenhuma receita registrada neste mês para exibir no gráfico.</p>
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          Nenhuma receita registrada neste mês para exibir no gráfico.
+        </p>
       </div>
     );
   }
@@ -176,49 +184,113 @@ function RevenueDonutChart({ list }: { list: Revenue[] }) {
     };
   });
 
+  const hasMultipleCategories = categoriesData.length >= 2;
+
   return (
-    <div className="card-glow p-5 flex flex-col md:flex-row items-center gap-6">
-      <div className="relative w-36 h-36 flex-shrink-0">
-        <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-          {slices.map((slice, i) => {
-            const dashArray = `${(slice.angle / 360) * 283} 283`;
-            const dashOffset = -((slice.startAngle / 360) * 283);
-            return (
-              <circle
-                key={i}
-                cx="50"
-                cy="50"
-                r="45"
-                fill="transparent"
-                stroke={slice.color}
-                strokeWidth="10"
-                strokeDasharray={dashArray}
-                strokeDashoffset={dashOffset}
-                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
-              />
-            );
-          })}
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-          <span className="text-[9px] font-semibold text-slate-700 dark:text-slate-400 uppercase tracking-widest">Total Previsto</span>
-          <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5 font-tnum">{brl(total)}</span>
+    <div className="card-glow p-5 sm:p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+      {/* 1. Barra Comparativa Linear Horizontal (Recebido vs Pendente) */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800/80 pb-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">
+              Comparativo de Realização Financeira
+            </span>
+          </div>
+          <span className="text-xs font-extrabold text-slate-500 dark:text-slate-400">
+            Total Previsto: <strong className="text-slate-900 dark:text-white font-tnum">{brl(total)}</strong>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Barra Recebido */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <span className="font-bold text-slate-700 dark:text-slate-300">Recebido:</span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 font-tnum">{brl(totalReceived)}</span>
+              </div>
+              <span className="font-black text-emerald-600 dark:text-emerald-400 font-tnum text-xs">{pctReceived}%</span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${pctReceived}%` }} />
+            </div>
+          </div>
+
+          {/* Barra Pendente */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 space-y-1.5">
+            <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                <span className="font-bold text-slate-700 dark:text-slate-300">Pendente:</span>
+                <span className="font-black text-amber-600 dark:text-amber-400 font-tnum">{brl(totalPending)}</span>
+              </div>
+              <span className="font-black text-amber-600 dark:text-amber-400 font-tnum text-xs">{pctPending}%</span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${pctPending}%` }} />
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 w-full">
-        {slices.map((slice, i) => (
-          <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-              <span className="font-bold text-slate-900 dark:text-slate-200 truncate">{slice.name}</span>
-            </div>
-            <div className="text-right shrink-0 ml-2">
-              <span className="font-black text-slate-900 dark:text-white font-tnum block">{brl(slice.value)}</span>
-              <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{slice.percentage}%</span>
+      {/* 2. Gráfico Donut de Categorias (Exibido apenas quando houver 2 ou mais categorias) */}
+      {hasMultipleCategories ? (
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex flex-col md:flex-row items-center gap-6">
+          <div className="relative w-36 h-36 shrink-0">
+            <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
+              {slices.map((slice, i) => {
+                const dashArray = `${(slice.angle / 360) * 283} 283`;
+                const dashOffset = -((slice.startAngle / 360) * 283);
+                return (
+                  <circle
+                    key={i}
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="transparent"
+                    stroke={slice.color}
+                    strokeWidth="10"
+                    strokeDasharray={dashArray}
+                    strokeDashoffset={dashOffset}
+                    className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                  />
+                );
+              })}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+              <span className="text-[9px] font-semibold text-slate-700 dark:text-slate-400 uppercase tracking-widest">Fontes</span>
+              <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5 font-tnum">{categoriesData.length} cat.</span>
             </div>
           </div>
-        ))}
-      </div>
+
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 w-full">
+            {slices.map((slice, i) => (
+              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                  <span className="font-bold text-slate-900 dark:text-slate-200 truncate">{slice.name}</span>
+                </div>
+                <div className="text-right shrink-0 ml-2">
+                  <span className="font-black text-slate-900 dark:text-white font-tnum block">{brl(slice.value)}</span>
+                  <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400">{slice.percentage}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Coins className="w-4 h-4 text-emerald-500" />
+            Fonte Principal: <strong className="text-slate-900 dark:text-white font-bold">{categoriesData[0].name}</strong>
+          </span>
+          <span className="font-extrabold text-slate-900 dark:text-white font-tnum">
+            {brl(categoriesData[0].value)} (100%)
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -233,6 +305,7 @@ export default function ReceitasPage() {
   const [searchQuery, setSearchQuery]       = useState("");
   const [statusFilter, setStatusFilter]     = useState<"ALL" | "RECEIVED" | "PENDING">("ALL");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+  const [walletFilter, setWalletFilter]     = useState<string>("ALL");
 
   const [selectedIds, setSelectedIds]       = useState<string[]>([]);
   const [currentPage, setCurrentPage]       = useState(1);
@@ -324,7 +397,12 @@ export default function ReceitasPage() {
   // Isolamento estrito de cartões de benefício/ticket da visualização global de receitas
   const activeRevenues = revenues.filter((rev) => !isBenefitWallet(rev.walletType) && !rev.isBeneficio);
 
-  const filteredRevenues = activeRevenues.filter((rev) => {
+  // Filtragem por Conta de Destino
+  const walletFilteredRevenues = activeRevenues.filter((rev) => {
+    return walletFilter === "ALL" ? true : rev.walletId === walletFilter;
+  });
+
+  const filteredRevenues = walletFilteredRevenues.filter((rev) => {
     const matchesSearch = rev.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus =
       statusFilter === "ALL" ? true :
@@ -343,11 +421,11 @@ export default function ReceitasPage() {
     currentPage * itemsPerPage
   );
 
-  const totalPrevisto = activeRevenues.reduce((s, r) => s + r.amount, 0);
-  const totalReceived = activeRevenues
+  const totalPrevisto = walletFilteredRevenues.reduce((s, r) => s + r.amount, 0);
+  const totalReceived = walletFilteredRevenues
     .filter(r => r.status !== "PENDING")
     .reduce((s, r) => s + r.amount, 0);
-  const totalPending  = activeRevenues
+  const totalPending  = walletFilteredRevenues
     .filter(r => r.status === "PENDING")
     .reduce((s, r) => s + r.amount, 0);
 
@@ -366,9 +444,11 @@ export default function ReceitasPage() {
   };
 
   const handleBulkMarkAsReceived = async () => {
+    if (selectedIds.length === 0) return;
     try {
-      await Promise.all(selectedIds.map(id => toggleTransactionStatusAction(id)));
+      await markBatchRevenuesAsReceivedAction(selectedIds);
       await loadData();
+      showAlert(`${selectedIds.length} receita(s) confirmada(s) e creditada(s) no saldo da conta!`, { variant: "success" });
       setSelectedIds([]);
     } catch (err) {
       console.error(err);
@@ -386,6 +466,7 @@ export default function ReceitasPage() {
     try {
       await Promise.all(selectedIds.map(id => deleteRevenueAction(id)));
       await loadData();
+      showAlert(`${selectedIds.length} receita(s) excluída(s) com sucesso.`, { variant: "success" });
       setSelectedIds([]);
     } catch (err) {
       console.error(err);
@@ -395,8 +476,13 @@ export default function ReceitasPage() {
 
   const handleToggleStatus = async (revId: string) => {
     try {
-      await toggleTransactionStatusAction(revId);
+      const res = await toggleTransactionStatusAction(revId);
       await loadData();
+      if (res.status === "COMPLETED") {
+        showAlert("Receita confirmada com sucesso! Saldo creditado na conta bancária.", { variant: "success" });
+      } else {
+        showAlert("Receita reaberta como pendente. Saldo estornado.", { variant: "info" });
+      }
     } catch (err) {
       console.error(err);
       showAlert("Erro ao alterar status da receita.", { variant: "error" });
@@ -570,13 +656,13 @@ export default function ReceitasPage() {
           <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Aguardando Liquidação</span>
           <p className="text-xl sm:text-2xl font-bold text-amber-700 dark:text-amber-400 tracking-tight font-tnum">{brl(totalPending)}</p>
           <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-400/30 shadow-2xs w-fit">
-            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> A Pagar no Prazo
+            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> A Receber no Prazo
           </span>
         </div>
       </section>
 
-      {/* ── 3. SEÇÃO DONUT CHART DE FONTES DE RENDA ────────────────────────────── */}
-      <RevenueDonutChart list={activeRevenues} />
+      {/* ── 3. SEÇÃO ANALYTICS & FONTES DE RENDA ─────────────────────────────── */}
+      <RevenueAnalytics list={walletFilteredRevenues} />
 
       {/* ── 4. BARRA DE BUSCA, FILTROS E AÇÕES ──────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -613,6 +699,17 @@ export default function ReceitasPage() {
             <option value="ALL">Todas as Categorias</option>
             {CATEGORIES_LIST.map(cat => (
               <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
+          <select
+            value={walletFilter}
+            onChange={(e) => { setWalletFilter(e.target.value); setCurrentPage(1); }}
+            className="w-full sm:w-auto px-3.5 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="ALL">Todas as Contas</option>
+            {wallets.map(w => (
+              <option key={w.id} value={w.id}>{w.bankName || w.title}</option>
             ))}
           </select>
         </div>
@@ -690,7 +787,7 @@ export default function ReceitasPage() {
                 <th className="px-3 sm:px-4 py-3">Descrição</th>
                 <th className="hidden sm:table-cell px-4 py-3">Categoria</th>
                 <th className="hidden md:table-cell px-4 py-3">Conta de Destino</th>
-                <th className="px-3 sm:px-4 py-3 text-right">Data</th>
+                <th className="px-3 sm:px-4 py-3 text-right">DATA PREVISTA</th>
                 <th className="px-3 sm:px-4 py-3 text-right">Valor</th>
                 <th className="px-2 sm:px-4 py-3 text-center">Status</th>
                 <th className="px-2 sm:px-4 py-3 text-center whitespace-nowrap">Ações</th>
@@ -777,28 +874,32 @@ export default function ReceitasPage() {
                         {brl(rev.amount)}
                       </td>
 
-                      <td className="px-4 py-3.5 text-center">
-                        <button
-                          onClick={() => handleToggleStatus(rev.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-all shadow-2xs cursor-pointer ${
-                            isReceived
-                              ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-400/40 font-bold"
-                              : "bg-emerald-50 dark:bg-slate-800/60 text-emerald-700 dark:text-slate-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 hover:text-emerald-800 dark:hover:text-emerald-300 border border-emerald-200 dark:border-slate-700"
-                          }`}
-                          title={isReceived ? "Clique para reabrir" : "Clique para marcar como recebido"}
-                        >
-                          {isReceived ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                              <span>Recebido</span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-slate-400" />
-                              <span>Marcar RECEBIDO</span>
-                            </>
-                          )}
-                        </button>
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        {isReceived ? (
+                          <button
+                            onClick={() => handleToggleStatus(rev.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30 shadow-2xs hover:opacity-80 transition-all cursor-pointer"
+                            title="Status: RECEBIDO. Clique para reabrir como pendente"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                            <span>RECEBIDO</span>
+                          </button>
+                        ) : (
+                          <div className="inline-flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30">
+                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              PENDENTE
+                            </span>
+                            <button
+                              onClick={() => handleToggleStatus(rev.id)}
+                              className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-[11px] px-3 py-1.5 rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                              title="Clique para confirmar o recebimento e creditar no saldo bancário"
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Confirmar Entrada</span>
+                            </button>
+                          </div>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
@@ -806,7 +907,7 @@ export default function ReceitasPage() {
                           <button
                             onClick={async () => {
                               try {
-                                const res = await duplicateExpenseToNextMonthAction(rev.id);
+                                const res = await duplicateRevenueToNextMonthAction(rev.id);
                                 await loadData();
                                 showAlert(`Receita "${rev.description}" duplicada para ${res.newMonthLabel} com sucesso!`, { variant: "success" });
                               } catch (err) {
@@ -874,6 +975,37 @@ export default function ReceitasPage() {
           </div>
         )}
       </section>
+
+      {/* ── 7. BARRA FLUTUANTE DE AÇÕES EM LOTE ──────────────────────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#111625]/95 backdrop-blur-md border border-slate-700/80 shadow-2xl rounded-2xl px-5 py-3 flex items-center gap-4 text-white animate-in slide-in-from-bottom-5">
+          <span className="text-xs font-bold text-slate-300">
+            <strong className="text-emerald-400 font-extrabold">{selectedIds.length}</strong> selecionado{selectedIds.length > 1 ? "s" : ""}
+          </span>
+          <div className="h-4 w-px bg-slate-700" />
+          <button
+            onClick={handleBulkMarkAsReceived}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-[1.02] cursor-pointer"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Marcar todos como Recebidos
+          </button>
+          <button
+            onClick={handleBulkDelete}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold text-xs transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Excluir selecionados
+          </button>
+          <button
+            onClick={() => setSelectedIds([])}
+            className="p-1 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer ml-1"
+            title="Cancelar seleção"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── MODAIS ────────────────────────────────────────────────────────────── */}
       {modalType && (
