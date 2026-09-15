@@ -1487,8 +1487,8 @@ export default function DespesasPage() {
               </div>
             </div>
 
-            {/* Tabela de Dados */}
-            <div className="overflow-x-auto">
+            {/* 1. Visão Desktop/Tablet Médio: Tabela Tradicional */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-900/40">
@@ -1737,6 +1737,143 @@ export default function DespesasPage() {
                   </tfoot>
                 )}
               </table>
+            </div>
+
+            {/* 2. Visão Mobile (Celulares/Tablets pequenos): Lista de Cards Empilhados */}
+            <div className="md:hidden p-3.5 space-y-3">
+              {filteredCommitments.length === 0 ? (
+                <div className="py-10 text-center text-slate-400">
+                  <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
+                    Nenhum compromisso encontrado.
+                  </p>
+                </div>
+              ) : (
+                filteredCommitments.map((item: any) => {
+                  const isPaid = item.status === "COMPLETED";
+                  const isSelected = selectedCommitmentIds.includes(item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`bg-white dark:bg-slate-900 p-4 rounded-2xl border shadow-sm space-y-3 transition-all ${
+                        isSelected
+                          ? "border-indigo-500/50 bg-indigo-50/20 dark:bg-indigo-950/30 ring-1 ring-indigo-500/30"
+                          : "border-slate-200/80 dark:border-slate-800"
+                      }`}
+                    >
+                      {/* Topo do Card: Checkbox + Descrição + Status */}
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          {!isPaid && (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedCommitmentIds((prev) => [...prev, item.id]);
+                                } else {
+                                  setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
+                                }
+                              }}
+                              className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                              {item.description}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                              <span>{item.tipoLabel}</span>
+                              <span>•</span>
+                              <span>Ref: {item.competenciaLabel || `${item.competenceMonth}/${item.competenceYear}`}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider shrink-0 ${
+                            isPaid
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          }`}
+                        >
+                          {item.statusLabel}
+                        </span>
+                      </div>
+
+                      {/* Informações de Vencimento e Prazo */}
+                      <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="font-bold text-slate-700 dark:text-slate-300">
+                            Venc: {item.dueDateFormatted}
+                          </span>
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}>
+                          {item.dueBadge.label}
+                        </span>
+                      </div>
+
+                      {/* Rodapé do Card: Valor e Ações Touch-Friendly */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Valor</span>
+                          <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums font-tnum">
+                            {brl(item.amount)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {!isPaid ? (
+                            <button
+                              onClick={() => openBaixaModal(item)}
+                              className="min-h-[38px] px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Pagar</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUndoCommitment(item.id)}
+                              className="min-h-[38px] px-3 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Desfazer</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={replicatingId === item.id}
+                            onClick={() => handleReplicateCommitment(item)}
+                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-colors cursor-pointer"
+                            title="Replicar para o próximo mês"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => openEditCommitment(item)}
+                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+                            title="Editar"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteCommitment(item.id)}
+                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -2233,22 +2370,23 @@ export default function DespesasPage() {
         </div>
       )}
 
-      {/* ── MODAIS DA CENTRAL DE COMPROMISSOS ─────────────────────────────────── */}
+      {/* ── MODAIS DA CENTRAL DE COMPROMISSOS (RESPONSIVOS / BOTTOM SHEET MOBILE) ── */}
 
       {/* Modal 1: + Novo Boleto / Assinatura */}
       {newCommitmentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-t-3xl sm:rounded-2xl max-w-md w-full shadow-2xl animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
                   <Plus className="w-4 h-4" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Novo Boleto / Assinatura</h3>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Novo Boleto / Assinatura</h3>
               </div>
               <button
                 onClick={() => setNewCommitmentModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -2361,12 +2499,23 @@ export default function DespesasPage() {
 
       {/* Modal 2: Confirmar Pagamento / Baixa */}
       {payCommitmentItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Confirmar Pagamento</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-              Conta: <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
-            </p>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-t-3xl sm:rounded-2xl max-w-md w-full shadow-2xl animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Confirmar Pagamento</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Conta: <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
+                </p>
+              </div>
+              <button
+                onClick={() => setPayCommitmentItem(null)}
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="space-y-3">
               <div>
@@ -2435,14 +2584,14 @@ export default function DespesasPage() {
               <button
                 onClick={() => setPayCommitmentItem(null)}
                 disabled={payingCommitment}
-                className="w-1/2 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-1/2 min-h-[44px] py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleEfetivarBaixa}
                 disabled={payingCommitment}
-                className="w-1/2 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-1/2 min-h-[44px] py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
               >
                 {payingCommitment ? "Processando..." : "Confirmar Baixa"}
               </button>
@@ -2453,18 +2602,19 @@ export default function DespesasPage() {
 
       {/* Modal 3: Editar Compromisso */}
       {editCommitmentItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-t-3xl sm:rounded-2xl max-w-md w-full shadow-2xl animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
                   <Pencil className="w-4 h-4" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Editar Compromisso</h3>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">Editar Compromisso</h3>
               </div>
               <button
                 onClick={() => setEditCommitmentItem(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

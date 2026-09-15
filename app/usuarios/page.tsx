@@ -318,8 +318,8 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {/* Tabela de Usuários */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      {/* 1. Visão Desktop: Tabela de Usuários */}
+      <div className="hidden md:block bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -468,10 +468,118 @@ export default function UsuariosPage() {
         </div>
       </div>
 
-      {/* Modal Adicionar/Editar Usuário */}
+      {/* 2. Visão Mobile: Cards de Usuários */}
+      <div className="md:hidden space-y-3">
+        {loading ? (
+          <div className="py-12 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-medium">Carregando usuários...</p>
+            </div>
+          </div>
+        ) : users.length === 0 ? (
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 text-center text-slate-400 text-xs">
+            Nenhum usuário encontrado.
+          </div>
+        ) : (
+          users.map((user) => {
+            const phoneInfo = formatPhoneNumber(user.phone);
+            const protectedUser = isUserProtected(user);
+
+            return (
+              <div
+                key={user.id}
+                className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-600 text-white font-extrabold flex items-center justify-center text-sm shrink-0 shadow-sm">
+                      {getInitial(user.name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm truncate flex items-center gap-1.5">
+                        {user.name}
+                        {user.id === currentUserId && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-extrabold border border-indigo-200/50">
+                            Você
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] font-medium text-slate-400 lowercase tracking-tight truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {user.status === "ATIVO" ? (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-600 border border-emerald-200/80 uppercase tracking-wide">
+                      ATIVO
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 text-rose-600 border border-rose-200/80 uppercase tracking-wide">
+                      INATIVO
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Telefone</span>
+                    <span className={phoneInfo.isPlaceholder ? "text-slate-400 italic text-[11px]" : "font-semibold text-slate-700 dark:text-slate-300"}>
+                      {phoneInfo.formatted}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Cargo</span>
+                    {user.role === "MASTER" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400">
+                        <ShieldCheck className="w-3 h-3" />
+                        MASTER
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 dark:text-slate-400">
+                        <User className="w-3 h-3 text-slate-400" />
+                        MEMBRO
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/80">
+                  <span className="text-[11px] font-medium text-slate-400">
+                    Cadastrado em {formatDate(user.createdAt)}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEdit(user)}
+                      className="min-h-[38px] px-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 hover:text-white dark:hover:bg-indigo-600 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Editar</span>
+                    </button>
+
+                    {!protectedUser && (
+                      <button
+                        onClick={() => setDeleteUserId(user.id)}
+                        className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 rounded-xl bg-rose-50 hover:bg-rose-600 text-rose-500 hover:text-white transition-colors cursor-pointer"
+                        title="Excluir"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Modal Adicionar/Editar Usuário (Formato Bottom Sheet Mobile) */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             {/* Header Modal */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-bold text-slate-900 dark:text-white">
@@ -479,7 +587,8 @@ export default function UsuariosPage() {
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                aria-label="Fechar"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -598,19 +707,19 @@ export default function UsuariosPage() {
                 )}
               </div>
 
-              {/* Botões do Modal */}
+              {/* Botões do Modal com Touch Targets amplos */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-lg text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                  className="min-h-[40px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2 rounded-xl shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isPending ? "Salvando..." : editingUser ? "Salvar Alterações" : "Criar Usuário"}
                 </button>
@@ -620,10 +729,10 @@ export default function UsuariosPage() {
         </div>
       )}
 
-      {/* Modal Confirmar Exclusão */}
+      {/* Modal Confirmar Exclusão (Formato Bottom Sheet Mobile) */}
       {deleteUserId && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-2xl w-full max-w-sm p-5 sm:p-6 shadow-2xl space-y-4 animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-150">
             <div className="flex items-center gap-3 text-rose-600">
               <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200/50">
                 <ShieldAlert className="w-5 h-5" />
