@@ -12,9 +12,10 @@ export interface CreateCreditPixInput {
   netAmount: number;
   installmentsCount: number;
   installmentAmount: number;
-  firstBillingMonth: number;
-  firstBillingYear: number;
-  operationDate: string;
+  firstDueDate?: string;
+  firstBillingMonth?: number;
+  firstBillingYear?: number;
+  operationDate?: string;
   description?: string;
 }
 
@@ -55,6 +56,12 @@ export interface CreditPixOperationItem {
   description?: string;
   status: string;
   paidInstallmentsCount: number;
+  nextInstallment?: {
+    installmentNumber: number;
+    installmentsCount: number;
+    amount: number;
+    dueDateStr: string;
+  } | null;
   installments: CreditPixInstallmentDetail[];
 }
 
@@ -65,6 +72,8 @@ export interface CreditPixOverviewData {
   totalInstallments: number;
   paidInstallments: number;
   amortizationPct: number;
+  avgFeePct: number;
+  avgMonthlyFeePct: number;
   operations: CreditPixOperationItem[];
 }
 
@@ -158,6 +167,28 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
   const groupId = `cpix-${crypto.randomUUID()}`;
   const operationId = crypto.randomUUID();
 
+  // Resolução da competência inicial e dia do primeiro vencimento
+  let resolvedBillingMonth = input.firstBillingMonth;
+  let resolvedBillingYear = input.firstBillingYear;
+  let dueDay = sourceCard.vencimento ?? 10;
+
+  if (input.firstDueDate) {
+    const parts = input.firstDueDate.split("-");
+    if (parts.length >= 2) {
+      resolvedBillingYear = Number(parts[0]);
+      resolvedBillingMonth = Number(parts[1]);
+    }
+    if (parts.length >= 3) {
+      dueDay = Number(parts[2]);
+    }
+  }
+
+  if (!resolvedBillingMonth || !resolvedBillingYear) {
+    const now = new Date();
+    resolvedBillingMonth = now.getMonth() === 11 ? 1 : now.getMonth() + 2;
+    resolvedBillingYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+  }
+
   // Executa toda a transação no banco de dados
   const result = await prisma.$transaction(async (tx) => {
     // 1. Garante categorias padrão
@@ -196,15 +227,21 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
       },
     });
 
+    // Injeta o saldo imediatamente na conta de destino
+    await tx.wallet.update({
+      where: { id: destAccount.id },
+      data: { currentBalance: { increment: netAmount } } as any,
+    });
+
     // 3. Cria as N transações de despesa parcelada no cartão de crédito vinculadas à operação
     for (let i = 1; i <= installmentsCount; i++) {
       // Cálculo da competência de fatura de cada parcela
-      const rawMonth = input.firstBillingMonth + (i - 1);
+      const rawMonth = resolvedBillingMonth + (i - 1);
       const targetMonth = ((rawMonth - 1) % 12) + 1;
-      const targetYear = input.firstBillingYear + Math.floor((rawMonth - 1) / 12);
+      const targetYear = resolvedBillingYear + Math.floor((rawMonth - 1) / 12);
 
-      // Data de referência da parcela dentro do mês de competência
-      const instDate = new Date(Date.UTC(targetYear, targetMonth - 1, 15, 12, 0, 0));
+      // Data de referência da parcela dentro do mês de competência com dia de vencimento
+      const instDate = new Date(Date.UTC(targetYear, targetMonth - 1, Math.min(dueDay, 28), 12, 0, 0));
 
       await tx.transaction.create({
         data: {
@@ -215,6 +252,9 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
           amount: installmentAmount,
           date: instDate,
           competenceDate: instDate,
+          competenceMonth: targetMonth,
+          competenceYear: targetYear,
+          dueDate: instDate,
           installmentsCount,
           currentInstallment: i,
           installmentGroupId: groupId,
@@ -239,8 +279,8 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
         feePercentage,
         installmentsCount,
         installmentAmount,
-        firstBillingMonth: input.firstBillingMonth,
-        firstBillingYear: input.firstBillingYear,
+        firstBillingMonth: resolvedBillingMonth,
+        firstBillingYear: resolvedBillingYear,
         operationDate: opDate,
         installmentGroupId: groupId,
         incomeTransactionId: incomeTx.id,
@@ -254,8 +294,13 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
 
   revalidatePath("/pix-credito");
   revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  if (sourceCard.id) revalidatePath(`/cartoes/${sourceCard.id}`);
+  if (destAccount.id) revalidatePath(`/cartoes/${destAccount.id}`);
+  revalidatePath("/contas");
   revalidatePath("/dashboard");
   revalidatePath("/receitas");
+  revalidatePath("/extrato");
 
   return { success: true, operationId: result.id };
 }
@@ -283,6 +328,8 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
       totalInstallments: 0,
       paidInstallments: 0,
       amortizationPct: 0,
+      avgFeePct: 0,
+      avgMonthlyFeePct: 0,
       operations: [],
     };
   }
@@ -374,6 +421,16 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
       year: "numeric",
     });
 
+    const pendingInst = installments.find((inst: any) => !inst.isPaid);
+    const nextInstallment = pendingInst
+      ? {
+          installmentNumber: pendingInst.installmentNumber,
+          installmentsCount: pendingInst.installmentsCount,
+          amount: pendingInst.amount,
+          dueDateStr: pendingInst.dueDateStr,
+        }
+      : null;
+
     return {
       id: op.id,
       operationDate: op.operationDate.toISOString(),
@@ -400,6 +457,7 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
       description: op.description || "",
       status: op.status,
       paidInstallmentsCount: opPaidCount,
+      nextInstallment,
       installments,
     };
   });
@@ -408,6 +466,18 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
     ? Math.round((paidInstallments / totalInstallments) * 100)
     : 0;
 
+  const avgFeePct = totalNet > 0 ? (totalFees / totalNet) * 100 : 0;
+  let weightedMonthlyRateSum = 0;
+  operations.forEach((op: any) => {
+    const net = Number(op.netAmount || 0);
+    const fee = Number(op.feeAmount || 0);
+    const n = Math.max(1, Number(op.installmentsCount || 1));
+    const opFeeRatio = net > 0 ? fee / net : 0;
+    const monthlyRate = n > 0 ? (Math.pow(1 + opFeeRatio, 1 / n) - 1) * 100 : 0;
+    weightedMonthlyRateSum += monthlyRate * net;
+  });
+  const avgMonthlyFeePct = totalNet > 0 ? weightedMonthlyRateSum / totalNet : 0;
+
   return {
     totalNet: Math.round(totalNet * 100) / 100,
     totalFees: Math.round(totalFees * 100) / 100,
@@ -415,6 +485,8 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
     totalInstallments,
     paidInstallments,
     amortizationPct,
+    avgFeePct: Math.round(avgFeePct * 100) / 100,
+    avgMonthlyFeePct: Math.round(avgMonthlyFeePct * 100) / 100,
     operations: operationItems,
   };
 }

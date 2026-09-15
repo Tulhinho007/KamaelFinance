@@ -20,6 +20,9 @@ import {
   ShieldCheck,
   FileText,
   Loader2,
+  Eye,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 import {
   getCreditPixOverviewAction,
@@ -28,6 +31,7 @@ import {
   CreditPixOperationItem,
 } from "@/lib/credit-pix-actions";
 import { NewCreditPixModal } from "@/components/new-credit-pix-modal";
+import { CreditPixDetailsModal } from "@/components/credit-pix-details-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { getMonthName } from "@/lib/constants";
 
@@ -39,6 +43,7 @@ export default function CreditPixPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CreditPixOverviewData | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedOpForDetails, setSelectedOpForDetails] = useState<CreditPixOperationItem | null>(null);
   const [expandedOpId, setExpandedOpId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -95,7 +100,7 @@ export default function CreditPixPage() {
               PIX no Crédito
             </h1>
             <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              GESTÃO DE LIQUIDEZ
+              GESTÃO DE LIQUIDEZ & ALAVANCAGEM
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
@@ -142,34 +147,36 @@ export default function CreditPixPage() {
             </div>
 
             <div className="min-h-[38px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-              <span className="text-[11px] leading-tight font-extrabold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
-                <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="text-[11px] leading-tight font-extrabold text-emerald-600 dark:text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
+                <Building2 className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
                 <span className="truncate">Dinheiro creditado nas contas</span>
               </span>
             </div>
           </div>
 
-          {/* Card 2: Custo Total de Juros/Taxas */}
+          {/* Card 2: Custo Total de Juros/Taxas (VERMELHO COM CET PONDERADO) */}
           <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
             <div className="flex items-start justify-between min-h-[44px] gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
                 Custo de Juros / Encargos
               </span>
-              <div className="p-2 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+              <div className="p-2 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0">
                 <Percent className="w-4 h-4" />
               </div>
             </div>
 
             <div className="py-2 my-auto flex items-center">
-              <span className="text-2xl sm:text-3xl font-black tracking-tight text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
-                +{brl(data?.totalFees || 0)}
+              <span className="text-2xl sm:text-3xl font-black tracking-tight text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+                {data?.totalFees && data.totalFees > 0 ? `- ${brl(data.totalFees)}` : brl(0)}
               </span>
             </div>
 
             <div className="min-h-[38px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-              <span className="text-[11px] leading-tight font-extrabold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
-                <TrendingUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="truncate">Diferença total de juros contratada</span>
+              <span className="text-[11px] leading-tight font-extrabold text-rose-600 dark:text-rose-300 bg-rose-500/15 border border-rose-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
+                <TrendingDown className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400 shrink-0" />
+                <span className="truncate">
+                  Taxa Média: {data?.avgFeePct || 0}% total (~{data?.avgMonthlyFeePct || 0}% a.m.)
+                </span>
               </span>
             </div>
           </div>
@@ -192,8 +199,8 @@ export default function CreditPixPage() {
             </div>
 
             <div className="min-h-[38px] flex items-center mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 w-full overflow-hidden">
-              <span className="text-[11px] leading-tight font-extrabold text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
-                <CreditCard className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+              <span className="text-[11px] leading-tight font-extrabold text-purple-600 dark:text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2.5 py-1.5 rounded-xl inline-flex items-center gap-1.5 shadow-2xs max-w-full overflow-hidden truncate">
+                <CreditCard className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400 shrink-0" />
                 <span className="truncate">Soma de todas as parcelas</span>
               </span>
             </div>
@@ -231,7 +238,7 @@ export default function CreditPixPage() {
         </section>
       )}
 
-      {/* ── 3. TABELA DE OPERAÇÕES ────────────────────────────────────────── */}
+      {/* ── 3. TABELA DE OPERAÇÕES REFORMULADA (9 COLUNAS CLARAS) ─────────── */}
       <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col gap-4">
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
           <div>
@@ -240,7 +247,7 @@ export default function CreditPixPage() {
               Operações de PIX no Crédito ({data?.operations.length || 0})
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
-              Histórico de liquidez captada e cronograma de parcelas vinculadas às faturas.
+              Histórico de liquidez captada, cronograma de parcelas e controle de amortização nas faturas.
             </p>
           </div>
         </div>
@@ -254,7 +261,7 @@ export default function CreditPixPage() {
               Nenhuma operação de PIX no Crédito registrada
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md">
-              Quando você contrata um PIX parcelado no cartão, o dinheiro entra na sua conta e as parcelas futuras são programadas automaticamente nas faturas.
+              Ao cadastrar um PIX no Crédito com os 6 campos essenciais, o saldo entra imediatamente na sua conta corrente e as parcelas são programadas no cartão.
             </p>
             <button
               onClick={() => setModalOpen(true)}
@@ -269,14 +276,14 @@ export default function CreditPixPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase text-[10px] font-extrabold tracking-wider">
-                  <th className="py-3 px-3">Data</th>
-                  <th className="py-3 px-3">Origem (Cartão)</th>
-                  <th className="py-3 px-3">Destino (Conta)</th>
-                  <th className="py-3 px-3 text-right">Valor Líquido</th>
-                  <th className="py-3 px-3">Condição</th>
-                  <th className="py-3 px-3 text-right">Juros / Taxas</th>
-                  <th className="py-3 px-3 text-right">Total Fatura</th>
-                  <th className="py-3 px-3 text-center">Status / Progresso</th>
+                  <th className="py-3 px-3">Data Operação</th>
+                  <th className="py-3 px-3">Cartão Utilizado</th>
+                  <th className="py-3 px-3">Conta Destino</th>
+                  <th className="py-3 px-3 text-right">Valor Captado (Líq.)</th>
+                  <th className="py-3 px-3 text-right">Total a Devolver</th>
+                  <th className="py-3 px-3 text-right">Custo / Juros</th>
+                  <th className="py-3 px-3 text-center">Parcelamento</th>
+                  <th className="py-3 px-3 text-center">Próxima Parcela</th>
                   <th className="py-3 px-3 text-center">Ações</th>
                 </tr>
               </thead>
@@ -288,12 +295,12 @@ export default function CreditPixPage() {
                   return (
                     <React.Fragment key={op.id}>
                       <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group">
-                        {/* Data */}
+                        {/* 1. Data da Operação */}
                         <td className="py-3.5 px-3 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                           {op.operationDateFormatted}
                         </td>
 
-                        {/* Cartão de Origem */}
+                        {/* 2. Cartão Utilizado */}
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             <div className="p-1.5 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400 shrink-0">
@@ -304,13 +311,13 @@ export default function CreditPixPage() {
                                 {op.sourceCard.title}
                               </p>
                               <p className="text-[10px] text-slate-400 font-mono">
-                                {op.sourceCard.lastDigits}
+                                final {op.sourceCard.lastDigits}
                               </p>
                             </div>
                           </div>
                         </td>
 
-                        {/* Conta Destino */}
+                        {/* 3. Conta Destino */}
                         <td className="py-3.5 px-3">
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             <div className="p-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
@@ -322,66 +329,86 @@ export default function CreditPixPage() {
                           </div>
                         </td>
 
-                        {/* Valor Líquido Recebido */}
+                        {/* 4. Valor Captado (Líquido) */}
                         <td className="py-3.5 px-3 text-right">
                           <span className="font-black text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums text-sm">
                             {brl(op.netAmount)}
                           </span>
                         </td>
 
-                        {/* Condição de Pagamento */}
-                        <td className="py-3.5 px-3 whitespace-nowrap">
-                          <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                            {op.installmentsCount}x de {brl(op.installmentAmount)}
-                          </span>
-                        </td>
-
-                        {/* Custo de Juros / Taxas */}
-                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
-                          <div className="flex flex-col items-end">
-                            <span className="font-bold text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
-                              +{brl(op.feeAmount)}
-                            </span>
-                            <span className="text-[10px] font-extrabold text-amber-500/80">
-                              {op.feePercentage}%
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Total da Fatura */}
+                        {/* 5. Total a Devolver (Bruto) */}
                         <td className="py-3.5 px-3 text-right">
-                          <span className="font-black text-purple-600 dark:text-purple-300 font-tnum tabular-nums text-sm">
+                          <span className="font-black text-slate-900 dark:text-white font-tnum tabular-nums text-sm">
                             {brl(op.totalAmount)}
                           </span>
                         </td>
 
-                        {/* Status / Progresso */}
-                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${
-                              isCompleted
-                                ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
-                                : "bg-purple-500/15 border-purple-500/30 text-purple-300"
-                            }`}
-                          >
-                            {isCompleted ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Clock className="w-3 h-3 text-purple-400" />
-                            )}
-                            {isCompleted
-                              ? "Concluído"
-                              : `${op.paidInstallmentsCount}/${op.installmentsCount} Pagas`}
-                          </span>
+                        {/* 6. Custo / Juros (Vermelho com CET) */}
+                        <td className="py-3.5 px-3 text-right whitespace-nowrap">
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+                              {op.feeAmount > 0 ? `- ${brl(op.feeAmount)}` : brl(0)}
+                            </span>
+                            <span className="text-[10px] font-extrabold text-rose-500/80">
+                              ({op.feePercentage}%)
+                            </span>
+                          </div>
                         </td>
 
-                        {/* Ações */}
+                        {/* 7. Parcelamento */}
                         <td className="py-3.5 px-3 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
+                          <div className="flex flex-col items-center">
+                            <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                              {op.installmentsCount}x de {brl(op.installmentAmount)}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold ${
+                                isCompleted ? "text-emerald-400" : "text-purple-400"
+                              }`}
+                            >
+                              {op.paidInstallmentsCount}/{op.installmentsCount} pagas
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 8. Próxima Parcela */}
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                          {isCompleted ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Quitado
+                            </span>
+                          ) : op.nextInstallment ? (
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold text-slate-200 text-xs">
+                                {op.nextInstallment.dueDateStr}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-medium">
+                                ({brl(op.nextInstallment.amount)})
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 text-xs">—</span>
+                          )}
+                        </td>
+
+                        {/* 9. Ações (👁️ Detalhes e 🗑️ Excluir) */}
+                        <td className="py-3.5 px-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Botão Detalhes & Simulador */}
+                            <button
+                              onClick={() => setSelectedOpForDetails(op)}
+                              className="p-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-purple-400 hover:text-purple-300 transition-colors cursor-pointer"
+                              title="Ver cronograma de parcelas e simular quitação antecipada"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+
+                            {/* Botão Accordion Rápido */}
                             <button
                               onClick={() => toggleExpand(op.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-                              title={isExpanded ? "Ocultar parcelas" : "Ver cronograma de parcelas"}
+                              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                              title={isExpanded ? "Ocultar parcelas na tabela" : "Expandir parcelas na tabela"}
                             >
                               {isExpanded ? (
                                 <ChevronUp className="w-4 h-4" />
@@ -389,10 +416,12 @@ export default function CreditPixPage() {
                                 <ChevronDown className="w-4 h-4" />
                               )}
                             </button>
+
+                            {/* Botão Excluir */}
                             <button
                               onClick={() => handleDelete(op.id)}
                               disabled={deletingId === op.id}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-50"
+                              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer disabled:opacity-50"
                               title="Excluir operação (reverte conta e cartão)"
                             >
                               {deletingId === op.id ? (
@@ -405,7 +434,7 @@ export default function CreditPixPage() {
                         </td>
                       </tr>
 
-                      {/* Linha Expandida: Cronograma de Parcelas */}
+                      {/* Linha Expandida Rápida: Cronograma de Parcelas */}
                       {isExpanded && (
                         <tr className="bg-slate-50/70 dark:bg-[#0b101c]">
                           <td colSpan={9} className="p-4 sm:p-5">
@@ -415,7 +444,14 @@ export default function CreditPixPage() {
                                   <Clock className="w-3.5 h-3.5 text-purple-400" />
                                   Cronograma de Amortização das Parcelas na Fatura
                                 </span>
-                                <span>{op.installments.length} parcelas</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOpForDetails(op)}
+                                  className="text-[11px] text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  Abrir Simulador de Quitação Antecipada
+                                </button>
                               </div>
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
@@ -480,7 +516,33 @@ export default function CreditPixPage() {
         )}
       </div>
 
-      {/* ── 4. MODAL NOVO PIX NO CRÉDITO ─────────────────────────────────── */}
+      {/* ── 4. BANNER DE ALERTA DE CUSTO VS RENTABILIDADE NO RODAPÉ ────────── */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-[#171d33] via-[#121829] to-[#0e1322] border border-purple-500/20 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3.5">
+          <div className="p-3 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-400 shrink-0">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-black text-white flex items-center gap-2">
+              Dica de Gestão de Liquidez & Custo Efetivo Total (CET)
+            </h4>
+            <p className="text-xs text-slate-300 mt-1 max-w-3xl leading-relaxed">
+              O custo médio ponderado das suas operações ativas é de{" "}
+              <strong className="text-rose-400 font-bold">{data?.avgFeePct || 0}% total</strong>{" "}
+              (~<strong className="text-purple-300 font-bold">{data?.avgMonthlyFeePct || 0}% ao mês</strong>).
+              Ao alavancar capital via PIX no Cartão para giro ou investimentos, certifique-se de que a taxa de retorno ou o desconto à vista negociado supere o CET da operação para gerar valor líquido positivo.
+            </p>
+          </div>
+        </div>
+
+        <div className="shrink-0 flex items-center gap-2 self-end md:self-auto">
+          <span className="text-[11px] font-extrabold uppercase px-3.5 py-2 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            CET Médio: {data?.avgFeePct || 0}%
+          </span>
+        </div>
+      </div>
+
+      {/* ── 5. MODAL NOVO PIX NO CRÉDITO ─────────────────────────────────── */}
       <NewCreditPixModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -488,6 +550,13 @@ export default function CreditPixPage() {
           loadData();
           showAlert("Operação de PIX no Crédito lançada com sucesso!", { variant: "success" });
         }}
+      />
+
+      {/* ── 6. MODAL DETALHES & CRONOGRAMA & QUITAÇÃO ANTECIPADA ─────────── */}
+      <CreditPixDetailsModal
+        operation={selectedOpForDetails}
+        isOpen={!!selectedOpForDetails}
+        onClose={() => setSelectedOpForDetails(null)}
       />
     </div>
   );

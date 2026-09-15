@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   X,
   Zap,
@@ -8,13 +8,14 @@ import {
   Building2,
   Calendar,
   AlertCircle,
-  TrendingUp,
+  TrendingDown,
   Percent,
   CheckCircle2,
   ArrowRight,
   Clock,
   Sparkles,
   Loader2,
+  Info,
 } from "lucide-react";
 import {
   getCreditPixOptionsAction,
@@ -58,12 +59,13 @@ export function NewCreditPixModal({
   const curMonth = new Date().getMonth() + 1;
   const curYear = new Date().getFullYear();
 
-  // Campos do formulário
+  // Os 6 campos essenciais + extras
   const [sourceCardWalletId, setSourceCardWalletId] = useState("");
   const [destAccountWalletId, setDestAccountWalletId] = useState("");
   const [netAmount, setNetAmount] = useState<number | "">("");
-  const [installmentsCount, setInstallmentsCount] = useState<number>(5);
+  const [installmentsCount, setInstallmentsCount] = useState<number>(10);
   const [installmentAmount, setInstallmentAmount] = useState<number | "">("");
+  const [firstDueDate, setFirstDueDate] = useState<string>("");
   const [operationDate, setOperationDate] = useState(todayStr);
   const [firstBillingMonth, setFirstBillingMonth] = useState<number>(
     curMonth === 12 ? 1 : curMonth + 1
@@ -98,7 +100,45 @@ export function NewCreditPixModal({
       });
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Atualiza a sugestão do 1º Vencimento de acordo com o cartão selecionado
+  useEffect(() => {
+    if (!sourceCardWalletId || cards.length === 0) return;
+    const selectedCard = cards.find((c) => c.id === sourceCardWalletId);
+    if (selectedCard) {
+      const today = new Date();
+      const day = today.getDate();
+      const venc = selectedCard.vencimento || 10;
+      const fech = selectedCard.diaFechamento || (venc > 7 ? venc - 7 : 1);
+
+      let targetMonth = today.getMonth() + 1;
+      let targetYear = today.getFullYear();
+      if (day >= fech) {
+        targetMonth += 1;
+        if (targetMonth > 12) {
+          targetMonth = 1;
+          targetYear += 1;
+        }
+      }
+      const maxDaysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate();
+      const dueDay = Math.min(venc, maxDaysInTargetMonth);
+      const suggestedDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(dueDay).padStart(2, "0")}`;
+
+      setFirstDueDate(suggestedDate);
+      setFirstBillingMonth(targetMonth);
+      setFirstBillingYear(targetYear);
+    }
+  }, [sourceCardWalletId, cards]);
+
+  const handleFirstDueDateChange = (val: string) => {
+    setFirstDueDate(val);
+    if (val) {
+      const parts = val.split("-");
+      if (parts.length === 3) {
+        setFirstBillingYear(Number(parts[0]));
+        setFirstBillingMonth(Number(parts[1]));
+      }
+    }
+  };
 
   // Cálculos dinâmicos em tempo real
   const numNet = Number(netAmount) || 0;
@@ -109,6 +149,15 @@ export function NewCreditPixModal({
   const feeAmount = Math.max(0, Math.round((totalAmount - numNet) * 100) / 100);
   const feePercentage =
     numNet > 0 ? Math.round((feeAmount / numNet) * 10000) / 100 : 0;
+  const monthlyRatePct =
+    numNet > 0 && numInstCount > 0 && totalAmount > numNet
+      ? Math.round((Math.pow(totalAmount / numNet, 1 / numInstCount) - 1) * 10000) / 100
+      : 0;
+
+  const selectedCard = cards.find((c) => c.id === sourceCardWalletId);
+  const selectedAccount = accounts.find((a) => a.id === destAccountWalletId);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,6 +188,7 @@ export function NewCreditPixModal({
         netAmount: numNet,
         installmentsCount: numInstCount,
         installmentAmount: numInstAmt,
+        firstDueDate: firstDueDate || undefined,
         firstBillingMonth,
         firstBillingYear,
         operationDate,
@@ -169,7 +219,7 @@ export function NewCreditPixModal({
                 Novo PIX no Crédito
               </h2>
               <p className="text-xs text-slate-400">
-                Captação de liquidez via cartão com cronograma de parcelamento
+                Alavancagem de liquidez via cartão com programação automática de faturas
               </p>
             </div>
           </div>
@@ -190,9 +240,17 @@ export function NewCreditPixModal({
             </div>
           )}
 
-          {/* Seletores: Cartão de Origem e Conta Destino */}
+          {/* Banner de Automação dos 6 campos */}
+          <div className="p-3 rounded-2xl bg-indigo-950/30 border border-indigo-500/20 flex items-start gap-2.5 text-xs text-indigo-200">
+            <Sparkles className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-white">Automação Inteligente:</span> Ao salvar, o valor líquido entrará como saldo na sua conta e as {numInstCount} parcelas serão automaticamente programadas na fatura do cartão.
+            </div>
+          </div>
+
+          {/* 1. e 2. Cartão de Origem e Conta Destino */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Cartão de Crédito */}
+            {/* Cartão de Crédito (Origem) */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <CreditCard className="w-3.5 h-3.5 text-purple-400" />
@@ -211,9 +269,12 @@ export function NewCreditPixModal({
                   </option>
                 ))}
               </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                Onde o limite de crédito será consumido
+              </p>
             </div>
 
-            {/* Conta Corrente Destino */}
+            {/* Conta Corrente Destino (Liquidez) */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -232,15 +293,18 @@ export function NewCreditPixModal({
                   </option>
                 ))}
               </select>
+              <p className="text-[10px] text-slate-500 font-medium">
+                Conta bancária onde o dinheiro cai no ato
+              </p>
             </div>
           </div>
 
-          {/* Valores: Valor Líquido, Parcelas e Valor da Parcela */}
+          {/* 3., 4. e 5. Valores: Líquido, Nº Parcelas e Valor Parcela */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Valor Líquido Transferido */}
+            {/* Valor Líquido Recebido */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Valor Líquido (R$)
+                Valor Líquido Recebido
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-emerald-400">
@@ -250,7 +314,7 @@ export function NewCreditPixModal({
                   type="number"
                   step="0.01"
                   min="0.01"
-                  placeholder="0,00"
+                  placeholder="Ex: 2.000,00"
                   value={netAmount}
                   onChange={(e) => setNetAmount(e.target.value === "" ? "" : Number(e.target.value))}
                   disabled={submitting}
@@ -258,11 +322,11 @@ export function NewCreditPixModal({
                 />
               </div>
               <p className="text-[10px] text-slate-500 font-medium">
-                Dinheiro que entra na conta
+                Saldo que entra na conta
               </p>
             </div>
 
-            {/* Quantidade de Parcelas */}
+            {/* Nº de Parcelas */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
                 Nº de Parcelas
@@ -287,7 +351,7 @@ export function NewCreditPixModal({
             {/* Valor de Cada Parcela */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Valor por Parcela (R$)
+                Valor da Parcela (R$)
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-purple-400">
@@ -297,7 +361,7 @@ export function NewCreditPixModal({
                   type="number"
                   step="0.01"
                   min="0.01"
-                  placeholder="0,00"
+                  placeholder="Ex: 245,00"
                   value={installmentAmount}
                   onChange={(e) => setInstallmentAmount(e.target.value === "" ? "" : Number(e.target.value))}
                   disabled={submitting}
@@ -305,53 +369,35 @@ export function NewCreditPixModal({
                 />
               </div>
               <p className="text-[10px] text-slate-500 font-medium">
-                Cobrado em cada fatura
+                Valor cobrado em cada fatura
               </p>
             </div>
           </div>
 
-          {/* BOX DE CÁLCULO DINÂMICO EM TEMPO REAL */}
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-[#161d31] to-[#0d121f] border border-purple-500/20 shadow-inner space-y-3">
-            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-purple-300">
-              <span className="flex items-center gap-1.5">
-                <Percent className="w-3.5 h-3.5 text-purple-400" />
-                Resumo e Custo Efetivo da Operação
-              </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                Cálculo em Tempo Real
-              </span>
+          {/* 6. 1º Vencimento / Fatura e Data da Operação */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* 1º Vencimento / Fatura */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                1º Vencimento / Fatura
+              </label>
+              <input
+                type="date"
+                value={firstDueDate}
+                onChange={(e) => handleFirstDueDateChange(e.target.value)}
+                disabled={submitting}
+                className="w-full bg-[#0d121f] border border-slate-700/80 rounded-2xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+              <p className="text-[10px] text-slate-500 font-medium">
+                Mês de competência: {getMonthName(firstBillingMonth)} / {firstBillingYear}
+              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 pt-1">
-              <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                <span className="text-[10px] font-bold text-slate-400 block">Total a Pagar</span>
-                <span className="text-sm font-black text-white tabular-nums">
-                  {brl(totalAmount)}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <span className="text-[10px] font-bold text-amber-300 block">Juros / Taxas</span>
-                <span className="text-sm font-black text-amber-400 tabular-nums">
-                  +{brl(feeAmount)}
-                </span>
-              </div>
-
-              <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20">
-                <span className="text-[10px] font-bold text-purple-300 block">Taxa Efetiva</span>
-                <span className="text-sm font-black text-purple-400 tabular-nums">
-                  {feePercentage}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Datas: Data da Transação e Mês/Ano da 1ª Fatura de Cobrança */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Data da Operação */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
                 Data da Transferência
               </label>
               <input
@@ -361,46 +407,64 @@ export function NewCreditPixModal({
                 disabled={submitting}
                 className="w-full bg-[#0d121f] border border-slate-700/80 rounded-2xl px-3.5 py-2 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors"
               />
+              <p className="text-[10px] text-slate-500 font-medium">
+                Dia em que o PIX foi disparado
+              </p>
+            </div>
+          </div>
+
+          {/* RESUMO DINÂMICO ANTES DE SALVAR (CARD COM CET % E CUSTO REAL) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-[#161d31] to-[#0d121f] border border-purple-500/20 shadow-inner space-y-3">
+            <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-purple-300">
+              <span className="flex items-center gap-1.5">
+                <Percent className="w-3.5 h-3.5 text-purple-400" />
+                Resumo da Operação em Tempo Real
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                Simulação Automática
+              </span>
             </div>
 
-            {/* Mês da 1ª Fatura */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                Mês da 1ª Fatura
-              </label>
-              <select
-                value={firstBillingMonth}
-                onChange={(e) => setFirstBillingMonth(Number(e.target.value))}
-                disabled={submitting}
-                className="w-full bg-[#0d121f] border border-slate-700/80 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
-              >
-                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                  <option key={m} value={m}>
-                    {getMonthName(m)}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">Total a Devolver</span>
+                <span className="text-base font-black text-white tabular-nums">
+                  {brl(totalAmount)}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  {numInstCount}x de {brl(numInstAmt)}
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <span className="text-[10px] font-bold text-rose-300 block uppercase">Custo da Operação</span>
+                <span className="text-base font-black text-rose-400 tabular-nums">
+                  {feeAmount > 0 ? `- ${brl(feeAmount)}` : brl(0)}
+                </span>
+                <span className="text-[10px] text-rose-400/70 block mt-0.5">
+                  Juros + IOF bancário
+                </span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <span className="text-[10px] font-bold text-indigo-300 block uppercase">Taxa Efetiva Total (CET)</span>
+                <span className="text-base font-black text-indigo-400 tabular-nums">
+                  {feePercentage}% total
+                </span>
+                <span className="text-[10px] text-indigo-300/80 block mt-0.5">
+                  ~{monthlyRatePct}% ao mês
+                </span>
+              </div>
             </div>
 
-            {/* Ano da 1ª Fatura */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Ano da 1ª Fatura
-              </label>
-              <select
-                value={firstBillingYear}
-                onChange={(e) => setFirstBillingYear(Number(e.target.value))}
-                disabled={submitting}
-                className="w-full bg-[#0d121f] border border-slate-700/80 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors cursor-pointer"
-              >
-                {[2025, 2026, 2027, 2028].map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {numNet > 0 && numInstAmt > 0 && (
+              <div className="pt-2 text-xs text-slate-300 border-t border-slate-800/80 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Você recebe <strong className="text-emerald-400">{brl(numNet)}</strong> à vista e devolve <strong className="text-white">{brl(totalAmount)}</strong> em <strong className="text-purple-300">{numInstCount} meses</strong>.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Observação / Descrição */}
@@ -410,7 +474,7 @@ export function NewCreditPixModal({
             </label>
             <input
               type="text"
-              placeholder="Ex: Liquidez temporária para investimento ou emergência"
+              placeholder="Ex: Liquidez para giro de caixa ou oportunidade de investimento"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               disabled={submitting}
