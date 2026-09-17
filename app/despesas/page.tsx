@@ -1355,45 +1355,45 @@ export default function DespesasPage() {
       {mainView === "compromissos" && (
         <div className="flex flex-col gap-6">
           {/* Cards Resumo do Topo da Página */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
             {/* Card 1: TOTAL DO MÊS */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
                     TOTAL DO MÊS
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
-                    <Receipt className="w-4 h-4" />
+                  <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
+                    <Receipt className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                   {brl(commitmentsData.totals.totalMes)}
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>Soma de todos os boletos e assinaturas do mês</span>
                 <span className="font-bold text-slate-700 dark:text-slate-300">{commitmentsData.items.length} itens</span>
               </div>
             </div>
 
             {/* Card 2: A PAGAR (PENDENTES) - Laranja/Amarelo */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-amber-200/70 dark:border-amber-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-amber-200/70 dark:border-amber-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400 tracking-wider">
                     A PAGAR (PENDENTES)
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
-                    <Clock className="w-4 h-4" />
+                  <div className="w-6 h-6 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
+                    <Clock className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
                   {brl(commitmentsData.totals.totalPendente)}
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>O que ainda precisa ser quitado no período</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400">
                   {commitmentsData.items.filter(i => i.status === "PENDING").length} pendentes
@@ -1402,22 +1402,22 @@ export default function DespesasPage() {
             </div>
 
             {/* Card 3: PAGO NO MÊS - Verde */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-emerald-200/70 dark:border-emerald-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-emerald-200/70 dark:border-emerald-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
                     PAGO NO MÊS
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
-                    <CheckCircle2 className="w-4 h-4" />
+                  <div className="w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
                   </div>
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                   {brl(commitmentsData.totals.totalPago)}
                 </div>
               </div>
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+              <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>O montante que já recebeu baixa</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
                   {commitmentsData.items.filter(i => i.status === "COMPLETED").length} liquidados
