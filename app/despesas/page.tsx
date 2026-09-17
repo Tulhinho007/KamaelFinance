@@ -1487,12 +1487,12 @@ export default function DespesasPage() {
               </div>
             </div>
 
-            {/* 1. Visão Desktop/Tablet Médio: Tabela Tradicional */}
+            {/* 1. Visão Desktop/Tablet Médio: Tabela Tradicional Compacta */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse table-auto text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-900/40">
-                    <th className="py-3 px-3 w-10 text-center">
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-900/40">
+                    <th className="py-2 px-1.5 w-7 text-center">
                       <input
                         type="checkbox"
                         checked={pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id))}
@@ -1504,17 +1504,17 @@ export default function DespesasPage() {
                           }
                         }}
                         disabled={pendingCommitments.length === 0}
-                        className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
+                        className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
                         title={pendingCommitments.length > 0 ? "Selecionar todas as pendentes" : "Nenhum compromisso pendente"}
                       />
                     </th>
-                    <th className="py-3 px-4">Vencimento</th>
-                    <th className="py-3 px-4">Descrição / Fornecedor</th>
-                    <th className="py-3 px-4">Tipo</th>
-                    <th className="py-3 px-4 text-right">Valor</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4">Forma de Pagamento</th>
-                    <th className="py-3 px-4 text-right">Ações</th>
+                    <th className="py-2 px-2 whitespace-nowrap">Vencimento</th>
+                    <th className="py-2 px-2">Descrição / Fornecedor</th>
+                    <th className="py-2 px-1.5 whitespace-nowrap">Tipo</th>
+                    <th className="py-2 px-2 text-right whitespace-nowrap">Valor</th>
+                    <th className="py-2 px-1.5 text-center whitespace-nowrap">Status</th>
+                    <th className="py-2 px-1.5 text-center whitespace-nowrap">Pagamento</th>
+                    <th className="py-2 px-2 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -1546,14 +1546,14 @@ export default function DespesasPage() {
                       return (
                         <tr
                           key={item.id}
-                          className={`transition-colors group ${
+                          className={`transition-colors group border-b border-slate-100 dark:border-slate-800/60 ${
                             isSelected
                               ? "bg-indigo-50/60 dark:bg-indigo-950/40"
                               : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
                           }`}
                         >
                           {/* 0. Checkbox */}
-                          <td className="py-3.5 px-3 text-center">
+                          <td className="py-1.5 px-1.5 text-center">
                             {!isPaid ? (
                               <input
                                 type="checkbox"
@@ -1565,7 +1565,7 @@ export default function DespesasPage() {
                                     setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
                                   }
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                               />
                             ) : (
                               <span className="text-slate-300 dark:text-slate-700 text-xs">—</span>
@@ -1573,13 +1573,13 @@ export default function DespesasPage() {
                           </td>
 
                           {/* 1. Vencimento */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="flex flex-col gap-1">
-                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                          <td className="py-1.5 px-2 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-[11px] sm:text-xs text-slate-800 dark:text-slate-200">
                                 {item.dueDateFormatted}
                               </span>
                               <span
-                                className={`inline-flex items-center w-max px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}
+                                className={`inline-flex items-center w-max px-1 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
                               >
                                 {item.dueBadge.label}
                               </span>
@@ -1587,24 +1587,24 @@ export default function DespesasPage() {
                           </td>
 
                           {/* 2. Descrição / Fornecedor */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                          <td className="py-1.5 px-2 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
                                 item.tipo === "ASSINATURA"
                                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                                   : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                               }`}>
-                                {item.tipo === "ASSINATURA" ? <Zap className="w-3.5 h-3.5" /> : <Receipt className="w-3.5 h-3.5" />}
+                                {item.tipo === "ASSINATURA" ? <Zap className="w-2.5 h-2.5" /> : <Receipt className="w-2.5 h-2.5" />}
                               </div>
-                              <div>
-                                <span className="font-bold text-slate-900 dark:text-white block text-sm">
+                              <div className="min-w-0 flex-1">
+                                <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-[150px] lg:max-w-[220px]">
                                   {item.description}
                                 </span>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  <span className="text-[9px] text-slate-400 dark:text-slate-500">
                                     {item.recorrenciaLabel}
                                   </span>
-                                  <span className="inline-flex items-center text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 px-1.5 py-0.5 rounded-md">
+                                  <span className="inline-flex items-center text-[8px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 px-1 py-0 rounded">
                                     Ref: {item.competenciaLabel || `${item.competenceMonth}/${item.competenceYear}`}
                                   </span>
                                 </div>
@@ -1613,9 +1613,9 @@ export default function DespesasPage() {
                           </td>
 
                           {/* 3. Tipo */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="py-1.5 px-1.5 whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                                 item.tipo === "ASSINATURA"
                                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
                                   : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
@@ -1625,17 +1625,17 @@ export default function DespesasPage() {
                             </span>
                           </td>
 
-                          {/* 4. Valor (Alinhado à direita com tabular-nums) */}
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                            <span className="font-black text-slate-900 dark:text-white text-sm font-tnum tabular-nums">
+                          {/* 4. Valor */}
+                          <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                            <span className="font-black text-slate-900 dark:text-white text-xs font-tnum tabular-nums">
                               {brl(item.amount)}
                             </span>
                           </td>
 
                           {/* 5. Status */}
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                             <span
-                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border uppercase tracking-wider ${
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
                                 isPaid
                                   ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                                   : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
@@ -1646,36 +1646,36 @@ export default function DespesasPage() {
                           </td>
 
                           {/* 6. Forma de Pagamento */}
-                          <td className="py-3.5 px-4 whitespace-nowrap">
+                          <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
                             {isPaid ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+                                <Check className="w-3 h-3 text-emerald-500 shrink-0" />
                                 {item.formaPagamentoLabel}
                               </span>
                             ) : (
-                              <span className="text-slate-400 text-sm font-bold">-</span>
+                              <span className="text-slate-400 text-xs font-bold">-</span>
                             )}
                           </td>
 
                           {/* 7. Ações */}
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="py-1.5 px-2 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-0.5">
                               {!isPaid ? (
                                 <button
                                   onClick={() => openBaixaModal(item)}
-                                  className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-2.5 py-1.5 rounded-lg shadow-xs transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded-lg shadow-xs transition-colors cursor-pointer"
                                   title="Pagar / Dar Baixa"
                                 >
-                                  <Check className="w-3.5 h-3.5" />
+                                  <Check className="w-3 h-3" />
                                   <span>Pagar / Baixar</span>
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => handleUndoCommitment(item.id)}
-                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition-colors cursor-pointer"
                                   title="Desfazer pagamento"
                                 >
-                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <RotateCcw className="w-3 h-3" />
                                   <span>Desfazer</span>
                                 </button>
                               )}
@@ -1685,7 +1685,7 @@ export default function DespesasPage() {
                                 type="button"
                                 disabled={replicatingId === item.id}
                                 onClick={() => handleReplicateCommitment(item)}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md transition-colors cursor-pointer disabled:opacity-50"
                                 title="Replicar compromisso para o próximo mês"
                               >
                                 <Copy className="w-3.5 h-3.5" />
@@ -1693,7 +1693,7 @@ export default function DespesasPage() {
 
                               <button
                                 onClick={() => openEditCommitment(item)}
-                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
                                 title="Editar compromisso"
                               >
                                 <Pencil className="w-3.5 h-3.5" />
@@ -1701,7 +1701,7 @@ export default function DespesasPage() {
 
                               <button
                                 onClick={() => handleDeleteCommitment(item.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
+                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
                                 title="Excluir compromisso"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1717,22 +1717,22 @@ export default function DespesasPage() {
                 {filteredCommitments.length > 0 && (
                   <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/70 text-xs font-bold">
                     <tr>
-                      <td className="py-3.5 px-3 text-center text-slate-400">—</td>
-                      <td className="py-3.5 px-4 text-slate-900 dark:text-white font-extrabold whitespace-nowrap">
+                      <td className="py-2 px-1.5 text-center text-slate-400">—</td>
+                      <td className="py-2 px-2 text-slate-900 dark:text-white font-extrabold whitespace-nowrap">
                         TOTAL LISTADO
-                        <span className="ml-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                        <span className="ml-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                           ({filteredCommitments.length} {filteredCommitments.length === 1 ? "item" : "itens"})
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-500 dark:text-slate-400 text-[11px]" colSpan={2}>
+                      <td className="py-2 px-2 text-slate-500 dark:text-slate-400 text-[10px]" colSpan={2}>
                         {filteredCommitments.filter((i: any) => i.status === "PENDING").length} a pagar • {filteredCommitments.filter((i: any) => i.status === "COMPLETED").length} pagos
                       </td>
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <span className="font-black text-slate-900 dark:text-white text-sm font-tnum tabular-nums">
+                      <td className="py-2 px-2 text-right whitespace-nowrap">
+                        <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm font-tnum tabular-nums">
                           {brl(filteredCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0))}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4" colSpan={3}></td>
+                      <td className="py-2 px-2" colSpan={3}></td>
                     </tr>
                   </tfoot>
                 )}
