@@ -294,7 +294,7 @@ export default function PaymentHistoryPage() {
           </div>
         </div>
 
-        {/* Tabela de Pagamentos */}
+        {/* Tabela de Pagamentos Compactada */}
         {loading ? (
           <div className="py-12 flex items-center justify-center">
             <p className="text-xs font-bold text-slate-400 animate-pulse">Carregando histórico de pagamentos...</p>
@@ -305,19 +305,19 @@ export default function PaymentHistoryPage() {
             <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhum registro de pagamento encontrado para os filtros selecionados.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full text-left border-collapse text-xs">
+          <div className="overflow-x-auto lg:overflow-x-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-left border-collapse text-xs table-auto">
               <thead>
-                <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                  <th className="py-3 px-4">Tipo / Origem</th>
-                  <th className="py-3 px-4">Identificação / Conta</th>
-                  <th className="py-3 px-4">Período de Referência</th>
-                  <th className="py-3 px-4 text-right">Total Gasto / Pago</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Ações</th>
+                <tr className="bg-slate-100/80 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[11px]">
+                  <th className="py-2.5 px-3">Tipo / Origem</th>
+                  <th className="py-2.5 px-3">Identificação / Conta</th>
+                  <th className="py-2.5 px-3">Competência</th>
+                  <th className="py-2.5 px-3 text-right">Total Gasto / Pago</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
+                  <th className="py-2.5 px-3 text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium text-slate-700 dark:text-slate-300 text-xs">
                 {filteredItems.map((item) => {
                   return (
                     <tr
@@ -325,10 +325,10 @@ export default function PaymentHistoryPage() {
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800"
                     >
                       {/* Tipo / Origem */}
-                      <td className="py-3 px-4">
+                      <td className="py-2 px-3">
                         {item.formaPagamento ? (
-                          <div className="flex items-center gap-2">
-                            <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
+                          <div className="flex items-center gap-1.5">
+                            <span className="p-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 text-xs">
                               {item.formaPagamento === "PIX" && "⚡"}
                               {item.formaPagamento === "BOLETO" && "📄"}
                               {(item.formaPagamento === "DEBITO_CONTA" || item.formaPagamento === "SALDO_CONTA") && "🏛️"}
@@ -337,38 +337,37 @@ export default function PaymentHistoryPage() {
                               {item.formaPagamento === "TICKET" && "🎫"}
                             </span>
                             <div>
-                              <div className="font-semibold text-slate-800 dark:text-slate-100 text-xs">
+                              <div className="font-semibold text-slate-800 dark:text-slate-100 text-xs leading-tight">
                                 {item.formaPagamentoFormatada}
                               </div>
-                              <div className="text-[10px] text-slate-400">
+                              <div className="text-[10px] text-slate-400 leading-none">
                                 {item.bancoOuCartaoUtilizado}
                               </div>
                             </div>
                           </div>
                         ) : (
-                          /* Estado inicial: enquanto não for pago, fica vazio/traço */
-                          <span className="text-slate-400 dark:text-slate-500 font-medium text-xs">
+                          <span className="text-slate-400 dark:text-slate-500 font-medium text-[11px]">
                             — Não definido
                           </span>
                         )}
                       </td>
 
                       {/* Identificação / Conta */}
-                      <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">
+                      <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">
                         <div>
-                          <span>{item.accountName}</span>
+                          <span className="text-xs">{item.accountName}</span>
                           {item.cardBrand && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-slate-400">
+                            <span className="ml-1 text-[10px] font-semibold text-slate-400">
                               ({item.cardBrand} {item.lastDigits ? `•••• ${item.lastDigits}` : ""})
                             </span>
                           )}
                           {item.dueDateFormatted && (
-                            <span className="block text-[10px] text-slate-400 font-normal">
-                              Vencimento: {item.dueDateFormatted}
+                            <span className="block text-[10px] text-slate-400 font-normal leading-tight">
+                              Venc: {item.dueDateFormatted}
                             </span>
                           )}
                           {item.holder && (
-                            <span className="block text-[10px] text-slate-400 font-normal">
+                            <span className="block text-[10px] text-slate-400 font-normal leading-tight">
                               👤 {item.holder}
                             </span>
                           )}
@@ -376,51 +375,50 @@ export default function PaymentHistoryPage() {
                       </td>
 
                       {/* Período de Referência */}
-                      <td className="py-3 px-4 font-semibold text-slate-600 dark:text-slate-300">
-                        {/* Mostra 'Setembro/2026' em vez de forçar o mês do vencimento */}
+                      <td className="py-2 px-3 font-semibold text-slate-600 dark:text-slate-300 text-xs whitespace-nowrap">
                         {item.competenciaFormatada || item.periodRef || "Setembro/2026"}
                       </td>
 
                       {/* Total Gasto / Pago */}
-                      <td className="py-3 px-4 text-right font-black text-sm tabular-nums text-slate-900 dark:text-white">
+                      <td className="py-2 px-3 text-right font-black text-xs sm:text-sm tabular-nums text-slate-900 dark:text-white whitespace-nowrap">
                         <div>{brl(item.amount)}</div>
                         {item.pendingAmount && item.pendingAmount > 0 ? (
-                          <div className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 mt-0.5">
+                          <div className="text-[10px] font-semibold text-amber-500 dark:text-amber-400 leading-tight">
                             {item.paidAmount && item.paidAmount > 0 ? (
-                              <span>{brl(item.paidAmount)} baixado • {brl(item.pendingAmount)} pendente</span>
+                              <span>{brl(item.paidAmount)} bx • {brl(item.pendingAmount)} pend</span>
                             ) : (
-                              <span>{brl(item.pendingAmount)} pendente</span>
+                              <span>{brl(item.pendingAmount)} pend</span>
                             )}
                           </div>
                         ) : null}
                       </td>
 
                       {/* Status */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-2 px-3 text-center whitespace-nowrap">
                         {item.statusColor === "emerald" || item.status === "PAGO" || item.status === "LIQUIDADO" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 dark:text-emerald-400 text-[11px] font-extrabold">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold">
+                            <CheckCircle2 className="w-3 h-3" />
                             {item.status === "PAGO" || item.status === "LIQUIDADO" ? "PAGO" : item.status}
                           </span>
                         ) : item.statusColor === "amber" || item.status === "PENDENTE" ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-500 dark:text-amber-400 text-[11px] font-extrabold">
-                            <Clock className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-[10px] font-extrabold">
+                            <Clock className="w-3 h-3" />
                             {item.status === "PENDENTE" ? "AGUARDANDO" : item.status}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[11px] font-extrabold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-extrabold">
                             {item.walletType === "CREDIT_CARD" ? "FATURA ZERADA" : "SEM GASTOS"}
                           </span>
                         )}
                       </td>
 
                       {/* Ações */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-2 px-3 text-center whitespace-nowrap">
                         <Link
                           href={item.detailsUrl}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-bold text-xs transition-all cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 font-bold text-[11px] transition-all cursor-pointer"
                         >
-                          <Eye className="w-3.5 h-3.5" /> Detalhes
+                          <Eye className="w-3 h-3" /> Detalhes
                         </Link>
                       </td>
                     </tr>
