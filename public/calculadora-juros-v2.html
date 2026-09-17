@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora de Juros Compostos v2.0 | Kamael Finance</title>
+  <title>Calculadora de Juros Compostos & Performance v2.0</title>
   
   <!-- Fontes do Google -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,7 +32,8 @@
       --accent-sky: #0284c7;
       --accent-sky-subtle: rgba(2, 132, 199, 0.1);
       --accent-teal: #0d9488;
-      --accent-teal-subtle: rgba(13, 148, 136, 0.1);
+      --accent-rose: #ef4444;
+      --accent-rose-subtle: rgba(239, 68, 68, 0.1);
       
       --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
       --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
@@ -164,6 +165,42 @@
       color: #ffffff;
     }
 
+    /* ─── Mode Switcher (Versão 1.0 vs Versão 2.0) ─── */
+    .mode-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 8px 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .mode-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mode-tab {
+      padding: 8px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: var(--radius-md);
+      border: 1px solid transparent;
+      cursor: pointer;
+      background-color: var(--bg-card-subtle);
+      color: var(--text-muted);
+    }
+
+    .mode-tab.active {
+      background-color: var(--accent-emerald);
+      color: #ffffff;
+      box-shadow: var(--shadow-sm);
+    }
+
     /* ─── KPI Cards Grid ─── */
     .kpi-grid {
       display: grid;
@@ -225,9 +262,10 @@
       gap: 4px;
     }
 
-    .text-emerald { color: var(--accent-emerald); }
-    .text-sky { color: var(--accent-sky); }
-    .text-teal { color: var(--accent-teal); }
+    .text-emerald { color: var(--accent-emerald) !important; }
+    .text-sky { color: var(--accent-sky) !important; }
+    .text-teal { color: var(--accent-teal) !important; }
+    .text-rose { color: var(--accent-rose) !important; }
 
     /* ─── Main Content Grid (Controles + Gráfico) ─── */
     .main-grid {
@@ -308,9 +346,9 @@
       pointer-events: none;
     }
 
-    input[type="number"] {
+    input[type="number"], input[type="text"] {
       width: 100%;
-      height: 42px;
+      height: 40px;
       padding: 8px 14px 8px 38px;
       background-color: var(--bg-card-subtle);
       border: 1px solid var(--border-color);
@@ -321,7 +359,7 @@
       outline: none;
     }
 
-    input[type="number"]:focus {
+    input[type="number"]:focus, input[type="text"]:focus {
       background-color: var(--bg-card);
       border-color: var(--border-focus);
       box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
@@ -335,7 +373,6 @@
       cursor: pointer;
     }
 
-    /* Quick Presets Buttons */
     .presets-row {
       display: flex;
       flex-wrap: wrap;
@@ -368,7 +405,7 @@
     /* ─── Chart Panel ─── */
     .chart-container {
       position: relative;
-      height: 340px;
+      height: 330px;
       width: 100%;
     }
 
@@ -390,7 +427,7 @@
       color: var(--text-main);
     }
 
-    /* ─── Tabela Expansível ─── */
+    /* ─── Tabela ─── */
     .table-container {
       margin-top: 20px;
       background-color: var(--bg-card);
@@ -398,11 +435,6 @@
       border-radius: var(--radius-xl);
       padding: 24px;
       box-shadow: var(--shadow-sm);
-      display: none;
-    }
-
-    .table-container.show {
-      display: block;
     }
 
     .table-responsive {
@@ -442,6 +474,13 @@
     tbody tr:hover {
       background-color: var(--bg-card-subtle);
     }
+
+    .table-input {
+      width: 110px !important;
+      height: 32px !important;
+      padding: 4px 8px !important;
+      font-size: 12px !important;
+    }
   </style>
 </head>
 <body>
@@ -453,10 +492,10 @@
       <div class="header-title">
         <div class="badge-hub">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Motor Matemático v2.0
+          Central de Inteligência Financeira
         </div>
-        <h1>Calculadora de Juros Compostos</h1>
-        <p>Simule a multiplicação exponencial do seu patrimônio com aportes recorrentes e juros compostos.</p>
+        <h1>Calculadora de Juros Compostos & Performance</h1>
+        <p>Alterne entre a projeção matemática tradicional ou o extrato dinâmico de performance mês a mês.</p>
       </div>
       <div class="header-actions">
         <button id="themeToggleBtn" class="btn" title="Alternar Modo Escuro/Claro">
@@ -468,218 +507,362 @@
       </div>
     </header>
 
-    <!-- KPI CARDS (Destaques no Topo) -->
-    <section class="kpi-grid">
-      <!-- Card 1: Montante Final -->
-      <div class="kpi-card highlight">
-        <div>
-          <div class="kpi-header">
-            <span class="kpi-title">Montante Acumulado</span>
-            <span>💰</span>
+    <!-- CHAVEADOR DE VERSÃO (V1.0 vs V2.0) -->
+    <nav class="mode-switcher">
+      <div class="mode-tabs">
+        <button id="tabV1" class="mode-tab active" onclick="setMode('v1')">
+          📈 Versão 1.0 (Projeção Composta Tradicional)
+        </button>
+        <button id="tabV2" class="mode-tab" onclick="setMode('v2')">
+          📊 Versão 2.0 (Simulação por Extrato & Performance)
+        </button>
+      </div>
+      <span id="modeDescription" style="font-size: 11px; color: var(--text-muted); font-weight: 600;">
+        Aportes fixos + juros exponenciais matemáticos
+      </span>
+    </nav>
+
+    <!-- ================================================================ -->
+    <!-- VIEW VERSÃO 1.0: PROJEÇÃO TRADICIONAL -->
+    <!-- ================================================================ -->
+    <div id="viewV1">
+      <!-- KPI CARDS V1 -->
+      <section class="kpi-grid" style="margin-bottom: 24px;">
+        <div class="kpi-card highlight">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Montante Acumulado</span>
+              <span>💰</span>
+            </div>
+            <div id="kpiFinalAmount" class="kpi-value text-emerald">R$ 0,00</div>
           </div>
-          <div id="kpiFinalAmount" class="kpi-value text-emerald">R$ 0,00</div>
+          <div class="kpi-footer text-emerald">
+            <span id="kpiMultiplier">0.0x</span> o valor investido
+          </div>
         </div>
-        <div class="kpi-footer text-emerald">
-          <span id="kpiMultiplier">0.0x</span> o valor investido
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Total Investido (Bolso)</span>
+              <span>🏦</span>
+            </div>
+            <div id="kpiTotalInvested" class="kpi-value">R$ 0,00</div>
+          </div>
+          <div id="kpiPeriodMonths" class="kpi-footer">
+            0 meses de aportes
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Total em Juros Ganhos</span>
+              <span>✨</span>
+            </div>
+            <div id="kpiTotalInterest" class="kpi-value text-teal">R$ 0,00</div>
+          </div>
+          <div id="kpiProfitShare" class="kpi-footer text-teal">
+            0% de lucro puro
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Taxa Efetiva Mensal</span>
+              <span>📈</span>
+            </div>
+            <div id="kpiMonthlyRate" class="kpi-value">0,00% <span style="font-size:14px; font-weight:normal; color:var(--text-muted)">a.m.</span></div>
+          </div>
+          <div id="kpiAnnualEquivalent" class="kpi-footer">
+            Equivalente a 0% a.a.
+          </div>
+        </div>
+      </section>
+
+      <!-- GRID V1 (CONTROLES + GRÁFICO) -->
+      <main class="main-grid">
+        <div class="card-panel">
+          <div class="panel-header">
+            <h3>Parâmetros da Simulação</h3>
+            <span>Tempo Real</span>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Valor Inicial (R$)</label>
+              <span id="previewInitial" class="form-value-preview">R$ 5.000</span>
+            </div>
+            <div class="input-wrapper">
+              <span class="prefix">R$</span>
+              <input type="number" id="inputInitial" min="0" step="500" value="5000" />
+            </div>
+            <input type="range" id="sliderInitial" min="0" max="200000" step="1000" value="5000" />
+            <div class="presets-row">
+              <button class="preset-chip" onclick="setV1Initial(0)">R$ 0</button>
+              <button class="preset-chip" onclick="setV1Initial(5000)">R$ 5k</button>
+              <button class="preset-chip" onclick="setV1Initial(20000)">R$ 20k</button>
+              <button class="preset-chip" onclick="setV1Initial(50000)">R$ 50k</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Aporte Mensal (R$)</label>
+              <span id="previewMonthly" class="form-value-preview">R$ 800</span>
+            </div>
+            <div class="input-wrapper">
+              <span class="prefix">R$</span>
+              <input type="number" id="inputMonthly" min="0" step="100" value="800" />
+            </div>
+            <input type="range" id="sliderMonthly" min="0" max="20000" step="100" value="800" />
+            <div class="presets-row">
+              <button class="preset-chip" onclick="setV1Monthly(0)">Sem aporte (R$ 0)</button>
+              <button class="preset-chip" onclick="setV1Monthly(300)">+300</button>
+              <button class="preset-chip" onclick="setV1Monthly(500)">+500</button>
+              <button class="preset-chip" onclick="setV1Monthly(1000)">+1.000</button>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="form-label-row">
+              <label class="form-label">Taxa de Juros Anual (% a.a.)</label>
+              <span id="previewAnnualRate" class="form-value-preview text-teal">12.00% a.a.</span>
+            </div>
+            <div class="input-wrapper">
+              <span class="prefix">%</span>
+              <input type="number" id="inputAnnualRate" min="0" max="100" step="0.5" value="12" />
+            </div>
+            <input type="range" id="sliderAnnualRate" min="0" max="30" step="0.25" value="12" />
+            <div class="presets-row">
+              <button class="preset-chip" onclick="setV1AnnualRate(8)">8% (IPCA+)</button>
+              <button class="preset-chip" onclick="setV1AnnualRate(10.5)">10.5% (Cons.)</button>
+              <button class="preset-chip" onclick="setV1AnnualRate(13.65)">13.65% (CDI)</button>
+              <button class="preset-chip" onclick="setV1AnnualRate(18)">18% (Ações)</button>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0">
+            <div class="form-label-row">
+              <label class="form-label">Prazo de Aplicação (Anos)</label>
+              <span id="previewYears" class="form-value-preview text-sky">10 anos (120 meses)</span>
+            </div>
+            <input type="range" id="sliderYears" min="1" max="40" step="1" value="10" />
+            <div class="presets-row">
+              <button class="preset-chip" onclick="setV1Years(1)">1 ano</button>
+              <button class="preset-chip" onclick="setV1Years(5)">5 anos</button>
+              <button class="preset-chip" onclick="setV1Years(10)">10 anos</button>
+              <button class="preset-chip" onclick="setV1Years(20)">20 anos</button>
+              <button class="preset-chip" onclick="setV1Years(30)">30 anos</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-panel" style="display:flex; flex-direction:column; justify-content:space-between">
+          <div>
+            <div class="panel-header">
+              <div>
+                <h3>Curva Exponencial de Patrimônio</h3>
+                <span>Capital Investido vs. Montante Total</span>
+              </div>
+              <button id="toggleV1TableBtn" class="btn">
+                👁️ Ver Tabela
+              </button>
+            </div>
+            <div class="chart-container">
+              <canvas id="chartV1"></canvas>
+            </div>
+          </div>
+          <div class="callout-insight">
+            <span>💡</span>
+            <div>
+              <strong>Regra de Aporte:</strong> Se o aporte mensal for R$ 0, a linha do Capital Investido fica plana enquanto a do Montante Total curva-se exponencialmente com os juros compostos.
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- TABELA V1 (EXPANSÍVEL) -->
+      <section id="tableSectionV1" class="table-container" style="display:none;">
+        <div class="panel-header" style="margin-bottom:0">
+          <h3>Detalhamento da Evolução Temporal</h3>
+          <span id="v1TableCount">120 meses</span>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Período</th>
+                <th>Saldo Inicial</th>
+                <th>Aporte</th>
+                <th>Juros Ganhos</th>
+                <th>Total Investido</th>
+                <th>Saldo Final</th>
+              </tr>
+            </thead>
+            <tbody id="v1TableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- VIEW VERSÃO 2.0: SIMULAÇÃO POR EXTRATO & PERFORMANCE -->
+    <!-- ================================================================ -->
+    <div id="viewV2" style="display:none;">
+      <!-- KPI CARDS V2 -->
+      <section class="kpi-grid" style="margin-bottom: 24px;">
+        <div class="kpi-card highlight">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Saldo Atual</span>
+              <span>💰</span>
+            </div>
+            <div id="v2KpiFinalBalance" class="kpi-value text-emerald">R$ 0,00</div>
+          </div>
+          <div id="v2KpiInitialInfo" class="kpi-footer text-emerald">
+            Capital Inicial: R$ 0,00
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Lucro Total Acumulado (P/L)</span>
+              <span>📊</span>
+            </div>
+            <div id="v2KpiProfitLoss" class="kpi-value">R$ 0,00</div>
+          </div>
+          <div id="v2KpiMonthsCount" class="kpi-footer">
+            0 meses operados
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">ROI Total (%)</span>
+              <span>✨</span>
+            </div>
+            <div id="v2KpiROI" class="kpi-value text-teal">+0.00%</div>
+          </div>
+          <div id="v2KpiWinRate" class="kpi-footer text-teal">
+            Taxa de Acerto: 0%
+          </div>
+        </div>
+
+        <div class="kpi-card">
+          <div>
+            <div class="kpi-header">
+              <span class="kpi-title">Melhor & Pior Mês</span>
+              <span>🎯</span>
+            </div>
+            <div style="font-size: 13px; font-weight: 700; margin-top: 4px;">
+              <div style="color: var(--accent-emerald)">🟢 Melhor: <span id="v2KpiBestMonth">-</span></div>
+              <div style="color: var(--accent-rose); margin-top: 2px;">🔴 Pior: <span id="v2KpiWorstMonth">-</span></div>
+            </div>
+          </div>
+          <div class="kpi-footer">
+            Baseado no histórico do extrato
+          </div>
+        </div>
+      </section>
+
+      <!-- GRÁFICO V2 (FLUTUAÇÃO REAL) -->
+      <div class="card-panel" style="margin-bottom: 24px;">
+        <div class="panel-header">
+          <div>
+            <h3>Curva de Flutuação Real do Saldo</h3>
+            <span>Evolução do saldo conforme lucros e prejuízos reais cadastrados</span>
+          </div>
+          <div class="presets-row" style="margin-top:0">
+            <button class="preset-chip" onclick="applyV2Preset('steady')">Crescimento Constante</button>
+            <button class="preset-chip" onclick="applyV2Preset('volatile')">Alta Volatilidade (Green/Red)</button>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartV2"></canvas>
         </div>
       </div>
 
-      <!-- Card 2: Total Investido -->
-      <div class="kpi-card">
-        <div>
-          <div class="kpi-header">
-            <span class="kpi-title">Total Investido (Bolso)</span>
-            <span>🏦</span>
-          </div>
-          <div id="kpiTotalInvested" class="kpi-value">R$ 0,00</div>
-        </div>
-        <div id="kpiPeriodMonths" class="kpi-footer">
-          0 meses de aportes
-        </div>
-      </div>
-
-      <!-- Card 3: Total em Juros -->
-      <div class="kpi-card">
-        <div>
-          <div class="kpi-header">
-            <span class="kpi-title">Total em Juros Ganhos</span>
-            <span>✨</span>
-          </div>
-          <div id="kpiTotalInterest" class="kpi-value text-teal">R$ 0,00</div>
-        </div>
-        <div id="kpiProfitShare" class="kpi-footer text-teal">
-          0% de lucro puro
-        </div>
-      </div>
-
-      <!-- Card 4: Taxa Efetiva Mensal -->
-      <div class="kpi-card">
-        <div>
-          <div class="kpi-header">
-            <span class="kpi-title">Taxa Efetiva Mensal</span>
-            <span>📈</span>
-          </div>
-          <div id="kpiMonthlyRate" class="kpi-value">0,00% <span style="font-size:14px; font-weight:normal; color:var(--text-muted)">a.m.</span></div>
-        </div>
-        <div id="kpiAnnualEquivalent" class="kpi-footer">
-          Equivalente a 0% a.a.
-        </div>
-      </div>
-    </section>
-
-    <!-- GRID PRINCIPAL: FORMULÁRIO DE CONTROLES + GRÁFICO -->
-    <main class="main-grid">
-      
-      <!-- PAINEL DE CONTROLES / ENTRADAS -->
+      <!-- TABELA DINÂMICA V2 -->
       <div class="card-panel">
         <div class="panel-header">
-          <h3>Parâmetros da Simulação</h3>
-          <span>Tempo Real</span>
-        </div>
-
-        <!-- 1. Valor Inicial -->
-        <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label">Valor Inicial (R$)</label>
-            <span id="previewInitial" class="form-value-preview">R$ 5.000</span>
+          <div>
+            <h3>Extrato Mensal Editável (P/L e ROI)</h3>
+            <span>O Saldo Inicial de um mês é automaticamente o Saldo Final do mês anterior</span>
           </div>
-          <div class="input-wrapper">
-            <span class="prefix">R$</span>
-            <input type="number" id="inputInitial" min="0" step="500" value="5000" />
-          </div>
-          <input type="range" id="sliderInitial" min="0" max="200000" step="1000" value="5000" />
-          <div class="presets-row">
-            <button class="preset-chip" onclick="setInitial(0)">R$ 0</button>
-            <button class="preset-chip" onclick="setInitial(5000)">R$ 5k</button>
-            <button class="preset-chip" onclick="setInitial(20000)">R$ 20k</button>
-            <button class="preset-chip" onclick="setInitial(50000)">R$ 50k</button>
-          </div>
-        </div>
-
-        <!-- 2. Aporte Mensal -->
-        <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label">Aporte Mensal (R$)</label>
-            <span id="previewMonthly" class="form-value-preview">R$ 800</span>
-          </div>
-          <div class="input-wrapper">
-            <span class="prefix">R$</span>
-            <input type="number" id="inputMonthly" min="0" step="100" value="800" />
-          </div>
-          <input type="range" id="sliderMonthly" min="0" max="20000" step="100" value="800" />
-          <div class="presets-row">
-            <button class="preset-chip" onclick="setMonthly(0)">Sem aporte (R$ 0)</button>
-            <button class="preset-chip" onclick="setMonthly(300)">+300</button>
-            <button class="preset-chip" onclick="setMonthly(500)">+500</button>
-            <button class="preset-chip" onclick="setMonthly(1000)">+1.000</button>
-            <button class="preset-chip" onclick="setMonthly(2500)">+2.500</button>
-          </div>
-        </div>
-
-        <!-- 3. Taxa de Juros Anual -->
-        <div class="form-group">
-          <div class="form-label-row">
-            <label class="form-label">Taxa de Juros Anual (% a.a.)</label>
-            <span id="previewAnnualRate" class="form-value-preview text-teal">12.00% a.a.</span>
-          </div>
-          <div class="input-wrapper">
-            <span class="prefix">%</span>
-            <input type="number" id="inputAnnualRate" min="0" max="100" step="0.5" value="12" />
-          </div>
-          <input type="range" id="sliderAnnualRate" min="0" max="30" step="0.25" value="12" />
-          <div class="presets-row">
-            <button class="preset-chip" onclick="setAnnualRate(8)">8% (Tesouro IPCA+)</button>
-            <button class="preset-chip" onclick="setAnnualRate(10.5)">10.5% (Conservador)</button>
-            <button class="preset-chip" onclick="setAnnualRate(13.65)">13.65% (CDI Atual)</button>
-            <button class="preset-chip" onclick="setAnnualRate(18)">18% (Ações)</button>
-          </div>
-        </div>
-
-        <!-- 4. Prazo em Anos -->
-        <div class="form-group" style="margin-bottom:0">
-          <div class="form-label-row">
-            <label class="form-label">Prazo de Aplicação (Anos)</label>
-            <span id="previewYears" class="form-value-preview text-sky">10 anos (120 meses)</span>
-          </div>
-          <input type="range" id="sliderYears" min="1" max="40" step="1" value="10" />
-          <div class="presets-row">
-            <button class="preset-chip" onclick="setYears(1)">1 ano</button>
-            <button class="preset-chip" onclick="setYears(5)">5 anos</button>
-            <button class="preset-chip" onclick="setYears(10)">10 anos</button>
-            <button class="preset-chip" onclick="setYears(20)">20 anos</button>
-            <button class="preset-chip" onclick="setYears(30)">30 anos</button>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- PAINEL DO GRÁFICO INTERATIVO -->
-      <div class="card-panel" style="display:flex; flex-direction:column; justify-content:space-between">
-        <div>
-          <div class="panel-header">
-            <div>
-              <h3>Curva Exponencial de Patrimônio</h3>
-              <span>Evolução comparativa entre capital investido e juros compostos</span>
+          <div style="display:flex; align-items:center; gap: 10px;">
+            <div style="display:flex; align-items:center; gap: 6px;">
+              <label style="font-size:12px; font-weight:700">Capital Inicial:</label>
+              <input type="number" id="v2InputCapital" value="10000" step="1000" style="width:130px; height:32px; padding:4px 8px;" onchange="updateV2Calculations()" />
             </div>
-            <button id="toggleTableBtn" class="btn">
-              👁️ Ver Tabela
+            <button class="btn btn-primary" onclick="addV2Month()">
+              ➕ Adicionar Mês
             </button>
           </div>
-
-          <div class="chart-container">
-            <canvas id="compoundChart"></canvas>
-          </div>
         </div>
 
-        <div class="callout-insight">
-          <span>💡</span>
-          <div>
-            <strong>O Efeito Bola de Neve:</strong> No início da simulação, seu patrimônio cresce predominantemente pelo valor que você aporta do bolso. Conforme os anos passam, a curva verde ganha inclinação vertical acelerada, fazendo com que os <strong>juros compostos gerem mais renda que os próprios aportes mensais</strong>.
-          </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Saldo Inicial</th>
+                <th>P/L Rendimento (R$)</th>
+                <th>ROI do Mês (%)</th>
+                <th>Saldo Final</th>
+                <th style="text-align:center">Ação</th>
+              </tr>
+            </thead>
+            <tbody id="v2TableBody"></tbody>
+          </table>
         </div>
       </div>
-
-    </main>
-
-    <!-- TABELA DEMONSTRATIVA MÊS A MÊS / ANO A ANO -->
-    <section id="tableSection" class="table-container">
-      <div class="panel-header" style="margin-bottom:0">
-        <h3>Evolução Detalhada da Aplicação</h3>
-        <span id="tableTotalRecords">120 meses</span>
-      </div>
-      <div class="table-responsive">
-        <table>
-          <thead>
-            <tr>
-              <th>Período</th>
-              <th>Saldo Inicial</th>
-              <th>Aporte do Mês</th>
-              <th>Juros do Mês</th>
-              <th>Total Investido</th>
-              <th>Saldo Final</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody">
-            <!-- Linhas geradas dinamicamente via JS -->
-          </tbody>
-        </table>
-      </div>
-    </section>
+    </div>
 
   </div>
 
   <script>
     // =====================================================================
-    // MOTOR DE CÁLCULO E ESTADO DA APLICAÇÃO
+    // FORMATAÇÃO E HELPERS
     // =====================================================================
-    const formatBRL = (value) => {
-      return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format(value || 0);
-    };
+    const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
 
-    // Elementos DOM dos Controles
+    let activeMode = 'v1';
+    let chartV1Instance = null;
+    let chartV2Instance = null;
+
+    // Alternar Versão 1.0 vs Versão 2.0
+    function setMode(mode) {
+      activeMode = mode;
+      const tabV1 = document.getElementById('tabV1');
+      const tabV2 = document.getElementById('tabV2');
+      const viewV1 = document.getElementById('viewV1');
+      const viewV2 = document.getElementById('viewV2');
+      const desc = document.getElementById('modeDescription');
+
+      if (mode === 'v1') {
+        tabV1.classList.add('active');
+        tabV2.classList.remove('active');
+        viewV1.style.display = 'block';
+        viewV2.style.display = 'none';
+        desc.innerText = 'Aportes fixos + juros exponenciais matemáticos';
+        calculateV1();
+      } else {
+        tabV2.classList.add('active');
+        tabV1.classList.remove('active');
+        viewV2.style.display = 'block';
+        viewV1.style.display = 'none';
+        desc.innerText = 'Controle de lucros/prejuízos reais mês a mês (P/L e ROI)';
+        updateV2Calculations();
+      }
+    }
+
+    // =====================================================================
+    // MOTOR VERSÃO 1.0 (PROJEÇÃO TRADICIONAL)
+    // =====================================================================
     const inputInitial = document.getElementById('inputInitial');
     const sliderInitial = document.getElementById('sliderInitial');
     const previewInitial = document.getElementById('previewInitial');
@@ -695,89 +878,50 @@
     const sliderYears = document.getElementById('sliderYears');
     const previewYears = document.getElementById('previewYears');
 
-    // Elementos dos KPIs
-    const kpiFinalAmount = document.getElementById('kpiFinalAmount');
-    const kpiMultiplier = document.getElementById('kpiMultiplier');
-    const kpiTotalInvested = document.getElementById('kpiTotalInvested');
-    const kpiPeriodMonths = document.getElementById('kpiPeriodMonths');
-    const kpiTotalInterest = document.getElementById('kpiTotalInterest');
-    const kpiProfitShare = document.getElementById('kpiProfitShare');
-    const kpiMonthlyRate = document.getElementById('kpiMonthlyRate');
-    const kpiAnnualEquivalent = document.getElementById('kpiAnnualEquivalent');
+    function sync(a, b) {
+      a.addEventListener('input', () => { b.value = a.value; calculateV1(); });
+      b.addEventListener('input', () => { a.value = b.value; calculateV1(); });
+    }
+    sync(inputInitial, sliderInitial);
+    sync(inputMonthly, sliderMonthly);
+    sync(inputAnnualRate, sliderAnnualRate);
+    sliderYears.addEventListener('input', calculateV1);
 
-    // Tabela e Ações
-    const toggleTableBtn = document.getElementById('toggleTableBtn');
-    const tableSection = document.getElementById('tableSection');
-    const tableBody = document.getElementById('tableBody');
-    const tableTotalRecords = document.getElementById('tableTotalRecords');
-    const copySummaryBtn = document.getElementById('copySummaryBtn');
-    const themeToggleBtn = document.getElementById('themeToggleBtn');
-    const themeIcon = document.getElementById('themeIcon');
-    const themeLabel = document.getElementById('themeLabel');
+    window.setV1Initial = (v) => { inputInitial.value = v; sliderInitial.value = v; calculateV1(); };
+    window.setV1Monthly = (v) => { inputMonthly.value = v; sliderMonthly.value = v; calculateV1(); };
+    window.setV1AnnualRate = (v) => { inputAnnualRate.value = v; sliderAnnualRate.value = v; calculateV1(); };
+    window.setV1Years = (v) => { sliderYears.value = v; calculateV1(); };
 
-    let isDarkTheme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (isDarkTheme) document.documentElement.classList.add('dark');
-    updateThemeButtonText();
-
-    let chartInstance = null;
-
-    // =====================================================================
-    // FUNÇÃO PRINCIPAL DE SIMULAÇÃO
-    // =====================================================================
-    function calculateCompoundInterest() {
+    function calculateV1() {
       const initial = Math.max(0, parseFloat(inputInitial.value) || 0);
       const monthly = Math.max(0, parseFloat(inputMonthly.value) || 0);
       const annualRate = Math.max(0, parseFloat(inputAnnualRate.value) || 0) / 100;
       const years = Math.max(1, parseInt(sliderYears.value) || 1);
       const totalMonths = years * 12;
 
-      // Taxa efetiva mensal: i_mensal = (1 + i_anual)^(1/12) - 1
       const monthlyRate = annualRate > 0 ? Math.pow(1 + annualRate, 1 / 12) - 1 : 0;
 
       let currentBalance = initial;
       let investedCapital = initial;
 
-      const labels = [];
-      const balanceData = [];
-      const investedData = [];
-      const fullTimeline = [];
-
-      fullTimeline.push({
-        month: 0,
-        label: "Início",
-        startBalance: 0,
-        deposit: initial,
-        interest: 0,
-        invested: initial,
-        finalBalance: initial
-      });
-
-      labels.push("Início");
-      balanceData.push(initial);
-      investedData.push(initial);
+      const labels = ["Início"];
+      const balanceData = [initial];
+      const investedData = [initial];
+      const timeline = [{ label: "Início", start: 0, deposit: initial, interest: 0, invested: initial, final: initial }];
 
       for (let m = 1; m <= totalMonths; m++) {
-        const startBalance = currentBalance;
-        const interestEarned = currentBalance * monthlyRate;
+        const start = currentBalance;
+        const interest = currentBalance * monthlyRate;
         const deposit = monthly;
-        
-        currentBalance = startBalance + interestEarned + deposit;
+
+        currentBalance = start + interest + deposit;
         investedCapital += deposit;
 
         const isYearEnd = m % 12 === 0;
         const label = isYearEnd ? `${m / 12}º Ano` : `Mês ${m}`;
 
-        fullTimeline.push({
-          month: m,
-          label: label,
-          startBalance: startBalance,
-          deposit: deposit,
-          interest: interestEarned,
-          invested: investedCapital,
-          finalBalance: currentBalance
-        });
+        timeline.push({ label, start, deposit, interest, invested: investedCapital, final: currentBalance });
 
-        // Amostragem inteligente para o gráfico
         if (totalMonths <= 36 || isYearEnd || m === totalMonths) {
           labels.push(label);
           balanceData.push(Math.round(currentBalance * 100) / 100);
@@ -786,274 +930,348 @@
       }
 
       const totalInterest = Math.max(0, currentBalance - investedCapital);
-      const wealthMultiplier = investedCapital > 0 ? (currentBalance / investedCapital).toFixed(2) : "0.00";
-      const profitPercentage = investedCapital > 0 ? ((totalInterest / investedCapital) * 100).toFixed(0) : "0";
+      const multiplier = investedCapital > 0 ? (currentBalance / investedCapital).toFixed(2) : "0.00";
+      const profitPct = investedCapital > 0 ? ((totalInterest / investedCapital) * 100).toFixed(0) : "0";
 
-      // 1. Atualizar KPIs
-      kpiFinalAmount.innerText = formatBRL(currentBalance);
-      kpiMultiplier.innerText = `${wealthMultiplier}x`;
-      
-      kpiTotalInvested.innerText = formatBRL(investedCapital);
-      kpiPeriodMonths.innerText = `${years} anos (${totalMonths} meses) de aportes`;
+      // KPIs
+      document.getElementById('kpiFinalAmount').innerText = formatBRL(currentBalance);
+      document.getElementById('kpiMultiplier').innerText = `${multiplier}x`;
+      document.getElementById('kpiTotalInvested').innerText = formatBRL(investedCapital);
+      document.getElementById('kpiPeriodMonths').innerText = `${years} anos (${totalMonths} meses) de aportes`;
+      document.getElementById('kpiTotalInterest').innerText = formatBRL(totalInterest);
+      document.getElementById('kpiProfitShare').innerText = `${profitPct}% de lucro puro`;
+      document.getElementById('kpiMonthlyRate').innerHTML = `${(monthlyRate * 100).toFixed(2)}% <span style="font-size:14px; font-weight:normal; color:var(--text-muted)">a.m.</span>`;
+      document.getElementById('kpiAnnualEquivalent').innerText = `Equivalente a ${(annualRate * 100).toFixed(2)}% a.a.`;
 
-      kpiTotalInterest.innerText = formatBRL(totalInterest);
-      kpiProfitShare.innerText = `${profitPercentage}% de lucro puro`;
-
-      kpiMonthlyRate.innerHTML = `${(monthlyRate * 100).toFixed(2)}% <span style="font-size:14px; font-weight:normal; color:var(--text-muted)">a.m.</span>`;
-      kpiAnnualEquivalent.innerText = `Equivalente a ${(annualRate * 100).toFixed(2)}% a.a.`;
-
-      // 2. Atualizar Previews
+      // Previews
       previewInitial.innerText = formatBRL(initial);
       previewMonthly.innerText = formatBRL(monthly);
       previewAnnualRate.innerText = `${(annualRate * 100).toFixed(2)}% a.a.`;
       previewYears.innerText = `${years} anos (${totalMonths} meses)`;
 
-      // 3. Atualizar Gráfico
-      updateChart(labels, balanceData, investedData);
+      // Render Chart V1
+      renderChartV1(labels, balanceData, investedData);
 
-      // 4. Atualizar Tabela
-      renderTable(fullTimeline);
-
-      return {
-        initial,
-        monthly,
-        annualRate: (annualRate * 100).toFixed(2),
-        years,
-        totalMonths,
-        finalAmount: currentBalance,
-        totalInvested: investedCapital,
-        totalInterest,
-        wealthMultiplier
-      };
+      // Render Table V1
+      let html = '';
+      timeline.forEach((r, idx) => {
+        html += `<tr>
+          <td><strong>${r.label}</strong></td>
+          <td>${formatBRL(r.start)}</td>
+          <td class="text-sky">${idx === 0 ? '-' : '+' + formatBRL(r.deposit)}</td>
+          <td class="text-teal">${idx === 0 ? '-' : '+' + formatBRL(r.interest)}</td>
+          <td>${formatBRL(r.invested)}</td>
+          <td class="text-emerald"><strong>${formatBRL(r.final)}</strong></td>
+        </tr>`;
+      });
+      document.getElementById('v1TableBody').innerHTML = html;
+      document.getElementById('v1TableCount').innerText = `${totalMonths} meses de histórico`;
     }
 
-    // =====================================================================
-    // RENDERIZAÇÃO DO CHART.JS
-    // =====================================================================
-    function updateChart(labels, balanceData, investedData) {
-      const ctx = document.getElementById('compoundChart').getContext('2d');
+    function renderChartV1(labels, balanceData, investedData) {
+      const ctx = document.getElementById('chartV1').getContext('2d');
       const isDark = document.documentElement.classList.contains('dark');
-
       const gridColor = isDark ? '#1e293b' : '#f1f5f9';
       const textColor = isDark ? '#94a3b8' : '#64748b';
 
-      const gradientEmerald = ctx.createLinearGradient(0, 0, 0, 320);
-      gradientEmerald.addColorStop(0, isDark ? 'rgba(16, 185, 129, 0.45)' : 'rgba(16, 185, 129, 0.35)');
-      gradientEmerald.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+      if (chartV1Instance) chartV1Instance.destroy();
 
-      const gradientSky = ctx.createLinearGradient(0, 0, 0, 320);
-      gradientSky.addColorStop(0, isDark ? 'rgba(2, 132, 199, 0.35)' : 'rgba(2, 132, 199, 0.25)');
-      gradientSky.addColorStop(1, 'rgba(2, 132, 199, 0.0)');
+      const gradEmerald = ctx.createLinearGradient(0, 0, 0, 300);
+      gradEmerald.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+      gradEmerald.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
 
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
+      const gradSky = ctx.createLinearGradient(0, 0, 0, 300);
+      gradSky.addColorStop(0, 'rgba(2, 132, 199, 0.3)');
+      gradSky.addColorStop(1, 'rgba(2, 132, 199, 0.0)');
 
-      chartInstance = new Chart(ctx, {
+      chartV1Instance = new Chart(ctx, {
         type: 'line',
         data: {
-          labels: labels,
+          labels,
           datasets: [
             {
               label: 'Montante Total (Com Juros)',
               data: balanceData,
               borderColor: '#10b981',
-              backgroundColor: gradientEmerald,
+              backgroundColor: gradEmerald,
               borderWidth: 3,
               fill: true,
               tension: 0.3,
-              pointRadius: labels.length > 20 ? 0 : 4,
-              pointHoverRadius: 6,
-              pointBackgroundColor: '#10b981'
+              pointRadius: labels.length > 20 ? 0 : 3
             },
             {
               label: 'Capital Investido (Do Bolso)',
               data: investedData,
               borderColor: '#0284c7',
-              backgroundColor: gradientSky,
+              backgroundColor: gradSky,
               borderWidth: 2.5,
               fill: true,
               tension: 0.1,
-              pointRadius: labels.length > 20 ? 0 : 3,
-              pointHoverRadius: 5,
-              pointBackgroundColor: '#0284c7'
+              pointRadius: labels.length > 20 ? 0 : 3
             }
           ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          interaction: {
-            mode: 'index',
-            intersect: false,
-          },
           plugins: {
-            legend: {
-              position: 'top',
-              labels: {
-                color: textColor,
-                font: { family: 'Plus Jakarta Sans', weight: '600', size: 12 },
-                usePointStyle: true,
-                pointStyle: 'circle',
-                padding: 15
-              }
-            },
+            legend: { labels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } } },
             tooltip: {
-              backgroundColor: isDark ? '#0f172a' : '#ffffff',
-              titleColor: isDark ? '#f8fafc' : '#0f172a',
-              bodyColor: isDark ? '#cbd5e1' : '#334155',
-              borderColor: isDark ? '#334155' : '#e2e8f0',
-              borderWidth: 1,
-              padding: 12,
-              boxPadding: 6,
-              usePointStyle: true,
-              bodyFont: { family: 'Plus Jakarta Sans', size: 12, weight: '600' },
-              titleFont: { family: 'Plus Jakarta Sans', size: 12, weight: '800' },
-              callbacks: {
-                label: function(context) {
-                  return ` ${context.dataset.label}: ${formatBRL(context.parsed.y)}`;
-                }
-              }
+              callbacks: { label: (c) => ` ${c.dataset.label}: ${formatBRL(c.parsed.y)}` }
             }
           },
           scales: {
-            x: {
-              grid: { color: gridColor },
-              ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11 } }
-            },
+            x: { grid: { color: gridColor }, ticks: { color: textColor } },
             y: {
               grid: { color: gridColor },
-              ticks: {
-                color: textColor,
-                font: { family: 'Plus Jakarta Sans', size: 11 },
-                callback: function(value) {
-                  if (value >= 1000000) return `R$ ${(value / 1000000).toFixed(1)}M`;
-                  if (value >= 1000) return `R$ ${(value / 1000).toFixed(0)}k`;
-                  return `R$ ${value}`;
-                }
-              }
+              ticks: { color: textColor, callback: (v) => v >= 1000 ? `R$ ${(v/1000).toFixed(0)}k` : `R$ ${v}` }
             }
           }
         }
       });
     }
 
-    // =====================================================================
-    // RENDERIZAR TABELA EXPANSÍVEL
-    // =====================================================================
-    function renderTable(timeline) {
-      tableTotalRecords.innerText = `${timeline.length - 1} meses de histórico`;
-      let html = '';
-
-      timeline.forEach((row) => {
-        html += `
-          <tr>
-            <td><strong>${row.label}</strong></td>
-            <td>${formatBRL(row.startBalance)}</td>
-            <td class="text-sky">${row.month === 0 ? '-' : '+' + formatBRL(row.deposit)}</td>
-            <td class="text-teal">${row.month === 0 ? '-' : '+' + formatBRL(row.interest)}</td>
-            <td>${formatBRL(row.invested)}</td>
-            <td class="text-emerald"><strong>${formatBRL(row.finalBalance)}</strong></td>
-          </tr>
-        `;
-      });
-
-      tableBody.innerHTML = html;
-    }
-
-    // =====================================================================
-    // SINCRONIZADORES E EVENTOS DE INPUT / SLIDER
-    // =====================================================================
-    function syncInput(input, slider) {
-      input.addEventListener('input', () => {
-        slider.value = input.value || 0;
-        calculateCompoundInterest();
-      });
-      slider.addEventListener('input', () => {
-        input.value = slider.value;
-        calculateCompoundInterest();
-      });
-    }
-
-    syncInput(inputInitial, sliderInitial);
-    syncInput(inputMonthly, sliderMonthly);
-    syncInput(inputAnnualRate, sliderAnnualRate);
-
-    sliderYears.addEventListener('input', () => {
-      calculateCompoundInterest();
+    // Toggle Tabela V1
+    document.getElementById('toggleV1TableBtn').addEventListener('click', () => {
+      const sec = document.getElementById('tableSectionV1');
+      const isHidden = sec.style.display === 'none';
+      sec.style.display = isHidden ? 'block' : 'none';
+      document.getElementById('toggleV1TableBtn').innerText = isHidden ? '🙈 Ocultar Tabela' : '👁️ Ver Tabela';
     });
 
-    // Presets
-    window.setInitial = (val) => {
-      inputInitial.value = val;
-      sliderInitial.value = val;
-      calculateCompoundInterest();
+    // =====================================================================
+    // MOTOR VERSÃO 2.0 (SIMULAÇÃO POR EXTRATO & PERFORMANCE)
+    // =====================================================================
+    let v2Entries = [
+      { id: 1, label: "Mês 1", pl: 420 },
+      { id: 2, label: "Mês 2", pl: 580 },
+      { id: 3, label: "Mês 3", pl: -190 },
+      { id: 4, label: "Mês 4", pl: 640 },
+      { id: 5, label: "Mês 5", pl: 810 },
+      { id: 6, label: "Mês 6", pl: -120 },
+      { id: 7, label: "Mês 7", pl: 950 },
+      { id: 8, label: "Mês 8", pl: 720 },
+    ];
+
+    window.addV2Month = () => {
+      const nextId = v2Entries.length > 0 ? Math.max(...v2Entries.map(e => e.id)) + 1 : 1;
+      v2Entries.push({ id: nextId, label: `Mês ${nextId}`, pl: 500 });
+      updateV2Calculations();
     };
 
-    window.setMonthly = (val) => {
-      inputMonthly.value = val;
-      sliderMonthly.value = val;
-      calculateCompoundInterest();
+    window.removeV2Month = (id) => {
+      if (v2Entries.length <= 1) return;
+      v2Entries = v2Entries.filter(e => e.id !== id);
+      updateV2Calculations();
     };
 
-    window.setAnnualRate = (val) => {
-      inputAnnualRate.value = val;
-      sliderAnnualRate.value = val;
-      calculateCompoundInterest();
+    window.updateV2EntryPL = (id, val) => {
+      const entry = v2Entries.find(e => e.id === id);
+      if (entry) entry.pl = parseFloat(val) || 0;
+      updateV2Calculations();
     };
 
-    window.setYears = (val) => {
-      sliderYears.value = val;
-      calculateCompoundInterest();
-    };
-
-    // Toggle da Tabela
-    toggleTableBtn.addEventListener('click', () => {
-      const isShowing = tableSection.classList.toggle('show');
-      toggleTableBtn.innerText = isShowing ? '🙈 Ocultar Tabela' : '👁️ Ver Tabela';
-      if (isShowing) {
-        tableSection.scrollIntoView({ behavior: 'smooth' });
+    window.applyV2Preset = (type) => {
+      if (type === 'steady') {
+        document.getElementById('v2InputCapital').value = 10000;
+        v2Entries = [
+          { id: 1, label: "Mês 1", pl: 450 },
+          { id: 2, label: "Mês 2", pl: 520 },
+          { id: 3, label: "Mês 3", pl: 480 },
+          { id: 4, label: "Mês 4", pl: 610 },
+          { id: 5, label: "Mês 5", pl: 590 },
+          { id: 6, label: "Mês 6", pl: 670 }
+        ];
+      } else {
+        document.getElementById('v2InputCapital').value = 15000;
+        v2Entries = [
+          { id: 1, label: "Mês 1", pl: 1200 },
+          { id: 2, label: "Mês 2", pl: -850 },
+          { id: 3, label: "Mês 3", pl: 1650 },
+          { id: 4, label: "Mês 4", pl: -600 },
+          { id: 5, label: "Mês 5", pl: 2100 },
+          { id: 6, label: "Mês 6", pl: 1400 }
+        ];
       }
-    });
+      updateV2Calculations();
+    };
+
+    function updateV2Calculations() {
+      const initCap = Math.max(0, parseFloat(document.getElementById('v2InputCapital').value) || 0);
+      let running = initCap;
+      let totalPL = 0;
+      let wins = 0;
+
+      let best = { label: "-", pl: -Infinity };
+      let worst = { label: "-", pl: Infinity };
+
+      const labels = ["Início"];
+      const balanceData = [initCap];
+      const tableRows = [];
+
+      v2Entries.forEach((entry, idx) => {
+        const start = running;
+        const pl = entry.pl || 0;
+        const roi = start > 0 ? (pl / start) * 100 : 0;
+        const final = start + pl;
+
+        running = final;
+        totalPL += pl;
+
+        if (pl >= 0) wins++;
+        if (pl > best.pl) best = { label: entry.label, pl };
+        if (pl < worst.pl) worst = { label: entry.label, pl };
+
+        labels.push(entry.label);
+        balanceData.push(Math.round(final * 100) / 100);
+
+        tableRows.push({
+          id: entry.id,
+          label: entry.label,
+          start,
+          pl,
+          roi,
+          final
+        });
+      });
+
+      const totalROI = initCap > 0 ? (totalPL / initCap) * 100 : 0;
+      const winRate = v2Entries.length > 0 ? (wins / v2Entries.length) * 100 : 0;
+      const isProfitable = totalPL >= 0;
+
+      // KPIs V2
+      document.getElementById('v2KpiFinalBalance').innerText = formatBRL(running);
+      document.getElementById('v2KpiInitialInfo').innerText = `Capital Inicial: ${formatBRL(initCap)}`;
+      
+      const elPL = document.getElementById('v2KpiProfitLoss');
+      elPL.innerText = isProfitable ? `+${formatBRL(totalPL)}` : formatBRL(totalPL);
+      elPL.className = `kpi-value ${isProfitable ? 'text-emerald' : 'text-rose'}`;
+      
+      document.getElementById('v2KpiMonthsCount').innerText = `${v2Entries.length} meses operados`;
+      
+      const elROI = document.getElementById('v2KpiROI');
+      elROI.innerText = totalROI >= 0 ? `+${totalROI.toFixed(2)}%` : `${totalROI.toFixed(2)}%`;
+      elROI.className = `kpi-value ${totalROI >= 0 ? 'text-teal' : 'text-rose'}`;
+      
+      document.getElementById('v2KpiWinRate').innerText = `Taxa de Acerto: ${winRate.toFixed(0)}% (${wins}G / ${v2Entries.length - wins}P)`;
+      document.getElementById('v2KpiBestMonth').innerText = best.pl !== -Infinity ? `${best.label} (+${formatBRL(best.pl)})` : '-';
+      document.getElementById('v2KpiWorstMonth').innerText = worst.pl !== Infinity ? `${worst.label} (${formatBRL(worst.pl)})` : '-';
+
+      // Render Table V2
+      let html = '';
+      tableRows.forEach((r) => {
+        const isWin = r.pl >= 0;
+        html += `<tr>
+          <td><strong>${r.label}</strong></td>
+          <td>${formatBRL(r.start)}</td>
+          <td>
+            <input type="number" step="50" value="${r.pl}" class="table-input" style="color:${isWin ? '#10b981' : '#ef4444'}; font-weight:700;" onchange="updateV2EntryPL(${r.id}, this.value)" />
+          </td>
+          <td class="${isWin ? 'text-emerald' : 'text-rose'}"><strong>${r.roi >= 0 ? '+' : ''}${r.roi.toFixed(2)}%</strong></td>
+          <td><strong>${formatBRL(r.final)}</strong></td>
+          <td style="text-align:center">
+            <button class="preset-chip" style="color:var(--accent-rose)" onclick="removeV2Month(${r.id})">🗑️</button>
+          </td>
+        </tr>`;
+      });
+      document.getElementById('v2TableBody').innerHTML = html;
+
+      // Render Chart V2
+      renderChartV2(labels, balanceData, isProfitable);
+    }
+
+    function renderChartV2(labels, balanceData, isProfitable) {
+      const ctx = document.getElementById('chartV2').getContext('2d');
+      const isDark = document.documentElement.classList.contains('dark');
+      const gridColor = isDark ? '#1e293b' : '#f1f5f9';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+
+      if (chartV2Instance) chartV2Instance.destroy();
+
+      const strokeColor = isProfitable ? '#10b981' : '#ef4444';
+      const grad = ctx.createLinearGradient(0, 0, 0, 300);
+      grad.addColorStop(0, isProfitable ? 'rgba(16, 185, 129, 0.45)' : 'rgba(239, 68, 68, 0.45)');
+      grad.addColorStop(1, 'rgba(0,0,0,0.0)');
+
+      chartV2Instance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Saldo Final Acumulado',
+              data: balanceData,
+              borderColor: strokeColor,
+              backgroundColor: grad,
+              borderWidth: 3,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+              pointBackgroundColor: strokeColor
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: '600' } } },
+            tooltip: {
+              callbacks: { label: (c) => ` Saldo: ${formatBRL(c.parsed.y)}` }
+            }
+          },
+          scales: {
+            x: { grid: { color: gridColor }, ticks: { color: textColor } },
+            y: {
+              grid: { color: gridColor },
+              ticks: { color: textColor, callback: (v) => v >= 1000 ? `R$ ${(v/1000).toFixed(0)}k` : `R$ ${v}` }
+            }
+          }
+        }
+      });
+    }
 
     // Copiar Resumo
-    copySummaryBtn.addEventListener('click', () => {
-      const result = calculateCompoundInterest();
-      const text = `📊 *Simulação de Juros Compostos*\n` +
-        `• Aporte Inicial: ${formatBRL(result.initial)}\n` +
-        `• Aporte Mensal: ${formatBRL(result.monthly)}\n` +
-        `• Taxa Anual: ${result.annualRate}% a.a.\n` +
-        `• Prazo: ${result.years} anos (${result.totalMonths} meses)\n` +
-        `------------------------------------\n` +
-        `💰 *Montante Final: ${formatBRL(result.finalAmount)}*\n` +
-        `🏦 Total Investido (Bolso): ${formatBRL(result.totalInvested)}\n` +
-        `✨ Total em Juros: ${formatBRL(result.totalInterest)} (${result.wealthMultiplier}x do capital)`;
+    document.getElementById('copySummaryBtn').addEventListener('click', () => {
+      let text = '';
+      if (activeMode === 'v1') {
+        text = `📊 *Simulação de Juros Compostos v1.0*\n` +
+          `• Final: ${document.getElementById('kpiFinalAmount').innerText}\n` +
+          `• Total Investido: ${document.getElementById('kpiTotalInvested').innerText}\n` +
+          `• Juros Ganhos: ${document.getElementById('kpiTotalInterest').innerText}`;
+      } else {
+        text = `📊 *Extrato de Rendimentos v2.0*\n` +
+          `• Saldo Atual: ${document.getElementById('v2KpiFinalBalance').innerText}\n` +
+          `• Lucro Líquido: ${document.getElementById('v2KpiProfitLoss').innerText}\n` +
+          `• ROI Total: ${document.getElementById('v2KpiROI').innerText}`;
+      }
 
       navigator.clipboard.writeText(text).then(() => {
-        const originalText = copySummaryBtn.innerHTML;
-        copySummaryBtn.innerHTML = '✅ Copiado!';
-        setTimeout(() => {
-          copySummaryBtn.innerHTML = originalText;
-        }, 2000);
+        const btn = document.getElementById('copySummaryBtn');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '✅ Copiado!';
+        setTimeout(() => btn.innerHTML = orig, 2000);
       });
     });
 
-    // Alternar Tema
-    function updateThemeButtonText() {
+    // Theme Toggle
+    function updateThemeBtn() {
       const isDark = document.documentElement.classList.contains('dark');
-      themeIcon.innerText = isDark ? '☀️' : '🌙';
-      themeLabel.innerText = isDark ? 'Modo Claro' : 'Modo Escuro';
+      document.getElementById('themeIcon').innerText = isDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').innerText = isDark ? 'Modo Claro' : 'Modo Escuro';
     }
 
-    themeToggleBtn.addEventListener('click', () => {
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
       document.documentElement.classList.toggle('dark');
-      updateThemeButtonText();
-      calculateCompoundInterest();
+      updateThemeBtn();
+      if (activeMode === 'v1') calculateV1();
+      else updateV2Calculations();
     });
 
-    // Inicialização ao carregar a página
+    // Init
     document.addEventListener('DOMContentLoaded', () => {
-      calculateCompoundInterest();
+      calculateV1();
+      updateThemeBtn();
     });
   </script>
 </body>
