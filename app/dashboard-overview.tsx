@@ -22,7 +22,6 @@ import { CardContaFluxo } from "@/components/card-conta-fluxo";
 import { CardSaldoPrevisto } from "@/components/card-saldo-previsto";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
-import { CashFlowProjectionChart } from "@/components/cash-flow-projection-chart";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardOverviewData, createRevenueAction, addAporteAction,
@@ -586,8 +585,7 @@ export function DashboardOverview() {
         </div>
       </section>
 
-      {/* ── 3. PROJEÇÃO DE FLUXO DE CAIXA (D+30 E D+60) ───────────────────────── */}
-      <CashFlowProjectionChart />
+
 
       {/* ── 4. GRÁFICOS & TABELAS SECUNDÁRIAS ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
