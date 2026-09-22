@@ -5,7 +5,9 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // Gera APENAS o binário Linux usado na Vercel — exclui Windows e macOS engines (~20 MB cada)
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 model User {
