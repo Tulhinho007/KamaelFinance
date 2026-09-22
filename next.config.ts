@@ -53,21 +53,9 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // ─── Webpack: impede módulos server-only de vazar para o client bundle ────
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: false,
-        path: false,
-        os: false,
-      };
-    }
-    return config;
-  },
+  // Next.js 16 usa Turbopack por padrão — isolamento de módulos server-only
+  // é gerenciado automaticamente pelo App Router, sem necessidade de webpack config.
+  turbopack: {},
 };
 
 export default nextConfig;
