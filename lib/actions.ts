@@ -1277,24 +1277,48 @@ export async function getWalletsAction() {
     orderBy: { title: "asc" }
   });
 
-  return Promise.all(
-    wallets.map(async (w: any) => {
-      const txs = await prisma.transaction.findMany({
-        where: { walletId: w.id, deletedAt: null, status: "COMPLETED" }
-      });
-      const income = txs.filter(t => t.type === "INCOME").reduce((s, t) => s + Number(t.amount), 0);
-      const expense = txs.filter(t => t.type === "EXPENSE").reduce((s, t) => s + Number(t.amount), 0);
-      const currentTotal = Number(w.initialBalance || 0) + income - expense;
+  if (wallets.length === 0) return [];
 
-      return {
-        id: w.id,
-        title: w.title,
-        bankName: w.bankName || w.title,
-        walletType: w.walletType,
-        currentTotal,
-      };
-    })
-  );
+  const walletIds = wallets.map((w: any) => w.id);
+
+  // Agrega todas as movimentações de todas as carteiras em 1 única query indexada no PostgreSQL
+  const aggregates = await prisma.transaction.groupBy({
+    by: ["walletId", "type"],
+    where: {
+      walletId: { in: walletIds },
+      deletedAt: null,
+      status: "COMPLETED",
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+
+  const totalsMap = new Map<string, { income: number; expense: number }>();
+  for (const ag of aggregates) {
+    const cur = totalsMap.get(ag.walletId) ?? { income: 0, expense: 0 };
+    const amt = Number(ag._sum.amount || 0);
+    if (ag.type === "INCOME") cur.income += amt;
+    else if (ag.type === "EXPENSE") cur.expense += amt;
+    totalsMap.set(ag.walletId, cur);
+  }
+
+  return wallets.map((w: any) => {
+    const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
+    const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
+
+    return {
+      ...w,
+      id: w.id,
+      title: w.title,
+      bankName: w.bankName || w.title,
+      walletType: w.walletType,
+      initialBalance: Number(w.initialBalance || 0),
+      currentBalance: Number(w.currentBalance || 0),
+      creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
+      currentTotal,
+    };
+  });
 }
 
 export async function addAporteAction(
@@ -4377,6 +4401,8 @@ export interface MonthlyCashFlowRollForwardResult {
 async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
   const from = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
   const to = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+  const fromBuffer = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
+  const toBuffer = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
 
   // 1. Receitas
   const BENEFIT_TYPES = ["TICKET", "BENEFICIO", "BENEFÍCIO"];
@@ -4385,6 +4411,12 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
       wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
       type: "INCOME",
       deletedAt: null,
+      OR: [
+        { competenceMonth: m, competenceYear: y },
+        { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+        { paymentDate: { gte: fromBuffer, lte: toBuffer } },
+        { date: { gte: fromBuffer, lte: toBuffer } },
+      ],
     },
     include: { wallet: true },
   });
@@ -4416,6 +4448,12 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
       type: "EXPENSE",
       deletedAt: null,
       source: { not: "RECURRING_PROJECTION" },
+      OR: [
+        { competenceMonth: m, competenceYear: y },
+        { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+        { purchaseDate: { gte: fromBuffer, lte: toBuffer } },
+        { date: { gte: fromBuffer, lte: toBuffer } },
+      ],
     },
   });
 
@@ -4439,6 +4477,11 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
       wallet: { userId },
       source: "COMMITMENT",
       deletedAt: null,
+      OR: [
+        { competenceMonth: m, competenceYear: y },
+        { dueDate: { gte: fromBuffer, lte: toBuffer } },
+        { date: { gte: fromBuffer, lte: toBuffer } },
+      ],
     },
   });
 

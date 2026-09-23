@@ -16,34 +16,49 @@ export type WalletWithTotals = {
   balance: number;
 };
 
-// Uma carteira com total gasto, total recebido e saldo calculado
+// Uma carteira com total gasto, total recebido e saldo calculado via agregação no banco de dados
 export async function getWalletsWithTotals(userId: string): Promise<WalletWithTotals[]> {
   const wallets = await prisma.wallet.findMany({
     where: { userId },
-    include: {
-      transactions: {
-        where: { deletedAt: null },
-        select: { type: true, amount: true },
-      },
+  });
+
+  if (wallets.length === 0) return [];
+
+  const walletIds = wallets.map((w) => w.id);
+
+  const aggregates = await prisma.transaction.groupBy({
+    by: ["walletId", "type"],
+    where: {
+      walletId: { in: walletIds },
+      deletedAt: null,
+    },
+    _sum: {
+      amount: true,
     },
   });
 
-  return wallets.map((w) => {
-    const spent = w.transactions
-      .filter((t) => t.type === "EXPENSE")
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-    const income = w.transactions
-      .filter((t) => t.type === "INCOME")
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalsMap = new Map<string, { spent: number; income: number }>();
+  for (const ag of aggregates) {
+    const current = totalsMap.get(ag.walletId) ?? { spent: 0, income: 0 };
+    const val = Number(ag._sum.amount ?? 0);
+    if (ag.type === "EXPENSE") {
+      current.spent += val;
+    } else if (ag.type === "INCOME") {
+      current.income += val;
+    }
+    totalsMap.set(ag.walletId, current);
+  }
 
+  return wallets.map((w) => {
+    const totals = totalsMap.get(w.id) ?? { spent: 0, income: 0 };
     return {
       id: w.id,
       title: w.title,
       walletType: w.walletType,
       initialBalance: Number(w.initialBalance),
-      spent,
-      income,
-      balance: Number(w.initialBalance) + income - spent,
+      spent: totals.spent,
+      income: totals.income,
+      balance: Number(w.initialBalance) + totals.income - totals.spent,
     };
   });
 }

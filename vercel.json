@@ -4,5 +4,11 @@
     "app/**/*.tsx": {
       "maxDuration": 10
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/warmup",
+      "schedule": "*/5 10-23 * * *"
+    }
+  ]
 }

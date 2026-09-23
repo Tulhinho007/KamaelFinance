@@ -56,6 +56,8 @@ model Wallet {
   subscriptions  Subscription[]
   creditPixSourceOps CreditPixOperation[] @relation("CreditPixSourceCard")
   creditPixDestOps   CreditPixOperation[] @relation("CreditPixDestAccount")
+
+  @@index([userId])
 }
 
 model Category {
@@ -112,6 +114,13 @@ model Transaction {
   goalContributionId String?
   pixCreditOperationId String?
   pixCreditOperation   CreditPixOperation? @relation(fields: [pixCreditOperationId], references: [id], onDelete: SetNull)
+
+  @@index([walletId, deletedAt])
+  @@index([deletedAt, competenceYear, competenceMonth])
+  @@index([deletedAt, date])
+  @@index([walletId, type, deletedAt])
+  @@index([categoryId, deletedAt])
+  @@index([source, deletedAt])
 }
 
 model Goal {
@@ -132,6 +141,8 @@ model Goal {
   isRealSaving Boolean      @default(false)
   history     GoalHistory[]
   transactions Transaction[]
+
+  @@index([userId, status])
 }
 
 model GoalHistory {
@@ -278,6 +289,8 @@ model AuditLog {
   ipAddress String?
   userAgent String?
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // Lista de e-mails autorizados a se cadastrar (Convites / Whitelist)
@@ -314,6 +327,8 @@ model Subscription {
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt @default(now())
   payments        SubscriptionPayment[]
+
+  @@index([userId])
 }
 
 model SubscriptionPayment {
