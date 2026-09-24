@@ -442,3 +442,87 @@ export async function changeCurrentUserPasswordAction(data: {
   }
 }
 
+export async function checkUserRecoveryStatusAction(email: string) {
+  try {
+    const cleanEmail = email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+      select: { id: true, email: true, role: true, name: true },
+    });
+
+    if (!user) {
+      return { exists: false, role: null };
+    }
+
+    return {
+      exists: true,
+      role: user.role,
+      name: user.name,
+    };
+  } catch (error: any) {
+    console.error("Erro ao verificar status de recuperação:", error);
+    return { exists: false, role: null, error: error.message };
+  }
+}
+
+export async function recoverMasterPasswordAction(data: {
+  email: string;
+  recoveryKey: string;
+  newPassword: string;
+}) {
+  try {
+    const cleanEmail = data.email.toLowerCase().trim();
+    const user = await prisma.user.findUnique({
+      where: { email: cleanEmail },
+    });
+
+    if (!user) {
+      return { success: false, error: "Usuário não encontrado." };
+    }
+
+    if (user.role !== "MASTER") {
+      return {
+        success: false,
+        error: "Esta recuperação aplica-se apenas a contas Master. Membros devem solicitar a redefinição ao administrador.",
+      };
+    }
+
+    const expectedKey = process.env.MASTER_RECOVERY_KEY || "Kamael@MasterRecovery2026";
+    if (data.recoveryKey.trim() !== expectedKey.trim()) {
+      await recordAuditLog({
+        userId: user.id,
+        action: "RECOVERY_FAILED_INVALID_KEY",
+        details: `Tentativa de recuperação com chave de segurança incorreta para o e-mail: ${cleanEmail}`,
+      });
+      return { success: false, error: "Chave Mestra de Segurança inválida." };
+    }
+
+    if (!data.newPassword || data.newPassword.length < 8) {
+      return { success: false, error: "A nova senha deve conter no mínimo 8 caracteres." };
+    }
+
+    const newHashed = hashPassword(data.newPassword);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: newHashed,
+        failedAttempts: 0,
+        lockoutUntil: null,
+        tokenVersion: { increment: 1 },
+      },
+    });
+
+    await recordAuditLog({
+      userId: user.id,
+      action: "PASSWORD_RECOVERED_MASTER",
+      details: "Senha da conta master redefinida via Chave Mestra de Recuperação.",
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao recuperar senha master:", error);
+    return { success: false, error: error.message || "Erro ao recuperar senha master." };
+  }
+}
+
+

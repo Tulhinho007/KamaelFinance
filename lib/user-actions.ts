@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { sanitizeInputString, validateEmailHygiene } from "@/lib/security-hygiene";
@@ -189,6 +190,25 @@ export async function updateUserAction(id: string, data: Partial<UserInput>) {
       where: { id },
       data: updateData,
     });
+
+    // Se o usuário atualizado for o usuário autenticado da sessão atual, atualiza o tokenVersion no cookie
+    try {
+      const cookieStore = await cookies();
+      const sessionCookie = cookieStore.get("kamael_session")?.value;
+      if (sessionCookie) {
+        const parsed = JSON.parse(sessionCookie);
+        if (parsed?.id === user.id) {
+          parsed.tokenVersion = user.tokenVersion;
+          cookieStore.set("kamael_session", JSON.stringify(parsed), {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 60 * 60 * 24 * 30,
+            path: "/",
+          });
+        }
+      }
+    } catch {}
 
     // Audit Log
     await recordAuditLog({

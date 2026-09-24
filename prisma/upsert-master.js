@@ -10,7 +10,7 @@ function hashPassword(password) {
 
 async function main() {
   const email = "kamaelcontatos@gmail.com";
-  const password = "Kama@159";
+  const password = "Kt@159753";
   const hashedPassword = hashPassword(password);
 
   console.log(`Upserting user: ${email}...`);
