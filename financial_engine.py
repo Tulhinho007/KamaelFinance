@@ -557,8 +557,8 @@ def get_fastapi_router():
     Retorna um APIRouter do FastAPI configurado com os 4 endpoints se o FastAPI estiver instalado.
     """
     try:
-        from fastapi import APIRouter, HTTPException
-        from pydantic import BaseModel, Field
+        from fastapi import APIRouter, HTTPException  # type: ignore
+        from pydantic import BaseModel, Field  # type: ignore
 
         router = APIRouter(prefix="/api/calculators", tags=["Calculadoras Financeiras"])
 

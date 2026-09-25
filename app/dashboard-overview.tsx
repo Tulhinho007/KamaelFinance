@@ -203,8 +203,11 @@ export function DashboardOverview() {
 
   useEffect(() => {
     loadDashboardData();
-    loadTags();
   }, [selectedDashboardYear, selectedDashboardMonth, selectedTag]);
+
+  useEffect(() => {
+    loadTags();
+  }, []);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

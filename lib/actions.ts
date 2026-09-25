@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { CATEGORIES, getCategoryColor, getMonthName } from "./constants";
 import { revalidatePath } from "next/cache";
 import { prisma } from "./prisma";
@@ -69,14 +70,13 @@ function isSubscriptionPaymentTransaction(t: {
 
 // ---------- Helper: resolve o ID real do usuário ativo no banco ----------
 
-
 /**
- * Resolve o ID do usuário ativo.
+ * Resolve o ID do usuário ativo com cache de requisição do React.
  * 1. Verifica se existe sessão válida via Cookie kamael_session.
  * 2. Tenta o DEV_USER_ID do .env se existir no banco.
  * 3. Fallback: primeiro usuário cadastrado.
  */
-export async function getActiveUserId(): Promise<string> {
+const getActiveUserIdCached = cache(async (): Promise<string> => {
   try {
     const cookieStore = await cookies();
     const sessionVal = cookieStore.get("kamael_session")?.value;
@@ -111,6 +111,10 @@ export async function getActiveUserId(): Promise<string> {
   }
 
   return user.id;
+});
+
+export async function getActiveUserId(): Promise<string> {
+  return getActiveUserIdCached();
 }
 
 // ---------- Actions ----------
@@ -3554,255 +3558,353 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
   const effectiveMonth = !isAnnualView ? Number(month) : (new Date().getMonth() + 1);
   await ensureRecurringExpensesForMonth(effectiveMonth, year);
 
-  const result = await Promise.all(
-    wallets.map(async (w) => {
-      const isCredit = w.walletType === "CREDIT_CARD";
-      const balanceInfo = await calculateAccountBalance(w.id, effectiveMonth, year);
+  const walletIds = wallets.map((w) => w.id);
+  const bankWallets = wallets.filter((w) => w.walletType !== "CREDIT_CARD");
 
-      const rawTransactions = await (prisma.transaction as any).findMany({
-        where: {
-          walletId: w.id,
-          type:     "EXPENSE",
-          source:   { not: "RECURRING_PROJECTION" },
-          OR: [
-            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
-            { competenceDate: { gte: from, lte: to } },
-            { purchaseDate: { gte: from, lte: to } },
-            { date: { gte: from, lte: to } },
-            { paymentDate: { gte: from, lte: to } },
-            { dueDate: { gte: from, lte: to } }
-          ],
-          deletedAt: null,
-        },
-        include: { category: true },
-        orderBy: { date: "asc" },
-      });
+  // DISPARA QUERIES AGREGADAS EM PARALELO PARA TODAS AS CARTEIRAS (Elimina o problema N+1)
+  const [
+    rawTransactionsBatch,
+    allExpensesBatch,
+    allPaidInvoicesBatch,
+    rawPeriodIncomesBatch,
+    bankBalancesList
+  ] = await Promise.all([
+    // 1. Despesas no período para todas as carteiras em 1 query única
+    (prisma.transaction as any).findMany({
+      where: {
+        walletId: { in: walletIds },
+        type: "EXPENSE",
+        source: { not: "RECURRING_PROJECTION" },
+        OR: [
+          ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
+          { competenceDate: { gte: from, lte: to } },
+          { purchaseDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } },
+          { paymentDate: { gte: from, lte: to } },
+          { dueDate: { gte: from, lte: to } }
+        ],
+        deletedAt: null,
+      },
+      include: { category: true },
+      orderBy: { date: "asc" },
+    }),
 
-      const isBank = !isCredit && w.walletType !== "TICKET";
+    // 2. Todas as despesas para cálculo de limite usado e projeções em 1 query única com select enxuto
+    prisma.transaction.findMany({
+      where: {
+        walletId: { in: walletIds },
+        type: "EXPENSE",
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" }
+      },
+      select: {
+        id: true,
+        walletId: true,
+        amount: true,
+        date: true,
+        dueDate: true,
+        purchaseDate: true,
+        status: true,
+        competenceMonth: true,
+        competenceYear: true,
+      }
+    }),
 
-      const transactions = (rawTransactions as any[]).filter((t: any) => {
-        if (isCredit) {
-          if (t.competenceMonth != null && t.competenceYear != null) {
-            if (!isAnnualView) {
-              return t.competenceMonth === Number(month) && t.competenceYear === year;
-            }
-            return t.competenceYear === year;
-          }
-          const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-          return d >= from && d <= to;
-        }
+    // 3. Pagamentos de faturas para todas as carteiras em 1 query única
+    (prisma as any).invoicePayment.findMany({
+      where: { walletId: { in: walletIds } }
+    }),
 
-        // Para conta corrente:
-        // Conta corrente não possui "Pendente" nem "Gasto no Mês" projetado.
-        // Apenas despesas que foram de fato efetivadas/liquidadas (status !== "PENDING")
-        // e compromissos que já receberam baixa transitam pelo extrato!
-        if (isBank && (t.status === "PENDING" || (t.source === "COMMITMENT" && t.status !== "COMPLETED" && t.status !== "PAID"))) {
-          return false;
-        }
+    // 4. Entradas no período para todas as carteiras em 1 query única
+    prisma.transaction.findMany({
+      where: {
+        walletId: { in: walletIds },
+        type: "INCOME",
+        OR: [
+          ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
+          { competenceDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } }
+        ],
+        deletedAt: null,
+      },
+      select: {
+        walletId: true,
+        amount: true,
+        date: true,
+        competenceDate: true,
+        competenceMonth: true,
+        competenceYear: true,
+        status: true
+      },
+    }),
 
-        if (isAnnualView) {
-          const compYear = t.competenceYear || new Date(t.paymentDate || t.date).getUTCFullYear();
-          return compYear === year;
-        }
+    // 5. Saldo histórico apenas para contas correntes/tickets (cartões de crédito não usam)
+    Promise.all(
+      bankWallets.map(async (w) => {
+        const info = await calculateAccountBalance(w.id, effectiveMonth, year);
+        return { walletId: w.id, info };
+      })
+    )
+  ]);
 
-        const numM = Number(month);
-        const payD = t.paymentDate ? new Date(t.paymentDate) : null;
-        const dueD = t.dueDate ? new Date(t.dueDate) : (t.competenceDate ? new Date(t.competenceDate) : null);
+  // Agrupamentos em memória para mapeamento instantâneo
+  const rawTransactionsByWallet = new Map<string, any[]>();
+  for (const t of rawTransactionsBatch) {
+    let list = rawTransactionsByWallet.get(t.walletId);
+    if (!list) {
+      list = [];
+      rawTransactionsByWallet.set(t.walletId, list);
+    }
+    list.push(t);
+  }
 
-        // 1. Se foi pago neste mês (paymentDate no mês selecionado): dinheiro saiu da conta neste mês
-        if (payD && payD >= from && payD <= to) return true;
+  const allExpensesByWallet = new Map<string, any[]>();
+  for (const t of allExpensesBatch) {
+    let list = allExpensesByWallet.get(t.walletId);
+    if (!list) {
+      list = [];
+      allExpensesByWallet.set(t.walletId, list);
+    }
+    list.push(t);
+  }
 
-        // 2. Se a competência / vencimento é deste mês
-        const isCompThisMonth = (t.competenceMonth === numM && (t.competenceYear || year) === year) ||
-          (dueD && dueD >= from && dueD <= to);
+  const paidInvoicesByWallet = new Map<string, any[]>();
+  for (const p of allPaidInvoicesBatch) {
+    let list = paidInvoicesByWallet.get(p.walletId);
+    if (!list) {
+      list = [];
+      paidInvoicesByWallet.set(p.walletId, list);
+    }
+    list.push(p);
+  }
 
-        return isCompThisMonth;
-      });
+  const rawPeriodIncomesByWallet = new Map<string, any[]>();
+  for (const t of rawPeriodIncomesBatch) {
+    let list = rawPeriodIncomesByWallet.get(t.walletId);
+    if (!list) {
+      list = [];
+      rawPeriodIncomesByWallet.set(t.walletId, list);
+    }
+    list.push(t);
+  }
 
-      const filteredTransactions = isCredit
-        ? transactions
-        : transactions.filter((t: any) => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
+  const bankBalanceMap = new Map<string, any>();
+  for (const b of bankBalancesList) {
+    bankBalanceMap.set(b.walletId, b.info);
+  }
 
-      const faturaAtual = filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
-      const faturaPaga = filteredTransactions
-        .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
-        .reduce((s: number, t: any) => s + Number(t.amount), 0);
-      const faturaPendente = filteredTransactions
-        .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
-        .reduce((s: number, t: any) => s + Number(t.amount), 0);
+  const result = wallets.map((w) => {
+    const isCredit = w.walletType === "CREDIT_CARD";
+    const balanceInfo = isCredit
+      ? { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0 }
+      : (bankBalanceMap.get(w.id) || { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0 });
 
-      // Para cartão de crédito: limitTotal é o limite de crédito.
-      // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO.
-      const limitTotal = isCredit
-        ? Number(w.creditLimit || 0)
-        : balanceInfo.finalBalance;
+    const rawTransactions = rawTransactionsByWallet.get(w.id) || [];
+    const isBank = !isCredit && w.walletType !== "TICKET";
 
-      const allExpenses = await prisma.transaction.findMany({
-        where: { walletId: w.id, type: "EXPENSE", deletedAt: null, source: { not: "RECURRING_PROJECTION" } },
-      });
-
-      let limitUsed = 0;
+    const transactions = rawTransactions.filter((t: any) => {
       if (isCredit) {
-        const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
-          where: { walletId: w.id }
-        });
-        const paidKeys = new Set(allPaidInvoices.map((p: any) => `${p.month}-${p.year}`));
-
-        limitUsed = allExpenses
-          .filter(t => {
-            const dt = new Date(t.date);
-            const m = dt.getUTCMonth() + 1;
-            const y = dt.getUTCFullYear();
-            const isPaid = paidKeys.has(`${m}-${y}`);
-            return !isPaid;
-          })
-          .reduce((s, t) => s + Number(t.amount), 0);
-      } else {
-        limitUsed = balanceInfo.monthExpense;
-      }
-
-      const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
-      const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
-
-      // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
-      // Para conta corrente, apenas saídas efetivadas no extrato
-      const accountExpenses = transactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
-      const totalSpentInPeriod = accountExpenses;
-
-      // Entradas na conta no período selecionado
-      const rawPeriodIncomes = await prisma.transaction.findMany({
-        where: {
-          walletId: w.id,
-          type:     "INCOME",
-          OR: [
-            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
-            { competenceDate: { gte: from, lte: to } },
-            { date: { gte: from, lte: to } }
-          ],
-          deletedAt: null,
-        },
-        select: { amount: true, date: true, competenceDate: true, competenceMonth: true, competenceYear: true, status: true },
-      });
-      const periodIncomes = rawPeriodIncomes.filter((t) => {
-        // Para conta corrente, apenas entradas efetivadas contam como recebidas
-        if (isBank && (t as any).status === "PENDING") {
-          return false;
-        }
-        if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+        if (t.competenceMonth != null && t.competenceYear != null) {
           if (!isAnnualView) {
-            return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
+            return t.competenceMonth === Number(month) && t.competenceYear === year;
           }
-          return (t as any).competenceYear === year;
+          return t.competenceYear === year;
         }
-        const d = new Date((t as any).competenceDate || t.date);
+        const d = new Date(t.competenceDate || t.purchaseDate || t.date);
         return d >= from && d <= to;
-      });
-      const accountIncomes = periodIncomes.reduce((s, t) => s + Number(t.amount), 0);
-
-      const dueDateInfo = getInvoiceDueDateInfo(
-        (w as any).diaFechamento ?? 1,
-        w.vencimento ?? 10,
-        effectiveMonth,
-        year
-      );
-
-      const paidWhere: any = { walletId: w.id };
-      if (!isAnnualView) {
-        paidWhere.year = year;
-        paidWhere.month = { in: [Number(month), dueDateInfo.billingMonth] };
-      } else {
-        paidWhere.year = year;
       }
 
-      const paidRecord = await (prisma as any).invoicePayment.findFirst({
-        where: paidWhere
-      });
+      // Para conta corrente:
+      // Conta corrente não possui "Pendente" nem "Gasto no Mês" projetado.
+      // Apenas despesas que foram de fato efetivadas/liquidadas (status !== "PENDING")
+      // e compromissos que já receberam baixa transitam pelo extrato!
+      if (isBank && (t.status === "PENDING" || (t.source === "COMMITMENT" && t.status !== "COMPLETED" && t.status !== "PAID"))) {
+        return false;
+      }
 
-      // Pendência do Próximo Mês: Conta Corrente NÃO tem pendente (apenas cartão / benefícios)
-      const nextMonthNum = effectiveMonth === 12 ? 1 : effectiveMonth + 1;
-      const nextYearNum = effectiveMonth === 12 ? year + 1 : year;
+      if (isAnnualView) {
+        const compYear = t.competenceYear || new Date(t.paymentDate || t.date).getUTCFullYear();
+        return compYear === year;
+      }
 
-      const isDateInTargetMonth = (rawDate: any) => {
-        if (!rawDate) return false;
-        if (typeof rawDate === "string") {
-          const clean = rawDate.split("T")[0];
-          const [y, m] = clean.split("-").map(Number);
-          if (y === nextYearNum && m === nextMonthNum) return true;
+      const numM = Number(month);
+      const payD = t.paymentDate ? new Date(t.paymentDate) : null;
+      const dueD = t.dueDate ? new Date(t.dueDate) : (t.competenceDate ? new Date(t.competenceDate) : null);
+
+      // 1. Se foi pago neste mês (paymentDate no mês selecionado): dinheiro saiu da conta neste mês
+      if (payD && payD >= from && payD <= to) return true;
+
+      // 2. Se a competência / vencimento é deste mês
+      const isCompThisMonth = (t.competenceMonth === numM && (t.competenceYear || year) === year) ||
+        (dueD && dueD >= from && dueD <= to);
+
+      return isCompThisMonth;
+    });
+
+    const filteredTransactions = isCredit
+      ? transactions
+      : transactions.filter((t: any) => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
+
+    const faturaAtual = filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
+    const faturaPaga = filteredTransactions
+      .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
+      .reduce((s: number, t: any) => s + Number(t.amount), 0);
+    const faturaPendente = filteredTransactions
+      .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
+      .reduce((s: number, t: any) => s + Number(t.amount), 0);
+
+    // Para cartão de crédito: limitTotal é o limite de crédito.
+    // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO.
+    const limitTotal = isCredit
+      ? Number(w.creditLimit || 0)
+      : balanceInfo.finalBalance;
+
+    const allExpenses = allExpensesByWallet.get(w.id) || [];
+
+    let limitUsed = 0;
+    if (isCredit) {
+      const allPaidInvoices = paidInvoicesByWallet.get(w.id) || [];
+      const paidKeys = new Set(allPaidInvoices.map((p: any) => `${p.month}-${p.year}`));
+
+      limitUsed = allExpenses
+        .filter(t => {
+          const dt = new Date(t.date);
+          const m = dt.getUTCMonth() + 1;
+          const y = dt.getUTCFullYear();
+          const isPaid = paidKeys.has(`${m}-${y}`);
+          return !isPaid;
+        })
+        .reduce((s, t) => s + Number(t.amount), 0);
+    } else {
+      limitUsed = balanceInfo.monthExpense;
+    }
+
+    const titleDigits = w.title.replace(/\D/g, "").slice(-4).padStart(4, "0");
+    const lastDigits  = titleDigits ? `**** ${titleDigits}` : "**** ----";
+
+    // Total gasto / saídas da conta no período selecionado (Mês ou Ano)
+    // Para conta corrente, apenas saídas efetivadas no extrato
+    const accountExpenses = transactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
+    const totalSpentInPeriod = accountExpenses;
+
+    // Entradas na conta no período selecionado
+    const rawPeriodIncomes = rawPeriodIncomesByWallet.get(w.id) || [];
+    const periodIncomes = rawPeriodIncomes.filter((t) => {
+      // Para conta corrente, apenas entradas efetivadas contam como recebidas
+      if (isBank && (t as any).status === "PENDING") {
+        return false;
+      }
+      if ((t as any).competenceMonth != null && (t as any).competenceYear != null) {
+        if (!isAnnualView) {
+          return (t as any).competenceMonth === Number(month) && (t as any).competenceYear === year;
         }
-        const d = new Date(rawDate);
-        if (isNaN(d.getTime())) return false;
-        const utcY = d.getUTCFullYear();
-        const utcM = d.getUTCMonth() + 1;
-        const brt = new Date(d.getTime() - 3 * 3600 * 1000);
-        const brtY = brt.getUTCFullYear();
-        const brtM = brt.getUTCMonth() + 1;
-        return (utcY === nextYearNum && utcM === nextMonthNum) || (brtY === nextYearNum && brtM === nextMonthNum);
-      };
+        return (t as any).competenceYear === year;
+      }
+      const d = new Date((t as any).competenceDate || t.date);
+      return d >= from && d <= to;
+    });
+    const accountIncomes = periodIncomes.reduce((s, t) => s + Number(t.amount), 0);
 
-      const totalPendenteProximoMes = isBank
-        ? 0
-        : allExpenses
-            .filter((t: any) => {
-              const isPending = t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado" && t.status !== "RECEBIDO");
-              if (!isPending) return false;
+    const dueDateInfo = getInvoiceDueDateInfo(
+      (w as any).diaFechamento ?? 1,
+      w.vencimento ?? 10,
+      effectiveMonth,
+      year
+    );
 
-              // Se for cartão de crédito com competência explicitamente definida:
-              if (isCredit && t.competenceMonth != null && t.competenceYear != null) {
-                return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
-              }
+    const walletPaidInvoices = paidInvoicesByWallet.get(w.id) || [];
+    const paidRecord = walletPaidInvoices.find((p: any) => {
+      if (p.year !== year) return false;
+      if (!isAnnualView) {
+        return p.month === Number(month) || p.month === dueDateInfo.billingMonth;
+      }
+      return true;
+    });
 
-              return isDateInTargetMonth(t.dueDate) || isDateInTargetMonth(t.date) || isDateInTargetMonth(t.purchaseDate);
-            })
-            .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+    // Pendência do Próximo Mês: Conta Corrente NÃO tem pendente (apenas cartão / benefícios)
+    const nextMonthNum = effectiveMonth === 12 ? 1 : effectiveMonth + 1;
+    const nextYearNum = effectiveMonth === 12 ? year + 1 : year;
 
-      const isCardFullyPaid = isCredit
-        ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
-        : false;
+    const isDateInTargetMonth = (rawDate: any) => {
+      if (!rawDate) return false;
+      if (typeof rawDate === "string") {
+        const clean = rawDate.split("T")[0];
+        const [y, m] = clean.split("-").map(Number);
+        if (y === nextYearNum && m === nextMonthNum) return true;
+      }
+      const d = new Date(rawDate);
+      if (isNaN(d.getTime())) return false;
+      const utcY = d.getUTCFullYear();
+      const utcM = d.getUTCMonth() + 1;
+      const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+      const brtY = brt.getUTCFullYear();
+      const brtM = brt.getUTCMonth() + 1;
+      return (utcY === nextYearNum && utcM === nextMonthNum) || (brtY === nextYearNum && brtM === nextMonthNum);
+    };
 
-      return {
-        id:               w.id,
-        title:            w.title,
-        bankName:         w.bankName || w.title,
-        walletType:       w.walletType,
-        tipo:             w.walletType,
-        saldoAtual:       isCredit ? 0 : balanceInfo.finalBalance,
-        holder:           (w as any).holder || "",
-        agencia:          w.agencia || "",
-        conta:            w.conta || "",
-        lastDigits,
-        cardBrand:        isCredit ? "VISA" : "",
-        limitTotal,
-        limitUsed:        isCredit ? Math.min(limitUsed, limitTotal) : limitUsed,
-        faturaAtual,
-        faturaPaga,
-        faturaPendente,
-        accountExpenses,
-        totalSpentInPeriod,
-        accountIncomes,
-        isAnnualView,
-        periodExpenseCount: transactions.length,
-        periodIncomeCount:  periodIncomes.length,
-        carryoverBalance: balanceInfo.carryoverBalance,
-        monthIncome:      balanceInfo.monthIncome,
-        monthExpense:     balanceInfo.monthExpense,
-        finalBalance:     balanceInfo.finalBalance,
-        gastoMes:         balanceInfo.monthExpense,
-        recargaMes:       balanceInfo.monthIncome,
-        totalPendenteProximoMes: Math.round(totalPendenteProximoMes * 100) / 100,
-        vencimento:       w.vencimento ?? 10,
-        diaFechamento:    (w as any).diaFechamento ?? 1,
-        melhorDiaCompra:  (w as any).diaFechamento ? (((w as any).diaFechamento % 31) + 1) : 2,
-        color:            "from-indigo-600 via-purple-600 to-violet-600",
-        vencimentoStr:    dueDateInfo.dateStr,
-        isPast:           dueDateInfo.isPast,
-        billingMonth:     dueDateInfo.billingMonth,
-        billingYear:      dueDateInfo.billingYear,
-        isPaid:           isCardFullyPaid,
-        paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
-        paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
-      };
-    })
-  );
+    const totalPendenteProximoMes = isBank
+      ? 0
+      : allExpenses
+          .filter((t: any) => {
+            const isPending = t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado" && t.status !== "RECEBIDO");
+            if (!isPending) return false;
+
+            // Se for cartão de crédito com competência explicitamente definida:
+            if (isCredit && t.competenceMonth != null && t.competenceYear != null) {
+              return t.competenceMonth === nextMonthNum && t.competenceYear === nextYearNum;
+            }
+
+            return isDateInTargetMonth(t.dueDate) || isDateInTargetMonth(t.date) || isDateInTargetMonth(t.purchaseDate);
+          })
+          .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    const isCardFullyPaid = isCredit
+      ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
+      : false;
+
+    return {
+      id:               w.id,
+      title:            w.title,
+      bankName:         w.bankName || w.title,
+      walletType:       w.walletType,
+      tipo:             w.walletType,
+      saldoAtual:       isCredit ? 0 : balanceInfo.finalBalance,
+      holder:           (w as any).holder || "",
+      agencia:          w.agencia || "",
+      conta:            w.conta || "",
+      lastDigits,
+      cardBrand:        isCredit ? "VISA" : "",
+      limitTotal,
+      limitUsed:        isCredit ? Math.min(limitUsed, limitTotal) : limitUsed,
+      faturaAtual,
+      faturaPaga,
+      faturaPendente,
+      accountExpenses,
+      totalSpentInPeriod,
+      accountIncomes,
+      isAnnualView,
+      periodExpenseCount: transactions.length,
+      periodIncomeCount:  periodIncomes.length,
+      carryoverBalance: balanceInfo.carryoverBalance,
+      monthIncome:      balanceInfo.monthIncome,
+      monthExpense:     balanceInfo.monthExpense,
+      finalBalance:     balanceInfo.finalBalance,
+      gastoMes:         balanceInfo.monthExpense,
+      recargaMes:       balanceInfo.monthIncome,
+      totalPendenteProximoMes: Math.round(totalPendenteProximoMes * 100) / 100,
+      vencimento:       w.vencimento ?? 10,
+      diaFechamento:    (w as any).diaFechamento ?? 1,
+      melhorDiaCompra:  (w as any).diaFechamento ? (((w as any).diaFechamento % 31) + 1) : 2,
+      color:            "from-indigo-600 via-purple-600 to-violet-600",
+      vencimentoStr:    dueDateInfo.dateStr,
+      isPast:           dueDateInfo.isPast,
+      billingMonth:     dueDateInfo.billingMonth,
+      billingYear:      dueDateInfo.billingYear,
+      isPaid:           isCardFullyPaid,
+      paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
+      paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
+    };
+  });
 
   return result;
 }
@@ -5198,28 +5300,73 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
   }
 
-  // 1. Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
-  const rawRangeTransactions: any[] = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      deletedAt: null,
-      OR: [
-        ...(month && month >= 1 && month <= 12 ? [{ competenceMonth: month, competenceYear: year }] : [{ competenceYear: year }]),
-        { competenceDate: { gte: from, lte: to } },
-        { purchaseDate: { gte: from, lte: to } },
-        { date: { gte: from, lte: to } }
-      ],
-      ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
-    } as any,
-    include: {
-      category: true,
-      wallet: { select: { walletType: true, title: true } }
-    },
-    orderBy: { date: "desc" }
-  });
+  let histFrom: Date;
+  let histTo: Date;
+
+  if (!month) {
+    histFrom = new Date(Date.UTC(year, 0, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    histTo   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
+  } else {
+    let startM = month - 6;
+    let startY = year;
+    if (startM <= 0) {
+      startM += 12;
+      startY -= 1;
+    }
+    histFrom = new Date(Date.UTC(startY, startM - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
+    histTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
+  }
+
+  // 1. Busca agregada de todos os blocos de dados do Dashboard em paralelo
+  const [
+    rawRangeTransactions,
+    cards,
+    goals,
+    histTransactionsRaw,
+    upcomingBills
+  ] = await Promise.all([
+    // Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        deletedAt: null,
+        OR: [
+          ...(month && month >= 1 && month <= 12 ? [{ competenceMonth: month, competenceYear: year }] : [{ competenceYear: year }]),
+          { competenceDate: { gte: from, lte: to } },
+          { purchaseDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } }
+        ],
+        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
+      } as any,
+      include: {
+        category: true,
+        wallet: { select: { walletType: true, title: true } }
+      },
+      orderBy: { date: "desc" }
+    }),
+    // Cartões & Contas Overview
+    getAllCardsOverview(month ? month : null, year),
+    // Metas Globais
+    getGoals(),
+    // Histórico Comparativo
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        deletedAt: null,
+        date: { gte: histFrom, lte: histTo },
+        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
+      },
+      include: {
+        wallet: { select: { walletType: true } },
+        category: true
+      }
+    }),
+    // Alertas de contas e faturas próximas
+    getUpcomingCreditCardBills(userId)
+  ]);
 
   // Filtra com precisão garantindo que transações pertençam ao ano/mês sob regime de competência
-  const rangeTransactions = rawRangeTransactions.filter((t) => {
+  const rangeTransactions = (rawRangeTransactions as any[]).filter((t) => {
     if (t.competenceMonth != null && t.competenceYear != null) {
       if (month && month >= 1 && month <= 12) {
         return t.competenceMonth === month && t.competenceYear === year;
@@ -5271,10 +5418,6 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     }
   });
 
-  // Cartões & Contas Overview (usamos o mês fornecido ou null para visão anual completa)
-  const currentMonthNum = month || (new Date().getMonth() + 1);
-  const cards = await getAllCardsOverview(month ? month : null, year);
-
   // Se estiver em modo mensal e os cartões tiverem cálculo consolidado de fatura via cards overview
   if (month) {
     const creditCardsTotal = cards
@@ -5292,7 +5435,6 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   const balanco = Math.round((totalReceitas - totalGastos) * 100) / 100;
 
   // Metas Globais (Média ponderada ou percentual acumulado sobre objetivos ativos)
-  const goals = await getGoals();
   const activeGoals = goals.filter((g: any) => g.status !== "COMPLETED" || g.pct >= 0);
   const totalAcumuladoMetas = activeGoals.reduce((s, g) => s + g.acumulado, 0);
   const totalObjetivoMetas = activeGoals.reduce((s, g) => s + g.objetivo, 0);
@@ -5363,43 +5505,13 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
   // No modo mensal: exibe os últimos 7 meses até o mês selecionado.
   const MONTH_NAMES_SHORT = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"];
 
-  let histFrom: Date;
-  let histTo: Date;
-
-  if (!month) {
-    histFrom = new Date(Date.UTC(year, 0, 1, 0, 0, 0) - 24 * 3600 * 1000);
-    histTo   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999) + 24 * 3600 * 1000);
-  } else {
-    let startM = month - 6;
-    let startY = year;
-    if (startM <= 0) {
-      startM += 12;
-      startY -= 1;
-    }
-    histFrom = new Date(Date.UTC(startY, startM - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
-    histTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
-  }
-
-  const histTransactionsRaw = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      deletedAt: null,
-      date: { gte: histFrom, lte: histTo },
-      ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
-    },
-    include: {
-      wallet: { select: { walletType: true } },
-      category: true
-    }
-  });
-
   const historyMonths: { month: string; receitas: number; gastos: number }[] = [];
 
   if (!month) {
     // Visão Anual: 12 meses (JAN a DEZ)
     for (let m = 1; m <= 12; m++) {
       const label = MONTH_NAMES_SHORT[m - 1];
-      const mTx = histTransactionsRaw.filter((t) => {
+      const mTx = (histTransactionsRaw as any[]).filter((t) => {
         const d = new Date(t.date);
         const utcYear = d.getUTCFullYear();
         const utcMonth = d.getUTCMonth() + 1;
@@ -5433,7 +5545,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
         y -= 1;
       }
       const label = MONTH_NAMES_SHORT[m - 1];
-      const mTx = histTransactionsRaw.filter((t) => {
+      const mTx = (histTransactionsRaw as any[]).filter((t) => {
         const d = new Date(t.date);
         const utcYear = d.getUTCFullYear();
         const utcMonth = d.getUTCMonth() + 1;
@@ -5479,7 +5591,7 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     categoryBreakdown,
     paymentMethodBreakdown,
     monthlyHistory: historyMonths,
-    upcomingBills: await getUpcomingCreditCardBills(userId),
+    upcomingBills,
   };
 }
 
@@ -7735,7 +7847,11 @@ export async function getAllTags() {
   const txs = await prisma.transaction.findMany({
     where: {
       wallet: { userId },
-      deletedAt: null
+      deletedAt: null,
+      tags: { not: null }
+    },
+    select: {
+      tags: true
     }
   });
 
