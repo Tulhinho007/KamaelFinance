@@ -372,26 +372,50 @@ export default function ReceitasPage() {
     checkAndSuggestSalaryCompetence(formDate, formDescription, val);
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (active = true, cacheKey?: string) => {
     try {
       const [data, walletList] = await Promise.all([
         getRevenues(selectedMonth, selectedYear),
         getWalletsAction(),
       ]);
+      if (!active) return;
       setRevenues(data);
       setWallets(walletList || []);
+      if (cacheKey) {
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify({ revenues: data, wallets: walletList }));
+        } catch (e) {}
+      }
     } catch (err) {
       console.error("Erro ao obter receitas do banco:", err);
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    let active = true;
+    const cacheKey = `kamael_receitas_${selectedMonth || "ALL"}_${selectedYear}`;
+
+    try {
+      const cachedStr = sessionStorage.getItem(cacheKey);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached?.revenues) {
+          setRevenues(cached.revenues);
+          if (cached.wallets) setWallets(cached.wallets);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
+    loadData(active, cacheKey);
     setSelectedIds([]);
     setCurrentPage(1);
+
+    return () => {
+      active = false;
+    };
   }, [selectedMonth, selectedYear]);
 
   // Isolamento estrito de cartões de benefício/ticket da visualização global de receitas

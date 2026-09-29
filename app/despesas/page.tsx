@@ -677,28 +677,37 @@ export default function DespesasPage() {
     }
   };
 
+  const applyBundleData = (bundle: any) => {
+    if (bundle.cards && bundle.cards.length > 0) {
+      setCards(bundle.cards);
+    }
+    setPaidInvoicesList(bundle.paidInvoices || []);
+    setRealRevenue(bundle.realRevenue || 0);
+    setPendingExpensesList(bundle.pendingExpenses || []);
+    setPaidExpensesList(bundle.paidExpenses || []);
+    setRecurringExpensesList(bundle.recurringExpenses || []);
+    setWindowBills(bundle.windowBills || null);
+    setReceitasPendentesMes(bundle.pendingRevenues?.total ?? bundle.windowBills?.receitasPendentesDoMes ?? 0);
+    setMonthlyRollForward(bundle.cashFlow || null);
+    if (bundle.commitments) {
+      setCommitmentsData(bundle.commitments);
+      if (bundle.commitments.contasBancarias?.length > 0) {
+        setBaixaContaId((prev) => prev || bundle.commitments.contasBancarias[0].id);
+      }
+      if (bundle.commitments.cartoesCredito?.length > 0) {
+        setBaixaCartaoId((prev) => prev || bundle.commitments.cartoesCredito[0].id);
+      }
+    }
+  };
+
   const reloadAllData = async () => {
     try {
-      // ⚡ 1 chamada ao invés de 10 round-trips separados
       const bundle = await getDespesasBundleAction(selectedMonthFilter, selectedYear);
-      setCards(bundle.cards || []);
-      setPaidInvoicesList(bundle.paidInvoices || []);
-      setRealRevenue(bundle.realRevenue || 0);
-      setPendingExpensesList(bundle.pendingExpenses || []);
-      setPaidExpensesList(bundle.paidExpenses || []);
-      setRecurringExpensesList(bundle.recurringExpenses || []);
-      setWindowBills(bundle.windowBills || null);
-      setReceitasPendentesMes(bundle.pendingRevenues?.total ?? bundle.windowBills?.receitasPendentesDoMes ?? 0);
-      setMonthlyRollForward(bundle.cashFlow || null);
-      if (bundle.commitments) {
-        setCommitmentsData(bundle.commitments);
-        if (bundle.commitments.contasBancarias?.length > 0) {
-          setBaixaContaId((prev) => prev || bundle.commitments.contasBancarias[0].id);
-        }
-        if (bundle.commitments.cartoesCredito?.length > 0) {
-          setBaixaCartaoId((prev) => prev || bundle.commitments.cartoesCredito[0].id);
-        }
-      }
+      applyBundleData(bundle);
+      try {
+        const cacheKey = `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
+        sessionStorage.setItem(cacheKey, JSON.stringify(bundle));
+      } catch (e) {}
       setCommitmentsLoading(false);
     } catch (e) {
       console.error("Erro ao recarregar dados de despesas:", e);
@@ -822,50 +831,42 @@ export default function DespesasPage() {
   const [formDiaRecarga,  setFormDiaRecarga]  = useState<number>(1);
   const [formSaving,      setFormSaving]      = useState(false);
 
-  // ── Carrega dados em modo Anual ou Mensal ─────────────────────────────────
+  // ── Carrega dados em modo Anual ou Mensal com SWR Instantâneo (0ms) ──────────
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    const cacheKey = `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
 
-    // ⚡ 1. Desbloqueio imediato dos cards da esquerda (~200ms)
-    getAllCardsOverview(selectedMonthFilter, selectedYear)
-      .then((cardsData) => {
-        if (!active) return;
-        setCards(cardsData || []);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Erro ao carregar cards preliminares:", err);
-      });
+    // ⚡ 1. SWR Instantâneo: Carrega instantaneamente do sessionStorage (0ms)
+    try {
+      const cachedStr = sessionStorage.getItem(cacheKey);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached?.cards || cached?.commitments) {
+          applyBundleData(cached);
+          setLoading(false);
+          setCommitmentsLoading(false);
+        }
+      } else {
+        setLoading(true);
+        setCommitmentsLoading(true);
+      }
+    } catch (e) {
+      setLoading(true);
+      setCommitmentsLoading(true);
+    }
 
-    // ⚡ 2. Bundle consolidado de faturas, compromissos e fluxo de caixa
+    // ⚡ 2. Revalidação consolidada em 1 único round-trip HTTP sem chamadas redundantes
     getDespesasBundleAction(selectedMonthFilter, selectedYear)
       .then((bundle) => {
         if (!active) return;
-        if (bundle.cards && bundle.cards.length > 0) {
-          setCards(bundle.cards);
-        }
-        setPaidInvoicesList(bundle.paidInvoices || []);
-        setRealRevenue(bundle.realRevenue || 0);
-        setPendingExpensesList(bundle.pendingExpenses || []);
-        setPaidExpensesList(bundle.paidExpenses || []);
-        setRecurringExpensesList(bundle.recurringExpenses || []);
-        setWindowBills(bundle.windowBills || null);
-        setReceitasPendentesMes(bundle.pendingRevenues?.total ?? bundle.windowBills?.receitasPendentesDoMes ?? 0);
-        setMonthlyRollForward(bundle.cashFlow || null);
-        if (bundle.commitments) {
-          setCommitmentsData(bundle.commitments);
-          if (bundle.commitments.contasBancarias?.length > 0) {
-            setBaixaContaId((prev) => prev || bundle.commitments.contasBancarias[0].id);
-          }
-          if (bundle.commitments.cartoesCredito?.length > 0) {
-            setBaixaCartaoId((prev) => prev || bundle.commitments.cartoesCredito[0].id);
-          }
-        }
+        applyBundleData(bundle);
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(bundle));
+        } catch (e) {}
         setCommitmentsLoading(false);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Erro ao carregar dados de despesas:", err);
         if (active) {
           setLoading(false);
@@ -873,7 +874,9 @@ export default function DespesasPage() {
         }
       });
 
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [selectedMonthFilter, selectedYear]);
 
   // ── Titulares únicos para o filtro rápido ────────────────────────────────────

@@ -170,12 +170,15 @@ export default function MetasPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // --- CARREGAMENTO DO BANCO DE DADOS ---
-  const loadAllData = async () => {
-    setLoading(true);
+  const loadAllData = async (active = true) => {
     try {
       const { goals: goalsData, wallets: walletsData } = await getMetasBundleAction();
+      if (!active) return;
       setMetas(goalsData);
       setWallets(walletsData);
+      try {
+        sessionStorage.setItem("kamael_metas_cache", JSON.stringify({ goals: goalsData, wallets: walletsData }));
+      } catch (e) {}
 
       // Atualiza selectedGoal em tempo real se o modal de histórico estiver aberto
       if (selectedGoal) {
@@ -187,13 +190,31 @@ export default function MetasPage() {
     } catch (err) {
       console.error("Erro ao obter dados do banco:", err);
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
   };
 
   useEffect(() => {
+    let active = true;
     document.title = "Objetivos & Reservas | Kamael Finance";
-    loadAllData();
+
+    try {
+      const cachedStr = sessionStorage.getItem("kamael_metas_cache");
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached?.goals) {
+          setMetas(cached.goals);
+          if (cached.wallets) setWallets(cached.wallets);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
+    loadAllData(active);
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Seletor de Abas (Metas Ativas vs Conquistas Batidas vs Calculadora de Reserva)

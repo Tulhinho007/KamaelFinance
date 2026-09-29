@@ -17,20 +17,44 @@ export default function CartoesPage() {
   const [loading, setLoading] = useState(true);
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
 
-  const loadCards = async () => {
-    setLoading(true);
+  const loadCards = async (active = true, cacheKey?: string) => {
     try {
       const all = await getAllCardsOverview(selectedMonth, selectedYear);
-      setCards(all.filter((c: any) => c.walletType === "CREDIT_CARD"));
+      if (!active) return;
+      const creditOnly = all.filter((c: any) => c.walletType === "CREDIT_CARD");
+      setCards(creditOnly);
+      if (cacheKey) {
+        try {
+          sessionStorage.setItem(cacheKey, JSON.stringify(creditOnly));
+        } catch (e) {}
+      }
     } catch (err) {
       console.error("Erro ao carregar cartões:", err);
     } finally {
-      setLoading(false);
+      if (active) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadCards();
+    let active = true;
+    const cacheKey = `kamael_cartoes_${selectedMonth || "ALL"}_${selectedYear}`;
+
+    try {
+      const cachedStr = sessionStorage.getItem(cacheKey);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (Array.isArray(cached) && cached.length > 0) {
+          setCards(cached);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
+    loadCards(active, cacheKey);
+
+    return () => {
+      active = false;
+    };
   }, [selectedMonth, selectedYear]);
 
   const totalCreditLimit = cards.reduce((s, c) => s + c.limitTotal, 0);

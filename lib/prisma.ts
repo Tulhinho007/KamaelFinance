@@ -14,19 +14,20 @@ function getOptimizedDatabaseUrl(): string | undefined {
 
   let url = rawUrl;
 
-  // 1. Se estiver usando a porta direta 5432 do Supabase, migra para o Transaction Pooler na porta 6543
-  if (url.includes("supabase") && url.includes(":5432")) {
-    url = url.replace(":5432", ":6543");
-  }
-
-  // 2. Garante parâmetros vitais de Serverless (pgbouncer e connection_limit=1)
-  if (url.includes("supabase") || url.includes(":6543") || url.includes("pooler")) {
+  // Garante pgbouncer=true caso use o transaction pooler do Supabase (porta 6543)
+  if (url.includes(":6543") || url.includes("pooler.supabase.com")) {
     if (!url.includes("pgbouncer=true")) {
       url += (url.includes("?") ? "&" : "?") + "pgbouncer=true";
     }
-    if (!url.includes("connection_limit=")) {
-      url += (url.includes("?") ? "&" : "?") + "connection_limit=1";
-    }
+  }
+
+  // IMPORTANTE: NUNCA limitar o pool serverless a 1 conexão (connection_limit=1).
+  // connection_limit=1 transforma qualquer Promise.all em fila estritamente serial,
+  // multiplicando os round-trips de rede entre GRU e AWS us-east-1 (150ms * N queries = dezenas de segundos).
+  if (url.includes("connection_limit=1")) {
+    url = url.replace("connection_limit=1", "connection_limit=10");
+  } else if (!url.includes("connection_limit=")) {
+    url += (url.includes("?") ? "&" : "?") + "connection_limit=10";
   }
 
   return url;

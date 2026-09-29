@@ -3998,15 +3998,20 @@ export async function getAllCardsOverview(
   return result;
 }
 
-export async function getRecurringExpensesAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getRecurringExpensesAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[]
+) {
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
   const numMonth = !isAnnualView ? Number(month) : null;
 
   let from: Date;
   let to: Date;
   if (!isAnnualView && numMonth) {
-    await ensureRecurringExpensesForMonth(numMonth, year);
+    if (!preloadedTransactions) {
+      await ensureRecurringExpensesForMonth(numMonth, year);
+    }
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
@@ -4014,48 +4019,69 @@ export async function getRecurringExpensesAction(month?: number | null | string,
     to   = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  const txs = await (prisma.transaction as any).findMany({
-    where: {
-      wallet: { userId },
-      type: "EXPENSE",
-      deletedAt: null,
-      source: { not: "RECURRING_PROJECTION" },
-      OR: [
-        { isRecurring: true },
-        { tags: { contains: "assinatura", mode: "insensitive" } },
-        { tags: { contains: "recorrente", mode: "insensitive" } },
-      ],
-      AND: [
-        !isAnnualView && numMonth
-          ? {
-              OR: [
-                { competenceMonth: numMonth, competenceYear: year },
-                { date: { gte: from, lte: to } },
-                { competenceDate: { gte: from, lte: to } },
-                { dueDate: { gte: from, lte: to } },
-                { paymentDate: { gte: from, lte: to } },
-              ]
-            }
-          : {
-              OR: [
-                { competenceYear: year },
-                { date: { gte: from, lte: to } },
-                { competenceDate: { gte: from, lte: to } },
-                { dueDate: { gte: from, lte: to } },
-                { paymentDate: { gte: from, lte: to } },
-              ]
-            }
+  let txs: any[];
+  if (preloadedTransactions) {
+    txs = preloadedTransactions.filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.deletedAt || t.source === "RECURRING_PROJECTION") return false;
+      const isRec = t.isRecurring ||
+        (t.tags && (t.tags.toLowerCase().includes("assinatura") || t.tags.toLowerCase().includes("recorrente")));
+      if (!isRec) return false;
+
+      if (!isAnnualView && numMonth) {
+        if (t.competenceMonth === numMonth && t.competenceYear === year) return true;
+        const refD = new Date(t.dueDate || t.competenceDate || t.paymentDate || t.date);
+        return refD >= from && refD <= to;
+      } else {
+        if (t.competenceYear === year) return true;
+        const refD = new Date(t.dueDate || t.competenceDate || t.paymentDate || t.date);
+        return refD >= from && refD <= to;
+      }
+    });
+  } else {
+    const userId = await getActiveUserId();
+    txs = await (prisma.transaction as any).findMany({
+      where: {
+        wallet: { userId },
+        type: "EXPENSE",
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" },
+        OR: [
+          { isRecurring: true },
+          { tags: { contains: "assinatura", mode: "insensitive" } },
+          { tags: { contains: "recorrente", mode: "insensitive" } },
+        ],
+        AND: [
+          !isAnnualView && numMonth
+            ? {
+                OR: [
+                  { competenceMonth: numMonth, competenceYear: year },
+                  { date: { gte: from, lte: to } },
+                  { competenceDate: { gte: from, lte: to } },
+                  { dueDate: { gte: from, lte: to } },
+                  { paymentDate: { gte: from, lte: to } },
+                ]
+              }
+            : {
+                OR: [
+                  { competenceYear: year },
+                  { date: { gte: from, lte: to } },
+                  { competenceDate: { gte: from, lte: to } },
+                  { dueDate: { gte: from, lte: to } },
+                  { paymentDate: { gte: from, lte: to } },
+                ]
+              }
+        ]
+      },
+      include: {
+        wallet: true,
+        category: true,
+      },
+      orderBy: [
+        { dueDate: "asc" },
+        { date: "asc" }
       ]
-    },
-    include: {
-      wallet: true,
-      category: true,
-    },
-    orderBy: [
-      { dueDate: "asc" },
-      { date: "asc" }
-    ]
-  });
+    });
+  }
 
   return (txs as any[]).map(t => {
     const isCredit = t.wallet?.walletType === "CREDIT_CARD";
@@ -4103,8 +4129,11 @@ export async function getRecurringExpensesAction(month?: number | null | string,
   });
 }
 
-export async function getRealRevenueAction(month: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getRealRevenueAction(
+  month: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[]
+) {
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
   const monthNum = isAnnualView ? null : Number(month);
 
@@ -4119,27 +4148,44 @@ export async function getRealRevenueAction(month: number | null | string, year: 
     to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      type: "INCOME",
-      deletedAt: null,
-      ...(!isAnnualView ? {
-        OR: [
-          { competenceMonth: monthNum, competenceYear: year },
-          { competenceDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } }
-        ]
-      } : {
-        OR: [
-          { competenceYear: year },
-          { competenceDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } }
-        ]
-      })
-    },
-    include: { wallet: true },
-  });
+  let transactions: any[];
+  if (preloadedTransactions) {
+    transactions = preloadedTransactions.filter((t: any) => {
+      if (t.type !== "INCOME" || t.deletedAt) return false;
+      if (!isAnnualView && monthNum) {
+        if (t.competenceMonth === monthNum && t.competenceYear === year) return true;
+        const d = new Date(t.competenceDate || t.paymentDate || t.date);
+        return d >= from && d <= to;
+      } else {
+        if (t.competenceYear === year) return true;
+        const d = new Date(t.competenceDate || t.paymentDate || t.date);
+        return d >= from && d <= to;
+      }
+    });
+  } else {
+    const userId = await getActiveUserId();
+    transactions = await prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        type: "INCOME",
+        deletedAt: null,
+        ...(!isAnnualView ? {
+          OR: [
+            { competenceMonth: monthNum, competenceYear: year },
+            { competenceDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ]
+        } : {
+          OR: [
+            { competenceYear: year },
+            { competenceDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ]
+        })
+      },
+      include: { wallet: true },
+    });
+  }
 
   let total = 0;
   transactions.forEach((t) => {
@@ -4154,14 +4200,14 @@ export async function getRealRevenueAction(month: number | null | string, year: 
   return Math.round(total * 100) / 100;
 }
 
-export async function getPendingRevenuesAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getPendingRevenuesAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[]
+) {
   const now = new Date();
   const targetYear = year || now.getFullYear();
   const targetMonth = month && month !== "ALL" && !isNaN(Number(month)) ? Number(month) : (now.getMonth() + 1);
-
-  const from = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
-  const to   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
 
   const BENEFIT_TYPES = [
     "TICKET", "BENEFICIO", "BENEFÍCIO", 
@@ -4171,18 +4217,28 @@ export async function getPendingRevenuesAction(month?: number | null | string, y
 
   const targetRefMonth = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
 
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      wallet: {
-        userId,
-        walletType: { notIn: BENEFIT_TYPES }
+  let transactions: any[];
+  if (preloadedTransactions) {
+    transactions = preloadedTransactions.filter((t: any) => {
+      if (t.type !== "INCOME" || t.deletedAt) return false;
+      const wType = (t.wallet?.walletType || "").toUpperCase();
+      return !BENEFIT_TYPES.some(b => b.toUpperCase() === wType);
+    });
+  } else {
+    const userId = await getActiveUserId();
+    transactions = await prisma.transaction.findMany({
+      where: {
+        wallet: {
+          userId,
+          walletType: { notIn: BENEFIT_TYPES }
+        },
+        type: "INCOME",
+        deletedAt: null,
       },
-      type: "INCOME",
-      deletedAt: null,
-    },
-    include: { wallet: true },
-    orderBy: { date: "asc" }
-  });
+      include: { wallet: true },
+      orderBy: { date: "asc" }
+    });
+  }
 
   const filtered = transactions.filter((t: any) => {
     // 1. Status: deve ser pendente (status !== 'RECEBIDO' ou !isReceived)
@@ -4195,17 +4251,14 @@ export async function getPendingRevenuesAction(month?: number | null | string, y
     if (BENEFIT_TYPES.some(b => b.toUpperCase() === wType)) return false;
 
     // 3. Regra para Capturar as Receitas Pendentes:
-    // referenceMonth === '2026-09'
     if ((t as any).referenceMonth) {
       return String((t as any).referenceMonth).substring(0, 7) === targetRefMonth;
     }
 
-    // competenceMonth e competenceYear (se tem competência explícita, respeita estritamente)
     if (t.competenceMonth != null && t.competenceYear != null) {
       return t.competenceMonth === targetMonth && t.competenceYear === targetYear;
     }
 
-    // competenceDate
     if (t.competenceDate) {
       const cDate = new Date(t.competenceDate);
       if (!isNaN(cDate.getTime())) {
@@ -4214,7 +4267,6 @@ export async function getPendingRevenuesAction(month?: number | null | string, y
       return false;
     }
 
-    // Data de recebimento (date ou paymentDate) no mês selecionado (apenas fallback se não tiver competência)
     const d = new Date(t.paymentDate || t.date);
     if (!isNaN(d.getTime())) {
       return d.getUTCFullYear() === targetYear && (d.getUTCMonth() + 1) === targetMonth;
@@ -4405,20 +4457,35 @@ export async function undoCardInvoicePaymentAction(
   return { success: true };
 }
 
-export async function getPaidInvoicesAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getPaidInvoicesAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloaded?: { wallets?: any[]; paidInvoices?: any[] }
+) {
+  let paidInvoices: any[];
+  let walletsList: any[];
+
+  if (preloaded?.paidInvoices && preloaded?.wallets) {
+    paidInvoices = preloaded.paidInvoices;
+    walletsList = preloaded.wallets;
+  } else {
+    const userId = await getActiveUserId();
+    [paidInvoices, walletsList] = await Promise.all([
+      (prisma as any).invoicePayment.findMany({
+        where: { wallet: { userId } },
+        include: { wallet: true },
+        orderBy: { paidAt: "desc" },
+      }),
+      prisma.wallet.findMany({
+        where: { userId },
+        select: { id: true, title: true, bankName: true },
+      }),
+    ]);
+  }
+
+  const walletsMap = new Map(walletsList.map((w: any) => [w.id, w]));
 
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
-
-  const paidInvoices = await (prisma as any).invoicePayment.findMany({
-    where: {
-      wallet: { userId },
-    },
-    include: {
-      wallet: true,
-    },
-    orderBy: { paidAt: "desc" },
-  });
 
   const filtered = paidInvoices.filter((p: any) => {
     if (!isAnnualView) {
@@ -4433,88 +4500,95 @@ export async function getPaidInvoicesAction(month?: number | null | string, year
     }
   });
 
-  return Promise.all(
-    filtered.map(async (p: any) => {
-      let paymentWalletTitle = "Sem Débito em Conta";
-      if (p.paymentWalletId) {
-        const sourceWallet = await prisma.wallet.findUnique({
-          where: { id: p.paymentWalletId },
-          select: { title: true },
-        });
-        if (sourceWallet) paymentWalletTitle = sourceWallet.title;
-      }
+  return filtered.map((p: any) => {
+    const cardWallet = walletsMap.get(p.walletId) || p.wallet;
+    const sourceWallet = p.paymentWalletId ? walletsMap.get(p.paymentWalletId) : null;
+    const paymentWalletTitle = sourceWallet ? sourceWallet.title : "Sem Débito em Conta";
 
-      return {
-        id: p.id,
-        walletId: p.walletId,
-        cardTitle: p.wallet.title,
-        bankName: p.wallet.bankName || p.wallet.title,
-        month: p.month,
-        year: p.year,
-        amount: Number(p.amount),
-        paidAt: p.paidAt.toISOString(),
-        paymentWalletId: p.paymentWalletId,
-        paymentWalletTitle,
-      };
-    })
-  );
+    return {
+      id: p.id,
+      walletId: p.walletId,
+      cardTitle: cardWallet?.title || "Cartão",
+      bankName: cardWallet?.bankName || cardWallet?.title || "Cartão",
+      month: p.month,
+      year: p.year,
+      amount: Number(p.amount),
+      paidAt: p.paidAt ? (typeof p.paidAt === "string" ? p.paidAt : p.paidAt.toISOString()) : new Date().toISOString(),
+      paymentWalletId: p.paymentWalletId,
+      paymentWalletTitle,
+    };
+  });
 }
 
 // ---------- Actions de Ciclo de Vida de Despesas (Contas / Boletos / Pix) ----------
 
-export async function getUpcomingBillsWindowAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getUpcomingBillsWindowAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloaded?: { wallets?: any[]; transactions?: any[]; paidInvoices?: any[] }
+) {
   const now = new Date();
   const curYear = year || now.getFullYear();
   const targetMonth = month && month !== "ALL" && !isNaN(Number(month)) ? Number(month) : (now.getMonth() + 1);
 
-  // Faturas de Cartão de Crédito para o mês selecionado
-  const creditCards = await prisma.wallet.findMany({
-    where: { userId, walletType: "CREDIT_CARD" },
-    select: { id: true, title: true, bankName: true, vencimento: true, diaFechamento: true }
-  });
-
-  const upcomingCardInvoices: any[] = [];
-  const paidCardInvoices: any[] = [];
-
-  const cardIds = creditCards.map(c => c.id);
   const from = new Date(Date.UTC(curYear, targetMonth - 1, 1, 0, 0, 0));
   const to   = new Date(Date.UTC(curYear, targetMonth, 0, 23, 59, 59, 999));
 
-  // ⚡ Busca faturas pagas e compras de TODOS os cartões em paralelo (1 round-trip)
-  const [allPaidInvoices, allCardPurchases] = await Promise.all([
-    cardIds.length > 0
-      ? (prisma as any).invoicePayment.findMany({
-          where: { walletId: { in: cardIds }, month: targetMonth, year: curYear }
-        })
-      : Promise.resolve([]),
-    cardIds.length > 0
-      ? prisma.transaction.findMany({
-          where: {
-            walletId: { in: cardIds },
-            type: "EXPENSE",
-            deletedAt: null,
-            source: { not: "RECURRING_PROJECTION" },
-            OR: [
-              { competenceMonth: targetMonth, competenceYear: curYear },
-              { competenceDate: { gte: from, lte: to } },
-              { purchaseDate: { gte: from, lte: to } },
-              { date: { gte: from, lte: to } }
-            ]
-          },
-          select: {
-            id: true,
-            walletId: true,
-            amount: true,
-            date: true,
-            competenceDate: true,
-            purchaseDate: true,
-            competenceMonth: true,
-            competenceYear: true,
-          }
-        })
-      : Promise.resolve([]),
-  ]);
+  let creditCards: any[];
+  let allPaidInvoices: any[];
+  let allCardPurchases: any[];
+
+  if (preloaded?.wallets && preloaded?.transactions && preloaded?.paidInvoices) {
+    creditCards = preloaded.wallets.filter((w: any) => w.walletType === "CREDIT_CARD");
+    const cardIds = creditCards.map(c => c.id);
+    allPaidInvoices = preloaded.paidInvoices.filter((p: any) => cardIds.includes(p.walletId) && p.month === targetMonth && p.year === curYear);
+    allCardPurchases = preloaded.transactions.filter((t: any) => {
+      if (!cardIds.includes(t.walletId) || t.type !== "EXPENSE" || t.deletedAt || t.source === "RECURRING_PROJECTION") return false;
+      if (t.competenceMonth === targetMonth && t.competenceYear === curYear) return true;
+      const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+      return d >= from && d <= to;
+    });
+  } else {
+    const userId = await getActiveUserId();
+    creditCards = await prisma.wallet.findMany({
+      where: { userId, walletType: "CREDIT_CARD" },
+      select: { id: true, title: true, bankName: true, vencimento: true, diaFechamento: true }
+    });
+    const cardIds = creditCards.map(c => c.id);
+    [allPaidInvoices, allCardPurchases] = await Promise.all([
+      cardIds.length > 0
+        ? (prisma as any).invoicePayment.findMany({
+            where: { walletId: { in: cardIds }, month: targetMonth, year: curYear }
+          })
+        : Promise.resolve([]),
+      cardIds.length > 0
+        ? prisma.transaction.findMany({
+            where: {
+              walletId: { in: cardIds },
+              type: "EXPENSE",
+              deletedAt: null,
+              source: { not: "RECURRING_PROJECTION" },
+              OR: [
+                { competenceMonth: targetMonth, competenceYear: curYear },
+                { competenceDate: { gte: from, lte: to } },
+                { purchaseDate: { gte: from, lte: to } },
+                { date: { gte: from, lte: to } }
+              ]
+            },
+            select: {
+              id: true,
+              walletId: true,
+              amount: true,
+              date: true,
+              competenceDate: true,
+              purchaseDate: true,
+              competenceMonth: true,
+              competenceYear: true,
+            }
+          })
+        : Promise.resolve([]),
+    ]);
+  }
 
   const paidByCard = new Map<string, any>(allPaidInvoices.map((p: any) => [p.walletId, p]));
   const purchasesByCard = new Map<string, any[]>();
@@ -4523,6 +4597,9 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
     list.push(t);
     purchasesByCard.set(t.walletId, list);
   }
+
+  const upcomingCardInvoices: any[] = [];
+  const paidCardInvoices: any[] = [];
 
   for (const card of creditCards) {
     const paidThisMonth = paidByCard.get(card.id);
@@ -4551,7 +4628,7 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
         walletId: card.id,
         cardTitle: card.title || card.bankName,
         amount: Number(paidThisMonth.amount),
-        paidAt: paidThisMonth.paidAt ? paidThisMonth.paidAt.toISOString() : new Date().toISOString(),
+        paidAt: paidThisMonth.paidAt ? (typeof paidThisMonth.paidAt === "string" ? paidThisMonth.paidAt : paidThisMonth.paidAt.toISOString()) : new Date().toISOString(),
         month: targetMonth,
         year: curYear,
         paymentWalletId: paidThisMonth.paymentWalletId || null,
@@ -4582,7 +4659,7 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
     ? Math.min(100, Math.round((totalFaturasPagas / totalGeral) * 100))
     : (totalFaturasPagas > 0 ? 100 : 0);
 
-  const pendingRevData = await getPendingRevenuesAction(month, year);
+  const pendingRevData = await getPendingRevenuesAction(month, year, preloaded?.transactions);
   const receitasPendentesDoMes = pendingRevData.total;
 
   return {
@@ -4932,15 +5009,21 @@ export async function getMonthlyCashFlowRollForwardAction(
   };
 }
 
-export async function getPendingExpensesAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getPendingExpensesAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[],
+  preloadedWallets?: any[]
+) {
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
   const numMonth = !isAnnualView ? Number(month) : null;
 
   let from: Date;
   let to: Date;
   if (!isAnnualView && numMonth) {
-    await ensureRecurringExpensesForMonth(numMonth, year);
+    if (!preloadedTransactions) {
+      await ensureRecurringExpensesForMonth(numMonth, year);
+    }
     from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
     to   = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
   } else {
@@ -4952,26 +5035,40 @@ export async function getPendingExpensesAction(month?: number | null | string, y
     to   = new Date(Date.UTC(curYear, curMonth + 2, 0, 23, 59, 59, 999));
   }
 
-  const pendingTxs = await (prisma.transaction as any).findMany({
-    where: {
-      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
-      type: "EXPENSE",
-      status: "PENDING",
-      deletedAt: null,
-      OR: [
-        { dueDate: { gte: from, lte: to } },
-        { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
+  let pendingTxs: any[];
+  if (preloadedTransactions) {
+    pendingTxs = preloadedTransactions.filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.status !== "PENDING" || t.deletedAt) return false;
+      const wType = (t.wallet?.walletType || "").toUpperCase();
+      if (wType === "CREDIT_CARD") return false;
+      const due = t.dueDate || t.date;
+      if (!due) return false;
+      const d = new Date(due);
+      return d >= from && d <= to;
+    });
+  } else {
+    const userId = await getActiveUserId();
+    pendingTxs = await (prisma.transaction as any).findMany({
+      where: {
+        wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+        type: "EXPENSE",
+        status: "PENDING",
+        deletedAt: null,
+        OR: [
+          { dueDate: { gte: from, lte: to } },
+          { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
+        ]
+      },
+      include: {
+        wallet: true,
+        category: true,
+      },
+      orderBy: [
+        { dueDate: "asc" },
+        { date: "asc" }
       ]
-    },
-    include: {
-      wallet: true,
-      category: true,
-    },
-    orderBy: [
-      { dueDate: "asc" },
-      { date: "asc" }
-    ]
-  });
+    });
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -4989,7 +5086,7 @@ export async function getPendingExpensesAction(month?: number | null | string, y
       description: t.description,
       amount: Number(t.amount),
       dueDate: dateFormatted,
-      dueDateRaw: due.toISOString(),
+      dueDateRaw: due instanceof Date ? due.toISOString() : new Date(due).toISOString(),
       walletId: t.walletId,
       walletTitle: t.wallet?.title || "Conta",
       bankName: t.wallet?.bankName || t.wallet?.title || "Conta",
@@ -5084,8 +5181,11 @@ export async function undoExpensePaymentAction(transactionId: string) {
   return { success: true, id: updated.id };
 }
 
-export async function getPaidExpensesAction(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
+export async function getPaidExpensesAction(
+  month?: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[]
+) {
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
   const numMonth = !isAnnualView ? Number(month) : null;
 
@@ -5102,25 +5202,39 @@ export async function getPaidExpensesAction(month?: number | null | string, year
     to   = new Date(Date.UTC(curYear, curMonth + 2, 0, 23, 59, 59, 999));
   }
 
-  const paidTxs = await (prisma.transaction as any).findMany({
-    where: {
-      wallet: { userId, walletType: { not: "CREDIT_CARD" } },
-      type: "EXPENSE",
-      status: { in: ["COMPLETED", "PAID"] },
-      deletedAt: null,
-      paymentDate: { not: null },
-      OR: [
-        { paymentDate: { gte: from, lte: to } },
-        { dueDate: { gte: from, lte: to } },
-        { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
-      ]
-    },
-    include: {
-      wallet: true,
-      category: true,
-    },
-    orderBy: { paymentDate: "desc" },
-  });
+  let paidTxs: any[];
+  if (preloadedTransactions) {
+    paidTxs = preloadedTransactions.filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.deletedAt) return false;
+      if (t.status !== "COMPLETED" && t.status !== "PAID") return false;
+      const wType = (t.wallet?.walletType || "").toUpperCase();
+      if (wType === "CREDIT_CARD") return false;
+      const payD = t.paymentDate ? new Date(t.paymentDate) : null;
+      const dueD = t.dueDate ? new Date(t.dueDate) : (t.competenceDate ? new Date(t.competenceDate) : (t.date ? new Date(t.date) : null));
+      return (payD && payD >= from && payD <= to) || (dueD && dueD >= from && dueD <= to);
+    });
+  } else {
+    const userId = await getActiveUserId();
+    paidTxs = await (prisma.transaction as any).findMany({
+      where: {
+        wallet: { userId, walletType: { not: "CREDIT_CARD" } },
+        type: "EXPENSE",
+        status: { in: ["COMPLETED", "PAID"] },
+        deletedAt: null,
+        paymentDate: { not: null },
+        OR: [
+          { paymentDate: { gte: from, lte: to } },
+          { dueDate: { gte: from, lte: to } },
+          { AND: [{ dueDate: null }, { date: { gte: from, lte: to } }] }
+        ]
+      },
+      include: {
+        wallet: true,
+        category: true,
+      },
+      orderBy: { paymentDate: "desc" },
+    });
+  }
 
   // Filtra para a visão mensal:
   // 1. Despesas pagas dentro do mês visto (saída de caixa no mês)
@@ -8989,139 +9103,213 @@ async function ensureRecurringCommitmentsForMonth(userId: string, targetMonth: n
 
 export async function getMonthlyCommitmentsAction(
   month?: number | null | string,
-  year: number = 2026
+  year: number = 2026,
+  preloaded?: { wallets?: any[]; transactions?: any[] }
 ) {
-  const userId = await getActiveUserId();
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
   const numMonth = !isAnnualView ? Number(month) : null;
-
-  // 1. Contas Correntes do usuário (para opções de débito)
-  const userWallets = await prisma.wallet.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      title: true,
-      bankName: true,
-      walletType: true,
-      currentBalance: true,
-      creditLimit: true,
-    },
-    orderBy: { title: "asc" },
-  });
-
-  const contasBancarias = userWallets
-    .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
-    .map((w) => ({
-      id: w.id,
-      banco: w.bankName || w.title,
-      saldoAtual: Number(w.currentBalance || 0),
-    }));
-
-  // 2. Cartões de Crédito — ⚡ 1 única query agregada em vez de 1 query por cartão (N+1)
   const targetMonth = numMonth || (new Date().getMonth() + 1);
   const fromMonth = new Date(Date.UTC(year, targetMonth - 1, 1, 0, 0, 0));
   const toMonth = new Date(Date.UTC(year, targetMonth, 0, 23, 59, 59, 999));
 
-  const creditCardWallets = userWallets.filter((w) => w.walletType === "CREDIT_CARD");
-  const creditCardIds = creditCardWallets.map((w) => w.id);
+  let userWallets: any[];
+  let txs: any[];
+  let cartoesCredito: any[];
+  let contasBancarias: any[];
 
-  const cardExpenseAggs = creditCardIds.length > 0
-    ? await prisma.transaction.groupBy({
-        by: ["walletId"],
-        where: {
-          walletId: { in: creditCardIds },
-          type: "EXPENSE",
-          deletedAt: null,
-          source: { not: "RECURRING_PROJECTION" },
-          OR: [
-            { competenceMonth: targetMonth, competenceYear: year },
-            { competenceDate: { gte: fromMonth, lte: toMonth } },
-            { purchaseDate: { gte: fromMonth, lte: toMonth } },
-            { date: { gte: fromMonth, lte: toMonth } },
-          ],
-        },
-        _sum: { amount: true },
-      })
-    : [];
+  if (preloaded?.wallets && preloaded?.transactions) {
+    userWallets = preloaded.wallets;
+    const creditCardWallets = userWallets.filter((w) => w.walletType === "CREDIT_CARD");
+    const creditCardIds = creditCardWallets.map((w) => w.id);
 
-  const faturaByCardId = new Map(
-    cardExpenseAggs.map((a) => [a.walletId, Number(a._sum.amount || 0)])
-  );
+    const faturaByCardId = new Map<string, number>();
+    for (const t of preloaded.transactions) {
+      if (creditCardIds.includes(t.walletId) && t.type === "EXPENSE" && !t.deletedAt && t.source !== "RECURRING_PROJECTION") {
+        const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+        const matchComp = t.competenceMonth === targetMonth && t.competenceYear === year;
+        const matchDate = d >= fromMonth && d <= toMonth;
+        if (matchComp || matchDate) {
+          faturaByCardId.set(t.walletId, (faturaByCardId.get(t.walletId) || 0) + Number(t.amount || 0));
+        }
+      }
+    }
 
-  const cartoesCredito = creditCardWallets.map((c) => {
-    const totalFatura = faturaByCardId.get(c.id) ?? 0;
-    const limiteTotal = Number(c.creditLimit || 0);
-    return {
-      id: c.id,
-      nome: c.title || c.bankName || "Cartão de Crédito",
-      limiteDisponivel: Math.max(0, limiteTotal - totalFatura),
-      limiteTotal,
-      faturaAtual: totalFatura,
-    };
-  });
+    cartoesCredito = creditCardWallets.map((c) => {
+      const totalFatura = faturaByCardId.get(c.id) ?? 0;
+      const limiteTotal = Number(c.creditLimit || 0);
+      return {
+        id: c.id,
+        nome: c.title || c.bankName || "Cartão de Crédito",
+        limiteDisponivel: Math.max(0, limiteTotal - totalFatura),
+        limiteTotal,
+        faturaAtual: totalFatura,
+      };
+    });
 
-  // 3. Replicar compromissos recorrentes para o mês ativo caso ainda não existam
-  if (!isAnnualView && numMonth) {
-    await ensureRecurringCommitmentsForMonth(userId, numMonth, year);
-  }
+    contasBancarias = userWallets
+      .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
+      .map((w) => ({
+        id: w.id,
+        banco: w.bankName || w.title,
+        saldoAtual: Number(w.currentBalance || 0),
+      }));
 
-  // 4. Buscar compromissos do mês selecionado
-  let from: Date;
-  let to: Date;
-  if (!isAnnualView && numMonth) {
-    from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
-    to = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+    let from: Date;
+    let to: Date;
+    if (!isAnnualView && numMonth) {
+      from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+      to = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+    } else {
+      from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    }
+
+    txs = preloaded.transactions.filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.deletedAt) return false;
+      const tagStr = (t.tags || "").toUpperCase();
+      const isComm = t.source === "COMMITMENT" ||
+        tagStr.includes("#COMPROMISSO") ||
+        tagStr.includes("BOLETO") ||
+        tagStr.includes("ASSINATURA") ||
+        t.paymentMethod === "BOLETO";
+      if (!isComm) return false;
+
+      if (numMonth) {
+        if (t.competenceMonth === numMonth && t.competenceYear === year) return true;
+        const due = t.dueDate || t.date;
+        if (!due) return false;
+        const d = new Date(due);
+        return d >= from && d <= to;
+      } else {
+        if (t.competenceYear === year) return true;
+        const due = t.dueDate || t.date;
+        if (!due) return false;
+        const d = new Date(due);
+        return d >= from && d <= to;
+      }
+    });
   } else {
-    from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-    to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
-  }
+    const userId = await getActiveUserId();
+    userWallets = await prisma.wallet.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        title: true,
+        bankName: true,
+        walletType: true,
+        currentBalance: true,
+        creditLimit: true,
+      },
+      orderBy: { title: "asc" },
+    });
 
-  const txs = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      type: "EXPENSE",
-      deletedAt: null,
-      OR: [
-        { source: "COMMITMENT" },
-        { tags: { contains: "#compromisso" } },
-        { tags: { contains: "BOLETO" } },
-        { tags: { contains: "ASSINATURA" } },
-        { paymentMethod: "BOLETO" },
+    contasBancarias = userWallets
+      .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
+      .map((w) => ({
+        id: w.id,
+        banco: w.bankName || w.title,
+        saldoAtual: Number(w.currentBalance || 0),
+      }));
+
+    const creditCardWallets = userWallets.filter((w) => w.walletType === "CREDIT_CARD");
+    const creditCardIds = creditCardWallets.map((w) => w.id);
+
+    const cardExpenseAggs = creditCardIds.length > 0
+      ? await prisma.transaction.groupBy({
+          by: ["walletId"],
+          where: {
+            walletId: { in: creditCardIds },
+            type: "EXPENSE",
+            deletedAt: null,
+            source: { not: "RECURRING_PROJECTION" },
+            OR: [
+              { competenceMonth: targetMonth, competenceYear: year },
+              { competenceDate: { gte: fromMonth, lte: toMonth } },
+              { purchaseDate: { gte: fromMonth, lte: toMonth } },
+              { date: { gte: fromMonth, lte: toMonth } },
+            ],
+          },
+          _sum: { amount: true },
+        })
+      : [];
+
+    const faturaByCardId = new Map(
+      cardExpenseAggs.map((a) => [a.walletId, Number(a._sum.amount || 0)])
+    );
+
+    cartoesCredito = creditCardWallets.map((c) => {
+      const totalFatura = faturaByCardId.get(c.id) ?? 0;
+      const limiteTotal = Number(c.creditLimit || 0);
+      return {
+        id: c.id,
+        nome: c.title || c.bankName || "Cartão de Crédito",
+        limiteDisponivel: Math.max(0, limiteTotal - totalFatura),
+        limiteTotal,
+        faturaAtual: totalFatura,
+      };
+    });
+
+    if (!isAnnualView && numMonth) {
+      await ensureRecurringCommitmentsForMonth(userId, numMonth, year);
+    }
+
+    let from: Date;
+    let to: Date;
+    if (!isAnnualView && numMonth) {
+      from = new Date(Date.UTC(year, numMonth - 1, 1, 0, 0, 0));
+      to = new Date(Date.UTC(year, numMonth, 0, 23, 59, 59, 999));
+    } else {
+      from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+      to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    }
+
+    txs = await prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        type: "EXPENSE",
+        deletedAt: null,
+        OR: [
+          { source: "COMMITMENT" },
+          { tags: { contains: "#compromisso" } },
+          { tags: { contains: "BOLETO" } },
+          { tags: { contains: "ASSINATURA" } },
+          { paymentMethod: "BOLETO" },
+        ],
+        AND: [
+          {
+            OR: [
+              ...(numMonth
+                ? [
+                    { competenceMonth: numMonth, competenceYear: year },
+                    {
+                      AND: [
+                        { competenceMonth: null },
+                        { dueDate: { gte: from, lte: to } },
+                      ],
+                    },
+                    {
+                      AND: [
+                        { competenceMonth: null },
+                        { dueDate: null },
+                        { date: { gte: from, lte: to } },
+                      ],
+                    },
+                  ]
+                : [{ competenceYear: year }]),
+            ],
+          },
+        ],
+      },
+      include: {
+        wallet: true,
+        category: true,
+      },
+      orderBy: [
+        { dueDate: "asc" },
+        { date: "asc" },
       ],
-      AND: [
-        {
-          OR: [
-            ...(numMonth
-              ? [
-                  { competenceMonth: numMonth, competenceYear: year },
-                  {
-                    AND: [
-                      { competenceMonth: null },
-                      { dueDate: { gte: from, lte: to } },
-                    ],
-                  },
-                  {
-                    AND: [
-                      { competenceMonth: null },
-                      { dueDate: null },
-                      { date: { gte: from, lte: to } },
-                    ],
-                  },
-                ]
-              : [{ competenceYear: year }]),
-          ],
-        },
-      ],
-    },
-    include: {
-      wallet: true,
-      category: true,
-    },
-    orderBy: [
-      { dueDate: "asc" },
-      { date: "asc" },
-    ],
-  });
+    });
+  }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -9751,7 +9939,8 @@ export async function getDespesasBundleAction(
 }> {
   const userId = await getActiveUserId();
 
-  // Pré-carrega carteiras, transações e faturas pagas em paralelo com SELECT enxuto
+  // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
+  // Carrega todas as carteiras, transações e faturas pagas de uma só vez
   const [wallets, transactions, paidInvoices] = await Promise.all([
     prisma.wallet.findMany({
       where: { userId },
@@ -9759,46 +9948,35 @@ export async function getDespesasBundleAction(
     }),
     prisma.transaction.findMany({
       where: { wallet: { userId }, deletedAt: null },
-      select: {
-        id: true,
-        walletId: true,
-        amount: true,
-        type: true,
-        status: true,
-        source: true,
-        date: true,
-        competenceDate: true,
-        purchaseDate: true,
-        dueDate: true,
-        competenceMonth: true,
-        competenceYear: true,
-        deletedAt: true,
+      include: {
         category: {
-          select: { id: true, name: true, color: true }
-        }
+          select: { id: true, name: true, color: true },
+        },
+        wallet: true,
       },
       orderBy: { date: "asc" },
     }),
-    prisma.invoicePayment.findMany({
+    (prisma as any).invoicePayment.findMany({
       where: { wallet: { userId } },
     }),
   ]);
 
-  const preloaded = { wallets, transactions, paidInvoices };
+  const preloaded = { userId, wallets, transactions, paidInvoices };
 
+  // ⚡ TODOS OS 9 CÁLCULOS EXECUTADOS 100% EM MEMÓRIA (0ms I/O adicional ao banco)
   const [
     cards, paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
     recurringExpenses, windowBills, commitments, cashFlow,
   ] = await Promise.all([
     getAllCardsOverview(month, year, preloaded),
-    getPaidInvoicesAction(month, year),
-    getRealRevenueAction(month, year),
-    getPendingExpensesAction(month, year),
-    getPaidExpensesAction(month, year),
-    getRecurringExpensesAction(month, year),
-    getUpcomingBillsWindowAction(month, year),
-    getMonthlyCommitmentsAction(month, year),
-    getMonthlyCashFlowRollForwardAction(month, year),
+    getPaidInvoicesAction(month, year, { wallets, paidInvoices }),
+    getRealRevenueAction(month, year, transactions),
+    getPendingExpensesAction(month, year, transactions, wallets),
+    getPaidExpensesAction(month, year, transactions),
+    getRecurringExpensesAction(month, year, transactions),
+    getUpcomingBillsWindowAction(month, year, preloaded),
+    getMonthlyCommitmentsAction(month, year, { wallets, transactions }),
+    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
   ]);
 
   const pendingRevenues = {

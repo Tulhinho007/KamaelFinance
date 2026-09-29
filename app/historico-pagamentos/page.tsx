@@ -32,11 +32,26 @@ export default function PaymentHistoryPage() {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
+    const cacheKey = `kamael_historico_${selectedMonth}_${selectedYear}`;
+
+    try {
+      const cachedStr = sessionStorage.getItem(cacheKey);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached?.items) {
+          setData(cached);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
     getPaymentHistoryData(selectedMonth, selectedYear)
       .then((res) => {
         if (isMounted) {
           setData(res);
+          try {
+            sessionStorage.setItem(cacheKey, JSON.stringify(res));
+          } catch (e) {}
           setLoading(false);
         }
       })
