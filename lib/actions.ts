@@ -4124,7 +4124,19 @@ export async function getRealRevenueAction(month: number | null | string, year: 
       wallet: { userId },
       type: "INCOME",
       deletedAt: null,
-      date: { gte: from, lte: to },
+      ...(!isAnnualView ? {
+        OR: [
+          { competenceMonth: monthNum, competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } }
+        ]
+      } : {
+        OR: [
+          { competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } }
+        ]
+      })
     },
     include: { wallet: true },
   });
@@ -4782,7 +4794,7 @@ export async function getMonthlyCashFlowRollForwardAction(
   preloadedWallets?: any[],
   preloadedTransactions?: any[]
 ): Promise<MonthlyCashFlowRollForwardResult> {
-  const userId = preloadedWallets ? "" : await getActiveUserId();
+  const userId = await getActiveUserId();
   const now = new Date();
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
@@ -9786,7 +9798,7 @@ export async function getDespesasBundleAction(
     getRecurringExpensesAction(month, year),
     getUpcomingBillsWindowAction(month, year),
     getMonthlyCommitmentsAction(month, year),
-    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
+    getMonthlyCashFlowRollForwardAction(month, year),
   ]);
 
   const pendingRevenues = {
