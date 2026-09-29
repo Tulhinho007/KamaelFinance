@@ -12,15 +12,24 @@ function getOptimizedDatabaseUrl(): string | undefined {
   const rawUrl = process.env.DATABASE_URL;
   if (!rawUrl) return undefined;
 
-  // Se estiver usando a porta de sessão 5432 do Supabase, migra para o Transaction Pooler na porta 6543
-  if (rawUrl.includes("supabase") && rawUrl.includes(":5432")) {
-    let url = rawUrl.replace(":5432", ":6543");
-    if (!url.includes("pgbouncer=true")) {
-      url += (url.includes("?") ? "&" : "?") + "pgbouncer=true&connection_limit=1";
-    }
-    return url;
+  let url = rawUrl;
+
+  // 1. Se estiver usando a porta direta 5432 do Supabase, migra para o Transaction Pooler na porta 6543
+  if (url.includes("supabase") && url.includes(":5432")) {
+    url = url.replace(":5432", ":6543");
   }
-  return rawUrl;
+
+  // 2. Garante parâmetros vitais de Serverless (pgbouncer e connection_limit=1)
+  if (url.includes("supabase") || url.includes(":6543") || url.includes("pooler")) {
+    if (!url.includes("pgbouncer=true")) {
+      url += (url.includes("?") ? "&" : "?") + "pgbouncer=true";
+    }
+    if (!url.includes("connection_limit=")) {
+      url += (url.includes("?") ? "&" : "?") + "connection_limit=1";
+    }
+  }
+
+  return url;
 }
 
 const optimizedUrl = getOptimizedDatabaseUrl();

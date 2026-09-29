@@ -199,18 +199,14 @@ export default function CartaoDetailPage() {
     if (!cardId) return;
     setLoading(true);
     try {
-      const data = await getCardDataById(cardId, selectedMonth, selectedYear);
-      if (data) {
-        setCardData(data);
-      } else {
-        setCardData(null);
-      }
-      try {
-        const overview = await getAllCardsOverview(selectedMonth, selectedYear);
-        const checking = overview.filter(c => c.walletType === "CONTA_CORRENTE");
+      const [data, overview] = await Promise.all([
+        getCardDataById(cardId, selectedMonth, selectedYear),
+        getAllCardsOverview(selectedMonth, selectedYear).catch(() => []),
+      ]);
+      setCardData(data || null);
+      if (overview && Array.isArray(overview)) {
+        const checking = overview.filter((c: any) => c.walletType === "CONTA_CORRENTE");
         setCheckingWallets(checking);
-      } catch (e) {
-        // ignore
       }
     } catch (err) {
       console.error("Erro ao carregar dados do cartão:", err);

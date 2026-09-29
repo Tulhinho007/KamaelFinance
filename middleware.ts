@@ -72,15 +72,11 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
 
-  // 3. Security Hardening Headers
+  // 3. Security Hardening Headers (CSP principal configurado de forma oficial e unificada no next.config.ts)
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set(
-    "Content-Security-Policy",
-    "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; worker-src 'self' blob:; frame-ancestors 'none';"
-  );
 
   return response;
 }

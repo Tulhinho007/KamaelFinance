@@ -44,6 +44,7 @@ export default function CartoesPage() {
       <div className="flex flex-col gap-2">
         <Link
           href="/"
+          prefetch={false}
           className="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-600 hover:text-indigo-700 w-fit transition-colors"
         >
           <ArrowLeft className="w-4 h-4" /> Voltar para o Dashboard
@@ -155,6 +156,7 @@ export default function CartoesPage() {
 
                     <Link
                       href={`/cartoes/${card.id}`}
+                      prefetch={false}
                       className="text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors flex items-center gap-1 shrink-0"
                     >
                       <span>Ver Fatura</span>
