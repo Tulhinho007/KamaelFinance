@@ -4506,23 +4506,71 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
   const fromBuffer = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
   const toBuffer = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
 
-  // 1. Receitas
   const BENEFIT_TYPES = ["TICKET", "BENEFICIO", "BENEFÍCIO"];
-  const incomes = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
-      type: "INCOME",
-      deletedAt: null,
-      OR: [
-        { competenceMonth: m, competenceYear: y },
-        { competenceDate: { gte: fromBuffer, lte: toBuffer } },
-        { paymentDate: { gte: fromBuffer, lte: toBuffer } },
-        { date: { gte: fromBuffer, lte: toBuffer } },
-      ],
-    },
-    include: { wallet: true },
-  });
 
+  // ⚡ Dispara as 3 queries em paralelo (antes: sequenciais)
+  const [incomes, cardExpenses, commitments] = await Promise.all([
+    // 1. Receitas
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
+        type: "INCOME",
+        deletedAt: null,
+        OR: [
+          { competenceMonth: m, competenceYear: y },
+          { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+          { paymentDate: { gte: fromBuffer, lte: toBuffer } },
+          { date: { gte: fromBuffer, lte: toBuffer } },
+        ],
+      },
+      select: {
+        amount: true, status: true,
+        competenceMonth: true, competenceYear: true,
+        competenceDate: true, paymentDate: true, date: true,
+        wallet: { select: { walletType: true } },
+      },
+    }),
+    // 2. Faturas de Cartão
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId, walletType: "CREDIT_CARD" },
+        type: "EXPENSE",
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" },
+        OR: [
+          { competenceMonth: m, competenceYear: y },
+          { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+          { purchaseDate: { gte: fromBuffer, lte: toBuffer } },
+          { date: { gte: fromBuffer, lte: toBuffer } },
+        ],
+      },
+      select: {
+        amount: true, status: true,
+        competenceMonth: true, competenceYear: true,
+        competenceDate: true, purchaseDate: true, date: true,
+      },
+    }),
+    // 3. Boletos / Central de Compromissos
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        source: "COMMITMENT",
+        deletedAt: null,
+        OR: [
+          { competenceMonth: m, competenceYear: y },
+          { dueDate: { gte: fromBuffer, lte: toBuffer } },
+          { date: { gte: fromBuffer, lte: toBuffer } },
+        ],
+      },
+      select: {
+        amount: true, status: true,
+        competenceMonth: true, competenceYear: true,
+        dueDate: true, date: true,
+      },
+    }),
+  ]);
+
+  // Filtragem e cálculos em memória
   const monthIncomes = incomes.filter((t: any) => {
     if (t.competenceMonth != null && t.competenceYear != null) {
       return t.competenceMonth === m && t.competenceYear === y;
@@ -4537,27 +4585,11 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
     return d.getUTCFullYear() === y && (d.getUTCMonth() + 1) === m;
   });
 
-  const totalReceitas = monthIncomes.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalReceitas = monthIncomes.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const receitasPendentes = monthIncomes
     .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const receitasRealizadas = totalReceitas - receitasPendentes;
-
-  // 2. Faturas de Cartão
-  const cardExpenses = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId, walletType: "CREDIT_CARD" },
-      type: "EXPENSE",
-      deletedAt: null,
-      source: { not: "RECURRING_PROJECTION" },
-      OR: [
-        { competenceMonth: m, competenceYear: y },
-        { competenceDate: { gte: fromBuffer, lte: toBuffer } },
-        { purchaseDate: { gte: fromBuffer, lte: toBuffer } },
-        { date: { gte: fromBuffer, lte: toBuffer } },
-      ],
-    },
-  });
 
   const monthCardTxs = cardExpenses.filter((t: any) => {
     if (t.competenceMonth != null && t.competenceYear != null) {
@@ -4567,25 +4599,11 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
     return d >= from && d <= to;
   });
 
-  const totalFaturas = monthCardTxs.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalFaturas = monthCardTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const faturasPendentes = monthCardTxs
     .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const faturasPagas = totalFaturas - faturasPendentes;
-
-  // 3. Boletos / Central de Compromissos
-  const commitments = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      source: "COMMITMENT",
-      deletedAt: null,
-      OR: [
-        { competenceMonth: m, competenceYear: y },
-        { dueDate: { gte: fromBuffer, lte: toBuffer } },
-        { date: { gte: fromBuffer, lte: toBuffer } },
-      ],
-    },
-  });
 
   const monthCommitments = commitments.filter((t: any) => {
     if (t.competenceMonth != null && t.competenceYear != null) {
@@ -4595,10 +4613,10 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
     return d >= from && d <= to;
   });
 
-  const totalBoletos = monthCommitments.reduce((s, t) => s + Number(t.amount || 0), 0);
+  const totalBoletos = monthCommitments.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const boletosPendentes = monthCommitments
     .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
-    .reduce((s, t) => s + Number(t.amount || 0), 0);
+    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
   const boletosPagos = totalBoletos - boletosPendentes;
 
   const totalDespesas = totalFaturas + totalBoletos;
@@ -4634,19 +4652,24 @@ export async function getMonthlyCashFlowRollForwardAction(
   const targetMonth = isAnnualView ? curMonth : Number(month);
   const targetYear = year || curYear;
 
-  // Saldo físico consolidado atual de contas correntes hoje
-  const bankWallets = await prisma.wallet.findMany({
-    where: { userId, walletType: "CONTA_CORRENTE" },
-  });
+  // ⚡ Busca wallets e métricas do mês atual em paralelo
+  const [bankWallets, curMetrics] = await Promise.all([
+    prisma.wallet.findMany({
+      where: { userId, walletType: "CONTA_CORRENTE" },
+      select: { id: true, currentBalance: true, initialBalance: true },
+    }),
+    getMonthCashFlowMetrics(userId, curMonth, curYear),
+  ]);
+
   const saldoAtualContas = bankWallets.reduce(
     (s, w) => s + Number(w.currentBalance || w.initialBalance || 0),
     0
   );
 
-  const curMetrics = await getMonthCashFlowMetrics(userId, curMonth, curYear);
   const saldoPrevistoCurMonth = Math.round(
     (saldoAtualContas + curMetrics.receitasPendentes - (curMetrics.faturasPendentes + curMetrics.boletosPendentes)) * 100
   ) / 100;
+
 
   const isCurrentMonth = !isAnnualView && targetMonth === curMonth && targetYear === curYear;
   const isFutureMonth = !isAnnualView && (targetYear > curYear || (targetYear === curYear && targetMonth > curMonth));
