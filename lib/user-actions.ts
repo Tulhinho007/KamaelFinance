@@ -1,6 +1,6 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { prisma, PRISMA_TX_OPTIONS } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { Prisma } from "@prisma/client";
@@ -239,23 +239,23 @@ export async function deleteUserAction(id: string) {
     });
 
     // Exclusão em cascata dos registros vinculados
-    await prisma.$transaction([
-      prisma.transaction.deleteMany({
+    await prisma.$transaction(async (tx) => {
+      await tx.transaction.deleteMany({
         where: { wallet: { userId: id } },
-      }),
-      prisma.wallet.deleteMany({
+      });
+      await tx.wallet.deleteMany({
         where: { userId: id },
-      }),
-      prisma.goalHistory.deleteMany({
+      });
+      await tx.goalHistory.deleteMany({
         where: { goal: { userId: id } },
-      }),
-      prisma.goal.deleteMany({
+      });
+      await tx.goal.deleteMany({
         where: { userId: id },
-      }),
-      prisma.user.delete({
+      });
+      await tx.user.delete({
         where: { id },
-      }),
-    ]);
+      });
+    }, PRISMA_TX_OPTIONS);
 
     // Audit Log
     await recordAuditLog({

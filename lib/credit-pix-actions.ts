@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "./prisma";
+import { prisma, PRISMA_TX_OPTIONS } from "./prisma";
 import { getActiveUserId } from "./actions";
 import { getInvoiceDueDateInfo } from "./invoice-utils";
 import { getMonthName } from "./constants";
@@ -316,7 +316,7 @@ export async function createCreditPixOperationAction(input: CreateCreditPixInput
     }
 
     return operation;
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/pix-credito");
   revalidatePath("/despesas");
@@ -584,7 +584,7 @@ export async function deleteCreditPixOperationAction(operationId: string) {
         });
       }
     }
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/pix-credito");
   revalidatePath("/cartoes");

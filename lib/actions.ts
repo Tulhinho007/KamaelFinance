@@ -3,7 +3,7 @@
 import { cache } from "react";
 import { CATEGORIES, getCategoryColor, getMonthName } from "./constants";
 import { revalidatePath } from "next/cache";
-import { prisma } from "./prisma";
+import { prisma, PRISMA_TX_OPTIONS } from "./prisma";
 import { z } from "zod";
 import { PaymentMethod, type Goal, type GoalHistory, type Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
@@ -748,7 +748,7 @@ export async function updateRevenueAction(
         }
       }
     }
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/receitas");
   revalidatePath("/metas");
@@ -835,7 +835,7 @@ export async function deleteRevenueAction(id: string) {
         deletedAt: new Date()
       }
     });
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/receitas");
   revalidatePath("/metas");
@@ -1090,7 +1090,7 @@ export async function createGoalAction(
         } as any
       });
     }
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/metas");
   revalidatePath("/receitas");
@@ -1177,7 +1177,7 @@ export async function updateGoalAction(
         completedAt: isCompleted ? ((currentGoal as any)?.completedAt || new Date()) : null,
       } as any
     });
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/metas");
   revalidatePath("/receitas");
@@ -1262,7 +1262,7 @@ export async function deleteGoalAction(id: string) {
     await tx.goal.delete({
       where: { id }
     });
-  });
+  }, PRISMA_TX_OPTIONS);
 
   // 5. Revalidação de Cache
   revalidatePath("/metas");
@@ -1486,7 +1486,7 @@ export async function addAporteAction(
         ...(isNowCompleted ? { status: "COMPLETED", completedAt: new Date() } : {})
       }
     });
-  });
+  }, PRISMA_TX_OPTIONS);
 
   // 3. Invalidação de Cache e Revalidação (Next.js)
   revalidatePath("/metas");
@@ -1675,7 +1675,7 @@ export async function updateAporteAction(historyId: string, amount: number, date
         } as any
       });
     }
-  });
+  }, PRISMA_TX_OPTIONS);
 
   revalidatePath("/metas");
   revalidatePath("/receitas");
@@ -1770,7 +1770,7 @@ export async function deleteAporteAction(historyId: string) {
         } as any
       });
     }
-  });
+  }, PRISMA_TX_OPTIONS);
 
   // Revalidações após exclusão
   revalidatePath("/metas");
@@ -5247,14 +5247,14 @@ export async function updateCardAccount(
 
 export async function deleteCardAccount(walletId: string) {
   try {
-    await prisma.$transaction([
-      prisma.transaction.deleteMany({ where: { walletId } }),
-      prisma.invoicePayment.deleteMany({ where: { walletId } }),
-      prisma.subscription.updateMany({ where: { defaultWalletId: walletId }, data: { defaultWalletId: null } }),
-      prisma.goalHistory.deleteMany({ where: { walletId } }),
-      prisma.goal.deleteMany({ where: { walletId } }),
-      prisma.wallet.delete({ where: { id: walletId } }),
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await tx.transaction.deleteMany({ where: { walletId } });
+      await tx.invoicePayment.deleteMany({ where: { walletId } });
+      await tx.subscription.updateMany({ where: { defaultWalletId: walletId }, data: { defaultWalletId: null } });
+      await tx.goalHistory.deleteMany({ where: { walletId } });
+      await tx.goal.deleteMany({ where: { walletId } });
+      await tx.wallet.delete({ where: { id: walletId } });
+    }, PRISMA_TX_OPTIONS);
 
     revalidatePath("/despesas");
     revalidatePath("/cartoes");
