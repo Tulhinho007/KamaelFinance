@@ -21,7 +21,8 @@ import {
   getMonthlyCommitmentsAction, createCommitmentAction, payCommitmentAction,
   payBatchCommitmentsAction,
   undoCommitmentPaymentAction, updateCommitmentAction, deleteCommitmentAction,
-  getMonthlyCashFlowRollForwardAction, MonthlyCashFlowRollForwardResult
+  getMonthlyCashFlowRollForwardAction, MonthlyCashFlowRollForwardResult,
+  getDespesasBundleAction,
 } from "@/lib/actions";
 import { getMonthName } from "@/lib/constants";
 import { getInvoiceDueDateInfo } from "@/lib/invoice-utils";
@@ -678,34 +679,24 @@ export default function DespesasPage() {
 
   const reloadAllData = async () => {
     try {
-      const [freshCards, freshPaidInv, freshRev, freshPending, freshPaidExp, freshRecurring, freshWindow, freshPendingRev, freshCommitments, freshRollForward] = await Promise.all([
-        getAllCardsOverview(selectedMonthFilter, selectedYear),
-        getPaidInvoicesAction(selectedMonthFilter, selectedYear),
-        getRealRevenueAction(selectedMonthFilter, selectedYear),
-        getPendingExpensesAction(selectedMonthFilter, selectedYear),
-        getPaidExpensesAction(selectedMonthFilter, selectedYear),
-        getRecurringExpensesAction(selectedMonthFilter, selectedYear),
-        getUpcomingBillsWindowAction(selectedMonthFilter, selectedYear),
-        getPendingRevenuesAction(selectedMonthFilter, selectedYear),
-        getMonthlyCommitmentsAction(selectedMonthFilter, selectedYear),
-        getMonthlyCashFlowRollForwardAction(selectedMonthFilter, selectedYear),
-      ]);
-      setCards(freshCards || []);
-      setPaidInvoicesList(freshPaidInv || []);
-      setRealRevenue(freshRev || 0);
-      setPendingExpensesList(freshPending || []);
-      setPaidExpensesList(freshPaidExp || []);
-      setRecurringExpensesList(freshRecurring || []);
-      setWindowBills(freshWindow || null);
-      setReceitasPendentesMes(freshPendingRev?.total ?? freshWindow?.receitasPendentesDoMes ?? 0);
-      setMonthlyRollForward(freshRollForward || null);
-      if (freshCommitments) {
-        setCommitmentsData(freshCommitments);
-        if (freshCommitments.contasBancarias?.length > 0) {
-          setBaixaContaId((prev) => prev || freshCommitments.contasBancarias[0].id);
+      // ⚡ 1 chamada ao invés de 10 round-trips separados
+      const bundle = await getDespesasBundleAction(selectedMonthFilter, selectedYear);
+      setCards(bundle.cards || []);
+      setPaidInvoicesList(bundle.paidInvoices || []);
+      setRealRevenue(bundle.realRevenue || 0);
+      setPendingExpensesList(bundle.pendingExpenses || []);
+      setPaidExpensesList(bundle.paidExpenses || []);
+      setRecurringExpensesList(bundle.recurringExpenses || []);
+      setWindowBills(bundle.windowBills || null);
+      setReceitasPendentesMes(bundle.pendingRevenues?.total ?? bundle.windowBills?.receitasPendentesDoMes ?? 0);
+      setMonthlyRollForward(bundle.cashFlow || null);
+      if (bundle.commitments) {
+        setCommitmentsData(bundle.commitments);
+        if (bundle.commitments.contasBancarias?.length > 0) {
+          setBaixaContaId((prev) => prev || bundle.commitments.contasBancarias[0].id);
         }
-        if (freshCommitments.cartoesCredito?.length > 0) {
-          setBaixaCartaoId((prev) => prev || freshCommitments.cartoesCredito[0].id);
+        if (bundle.commitments.cartoesCredito?.length > 0) {
+          setBaixaCartaoId((prev) => prev || bundle.commitments.cartoesCredito[0].id);
         }
       }
       setCommitmentsLoading(false);
@@ -836,38 +827,26 @@ export default function DespesasPage() {
     let active = true;
     setLoading(true);
 
-    const monthParam = selectedMonthFilter;
-
-    Promise.all([
-      getAllCardsOverview(monthParam, selectedYear),
-      getPaidInvoicesAction(monthParam, selectedYear),
-      getRealRevenueAction(monthParam, selectedYear),
-      getPendingExpensesAction(monthParam, selectedYear),
-      getPaidExpensesAction(monthParam, selectedYear),
-      getRecurringExpensesAction(monthParam, selectedYear),
-      getUpcomingBillsWindowAction(monthParam, selectedYear),
-      getPendingRevenuesAction(monthParam, selectedYear),
-      getMonthlyCommitmentsAction(monthParam, selectedYear),
-      getMonthlyCashFlowRollForwardAction(monthParam, selectedYear),
-    ])
-      .then(([cardsRes, paidInvoicesRes, revenueRes, pendingExpRes, paidExpRes, recurringRes, windowRes, pendingRevRes, commitmentsRes, rollForwardRes]) => {
+    // ⚡ 1 chamada ao servidor em vez de 10 round-trips separados
+    getDespesasBundleAction(selectedMonthFilter, selectedYear)
+      .then((bundle) => {
         if (!active) return;
-        setCards(cardsRes || []);
-        setPaidInvoicesList(paidInvoicesRes || []);
-        setRealRevenue(revenueRes || 0);
-        setPendingExpensesList(pendingExpRes || []);
-        setPaidExpensesList(paidExpRes || []);
-        setRecurringExpensesList(recurringRes || []);
-        setWindowBills(windowRes || null);
-        setReceitasPendentesMes(pendingRevRes?.total ?? windowRes?.receitasPendentesDoMes ?? 0);
-        setMonthlyRollForward(rollForwardRes || null);
-        if (commitmentsRes) {
-          setCommitmentsData(commitmentsRes);
-          if (commitmentsRes.contasBancarias?.length > 0) {
-            setBaixaContaId((prev) => prev || commitmentsRes.contasBancarias[0].id);
+        setCards(bundle.cards || []);
+        setPaidInvoicesList(bundle.paidInvoices || []);
+        setRealRevenue(bundle.realRevenue || 0);
+        setPendingExpensesList(bundle.pendingExpenses || []);
+        setPaidExpensesList(bundle.paidExpenses || []);
+        setRecurringExpensesList(bundle.recurringExpenses || []);
+        setWindowBills(bundle.windowBills || null);
+        setReceitasPendentesMes(bundle.pendingRevenues?.total ?? bundle.windowBills?.receitasPendentesDoMes ?? 0);
+        setMonthlyRollForward(bundle.cashFlow || null);
+        if (bundle.commitments) {
+          setCommitmentsData(bundle.commitments);
+          if (bundle.commitments.contasBancarias?.length > 0) {
+            setBaixaContaId((prev) => prev || bundle.commitments.contasBancarias[0].id);
           }
-          if (commitmentsRes.cartoesCredito?.length > 0) {
-            setBaixaCartaoId((prev) => prev || commitmentsRes.cartoesCredito[0].id);
+          if (bundle.commitments.cartoesCredito?.length > 0) {
+            setBaixaCartaoId((prev) => prev || bundle.commitments.cartoesCredito[0].id);
           }
         }
         setCommitmentsLoading(false);

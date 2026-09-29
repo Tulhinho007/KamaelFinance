@@ -8692,74 +8692,83 @@ async function ensureRecurringCommitmentsForMonth(userId: string, targetMonth: n
     const to = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
     const daysInMonth = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
 
-    // Busca templates recorrentes ativos
-    const templates = await prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        type: "EXPENSE",
-        deletedAt: null,
-        isRecurring: true,
-      },
-    });
-
-    const seenGroups = new Set<string>();
-
-    for (const t of templates) {
-      const groupKey = t.installmentGroupId || t.id;
-      if (seenGroups.has(groupKey)) continue;
-      seenGroups.add(groupKey);
-
-      const exists = await prisma.transaction.findFirst({
+    // ⚡ Busca templates E ocorrências existentes em paralelo (2 queries em vez de N+1)
+    const [templates, existingThisMonth] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { wallet: { userId }, type: "EXPENSE", deletedAt: null, isRecurring: true },
+        select: {
+          id: true, walletId: true, description: true, amount: true,
+          recurringDay: true, installmentGroupId: true,
+          paymentMethod: true, tags: true,
+        },
+      }),
+      prisma.transaction.findMany({
         where: {
           wallet: { userId },
           deletedAt: null,
-          installmentGroupId: groupKey,
           OR: [
             { competenceMonth: targetMonth, competenceYear: targetYear },
             { dueDate: { gte: from, lte: to } },
           ],
         },
+        select: { installmentGroupId: true },
+      }),
+    ]);
+
+    // Monta um Set com os groupKeys que JÁ existem para o mês — sem nova query ao banco
+    const existingGroupKeys = new Set(
+      existingThisMonth.map((t) => t.installmentGroupId).filter(Boolean)
+    );
+
+    const seenGroups = new Set<string>();
+    const toCreate: Parameters<typeof prisma.transaction.create>[0]["data"][] = [];
+
+    for (const t of templates) {
+      const groupKey = t.installmentGroupId || t.id;
+      if (seenGroups.has(groupKey) || existingGroupKeys.has(groupKey)) continue;
+      seenGroups.add(groupKey);
+
+      const day = Math.min(Math.max(1, t.recurringDay || 10), daysInMonth);
+      const due = new Date(Date.UTC(targetYear, targetMonth - 1, day, 12, 0, 0));
+
+      let cleanDesc = t.description;
+      if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+      if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+      const cleanTags = (t.tags || "")
+        .replace(/#pago/g, "")
+        .replace(/FORMA:[A-Z_]+/g, "")
+        .replace(/origDesc:[^ ]+/g, "")
+        .trim();
+
+      toCreate.push({
+        walletId: t.walletId,
+        description: cleanDesc,
+        amount: t.amount,
+        type: "EXPENSE",
+        date: due,
+        dueDate: due,
+        competenceMonth: targetMonth,
+        competenceYear: targetYear,
+        status: "PENDING",
+        source: "COMMITMENT",
+        isRecurring: true,
+        recurringDay: day,
+        installmentGroupId: groupKey,
+        paymentMethod: t.paymentMethod || "BOLETO",
+        tags: cleanTags ? cleanTags + " #mensal" : "#compromisso #mensal",
       });
+    }
 
-      if (!exists) {
-        const day = Math.min(Math.max(1, t.recurringDay || 10), daysInMonth);
-        const due = new Date(Date.UTC(targetYear, targetMonth - 1, day, 12, 0, 0));
-
-        let cleanDesc = t.description;
-        if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
-        if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
-
-        const cleanTags = (t.tags || "")
-          .replace(/#pago/g, "")
-          .replace(/FORMA:[A-Z_]+/g, "")
-          .replace(/origDesc:[^ ]+/g, "")
-          .trim();
-
-        await prisma.transaction.create({
-          data: {
-            walletId: t.walletId,
-            description: cleanDesc,
-            amount: t.amount,
-            type: "EXPENSE",
-            date: due,
-            dueDate: due,
-            competenceMonth: targetMonth,
-            competenceYear: targetYear,
-            status: "PENDING",
-            source: "COMMITMENT",
-            isRecurring: true,
-            recurringDay: day,
-            installmentGroupId: groupKey,
-            paymentMethod: t.paymentMethod || "BOLETO",
-            tags: cleanTags ? cleanTags + " #mensal" : "#compromisso #mensal",
-          },
-        });
-      }
+    // ⚡ Um único createMany em vez de N creates sequenciais
+    if (toCreate.length > 0) {
+      await (prisma.transaction as any).createMany({ data: toCreate, skipDuplicates: true });
     }
   } catch (err) {
     console.error("Erro ao garantir compromissos recorrentes:", err);
   }
 }
+
 
 export async function getMonthlyCommitmentsAction(
   month?: number | null | string,
@@ -8791,44 +8800,48 @@ export async function getMonthlyCommitmentsAction(
       saldoAtual: Number(w.currentBalance || 0),
     }));
 
-  // 2. Cartões de Crédito do usuário (com cálculo de limite disponível)
+  // 2. Cartões de Crédito — ⚡ 1 única query agregada em vez de 1 query por cartão (N+1)
   const targetMonth = numMonth || (new Date().getMonth() + 1);
   const fromMonth = new Date(Date.UTC(year, targetMonth - 1, 1, 0, 0, 0));
   const toMonth = new Date(Date.UTC(year, targetMonth, 0, 23, 59, 59, 999));
 
-  const cartoesCredito = await Promise.all(
-    userWallets
-      .filter((w) => w.walletType === "CREDIT_CARD")
-      .map(async (c) => {
-        const cardPurchases = await prisma.transaction.findMany({
-          where: {
-            walletId: c.id,
-            type: "EXPENSE",
-            deletedAt: null,
-            source: { not: "RECURRING_PROJECTION" },
-            OR: [
-              { competenceMonth: targetMonth, competenceYear: year },
-              { competenceDate: { gte: fromMonth, lte: toMonth } },
-              { purchaseDate: { gte: fromMonth, lte: toMonth } },
-              { date: { gte: fromMonth, lte: toMonth } },
-            ],
-          },
-          select: { amount: true },
-        });
+  const creditCardWallets = userWallets.filter((w) => w.walletType === "CREDIT_CARD");
+  const creditCardIds = creditCardWallets.map((w) => w.id);
 
-        const totalFatura = cardPurchases.reduce((s, t) => s + Number(t.amount || 0), 0);
-        const limiteTotal = Number(c.creditLimit || 0);
-        const limiteDisponivel = Math.max(0, limiteTotal - totalFatura);
-
-        return {
-          id: c.id,
-          nome: c.title || c.bankName || "Cartão de Crédito",
-          limiteDisponivel,
-          limiteTotal,
-          faturaAtual: totalFatura,
-        };
+  const cardExpenseAggs = creditCardIds.length > 0
+    ? await prisma.transaction.groupBy({
+        by: ["walletId"],
+        where: {
+          walletId: { in: creditCardIds },
+          type: "EXPENSE",
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          OR: [
+            { competenceMonth: targetMonth, competenceYear: year },
+            { competenceDate: { gte: fromMonth, lte: toMonth } },
+            { purchaseDate: { gte: fromMonth, lte: toMonth } },
+            { date: { gte: fromMonth, lte: toMonth } },
+          ],
+        },
+        _sum: { amount: true },
       })
+    : [];
+
+  const faturaByCardId = new Map(
+    cardExpenseAggs.map((a) => [a.walletId, Number(a._sum.amount || 0)])
   );
+
+  const cartoesCredito = creditCardWallets.map((c) => {
+    const totalFatura = faturaByCardId.get(c.id) ?? 0;
+    const limiteTotal = Number(c.creditLimit || 0);
+    return {
+      id: c.id,
+      nome: c.title || c.bankName || "Cartão de Crédito",
+      limiteDisponivel: Math.max(0, limiteTotal - totalFatura),
+      limiteTotal,
+      faturaAtual: totalFatura,
+    };
+  });
 
   // 3. Replicar compromissos recorrentes para o mês ativo caso ainda não existam
   if (!isAnnualView && numMonth) {
@@ -9458,4 +9471,46 @@ export async function getDashboardBundleAction(
   ]);
 
   return { overview, wallets, cashFlow };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚡ ACTION UNIFICADA DA PÁGINA DESPESAS/COMPROMISSOS
+// Substitui as 10 chamadas separadas por 1 única requisição HTTP à Vercel,
+// eliminando 9 round-trips de rede e resoluções duplicadas de userId.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getDespesasBundleAction(
+  month: number | null | string,
+  year: number
+): Promise<{
+  cards: Awaited<ReturnType<typeof getAllCardsOverview>>;
+  paidInvoices: Awaited<ReturnType<typeof getPaidInvoicesAction>>;
+  realRevenue: Awaited<ReturnType<typeof getRealRevenueAction>>;
+  pendingExpenses: Awaited<ReturnType<typeof getPendingExpensesAction>>;
+  paidExpenses: Awaited<ReturnType<typeof getPaidExpensesAction>>;
+  recurringExpenses: Awaited<ReturnType<typeof getRecurringExpensesAction>>;
+  windowBills: Awaited<ReturnType<typeof getUpcomingBillsWindowAction>>;
+  pendingRevenues: Awaited<ReturnType<typeof getPendingRevenuesAction>>;
+  commitments: Awaited<ReturnType<typeof getMonthlyCommitmentsAction>>;
+  cashFlow: MonthlyCashFlowRollForwardResult;
+}> {
+  const [
+    cards, paidInvoices, realRevenue, pendingExpenses, paidExpenses,
+    recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
+  ] = await Promise.all([
+    getAllCardsOverview(month, year),
+    getPaidInvoicesAction(month, year),
+    getRealRevenueAction(month, year),
+    getPendingExpensesAction(month, year),
+    getPaidExpensesAction(month, year),
+    getRecurringExpensesAction(month, year),
+    getUpcomingBillsWindowAction(month, year),
+    getPendingRevenuesAction(month, year),
+    getMonthlyCommitmentsAction(month, year),
+    getMonthlyCashFlowRollForwardAction(month, year),
+  ]);
+
+  return {
+    cards, paidInvoices, realRevenue, pendingExpenses, paidExpenses,
+    recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
+  };
 }
