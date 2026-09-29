@@ -7940,51 +7940,44 @@ export async function purgeSubscriptionsDataAction() {
 export async function getPaymentHistoryData(month: number, year: number) {
   const userId = await getActiveUserId();
 
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear  = month === 1 ? year - 1 : year;
+
+  const startOfMonth     = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+  const endOfMonth       = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  const startOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth - 1, 1, 0, 0, 0));
+  const endOfPrevMonth   = new Date(Date.UTC(prevYear, prevMonth, 0, 23, 59, 59, 999));
+
   // Garante replicação de compromissos recorrentes para o mês ativo
   await ensureRecurringCommitmentsForMonth(userId, month, year);
 
-  const wallets = await prisma.wallet.findMany({
-    where: { userId },
-    orderBy: { title: "asc" },
-  });
+  // ⚡ Busca todos os dados em paralelo (antes: 6+ queries sequenciais)
+  const [
+    wallets,
+    monthTransactions,
+    allPaidInvoices,
+    prevMonthTransactions,
+    cardsOverview,
+  ] = await Promise.all([
+    prisma.wallet.findMany({ where: { userId }, orderBy: { title: "asc" } }),
+    prisma.transaction.findMany({
+      where: { wallet: { userId }, date: { gte: startOfMonth, lte: endOfMonth }, deletedAt: null },
+      include: { category: true },
+    }),
+    (prisma as any).invoicePayment.findMany({ where: { wallet: { userId }, month, year } }),
+    prisma.transaction.findMany({
+      where: { wallet: { userId }, date: { gte: startOfPrevMonth, lte: endOfPrevMonth }, deletedAt: null },
+      select: { walletId: true, type: true, amount: true, status: true },
+    }),
+    getAllCardsOverview(month, year),
+  ]);
+
+  const paidWalletIds = new Set(allPaidInvoices.map((p: any) => p.walletId));
+  const cardsOverviewMap = new Map(cardsOverview.map((c: any) => [c.id, c]));
 
   const monthName = getMonthName(month);
   const periodStr = `${monthName}/${year}`;
   const competenciaStr = `${year}-${String(month).padStart(2, "0")}`;
-
-  const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
-
-  const monthTransactions = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      date: { gte: startOfMonth, lte: endOfMonth },
-      deletedAt: null,
-    },
-    include: { category: true },
-  });
-
-  const allPaidInvoices = await (prisma as any).invoicePayment.findMany({
-    where: {
-      wallet: { userId },
-      month,
-      year,
-    },
-  });
-  const paidWalletIds = new Set(allPaidInvoices.map((p: any) => p.walletId));
-
-  const prevMonth = month === 1 ? 12 : month - 1;
-  const prevYear  = month === 1 ? year - 1 : year;
-  const startOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth - 1, 1, 0, 0, 0));
-  const endOfPrevMonth   = new Date(Date.UTC(prevYear, prevMonth, 0, 23, 59, 59, 999));
-
-  const prevMonthTransactions = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      date: { gte: startOfPrevMonth, lte: endOfPrevMonth },
-      deletedAt: null,
-    },
-  });
 
   let totalCreditPaid = 0;
   let totalDebitPix = 0;
@@ -8013,9 +8006,6 @@ export async function getPaymentHistoryData(month: number, year: number) {
     holder?: string;
     dueDateFormatted?: string;
   }> = [];
-
-  const cardsOverview = await getAllCardsOverview(month, year);
-  const cardsOverviewMap = new Map(cardsOverview.map(c => [c.id, c]));
 
   for (const w of wallets) {
     const isCredit = w.walletType === "CREDIT_CARD";
@@ -8223,50 +8213,53 @@ export async function getPaymentHistoryData(month: number, year: number) {
   const totalGeral = totalCreditPaid + totalDebitPix + totalTickets;
 
   let prevCreditPaid = 0;
-  try {
-    const prevPaidInvoices = await (prisma as any).invoicePayment.findMany({
-      where: { wallet: { userId }, month: prevMonth, year: prevYear },
-    });
-    prevCreditPaid = prevPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
-  } catch (e) {}
 
-  const prevMonthCommitments = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      type: "EXPENSE",
-      deletedAt: null,
-      status: { in: ["COMPLETED", "PAID"] },
-      OR: [
-        { source: "COMMITMENT" },
-        { tags: { contains: "#compromisso" } },
-        { tags: { contains: "BOLETO" } },
-        { tags: { contains: "ASSINATURA" } },
-        { paymentMethod: "BOLETO" },
-      ],
-      AND: [
-        {
-          OR: [
-            { competenceMonth: prevMonth, competenceYear: prevYear },
-            {
-              AND: [
-                { competenceMonth: null },
-                { dueDate: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
-              ],
-            },
-            {
-              AND: [
-                { competenceMonth: null },
-                { dueDate: null },
-                { date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    select: { amount: true },
-  });
-  const prevDebitPix = prevMonthCommitments.reduce((s, t) => s + Number(t.amount || 0), 0);
+  // ⚡ Busca comparativos do mês anterior em paralelo
+  const [prevPaidInvoices, prevMonthCommitments] = await Promise.all([
+    (prisma as any).invoicePayment.findMany({
+      where: { wallet: { userId }, month: prevMonth, year: prevYear },
+    }).catch(() => []),
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        type: "EXPENSE",
+        deletedAt: null,
+        status: { in: ["COMPLETED", "PAID"] },
+        OR: [
+          { source: "COMMITMENT" },
+          { tags: { contains: "#compromisso" } },
+          { tags: { contains: "BOLETO" } },
+          { tags: { contains: "ASSINATURA" } },
+          { paymentMethod: "BOLETO" },
+        ],
+        AND: [
+          {
+            OR: [
+              { competenceMonth: prevMonth, competenceYear: prevYear },
+              {
+                AND: [
+                  { competenceMonth: null },
+                  { dueDate: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+                ],
+              },
+              {
+                AND: [
+                  { competenceMonth: null },
+                  { dueDate: null },
+                  { date: { gte: startOfPrevMonth, lte: endOfPrevMonth } },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      select: { amount: true },
+    }),
+  ]);
+
+  prevCreditPaid = prevPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
+
+  const prevDebitPix = prevMonthCommitments.reduce((s: any, t: any) => s + Number(t.amount || 0), 0);
 
   const prevTickets = prevMonthTransactions
     .filter(t => {
