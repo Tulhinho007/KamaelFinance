@@ -13,6 +13,42 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // ─── Headers de Segurança (CSP Permitindo unsafe-eval para bibliotecas/extensões) ──
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:",
+              "style-src 'self' 'unsafe-inline' https:",
+              "font-src 'self' data: https:",
+              "img-src 'self' data: blob: https:",
+              "connect-src 'self' https: wss:",
+              "worker-src 'self' blob:",
+              "frame-ancestors 'none'",
+            ].join("; "),
+          },
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
+          },
+        ],
+      },
+    ];
+  },
+
   // ─── Otimização de Bundle das Serverless Functions ───────────────────────
   // Remove da function tudo que não é necessário em runtime na Vercel (Linux x64)
   outputFileTracingExcludes: {
