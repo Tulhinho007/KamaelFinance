@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { getGoals, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, updateAporteAction, deleteAporteAction, getWalletsAction, toggleGoalStatusAction } from "@/lib/actions";
+import { getGoals, getMetasBundleAction, createGoalAction, updateGoalAction, deleteGoalAction, addAporteAction, updateAporteAction, deleteAporteAction, getWalletsAction, toggleGoalStatusAction } from "@/lib/actions";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
@@ -172,7 +172,7 @@ export default function MetasPage() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [goalsData, walletsData] = await Promise.all([getGoals(), getWalletsAction()]);
+      const { goals: goalsData, wallets: walletsData } = await getMetasBundleAction();
       setMetas(goalsData);
       setWallets(walletsData);
 
