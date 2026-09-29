@@ -24,8 +24,8 @@ import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-b
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
-  getDashboardOverviewData, createRevenueAction, addAporteAction,
-  getAllTags, getWalletsAction, getMonthlyCashFlowRollForwardAction,
+  getDashboardBundleAction, createRevenueAction, addAporteAction,
+  getAllTags,
   MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
 
@@ -163,12 +163,13 @@ export function DashboardOverview() {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [res, wList, rollForwardRes] = await Promise.all([
-        getDashboardOverviewData(selectedDashboardYear, selectedDashboardMonth, selectedTag),
-        getWalletsAction(),
-        getMonthlyCashFlowRollForwardAction(selectedDashboardMonth, selectedDashboardYear),
-      ]);
-      setData(res);
+      // ⚡ Uma única chamada ao servidor (antes: 3 round-trips separados)
+      const { overview, wallets: wList, cashFlow: rollForwardRes } = await getDashboardBundleAction(
+        selectedDashboardYear,
+        selectedDashboardMonth,
+        selectedTag
+      );
+      setData(overview);
       setMonthlyRollForward(rollForwardRes || null);
       const walletsData = wList || [];
       setDashboardWallets(walletsData);

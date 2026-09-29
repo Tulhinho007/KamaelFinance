@@ -4663,15 +4663,13 @@ export async function getMonthlyCashFlowRollForwardAction(
   ];
 
   if (isAnnualView) {
-    let anoReceitas = 0;
-    let anoFaturas = 0;
-    let anoBoletos = 0;
-    for (let m = 1; m <= 12; m++) {
-      const met = await getMonthCashFlowMetrics(userId, m, targetYear);
-      anoReceitas += met.totalReceitas;
-      anoFaturas += met.totalFaturas;
-      anoBoletos += met.totalBoletos;
-    }
+    // ⚡ Paraleliza todas as 12 queries em simultâneo (antes: serial, 36 queries)
+    const allMonthMetrics = await Promise.all(
+      Array.from({ length: 12 }, (_, i) => getMonthCashFlowMetrics(userId, i + 1, targetYear))
+    );
+    const anoReceitas = allMonthMetrics.reduce((s, m) => s + m.totalReceitas, 0);
+    const anoFaturas  = allMonthMetrics.reduce((s, m) => s + m.totalFaturas, 0);
+    const anoBoletos  = allMonthMetrics.reduce((s, m) => s + m.totalBoletos, 0);
     saldoHerdado = saldoAtualContas;
     saldoPrevisto = Math.round((saldoAtualContas + anoReceitas - (anoFaturas + anoBoletos)) * 100) / 100;
     targetMetrics = {
@@ -4692,23 +4690,25 @@ export async function getMonthlyCashFlowRollForwardAction(
     saldoHerdado = saldoAtualContas;
     saldoPrevisto = saldoPrevistoCurMonth;
   } else if (isFutureMonth) {
-    // Mês Futuro: herda a projeção acumulada a partir do fechamento do mês atual
-    let running = saldoPrevistoCurMonth;
-
+    // Mês Futuro: coleta os meses intermediários e o alvo em paralelo
+    const intermediateMonths: Array<{ m: number; y: number }> = [];
     let m = curMonth + 1;
     let y = curYear;
     while (y < targetYear || (y === targetYear && m < targetMonth)) {
-      const inter = await getMonthCashFlowMetrics(userId, m, y);
-      running += inter.sobraMes;
+      intermediateMonths.push({ m, y });
       m++;
-      if (m > 12) {
-        m = 1;
-        y++;
-      }
+      if (m > 12) { m = 1; y++; }
     }
 
+    // ⚡ Busca todos os meses intermediários + o mês alvo em paralelo
+    const [interMetricsList, fetchedTargetMetrics] = await Promise.all([
+      Promise.all(intermediateMonths.map(({ m: im, y: iy }) => getMonthCashFlowMetrics(userId, im, iy))),
+      getMonthCashFlowMetrics(userId, targetMonth, targetYear),
+    ]);
+
+    const running = interMetricsList.reduce((s, met) => s + met.sobraMes, saldoPrevistoCurMonth);
     saldoHerdado = Math.round(running * 100) / 100;
-    targetMetrics = await getMonthCashFlowMetrics(userId, targetMonth, targetYear);
+    targetMetrics = fetchedTargetMetrics;
     saldoPrevisto = Math.round(
       (saldoHerdado + targetMetrics.totalReceitas - (targetMetrics.totalFaturas + targetMetrics.totalBoletos)) * 100
     ) / 100;
@@ -9411,4 +9411,28 @@ export async function deleteCommitmentAction(commitmentId: string) {
   safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⚡ ACTION UNIFICADA DO DASHBOARD — resolve userId 1x e executa tudo em paralelo
+// Substitui as 3 chamadas separadas (getDashboardOverviewData + getWalletsAction
+// + getMonthlyCashFlowRollForwardAction) por 1 única requisição HTTP à Vercel,
+// eliminando 2 round-trips de rede e as chamadas duplicadas a getActiveUserId().
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getDashboardBundleAction(
+  year: number,
+  month: number,
+  tag?: string | null
+): Promise<{
+  overview: Awaited<ReturnType<typeof getDashboardOverviewData>>;
+  wallets: Awaited<ReturnType<typeof getWalletsAction>>;
+  cashFlow: MonthlyCashFlowRollForwardResult;
+}> {
+  const [overview, wallets, cashFlow] = await Promise.all([
+    getDashboardOverviewData(year, month, tag),
+    getWalletsAction(),
+    getMonthlyCashFlowRollForwardAction(month, year),
+  ]);
+
+  return { overview, wallets, cashFlow };
 }

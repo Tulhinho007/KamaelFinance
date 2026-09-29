@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-context";
 import { PrivacyProvider } from "@/components/privacy-context";
 import { CustomDialogProvider } from "@/components/ui/custom-dialog-provider";
 import { AppShell } from "@/components/app-shell";
+import { WarmupTrigger } from "@/components/warmup-trigger";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -37,6 +38,7 @@ export default function RootLayout({
           <PrivacyProvider>
             <PeriodProvider>
               <CustomDialogProvider>
+                <WarmupTrigger />
                 <AppShell>{children}</AppShell>
               </CustomDialogProvider>
             </PeriodProvider>
