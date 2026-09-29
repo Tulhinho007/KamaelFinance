@@ -846,20 +846,23 @@ export async function deleteRevenueAction(id: string) {
 
 // ---------- Actions de Metas ----------
 
-export async function getGoals() {
+export async function getGoals(customUserId?: string, preloadedGoals?: any[]) {
   try {
-    const userId = await getActiveUserId();
-    const goals = await prisma.goal.findMany({
-      where: { userId },
-      include: {
-        history: {
-          orderBy: { date: "asc" },
-          include: { wallet: true }
-        },
-        wallet: true,
-      } as any,
-      orderBy: { dataInicio: "asc" }
-    });
+    let goals = preloadedGoals;
+    if (!goals) {
+      const userId = customUserId || await getActiveUserId();
+      goals = await prisma.goal.findMany({
+        where: { userId },
+        include: {
+          history: {
+            orderBy: { date: "asc" },
+            include: { wallet: true }
+          },
+          wallet: true,
+        } as any,
+        orderBy: { dataInicio: "asc" }
+      });
+    }
 
     const monthNames = [
       "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -1285,7 +1288,35 @@ export async function toggleGoalStatusAction(goalId: string, status: "ACTIVE" | 
   revalidatePath("/metas");
 }
 
-export async function getWalletsAction() {
+export async function getWalletsAction(preloadedWallets?: any[], preloadedTransactions?: any[]) {
+  if (preloadedWallets && preloadedTransactions) {
+    const totalsMap = new Map<string, { income: number; expense: number }>();
+    for (const t of preloadedTransactions) {
+      if (t.status === "COMPLETED" && !t.deletedAt) {
+        const cur = totalsMap.get(t.walletId) ?? { income: 0, expense: 0 };
+        const amt = Number(t.amount || 0);
+        if (t.type === "INCOME") cur.income += amt;
+        else if (t.type === "EXPENSE") cur.expense += amt;
+        totalsMap.set(t.walletId, cur);
+      }
+    }
+    return preloadedWallets.map((w: any) => {
+      const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
+      const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
+      return {
+        ...w,
+        id: w.id,
+        title: w.title,
+        bankName: w.bankName || w.title,
+        walletType: w.walletType,
+        initialBalance: Number(w.initialBalance || 0),
+        currentBalance: Number(w.currentBalance || 0),
+        creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
+        currentTotal,
+      };
+    });
+  }
+
   const userId = await getActiveUserId();
   const wallets = await prisma.wallet.findMany({
     where: { userId },
@@ -1820,7 +1851,13 @@ export async function getCardData() {
 
 // ---------- Cálculo de Saldo Acumulado (Rollover / Carryover) ----------
 
-export async function calculateAccountBalance(walletId: string, month: number, year: number, existingWallet?: any) {
+export async function calculateAccountBalance(
+  walletId: string,
+  month: number,
+  year: number,
+  existingWallet?: any,
+  existingTransactions?: any[]
+) {
   // Trava absoluta de data de início da conta: Julho de 2026 (meses anteriores ficam 100% zerados)
   const isPriorToJuly2026 = year < 2026 || (year === 2026 && month < 7);
   if (isPriorToJuly2026) {
@@ -1855,32 +1892,38 @@ export async function calculateAccountBalance(walletId: string, month: number, y
   const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
   // Fetch ALL historical non-deleted transactions for this wallet up to endOfMonth
-  const allWalletTransactions = await (prisma.transaction as any).findMany({
-    where: {
-      walletId: walletId,
-      deletedAt: null,
-      source: { not: "RECURRING_PROJECTION" },
-      OR: [
-        { competenceDate: { lte: endOfMonth } },
-        { purchaseDate: { lte: endOfMonth } },
-        { date: { lte: endOfMonth } },
-        { paymentDate: { lte: endOfMonth } },
-        { dueDate: { lte: endOfMonth } }
-      ]
-    },
-    select: { 
-      type: true, 
-      amount: true, 
-      status: true, 
-      date: true, 
-      competenceDate: true, 
-      competenceMonth: true, 
-      competenceYear: true, 
-      purchaseDate: true, 
-      paymentDate: true,
-      dueDate: true
-    },
-  });
+  const allWalletTransactions = existingTransactions
+    ? existingTransactions.filter((t: any) => {
+        if (t.walletId !== walletId || t.deletedAt || t.source === "RECURRING_PROJECTION") return false;
+        const d = new Date(t.competenceDate || t.paymentDate || t.dueDate || t.purchaseDate || t.date);
+        return d <= endOfMonth;
+      })
+    : await (prisma.transaction as any).findMany({
+        where: {
+          walletId: walletId,
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          OR: [
+            { competenceDate: { lte: endOfMonth } },
+            { purchaseDate: { lte: endOfMonth } },
+            { date: { lte: endOfMonth } },
+            { paymentDate: { lte: endOfMonth } },
+            { dueDate: { lte: endOfMonth } }
+          ]
+        },
+        select: { 
+          type: true, 
+          amount: true, 
+          status: true, 
+          date: true, 
+          competenceDate: true, 
+          competenceMonth: true, 
+          competenceYear: true, 
+          purchaseDate: true, 
+          paymentDate: true,
+          dueDate: true
+        },
+      });
 
   const getTxCashDate = (t: any) => {
     return new Date(t.paymentDate || t.date || t.purchaseDate || t.competenceDate);
@@ -3540,17 +3583,26 @@ export async function deleteTicketExpense(id: string) {
 
 // ---------- Actions de Visão Geral de Despesas ----------
 
-export async function getAllCardsOverview(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
-
-  // A lista de Meus Cartões e Contas NUNCA é filtrada por mês/ano na busca de wallets
-  const wallets = await prisma.wallet.findMany({
-    where: {
-      userId,
-      walletType: { in: ["CREDIT_CARD", "TICKET", "CONTA_CORRENTE"] },
-    },
-    orderBy: { title: "asc" },
-  });
+export async function getAllCardsOverview(
+  month?: number | null | string,
+  year: number = 2026,
+  preloaded?: { wallets?: any[]; transactions?: any[]; paidInvoices?: any[] }
+) {
+  let wallets: any[] = [];
+  if (preloaded?.wallets) {
+    wallets = preloaded.wallets.filter((w: any) =>
+      ["CREDIT_CARD", "TICKET", "CONTA_CORRENTE"].includes(w.walletType)
+    );
+  } else {
+    const userId = await getActiveUserId();
+    wallets = await prisma.wallet.findMany({
+      where: {
+        userId,
+        walletType: { in: ["CREDIT_CARD", "TICKET", "CONTA_CORRENTE"] },
+      },
+      orderBy: { title: "asc" },
+    });
+  }
 
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
 
@@ -3572,91 +3624,117 @@ export async function getAllCardsOverview(month?: number | null | string, year: 
   const walletIds = wallets.map((w) => w.id);
   const bankWallets = wallets.filter((w) => w.walletType !== "CREDIT_CARD");
 
-  // DISPARA QUERIES AGREGADAS EM PARALELO PARA TODAS AS CARTEIRAS (Elimina o problema N+1)
-  const [
-    rawTransactionsBatch,
-    allExpensesBatch,
-    allPaidInvoicesBatch,
-    rawPeriodIncomesBatch,
-    bankBalancesList
-  ] = await Promise.all([
-    // 1. Despesas no período para todas as carteiras em 1 query única
-    (prisma.transaction as any).findMany({
-      where: {
-        walletId: { in: walletIds },
-        type: "EXPENSE",
-        source: { not: "RECURRING_PROJECTION" },
-        OR: [
-          ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
-          { competenceDate: { gte: from, lte: to } },
-          { purchaseDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } },
-          { paymentDate: { gte: from, lte: to } },
-          { dueDate: { gte: from, lte: to } }
-        ],
-        deletedAt: null,
-      },
-      include: { category: true },
-      orderBy: { date: "asc" },
-    }),
+  let rawTransactionsBatch: any[];
+  let allExpensesBatch: any[];
+  let allPaidInvoicesBatch: any[];
+  let rawPeriodIncomesBatch: any[];
+  let bankBalancesList: any[];
 
-    // 2. Todas as despesas para cálculo de limite usado e projeções em 1 query única com select enxuto
-    prisma.transaction.findMany({
-      where: {
-        walletId: { in: walletIds },
-        type: "EXPENSE",
-        deletedAt: null,
-        source: { not: "RECURRING_PROJECTION" }
-      },
-      select: {
-        id: true,
-        walletId: true,
-        amount: true,
-        date: true,
-        dueDate: true,
-        purchaseDate: true,
-        status: true,
-        competenceMonth: true,
-        competenceYear: true,
-      }
-    }),
-
-    // 3. Pagamentos de faturas para todas as carteiras em 1 query única
-    (prisma as any).invoicePayment.findMany({
-      where: { walletId: { in: walletIds } }
-    }),
-
-    // 4. Entradas no período para todas as carteiras em 1 query única
-    prisma.transaction.findMany({
-      where: {
-        walletId: { in: walletIds },
-        type: "INCOME",
-        OR: [
-          ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
-          { competenceDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } }
-        ],
-        deletedAt: null,
-      },
-      select: {
-        walletId: true,
-        amount: true,
-        date: true,
-        competenceDate: true,
-        competenceMonth: true,
-        competenceYear: true,
-        status: true
-      },
-    }),
-
-    // 5. Saldo histórico apenas para contas correntes/tickets (cartões de crédito não usam)
-    Promise.all(
+  if (preloaded?.transactions) {
+    // ⚡ Utiliza o cache pré-carregado em memória (Zero I/O no banco)
+    allExpensesBatch = preloaded.transactions.filter(
+      (t: any) => walletIds.includes(t.walletId) && t.type === "EXPENSE" && !t.deletedAt && t.source !== "RECURRING_PROJECTION"
+    );
+    rawTransactionsBatch = allExpensesBatch;
+    allPaidInvoicesBatch = preloaded.paidInvoices
+      ? preloaded.paidInvoices.filter((p: any) => walletIds.includes(p.walletId))
+      : [];
+    rawPeriodIncomesBatch = preloaded.transactions.filter(
+      (t: any) => walletIds.includes(t.walletId) && t.type === "INCOME" && !t.deletedAt
+    );
+    bankBalancesList = await Promise.all(
       bankWallets.map(async (w) => {
-        const info = await calculateAccountBalance(w.id, effectiveMonth, year, w);
+        const info = await calculateAccountBalance(w.id, effectiveMonth, year, w, preloaded.transactions);
         return { walletId: w.id, info };
       })
-    )
-  ]);
+    );
+  } else {
+    // DISPARA QUERIES AGREGADAS EM PARALELO PARA TODAS AS CARTEIRAS (Elimina o problema N+1)
+    [
+      rawTransactionsBatch,
+      allExpensesBatch,
+      allPaidInvoicesBatch,
+      rawPeriodIncomesBatch,
+      bankBalancesList
+    ] = await Promise.all([
+      // 1. Despesas no período para todas as carteiras em 1 query única
+      (prisma.transaction as any).findMany({
+        where: {
+          walletId: { in: walletIds },
+          type: "EXPENSE",
+          source: { not: "RECURRING_PROJECTION" },
+          OR: [
+            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
+            { competenceDate: { gte: from, lte: to } },
+            { purchaseDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } },
+            { paymentDate: { gte: from, lte: to } },
+            { dueDate: { gte: from, lte: to } }
+          ],
+          deletedAt: null,
+        },
+        include: { category: true },
+        orderBy: { date: "asc" },
+      }),
+
+      // 2. Todas as despesas para cálculo de limite usado e projeções em 1 query única com select enxuto
+      prisma.transaction.findMany({
+        where: {
+          walletId: { in: walletIds },
+          type: "EXPENSE",
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" }
+        },
+        select: {
+          id: true,
+          walletId: true,
+          amount: true,
+          date: true,
+          dueDate: true,
+          purchaseDate: true,
+          status: true,
+          competenceMonth: true,
+          competenceYear: true,
+        }
+      }),
+
+      // 3. Pagamentos de faturas para todas as carteiras em 1 query única
+      (prisma as any).invoicePayment.findMany({
+        where: { walletId: { in: walletIds } }
+      }),
+
+      // 4. Entradas no período para todas as carteiras em 1 query única
+      prisma.transaction.findMany({
+        where: {
+          walletId: { in: walletIds },
+          type: "INCOME",
+          OR: [
+            ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
+            { competenceDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ],
+          deletedAt: null,
+        },
+        select: {
+          walletId: true,
+          amount: true,
+          date: true,
+          competenceDate: true,
+          competenceMonth: true,
+          competenceYear: true,
+          status: true
+        },
+      }),
+
+      // 5. Saldo histórico apenas para contas correntes/tickets (cartões de crédito não usam)
+      Promise.all(
+        bankWallets.map(async (w) => {
+          const info = await calculateAccountBalance(w.id, effectiveMonth, year, w);
+          return { walletId: w.id, info };
+        })
+      )
+    ]);
+  }
 
   // Agrupamentos em memória para mapeamento instantâneo
   const rawTransactionsByWallet = new Map<string, any[]>();
@@ -4511,7 +4589,12 @@ export interface MonthlyCashFlowRollForwardResult {
   sobraMes: number;
 }
 
-async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
+async function getMonthCashFlowMetrics(
+  userId: string,
+  m: number,
+  y: number,
+  preloadedTransactions?: any[]
+) {
   const from = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0));
   const to = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
   const fromBuffer = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0) - 24 * 3600 * 1000);
@@ -4519,67 +4602,83 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
 
   const BENEFIT_TYPES = ["TICKET", "BENEFICIO", "BENEFÍCIO"];
 
-  // ⚡ Dispara as 3 queries em paralelo (antes: sequenciais)
-  const [incomes, cardExpenses, commitments] = await Promise.all([
-    // 1. Receitas
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
-        type: "INCOME",
-        deletedAt: null,
-        OR: [
-          { competenceMonth: m, competenceYear: y },
-          { competenceDate: { gte: fromBuffer, lte: toBuffer } },
-          { paymentDate: { gte: fromBuffer, lte: toBuffer } },
-          { date: { gte: fromBuffer, lte: toBuffer } },
-        ],
-      },
-      select: {
-        amount: true, status: true,
-        competenceMonth: true, competenceYear: true,
-        competenceDate: true, paymentDate: true, date: true,
-        wallet: { select: { walletType: true } },
-      },
-    }),
-    // 2. Faturas de Cartão
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId, walletType: "CREDIT_CARD" },
-        type: "EXPENSE",
-        deletedAt: null,
-        source: { not: "RECURRING_PROJECTION" },
-        OR: [
-          { competenceMonth: m, competenceYear: y },
-          { competenceDate: { gte: fromBuffer, lte: toBuffer } },
-          { purchaseDate: { gte: fromBuffer, lte: toBuffer } },
-          { date: { gte: fromBuffer, lte: toBuffer } },
-        ],
-      },
-      select: {
-        amount: true, status: true,
-        competenceMonth: true, competenceYear: true,
-        competenceDate: true, purchaseDate: true, date: true,
-      },
-    }),
-    // 3. Boletos / Central de Compromissos
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        source: "COMMITMENT",
-        deletedAt: null,
-        OR: [
-          { competenceMonth: m, competenceYear: y },
-          { dueDate: { gte: fromBuffer, lte: toBuffer } },
-          { date: { gte: fromBuffer, lte: toBuffer } },
-        ],
-      },
-      select: {
-        amount: true, status: true,
-        competenceMonth: true, competenceYear: true,
-        dueDate: true, date: true,
-      },
-    }),
-  ]);
+  let incomes: any[];
+  let cardExpenses: any[];
+  let commitments: any[];
+
+  if (preloadedTransactions) {
+    incomes = preloadedTransactions.filter((t: any) =>
+      t.type === "INCOME" && !t.deletedAt && !BENEFIT_TYPES.includes((t.wallet?.walletType || "").toUpperCase())
+    );
+    cardExpenses = preloadedTransactions.filter((t: any) =>
+      t.type === "EXPENSE" && !t.deletedAt && t.source !== "RECURRING_PROJECTION" && (t.wallet?.walletType === "CREDIT_CARD")
+    );
+    commitments = preloadedTransactions.filter((t: any) =>
+      t.source === "COMMITMENT" && !t.deletedAt
+    );
+  } else {
+    // ⚡ Dispara as 3 queries em paralelo (antes: sequenciais)
+    [incomes, cardExpenses, commitments] = await Promise.all([
+      // 1. Receitas
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId, walletType: { notIn: BENEFIT_TYPES } },
+          type: "INCOME",
+          deletedAt: null,
+          OR: [
+            { competenceMonth: m, competenceYear: y },
+            { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+            { paymentDate: { gte: fromBuffer, lte: toBuffer } },
+            { date: { gte: fromBuffer, lte: toBuffer } },
+          ],
+        },
+        select: {
+          amount: true, status: true,
+          competenceMonth: true, competenceYear: true,
+          competenceDate: true, paymentDate: true, date: true,
+          wallet: { select: { walletType: true } },
+        },
+      }),
+      // 2. Faturas de Cartão
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId, walletType: "CREDIT_CARD" },
+          type: "EXPENSE",
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          OR: [
+            { competenceMonth: m, competenceYear: y },
+            { competenceDate: { gte: fromBuffer, lte: toBuffer } },
+            { purchaseDate: { gte: fromBuffer, lte: toBuffer } },
+            { date: { gte: fromBuffer, lte: toBuffer } },
+          ],
+        },
+        select: {
+          amount: true, status: true,
+          competenceMonth: true, competenceYear: true,
+          competenceDate: true, purchaseDate: true, date: true,
+        },
+      }),
+      // 3. Boletos / Central de Compromissos
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          source: "COMMITMENT",
+          deletedAt: null,
+          OR: [
+            { competenceMonth: m, competenceYear: y },
+            { dueDate: { gte: fromBuffer, lte: toBuffer } },
+            { date: { gte: fromBuffer, lte: toBuffer } },
+          ],
+        },
+        select: {
+          amount: true, status: true,
+          competenceMonth: true, competenceYear: true,
+          dueDate: true, date: true,
+        },
+      }),
+    ]);
+  }
 
   // Filtragem e cálculos em memória
   const monthIncomes = incomes.filter((t: any) => {
@@ -4652,9 +4751,11 @@ async function getMonthCashFlowMetrics(userId: string, m: number, y: number) {
 
 export async function getMonthlyCashFlowRollForwardAction(
   month?: number | null | string,
-  year: number = 2026
+  year: number = 2026,
+  preloadedWallets?: any[],
+  preloadedTransactions?: any[]
 ): Promise<MonthlyCashFlowRollForwardResult> {
-  const userId = await getActiveUserId();
+  const userId = preloadedWallets ? "" : await getActiveUserId();
   const now = new Date();
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
@@ -4663,14 +4764,22 @@ export async function getMonthlyCashFlowRollForwardAction(
   const targetMonth = isAnnualView ? curMonth : Number(month);
   const targetYear = year || curYear;
 
-  // ⚡ Busca wallets e métricas do mês atual em paralelo
-  const [bankWallets, curMetrics] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId, walletType: "CONTA_CORRENTE" },
-      select: { id: true, currentBalance: true, initialBalance: true },
-    }),
-    getMonthCashFlowMetrics(userId, curMonth, curYear),
-  ]);
+  let bankWallets: any[];
+  let curMetrics: any;
+
+  if (preloadedWallets && preloadedTransactions) {
+    bankWallets = preloadedWallets.filter((w: any) => w.walletType === "CONTA_CORRENTE");
+    curMetrics = await getMonthCashFlowMetrics(userId, curMonth, curYear, preloadedTransactions);
+  } else {
+    // ⚡ Busca wallets e métricas do mês atual em paralelo
+    [bankWallets, curMetrics] = await Promise.all([
+      prisma.wallet.findMany({
+        where: { userId, walletType: "CONTA_CORRENTE" },
+        select: { id: true, currentBalance: true, initialBalance: true },
+      }),
+      getMonthCashFlowMetrics(userId, curMonth, curYear),
+    ]);
+  }
 
   const saldoAtualContas = bankWallets.reduce(
     (s, w) => s + Number(w.currentBalance || w.initialBalance || 0),
@@ -4699,7 +4808,7 @@ export async function getMonthlyCashFlowRollForwardAction(
   if (isAnnualView) {
     // ⚡ Paraleliza todas as 12 queries em simultâneo (antes: serial, 36 queries)
     const allMonthMetrics = await Promise.all(
-      Array.from({ length: 12 }, (_, i) => getMonthCashFlowMetrics(userId, i + 1, targetYear))
+      Array.from({ length: 12 }, (_, i) => getMonthCashFlowMetrics(userId, i + 1, targetYear, preloadedTransactions))
     );
     const anoReceitas = allMonthMetrics.reduce((s, m) => s + m.totalReceitas, 0);
     const anoFaturas  = allMonthMetrics.reduce((s, m) => s + m.totalFaturas, 0);
@@ -4736,8 +4845,8 @@ export async function getMonthlyCashFlowRollForwardAction(
 
     // ⚡ Busca todos os meses intermediários + o mês alvo em paralelo
     const [interMetricsList, fetchedTargetMetrics] = await Promise.all([
-      Promise.all(intermediateMonths.map(({ m: im, y: iy }) => getMonthCashFlowMetrics(userId, im, iy))),
-      getMonthCashFlowMetrics(userId, targetMonth, targetYear),
+      Promise.all(intermediateMonths.map(({ m: im, y: iy }) => getMonthCashFlowMetrics(userId, im, iy, preloadedTransactions))),
+      getMonthCashFlowMetrics(userId, targetMonth, targetYear, preloadedTransactions),
     ]);
 
     const running = interMetricsList.reduce((s, met) => s + met.sobraMes, saldoPrevistoCurMonth);
@@ -4752,7 +4861,7 @@ export async function getMonthlyCashFlowRollForwardAction(
     prevMonthName = `${MONTH_NAMES_FULL[prevM - 1]}/${prevY}`;
   } else {
     // Mês Passado: exibe a sobra histórica
-    targetMetrics = await getMonthCashFlowMetrics(userId, targetMonth, targetYear);
+    targetMetrics = await getMonthCashFlowMetrics(userId, targetMonth, targetYear, preloadedTransactions);
     saldoHerdado = 0;
     saldoPrevisto = targetMetrics.sobraMes;
   }
@@ -5160,43 +5269,65 @@ export async function deleteCardAccount(walletId: string) {
 
 // ---------- Busca de Faturas Pendentes a Vencer (Ordenação Cronológica) ----------
 
-export async function getUpcomingCreditCardBills(userId: string) {
+export async function getUpcomingCreditCardBills(
+  userId: string,
+  existingWallets?: any[],
+  existingTransactions?: any[],
+  existingPaidInvoices?: any[]
+) {
   // 1. Busca todos os cartões de crédito do usuário
-  const creditCards = await prisma.wallet.findMany({
-    where: {
-      userId,
-      walletType: "CREDIT_CARD",
-    },
-    orderBy: { title: "asc" },
-  });
+  let creditCards: any[];
+  if (existingWallets) {
+    creditCards = existingWallets.filter((w) => w.walletType === "CREDIT_CARD");
+  } else {
+    creditCards = await prisma.wallet.findMany({
+      where: {
+        userId,
+        walletType: "CREDIT_CARD",
+      },
+      orderBy: { title: "asc" },
+    });
+  }
 
   if (creditCards.length === 0) return [];
 
   const cardIds = creditCards.map((c) => c.id);
 
   // 2. Busca todas as transações de despesa em cartões de crédito não deletadas
-  const transactions = await prisma.transaction.findMany({
-    where: {
-      walletId: { in: cardIds },
-      type: "EXPENSE",
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      walletId: true,
-      amount: true,
-      date: true,
-      status: true,
-    },
-    orderBy: { date: "asc" },
-  });
+  let transactions: any[];
+  if (existingTransactions) {
+    transactions = existingTransactions.filter(
+      (t) => cardIds.includes(t.walletId) && t.type === "EXPENSE" && !t.deletedAt
+    );
+  } else {
+    transactions = await prisma.transaction.findMany({
+      where: {
+        walletId: { in: cardIds },
+        type: "EXPENSE",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        walletId: true,
+        amount: true,
+        date: true,
+        status: true,
+      },
+      orderBy: { date: "asc" },
+    });
+  }
 
   // 3. Busca todos os registros de pagamentos de faturas efetuados
-  const paidInvoices = await (prisma as any).invoicePayment.findMany({
-    where: {
-      walletId: { in: cardIds },
-    },
-  });
+  let paidInvoices: any[];
+  if (existingPaidInvoices) {
+    paidInvoices = existingPaidInvoices.filter((p) => cardIds.includes(p.walletId));
+  } else {
+    paidInvoices = await (prisma as any).invoicePayment.findMany({
+      where: {
+        walletId: { in: cardIds },
+      },
+    });
+  }
 
   // Mapeia os pagamentos efetuados por walletId e competência/vencimento
   const paidMap = new Map<string, number>();
@@ -5317,8 +5448,19 @@ export async function getUpcomingBillsAction() {
 
 // ---------- Actions de Dashboard Principal ----------
 
-export async function getDashboardOverviewData(year: number, month?: number | null, tag?: string | null) {
-  const userId = await getActiveUserId();
+export async function getDashboardOverviewData(
+  year: number,
+  month?: number | null,
+  tag?: string | null,
+  preloaded?: {
+    userId?: string;
+    wallets?: any[];
+    transactions?: any[];
+    paidInvoices?: any[];
+    goals?: any[];
+  }
+) {
+  const userId = preloaded?.userId || await getActiveUserId();
 
   console.log("[getDashboardOverviewData] Início da busca:", { userId, year, month, tag });
 
@@ -5351,53 +5493,85 @@ export async function getDashboardOverviewData(year: number, month?: number | nu
     histTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999) + 24 * 3600 * 1000);
   }
 
-  // 1. Busca agregada de todos os blocos de dados do Dashboard em paralelo
-  const [
-    rawRangeTransactions,
-    cards,
-    goals,
-    histTransactionsRaw,
-    upcomingBills
-  ] = await Promise.all([
-    // Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        deletedAt: null,
-        OR: [
-          ...(month && month >= 1 && month <= 12 ? [{ competenceMonth: month, competenceYear: year }] : [{ competenceYear: year }]),
-          { competenceDate: { gte: from, lte: to } },
-          { purchaseDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } }
-        ],
-        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
-      } as any,
-      include: {
-        category: true,
-        wallet: { select: { walletType: true, title: true } }
-      },
-      orderBy: { date: "desc" }
-    }),
-    // Cartões & Contas Overview
-    getAllCardsOverview(month ? month : null, year),
-    // Metas Globais
-    getGoals(),
-    // Histórico Comparativo
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        deletedAt: null,
-        date: { gte: histFrom, lte: histTo },
-        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
-      },
-      include: {
-        wallet: { select: { walletType: true } },
-        category: true
-      }
-    }),
-    // Alertas de contas e faturas próximas
-    getUpcomingCreditCardBills(userId)
-  ]);
+  let rawRangeTransactions: any[];
+  let cards: any[];
+  let goals: any[];
+  let histTransactionsRaw: any[];
+  let upcomingBills: any[];
+
+  if (preloaded?.transactions && preloaded?.wallets) {
+    // ⚡ Utiliza o cache unificado em memória (Zero I/O no banco)
+    rawRangeTransactions = preloaded.transactions.filter((t: any) => {
+      if (t.deletedAt) return false;
+      if (tag && (!t.tags || !t.tags.toLowerCase().includes(tag.toLowerCase()))) return false;
+      return true;
+    });
+
+    cards = await getAllCardsOverview(month ? month : null, year, preloaded);
+    goals = preloaded.goals || (await getGoals(userId));
+
+    histTransactionsRaw = preloaded.transactions.filter((t: any) => {
+      if (t.deletedAt) return false;
+      if (tag && (!t.tags || !t.tags.toLowerCase().includes(tag.toLowerCase()))) return false;
+      const d = new Date(t.date);
+      return d >= histFrom && d <= histTo;
+    });
+
+    upcomingBills = await getUpcomingCreditCardBills(
+      userId,
+      preloaded.wallets,
+      preloaded.transactions,
+      preloaded.paidInvoices
+    );
+  } else {
+    // 1. Busca agregada de todos os blocos de dados do Dashboard em paralelo
+    [
+      rawRangeTransactions,
+      cards,
+      goals,
+      histTransactionsRaw,
+      upcomingBills
+    ] = await Promise.all([
+      // Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          deletedAt: null,
+          OR: [
+            ...(month && month >= 1 && month <= 12 ? [{ competenceMonth: month, competenceYear: year }] : [{ competenceYear: year }]),
+            { competenceDate: { gte: from, lte: to } },
+            { purchaseDate: { gte: from, lte: to } },
+            { date: { gte: from, lte: to } }
+          ],
+          ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
+        } as any,
+        include: {
+          category: true,
+          wallet: { select: { walletType: true, title: true } }
+        },
+        orderBy: { date: "desc" }
+      }),
+      // Cartões & Contas Overview
+      getAllCardsOverview(month ? month : null, year),
+      // Metas Globais
+      getGoals(),
+      // Histórico Comparativo
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          deletedAt: null,
+          date: { gte: histFrom, lte: histTo },
+          ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {})
+        },
+        include: {
+          wallet: { select: { walletType: true } },
+          category: true
+        }
+      }),
+      // Alertas de contas e faturas próximas
+      getUpcomingCreditCardBills(userId)
+    ]);
+  }
 
   // Filtra com precisão garantindo que transações pertençam ao ano/mês sob regime de competência
   const rangeTransactions = (rawRangeTransactions as any[]).filter((t) => {
@@ -9468,19 +9642,58 @@ export async function getDashboardBundleAction(
   wallets: Awaited<ReturnType<typeof getWalletsAction>>;
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
-  const [overview, wallets, cashFlow] = await Promise.all([
-    getDashboardOverviewData(year, month, tag),
-    getWalletsAction(),
-    getMonthlyCashFlowRollForwardAction(month, year),
+  const userId = await getActiveUserId();
+
+  // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
+  // Carrega todas as entidades fundamentais de uma só vez, eliminando 25+ round-trips lentos
+  const [wallets, transactions, paidInvoices, goals] = await Promise.all([
+    prisma.wallet.findMany({
+      where: { userId },
+      orderBy: { title: "asc" },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        deletedAt: null,
+        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {}),
+      },
+      include: {
+        category: true,
+        wallet: {
+          select: {
+            id: true,
+            title: true,
+            walletType: true,
+            initialBalance: true,
+            currentBalance: true,
+            creditLimit: true,
+            bankName: true,
+          },
+        },
+      },
+      orderBy: { date: "desc" },
+    }),
+    prisma.invoicePayment.findMany({
+      where: { wallet: { userId } },
+    }),
+    getGoals(userId),
   ]);
 
-  return { overview, wallets, cashFlow };
+  const preloaded = { userId, wallets, transactions, paidInvoices, goals };
+
+  const [overview, walletsResult, cashFlow] = await Promise.all([
+    getDashboardOverviewData(year, month, tag, preloaded),
+    getWalletsAction(wallets, transactions),
+    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
+  ]);
+
+  return { overview, wallets: walletsResult, cashFlow };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚡ ACTION UNIFICADA DA PÁGINA DESPESAS/COMPROMISSOS
 // Substitui as 10 chamadas separadas por 1 única requisição HTTP à Vercel,
-// eliminando 9 round-trips de rede e resoluções duplicadas de userId.
+// com pré-carregamento compartilhado em lote.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getDespesasBundleAction(
   month: number | null | string,
@@ -9497,11 +9710,31 @@ export async function getDespesasBundleAction(
   commitments: Awaited<ReturnType<typeof getMonthlyCommitmentsAction>>;
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
+  const userId = await getActiveUserId();
+
+  // Pré-carrega carteiras, transações e faturas pagas em paralelo
+  const [wallets, transactions, paidInvoices] = await Promise.all([
+    prisma.wallet.findMany({
+      where: { userId },
+      orderBy: { title: "asc" },
+    }),
+    prisma.transaction.findMany({
+      where: { wallet: { userId }, deletedAt: null },
+      include: { category: true, wallet: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.invoicePayment.findMany({
+      where: { wallet: { userId } },
+    }),
+  ]);
+
+  const preloaded = { wallets, transactions, paidInvoices };
+
   const [
-    cards, paidInvoices, realRevenue, pendingExpenses, paidExpenses,
+    cards, paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
     recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
   ] = await Promise.all([
-    getAllCardsOverview(month, year),
+    getAllCardsOverview(month, year, preloaded),
     getPaidInvoicesAction(month, year),
     getRealRevenueAction(month, year),
     getPendingExpensesAction(month, year),
@@ -9510,11 +9743,11 @@ export async function getDespesasBundleAction(
     getUpcomingBillsWindowAction(month, year),
     getPendingRevenuesAction(month, year),
     getMonthlyCommitmentsAction(month, year),
-    getMonthlyCashFlowRollForwardAction(month, year),
+    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
   ]);
 
   return {
-    cards, paidInvoices, realRevenue, pendingExpenses, paidExpenses,
+    cards, paidInvoices: paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
     recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
   };
 }

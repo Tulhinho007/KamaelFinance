@@ -64,6 +64,7 @@ export function DashboardOverview() {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(() => selectedYear || new Date().getFullYear());
   const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
@@ -160,10 +161,11 @@ export function DashboardOverview() {
     setPeriod(newMonth, selectedDashboardYear);
   };
 
-  const loadDashboardData = async () => {
-    setLoading(true);
+  const loadDashboardData = async (skipLoadingState = false) => {
+    if (!skipLoadingState) setLoading(true);
+    setError(null);
     try {
-      // ⚡ Uma única chamada ao servidor (antes: 3 round-trips separados)
+      // ⚡ Uma única chamada ao servidor consolidada em 1 round-trip
       const { overview, wallets: wList, cashFlow: rollForwardRes } = await getDashboardBundleAction(
         selectedDashboardYear,
         selectedDashboardMonth,
@@ -177,8 +179,14 @@ export function DashboardOverview() {
       if (defaultBank) {
         setRevWalletId(prev => prev || defaultBank.id);
       }
-    } catch (err) {
+      // Persiste no cache da sessão para abertura instantânea (0ms) no próximo carregamento
+      try {
+        const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}_${selectedTag || "all"}`;
+        sessionStorage.setItem(cacheKey, JSON.stringify({ overview, wallets: walletsData, cashFlow: rollForwardRes }));
+      } catch (cacheErr) {}
+    } catch (err: any) {
       console.error(err);
+      setError(err?.message || "Erro ao carregar dados do painel.");
     } finally {
       setLoading(false);
     }
@@ -203,7 +211,22 @@ export function DashboardOverview() {
   };
 
   useEffect(() => {
-    loadDashboardData();
+    let hasCache = false;
+    try {
+      const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}_${selectedTag || "all"}`;
+      const cachedStr = sessionStorage.getItem(cacheKey);
+      if (cachedStr) {
+        const cached = JSON.parse(cachedStr);
+        if (cached?.overview) {
+          setData(cached.overview);
+          setMonthlyRollForward(cached.cashFlow || null);
+          setDashboardWallets(cached.wallets || []);
+          setLoading(false);
+          hasCache = true;
+        }
+      }
+    } catch (cacheErr) {}
+    loadDashboardData(hasCache);
   }, [selectedDashboardYear, selectedDashboardMonth, selectedTag]);
 
   useEffect(() => {
@@ -259,11 +282,64 @@ export function DashboardOverview() {
     }
   };
 
-  if (loading || !data) {
+  if (error && !data) {
+    return (
+      <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col items-center justify-center min-h-[50vh] text-center gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 flex items-center justify-center text-rose-600">
+          <AlertCircle className="w-7 h-7" />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Não foi possível carregar os dados</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">{error}</p>
+        </div>
+        <button
+          onClick={() => loadDashboardData(false)}
+          className="mt-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  if (loading && !data) {
     return (
       <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 animate-pulse select-none">
-        <div className="h-10 bg-slate-200/60 rounded-xl w-64" />
-        <div className="h-48 bg-white rounded-2xl border border-slate-200/80 shadow-sm" />
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+          <div className="space-y-2">
+            <div className="h-7 bg-slate-200 dark:bg-slate-800 rounded-lg w-48" />
+            <div className="h-4 bg-slate-100 dark:bg-slate-800/60 rounded w-64" />
+          </div>
+          <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
+        </div>
+
+        {/* 4 KPI cards skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-32 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
+              <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-24" />
+              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-36" />
+              <div className="h-3 bg-slate-100 dark:bg-slate-800/60 rounded w-28" />
+            </div>
+          ))}
+        </div>
+
+        {/* Carousel / Contas skeleton */}
+        <div className="h-44 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+          <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-44" />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-xl" />
+            ))}
+          </div>
+        </div>
+
+        {/* Charts skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="h-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6" />
+          <div className="h-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6" />
+        </div>
       </div>
     );
   }
