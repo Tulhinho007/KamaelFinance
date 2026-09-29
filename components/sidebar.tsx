@@ -22,7 +22,6 @@ import {
   History,
   Zap,
   Wrench,
-  Calculator,
   Plane,
   Eye,
   EyeOff
@@ -64,7 +63,6 @@ export const sidebarNavigation: SidebarNavGroup[] = [
   {
     group: "PLANEJAMENTO & METAS",
     items: [
-      { name: "Calculadoras", href: "/calculadoras", icon: Calculator },
       { name: "Objetivos & Reservas", href: "/metas", icon: Target },
       { name: "Planejamento de Viagens", href: "/planejamento", icon: Plane },
       { name: "Investimentos", href: "/investimentos", icon: PieChart },

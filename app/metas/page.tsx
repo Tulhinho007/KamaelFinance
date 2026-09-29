@@ -7,8 +7,9 @@ import { PeriodHeader } from "@/components/period-header";
 import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
 import { GoalCelebrationModal } from "@/components/goal-celebration-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { EmergencyFundCalculator } from "@/components/emergency-fund-calculator";
 import {
-  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw
+  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw, ShieldCheck
 } from "lucide-react";
 
 import { parseCurrencyInput } from "@/lib/constants";
@@ -195,8 +196,8 @@ export default function MetasPage() {
     loadAllData();
   }, []);
 
-  // Seletor de Abas (Metas Ativas vs Conquistas Batidas)
-  const [activeTab, setActiveTab] = useState<"active" | "completed">("active");
+  // Seletor de Abas (Metas Ativas vs Conquistas Batidas vs Calculadora de Reserva)
+  const [activeTab, setActiveTab] = useState<"active" | "completed" | "reserva">("active");
 
   // Separação entre metas ativas e concluídas
   const activeMetas = metas.filter(m => m.status !== "COMPLETED" && m.pct < 100);
@@ -231,6 +232,24 @@ export default function MetasPage() {
     setFormIconName("Target");
     setFormWalletId("");
     setFormTipo("VISUAL");
+    setModalType("create");
+  };
+
+  const handleApplyEmergencyFundAsGoal = (data: { title: string; targetAmount: number; currentAmount: number }) => {
+    setFormTitle(data.title);
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+    const targetDate = new Date();
+    targetDate.setMonth(targetDate.getMonth() + 12);
+    const targetDateStr = targetDate.toISOString().split("T")[0];
+
+    setFormDataInicio(todayStr);
+    setFormDataFim(targetDateStr);
+    setFormObjetivo(data.targetAmount);
+    setFormAcumuladoInicial(data.currentAmount > 0 ? data.currentAmount : "");
+    setFormIconName("Target");
+    setFormWalletId("");
+    setFormTipo("COFRINHO");
     setModalType("create");
   };
 
@@ -600,15 +619,38 @@ export default function MetasPage() {
               {completedMetas.length}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("reserva")}
+            className={`px-4.5 py-2.5 rounded-2xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "reserva"
+                ? "bg-sky-600 text-white shadow-md shadow-sky-600/30"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>RESERVA DE EMERGÊNCIA</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "reserva" ? "bg-white/20 text-white" : "bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300"}`}>
+              SIMULADOR
+            </span>
+          </button>
         </div>
 
         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          {activeTab === "active" ? `Objetivos em Andamento (${filteredMetas.length})` : `Mural de Conquistas Alcançadas (${filteredMetas.length})`}
+          {activeTab === "reserva"
+            ? "Simulador de Blindagem & Liquidez Diária"
+            : activeTab === "active"
+            ? `Objetivos em Andamento (${filteredMetas.length})`
+            : `Mural de Conquistas Alcançadas (${filteredMetas.length})`}
         </span>
       </div>
 
-      {/* ── 5. GRID DE OBJETIVOS / MURAL DE CONQUISTAS ──────────────────────── */}
-      <section className="flex flex-col gap-4">
+      {/* ── 5. CONTEÚDO DA ABA (GRID DE OBJETIVOS OU SIMULADOR DE RESERVA) ───── */}
+      {activeTab === "reserva" ? (
+        <EmergencyFundCalculator onApplyAsGoal={handleApplyEmergencyFundAsGoal} />
+      ) : (
+        <section className="flex flex-col gap-4">
         
         {/* Lista de Metas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -865,6 +907,7 @@ export default function MetasPage() {
         </div>
 
       </section>
+      )}
 
       {/* ── MODAIS INTERATIVOS ───────────────────────────────────────────────── */}
       {modalType && (

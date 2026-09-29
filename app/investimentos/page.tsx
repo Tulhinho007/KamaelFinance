@@ -8,7 +8,6 @@ import {
   ChevronDown, ChevronRight, ChevronUp, Tag, CornerDownRight, GitCommit, Briefcase
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
-import { CompoundInterestSimulator } from "@/components/compound-interest-simulator";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer,
@@ -1215,8 +1214,6 @@ export default function InvestimentosPage() {
 
           </div>
 
-          {/* ── 3. SIMULADOR DE JUROS COMPOSTOS INTEGRADO ── */}
-          <CompoundInterestSimulator currentNetWorth={overview?.patrimonioLiquido || 0} />
 
         </section>
       )}

@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { source: "/objetivos", destination: "/metas", permanent: false },
       { source: "/viagens", destination: "/planejamento", permanent: false },
       { source: "/orcamentos", destination: "/gestao-financeira/orcamentos", permanent: false },
+      { source: "/calculadoras", destination: "/metas", permanent: false },
     ];
   },
 
