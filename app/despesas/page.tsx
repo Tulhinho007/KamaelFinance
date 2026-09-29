@@ -827,11 +827,24 @@ export default function DespesasPage() {
     let active = true;
     setLoading(true);
 
-    // ⚡ 1 chamada ao servidor em vez de 10 round-trips separados
+    // ⚡ 1. Desbloqueio imediato dos cards da esquerda (~200ms)
+    getAllCardsOverview(selectedMonthFilter, selectedYear)
+      .then((cardsData) => {
+        if (!active) return;
+        setCards(cardsData || []);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Erro ao carregar cards preliminares:", err);
+      });
+
+    // ⚡ 2. Bundle consolidado de faturas, compromissos e fluxo de caixa
     getDespesasBundleAction(selectedMonthFilter, selectedYear)
       .then((bundle) => {
         if (!active) return;
-        setCards(bundle.cards || []);
+        if (bundle.cards && bundle.cards.length > 0) {
+          setCards(bundle.cards);
+        }
         setPaidInvoicesList(bundle.paidInvoices || []);
         setRealRevenue(bundle.realRevenue || 0);
         setPendingExpensesList(bundle.pendingExpenses || []);
@@ -854,7 +867,10 @@ export default function DespesasPage() {
       })
       .catch(err => {
         console.error("Erro ao carregar dados de despesas:", err);
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setCommitmentsLoading(false);
+        }
       });
 
     return () => { active = false; };

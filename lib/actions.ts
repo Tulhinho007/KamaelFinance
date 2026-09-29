@@ -4465,28 +4465,56 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
   const upcomingCardInvoices: any[] = [];
   const paidCardInvoices: any[] = [];
 
+  const cardIds = creditCards.map(c => c.id);
+  const from = new Date(Date.UTC(curYear, targetMonth - 1, 1, 0, 0, 0));
+  const to   = new Date(Date.UTC(curYear, targetMonth, 0, 23, 59, 59, 999));
+
+  // ⚡ Busca faturas pagas e compras de TODOS os cartões em paralelo (1 round-trip)
+  const [allPaidInvoices, allCardPurchases] = await Promise.all([
+    cardIds.length > 0
+      ? (prisma as any).invoicePayment.findMany({
+          where: { walletId: { in: cardIds }, month: targetMonth, year: curYear }
+        })
+      : Promise.resolve([]),
+    cardIds.length > 0
+      ? prisma.transaction.findMany({
+          where: {
+            walletId: { in: cardIds },
+            type: "EXPENSE",
+            deletedAt: null,
+            source: { not: "RECURRING_PROJECTION" },
+            OR: [
+              { competenceMonth: targetMonth, competenceYear: curYear },
+              { competenceDate: { gte: from, lte: to } },
+              { purchaseDate: { gte: from, lte: to } },
+              { date: { gte: from, lte: to } }
+            ]
+          },
+          select: {
+            id: true,
+            walletId: true,
+            amount: true,
+            date: true,
+            competenceDate: true,
+            purchaseDate: true,
+            competenceMonth: true,
+            competenceYear: true,
+          }
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const paidByCard = new Map<string, any>(allPaidInvoices.map((p: any) => [p.walletId, p]));
+  const purchasesByCard = new Map<string, any[]>();
+  for (const t of allCardPurchases) {
+    const list = purchasesByCard.get(t.walletId) ?? [];
+    list.push(t);
+    purchasesByCard.set(t.walletId, list);
+  }
+
   for (const card of creditCards) {
-    const paidInvoices = await (prisma as any).invoicePayment.findMany({ where: { walletId: card.id } });
-    const paidThisMonth = paidInvoices.find((p: any) => p.month === targetMonth && p.year === curYear);
-
-    // Compras do cartão para o mês selecionado (competência do mês)
-    const from = new Date(Date.UTC(curYear, targetMonth - 1, 1, 0, 0, 0));
-    const to   = new Date(Date.UTC(curYear, targetMonth, 0, 23, 59, 59, 999));
-
-    const cardPurchases = await prisma.transaction.findMany({
-      where: {
-        walletId: card.id,
-        type: "EXPENSE",
-        deletedAt: null,
-        source: { not: "RECURRING_PROJECTION" },
-        OR: [
-          { competenceMonth: targetMonth, competenceYear: curYear },
-          { competenceDate: { gte: from, lte: to } },
-          { purchaseDate: { gte: from, lte: to } },
-          { date: { gte: from, lte: to } }
-        ]
-      }
-    });
+    const paidThisMonth = paidByCard.get(card.id);
+    const cardPurchases = purchasesByCard.get(card.id) ?? [];
 
     const monthTxs = cardPurchases.filter((t: any) => {
       if (t.competenceMonth != null && t.competenceYear != null) {
@@ -4498,7 +4526,6 @@ export async function getUpcomingBillsWindowAction(month?: number | null | strin
 
     const totalFatura = monthTxs.reduce((s, t) => s + Number(t.amount), 0);
 
-    const vencDay = card.vencimento || 10;
     const dueDateInfo = getInvoiceDueDateInfo(
       (card as any).diaFechamento ?? 1,
       card.vencimento ?? 10,
@@ -9712,7 +9739,7 @@ export async function getDespesasBundleAction(
 }> {
   const userId = await getActiveUserId();
 
-  // Pré-carrega carteiras, transações e faturas pagas em paralelo
+  // Pré-carrega carteiras, transações e faturas pagas em paralelo com SELECT enxuto
   const [wallets, transactions, paidInvoices] = await Promise.all([
     prisma.wallet.findMany({
       where: { userId },
@@ -9720,7 +9747,24 @@ export async function getDespesasBundleAction(
     }),
     prisma.transaction.findMany({
       where: { wallet: { userId }, deletedAt: null },
-      include: { category: true, wallet: true },
+      select: {
+        id: true,
+        walletId: true,
+        amount: true,
+        type: true,
+        status: true,
+        source: true,
+        date: true,
+        competenceDate: true,
+        purchaseDate: true,
+        dueDate: true,
+        competenceMonth: true,
+        competenceYear: true,
+        deletedAt: true,
+        category: {
+          select: { id: true, name: true, color: true }
+        }
+      },
       orderBy: { date: "asc" },
     }),
     prisma.invoicePayment.findMany({
@@ -9732,7 +9776,7 @@ export async function getDespesasBundleAction(
 
   const [
     cards, paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
-    recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
+    recurringExpenses, windowBills, commitments, cashFlow,
   ] = await Promise.all([
     getAllCardsOverview(month, year, preloaded),
     getPaidInvoicesAction(month, year),
@@ -9741,10 +9785,14 @@ export async function getDespesasBundleAction(
     getPaidExpensesAction(month, year),
     getRecurringExpensesAction(month, year),
     getUpcomingBillsWindowAction(month, year),
-    getPendingRevenuesAction(month, year),
     getMonthlyCommitmentsAction(month, year),
     getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
   ]);
+
+  const pendingRevenues = {
+    items: windowBills?.pendingRevenues || [],
+    total: windowBills?.receitasPendentesDoMes || 0,
+  };
 
   return {
     cards, paidInvoices: paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,

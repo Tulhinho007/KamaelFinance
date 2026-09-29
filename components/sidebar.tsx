@@ -129,6 +129,7 @@ export function Sidebar() {
         <Link
           key={href}
           href={href}
+          prefetch={false}
           onClick={() => setIsMobileOpen(false)}
           className="flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 text-slate-400 dark:text-slate-500 hover:bg-amber-50/60 dark:hover:bg-amber-500/5 hover:text-amber-700 dark:hover:text-amber-400 font-semibold group"
           title="Módulo em manutenção — disponível em breve"
@@ -147,6 +148,7 @@ export function Sidebar() {
       <Link
         key={href}
         href={href}
+        prefetch={false}
         onClick={() => setIsMobileOpen(false)}
         className={`flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 ${
           active
@@ -188,6 +190,7 @@ export function Sidebar() {
       <div className="flex items-center justify-between gap-1.5 pt-1">
         <Link
           href="/configuracoes"
+          prefetch={false}
           onClick={() => setIsMobileOpen(false)}
           className="flex-1 min-w-0 flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors duration-150 group"
         >
@@ -242,7 +245,7 @@ export function Sidebar() {
             {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" prefetch={false} className="flex items-center gap-2">
             <div className="bg-indigo-600 p-1.5 rounded-lg text-white shadow-sm shadow-indigo-600/30 flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
             </div>
