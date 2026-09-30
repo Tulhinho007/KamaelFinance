@@ -338,13 +338,10 @@ export default function CartaoDetailPage() {
       if (pm === "SALARIO" || desc.includes("salário") || desc.includes("salario")) {
         return { label: "Salário", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
       }
-      if (pm === "PIX_RECEBIDO" || desc.includes("pix") || desc.includes("transferência") || desc.includes("ted")) {
-        return { label: "Pix Recebido", color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" };
-      }
       if (pm === "INJECAO" || desc.includes("injeção") || desc.includes("aporte") || desc.includes("saldo")) {
         return { label: "Injeção / Saldo", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" };
       }
-      return { label: "Entrada / Depósito", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
+      return { label: "Pix Recebido", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
     } else {
       if (pm === "BOLETO" || desc.includes("boleto") || desc.includes("luz") || desc.includes("água") || desc.includes("internet")) {
         return { label: "Boleto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
@@ -352,13 +349,10 @@ export default function CartaoDetailPage() {
       if (pm === "FATURA_CARTAO" || desc.includes("fatura") || desc.includes("cartão") || desc.includes("cartao")) {
         return { label: "Fatura de Cartão", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" };
       }
-      if (pm === "PIX_ENVIADO" || desc.includes("pix") || desc.includes("transferência") || desc.includes("ted")) {
-        return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
-      }
       if (pm === "SAQUE" || desc.includes("saque") || desc.includes("retirada")) {
         return { label: "Saque", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20" };
       }
-      return { label: "Pagamento / Saída", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
+      return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
     }
   };
 
@@ -777,8 +771,8 @@ export default function CartaoDetailPage() {
           <ArrowLeft className="w-4 h-4" /> Voltar para Despesas & Contas
         </Link>
         <PeriodHeader
-          title={cardData.title}
-          tagline={`Gerencie as movimentações e extrato de ${cardData.title}`}
+          title={isBank ? (cardData.title.toLowerCase().includes("conta") ? cardData.title : `${cardData.bankName || cardData.title} — Conta Corrente`) : cardData.title}
+          tagline={isBank ? undefined : `Gerencie as movimentações e extrato de ${cardData.title}`}
         />
         <div className="flex flex-wrap items-center gap-2 mt-1">
           {isCredit && (() => {
@@ -816,17 +810,17 @@ export default function CartaoDetailPage() {
               </span>
             );
           })()}
-          {cardData.holder && (
+          {!isBank && cardData.holder && (
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Titular:</span> {cardData.holder}
             </span>
           )}
-          {cardData.agencia && (
+          {!isBank && cardData.agencia && (
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Agência:</span> {cardData.agencia}
             </span>
           )}
-          {cardData.conta && (
+          {!isBank && cardData.conta && (
             <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-2xs">
               <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Conta:</span> {cardData.conta}
             </span>
@@ -892,29 +886,8 @@ export default function CartaoDetailPage() {
               Ajustar Datas
             </button>
           </>
-        ) : (
+        ) : isBank ? null : (
           <div className="flex items-center gap-2">
-            {isBank && (
-              <div className="hidden sm:flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openBankMovementModal("ENTRADA")}
-                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  + Entrada / Depósito
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openBankMovementModal("SAIDA")}
-                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold rounded-2xl shadow-lg shadow-rose-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Minus className="w-4 h-4" />
-                  - Saída / Pagamento
-                </button>
-              </div>
-            )}
-
             <div className="relative">
               <button 
                 onClick={() => setActionDropdownOpen(!actionDropdownOpen)}
@@ -927,76 +900,44 @@ export default function CartaoDetailPage() {
 
               {actionDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 animate-in fade-in zoom-in-95 duration-150">
-                  {isBank ? (
-                    <>
-                      <button
-                        onClick={() => { setActionDropdownOpen(false); openBankMovementModal("ENTRADA"); }}
-                        className="w-full px-3 py-2.5 rounded-xl hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 font-extrabold text-sm">
-                          +
-                        </div>
-                        <div>
-                          <span className="block font-bold text-emerald-600 dark:text-emerald-400">+ Entrada / Depósito</span>
-                          <span className="block text-[10px] font-normal text-slate-400">Salário, Pix recebido, injeção de saldo</span>
-                        </div>
-                      </button>
+                  <button
+                    onClick={() => { setActionDropdownOpen(false); setPurchaseModalOpen(true); }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
+                      <Minus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-900 dark:text-white">Lançar Despesa / Gasto</span>
+                      <span className="block text-[10px] font-normal text-slate-400">Registrar saída</span>
+                    </div>
+                  </button>
 
-                      <button
-                        onClick={() => { setActionDropdownOpen(false); openBankMovementModal("SAIDA"); }}
-                        className="w-full px-3 py-2.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 font-extrabold text-sm">
-                          -
-                        </div>
-                        <div>
-                          <span className="block font-bold text-rose-600 dark:text-rose-400">- Saída / Pagamento</span>
-                          <span className="block text-[10px] font-normal text-slate-400">Pagamento de boleto, fatura, Pix enviado, saque</span>
-                        </div>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => { setActionDropdownOpen(false); setPurchaseModalOpen(true); }}
-                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0">
-                          <Minus className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="block font-bold text-slate-900 dark:text-white">Lançar Despesa / Gasto</span>
-                          <span className="block text-[10px] font-normal text-slate-400">Registrar saída da conta</span>
-                        </div>
-                      </button>
+                  <button
+                    onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("carga"); }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
+                      <Plus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-900 dark:text-white">Adicionar Carga</span>
+                      <span className="block text-[10px] font-normal text-slate-400">Injeção de benefício</span>
+                    </div>
+                  </button>
 
-                      <button
-                        onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("carga"); }}
-                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
-                          <Plus className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Adicionar Carga" : "Adicionar Saldo / Entrada"}</span>
-                          <span className="block text-[10px] font-normal text-slate-400">Injeção de capital ou benefício</span>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("cargaRemove"); }}
-                        className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
-                      >
-                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
-                          <Settings className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="block font-bold text-slate-900 dark:text-white">{isTicket ? "Remover Carga" : "Subtrair / Ajustar Saldo"}</span>
-                          <span className="block text-[10px] font-normal text-slate-400">Ajuste de saldo manual</span>
-                        </div>
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={() => { setActionDropdownOpen(false); setFormCarga(""); setModalType("cargaRemove"); }}
+                    className="w-full px-3 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors text-left cursor-pointer"
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                      <Settings className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block font-bold text-slate-900 dark:text-white">Remover Carga</span>
+                      <span className="block text-[10px] font-normal text-slate-400">Ajuste de saldo manual</span>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
@@ -1315,68 +1256,57 @@ export default function CartaoDetailPage() {
         // ── VISÃO EXECUTIVA DE EXTRATO BANCÁRIO PURO (FLUXO DE CAIXA: ENTRADAS & SAÍDAS) ──
         <div className="flex flex-col gap-6">
           
-          {/* TOPO: 4 CARDS ESSENCIAIS DE FLUXO DE CAIXA PURO (EXTRATO BANCÁRIO) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
-            {/* Card 1: Saldo Disponível */}
-            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Saldo Disponível</span>
-                <h3 className={`text-2xl font-bold mt-1 tabular-nums ${saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}>
-                  {brl(saldoAtualCalculado)}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Saldo real em conta</p>
+          {/* Topo (Resumo & Ação Única) — Card Único: Saldo em Conta + Linha Discreta + Botão */}
+          <div className="bg-white dark:bg-[#111625] p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Saldo em Conta
+              </span>
+              <div className="flex items-baseline gap-3">
+                <span className={`text-3xl sm:text-4xl font-black tabular-nums tracking-tight ${
+                  saldoAtualCalculado < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"
+                }`}>
+                  <CurrencyValue value={saldoAtualCalculado} />
+                </span>
               </div>
-              <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-300 text-lg">
-                🏛️
-              </div>
-            </div>
-
-            {/* Card 2: Total Entradas */}
-            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Entradas no Mês</span>
-                <h3 className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
-                  + {brl(totalEntradasMes)}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Salário, Pix e depósitos</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 text-lg">
-                ↗️
-              </div>
-            </div>
-
-            {/* Card 3: Total Saídas */}
-            <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Saídas no Mês</span>
-                <h3 className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1 tabular-nums">
-                  - {brl(totalGastosMes)}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">Boletos, faturas e transferências</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center text-rose-600 dark:text-rose-400 text-lg">
-                ↘️
+              
+              {/* Linha discreta de fluxo do mês */}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-400 dark:text-slate-500">Entradas:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    + {brl(totalEntradasMes)}
+                  </span>
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-400 dark:text-slate-500">Saídas:</span>
+                  <span className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
+                    - {brl(totalGastosMes)}
+                  </span>
+                </span>
+                <span className="text-slate-300 dark:text-slate-700">•</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="text-slate-400 dark:text-slate-500">Balanço:</span>
+                  <span className={`font-semibold tabular-nums ${
+                    (totalEntradasMes - totalGastosMes) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                  }`}>
+                    {(totalEntradasMes - totalGastosMes) >= 0 ? `+ ${brl(totalEntradasMes - totalGastosMes)}` : `- ${brl(Math.abs(totalEntradasMes - totalGastosMes))}`}
+                  </span>
+                </span>
               </div>
             </div>
 
-            {/* Card 4: Balanço do Mês */}
-            {(() => {
-              const balancoMes = totalEntradasMes - totalGastosMes;
-              return (
-                <div className="bg-white dark:bg-[#111625] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Balanço do Mês</span>
-                    <h3 className={`text-2xl font-bold mt-1 tabular-nums ${balancoMes >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                      {balancoMes >= 0 ? `+ ${brl(balancoMes)}` : `- ${brl(Math.abs(balancoMes))}`}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Entradas menos Saídas</p>
-                  </div>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${balancoMes >= 0 ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400"}`}>
-                    ⚖️
-                  </div>
-                </div>
-              );
-            })()}
+            <div className="sm:self-center shrink-0">
+              <button
+                type="button"
+                onClick={() => openBankMovementModal("ENTRADA")}
+                className="w-full sm:w-auto px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                + Registrar Movimentação
+              </button>
+            </div>
           </div>
 
           {/* EXTRATO CRONOLÓGICO — CONTA BANCÁRIA */}
@@ -1452,30 +1382,51 @@ export default function CartaoDetailPage() {
                       )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* Abas de fluxo */}
-                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
-                        <button type="button" onClick={() => setBankFlowFilter("all")}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "all" ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                          Todas <span className="text-[10px] font-black opacity-60 ml-0.5">{monthTransactions.length}</span>
+                      {/* Abas simples de texto discretas */}
+                      <div className="flex items-center gap-4 text-xs font-medium">
+                        <button
+                          type="button"
+                          onClick={() => setBankFlowFilter("all")}
+                          className={`transition-colors cursor-pointer pb-0.5 ${
+                            bankFlowFilter === "all"
+                              ? "text-indigo-600 dark:text-indigo-400 font-bold border-b-2 border-indigo-600 dark:border-indigo-400"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          Todas ({monthTransactions.length})
                         </button>
-                        <button type="button" onClick={() => setBankFlowFilter("income")}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "income" ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                          Entradas <span className="text-[10px] font-black opacity-60 ml-0.5">{entradasCount}</span>
+                        <button
+                          type="button"
+                          onClick={() => setBankFlowFilter("income")}
+                          className={`transition-colors cursor-pointer pb-0.5 ${
+                            bankFlowFilter === "income"
+                              ? "text-emerald-600 dark:text-emerald-400 font-bold border-b-2 border-emerald-600 dark:border-emerald-400"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          Entradas ({entradasCount})
                         </button>
-                        <button type="button" onClick={() => setBankFlowFilter("expense")}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${ bankFlowFilter === "expense" ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow" : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white" }`}>
-                          Saídas <span className="text-[10px] font-black opacity-60 ml-0.5">{saidasCount}</span>
+                        <button
+                          type="button"
+                          onClick={() => setBankFlowFilter("expense")}
+                          className={`transition-colors cursor-pointer pb-0.5 ${
+                            bankFlowFilter === "expense"
+                              ? "text-rose-600 dark:text-rose-400 font-bold border-b-2 border-rose-600 dark:border-rose-400"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          Saídas ({saidasCount})
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Tabela Estruturada de Extrato Bancário Clássico: DATA | DESCRIÇÃO | TIPO / MEIO | VALOR | SALDO ACUMULADO | AÇÕES */}
+                  {/* Tabela Estruturada de Extrato Bancário Minimalista */}
                   <div className="w-full overflow-x-auto">
                     <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                      <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+                      <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
                         <tr>
-                          <th className="py-3 px-4 w-10">
+                          <th className="py-3 px-3 w-8">
                             <input
                               type="checkbox"
                               checked={filtered.length > 0 && selectedIds.length === filtered.length}
@@ -1485,10 +1436,10 @@ export default function CartaoDetailPage() {
                           </th>
                           <th className="py-3 px-4">DATA</th>
                           <th className="py-3 px-4">DESCRIÇÃO</th>
-                          <th className="py-3 px-4">TIPO / MEIO</th>
+                          <th className="py-3 px-4">MEIO</th>
                           <th className="py-3 px-4 text-right">VALOR</th>
-                          <th className="py-3 px-4 text-right">SALDO ACUMULADO</th>
-                          <th className="py-3 px-4 text-center w-28">AÇÕES</th>
+                          <th className="py-3 px-4 text-right">SALDO PÓS-TRANSAÇÃO</th>
+                          <th className="py-3 px-4 text-center w-24">AÇÕES</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -1510,11 +1461,11 @@ export default function CartaoDetailPage() {
                             return (
                               <tr
                                 key={t.id}
-                                className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                                className={`group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
                                   isSelected ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""
                                 }`}
                               >
-                                <td className="py-3 px-4">
+                                <td className="py-3 px-3">
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
@@ -1522,38 +1473,31 @@ export default function CartaoDetailPage() {
                                     className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                   />
                                 </td>
-                                <td className="py-3 px-4 font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                                <td className="py-3 px-4 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                                   {dateBR}
                                 </td>
                                 <td className="py-3 px-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-xs font-black ${
-                                      isIncome ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                                    }`}>
-                                      {isIncome ? "↑" : "↓"}
-                                    </div>
-                                    <span className="font-bold text-slate-900 dark:text-white">
-                                      {t.description}
-                                    </span>
-                                  </div>
+                                  <span className="font-semibold text-slate-900 dark:text-white">
+                                    {t.description}
+                                  </span>
                                 </td>
                                 <td className="py-3 px-4 whitespace-nowrap">
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${badge.color}`}>
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${badge.color}`}>
                                     {badge.label}
                                   </span>
                                 </td>
-                                <td className="py-3 px-4 text-right whitespace-nowrap font-black text-sm tabular-nums">
+                                <td className="py-3 px-4 text-right whitespace-nowrap font-bold text-sm tabular-nums">
                                   {isIncome ? (
                                     <span className="text-emerald-600 dark:text-emerald-400">+ {brl(t.amount)}</span>
                                   ) : (
                                     <span className="text-rose-600 dark:text-rose-400">- {brl(t.amount)}</span>
                                   )}
                                 </td>
-                                <td className={`py-3 px-4 text-right whitespace-nowrap font-bold text-xs tabular-nums ${runningBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-300"}`}>
+                                <td className={`py-3 px-4 text-right whitespace-nowrap font-semibold text-xs tabular-nums ${runningBalance < 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-700 dark:text-slate-300"}`}>
                                   {brl(runningBalance)}
                                 </td>
                                 <td className="py-3 px-4 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1">
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center gap-1">
                                     <button
                                       type="button"
                                       title="Editar lançamento"
