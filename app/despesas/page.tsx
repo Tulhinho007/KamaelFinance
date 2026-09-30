@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight,
+  Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight, ChevronLeft,
   AlertCircle, CheckCircle2, Clock, Sparkles,
-  BarChart3, Calendar, MoreHorizontal, Pencil, Trash2, Download,
+  BarChart3, Calendar, MoreHorizontal, MoreVertical, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
   HelpCircle, Repeat, Receipt, RotateCcw, Search, Copy
 } from "lucide-react";
@@ -300,15 +300,24 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
   const { showAlert } = useModal();
-  const { selectedMonth, selectedYear, setPeriod } = usePeriod();
+  const { selectedMonth, selectedYear, prevMonth, nextMonth, goToCurrentMonth, setPeriod } = usePeriod();
 
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | null>(selectedMonth || 9);
+  const [activeActionMenuId, setActiveActionMenuId]   = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedMonth && selectedMonthFilter !== selectedMonth) {
       setSelectedMonthFilter(selectedMonth);
     }
   }, [selectedMonth]);
+
+  useEffect(() => {
+    const handleOutsideClick = () => setActiveActionMenuId(null);
+    if (activeActionMenuId) {
+      window.addEventListener("click", handleOutsideClick);
+    }
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, [activeActionMenuId]);
 
   const activeMonth = selectedMonthFilter ?? selectedMonth ?? (new Date().getMonth() + 1);
   const activeYear  = selectedYear ?? 2026;
@@ -1213,77 +1222,48 @@ export default function DespesasPage() {
               Despesas & Contas
             </h1>
             <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              {selectedMonthFilter === null ? `VISÃO ANUAL – ${selectedYear}` : `${getMonthName(selectedMonthFilter)}/${selectedYear}`}
+              {getMonthName(activeMonth)}/{selectedYear}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            {selectedMonthFilter === null
-              ? `Consolidado dos lançamentos e faturas do ano de ${selectedYear}.`
-              : `Lançamentos do mês de ${getMonthName(selectedMonthFilter)} de ${selectedYear}.`}
+            Lançamentos, cartões e compromissos do mês de {getMonthName(activeMonth)} de {selectedYear}.
           </p>
         </div>
 
-        {/* Seletor de Período no Topo (Navegação Anual + Filtro por Mês) */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-          
-          {/* Navegador de Ano: [< ANO 2026 >] */}
-          <div className="flex items-center bg-slate-50 dark:bg-slate-900 px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+        {/* ── Seletor de Período Padronizado (< Mês Ano >) ── */}
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
             <button
-              onClick={() => setPeriod(selectedMonthFilter || selectedMonth, selectedYear - 1)}
-              className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
-              title="Ano Anterior"
+              onClick={() => prevMonth()}
+              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Mês Anterior"
             >
-              <Calendar className="w-3.5 h-3.5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-xs font-black text-slate-800 dark:text-white px-2 tracking-wider">
-              ANO {selectedYear}
+            <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[130px] text-center">
+              {getMonthName(activeMonth)} {selectedYear}
             </span>
             <button
-              onClick={() => setPeriod(selectedMonthFilter || selectedMonth, selectedYear + 1)}
-              className="p-1 rounded-lg text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer"
-              title="Próximo Ano"
+              onClick={() => nextMonth()}
+              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Próximo Mês"
             >
-              <Calendar className="w-3.5 h-3.5" />
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                goToCurrentMonth();
+                setSelectedMonthFilter(new Date().getMonth() + 1);
+              }}
+              className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+            >
+              MÊS ATUAL
             </button>
           </div>
 
-          {/* Atalho "ANO ATUAL" */}
           <button
-            onClick={() => {
-              const now = new Date();
-              setPeriod(now.getMonth() + 1, now.getFullYear());
-              setSelectedMonthFilter(now.getMonth() + 1);
-            }}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 dark:bg-indigo-950/60 dark:border-indigo-800/60 dark:text-indigo-300 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 shadow-xs"
-          >
-            ANO ATUAL
-          </button>
-
-          {/* Dropdown de Filtro Opcional por Mês */}
-          <select
-            value={selectedMonthFilter === null ? "" : selectedMonthFilter}
-            onChange={(e) => {
-              const val = e.target.value;
-              const newM = val === "" ? null : Number(val);
-              setSelectedMonthFilter(newM);
-              if (newM !== null) {
-                setPeriod(newM, selectedYear);
-              }
-            }}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer shadow-xs"
-          >
-            <option value="">Todos os Meses (Visão Anual)</option>
-            {[
-              "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-            ].map((mName, idx) => (
-              <option key={idx + 1} value={idx + 1}>{mName}</option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => exportExpensesCSV(cards, paidInvoicesList, selectedMonthFilter || 12, selectedYear)}
-            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-xl font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
+            onClick={() => exportExpensesCSV(cards, paidInvoicesList, activeMonth, selectedYear)}
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Exportar relatório CSV"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -1300,13 +1280,17 @@ export default function DespesasPage() {
             onClick={() => setMainView("cartoes")}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               mainView === "cartoes"
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black border border-indigo-500"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
             }`}
           >
             <CreditCard className="w-4 h-4" />
             <span>Meus Cartões & Contas Cadastrados</span>
-            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+              mainView === "cartoes"
+                ? "bg-white/20 text-white"
+                : "bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+            }`}>
               {cards.length}
             </span>
           </button>
@@ -1316,13 +1300,17 @@ export default function DespesasPage() {
             onClick={() => setMainView("compromissos")}
             className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               mainView === "compromissos"
-                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/50 dark:border-slate-700"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black border border-indigo-500"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60"
             }`}
           >
             <Receipt className="w-4 h-4" />
             <span>Central de Compromissos & Contas a Pagar</span>
-            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+              mainView === "compromissos"
+                ? "bg-white/20 text-white"
+                : "bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+            }`}>
               {commitmentsData.items.length}
             </span>
           </button>
@@ -1510,15 +1498,14 @@ export default function DespesasPage() {
                     <th className="py-2 px-2">Descrição / Fornecedor</th>
                     <th className="py-2 px-1.5 whitespace-nowrap">Tipo</th>
                     <th className="py-2 px-2 text-right whitespace-nowrap">Valor</th>
-                    <th className="py-2 px-1.5 text-center whitespace-nowrap">Status</th>
-                    <th className="py-2 px-1.5 text-center whitespace-nowrap">Pagamento</th>
+                    <th className="py-2 px-2 text-center whitespace-nowrap">Status</th>
                     <th className="py-2 px-2 text-right whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                   {filteredCommitments.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400">
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                           <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
@@ -1541,6 +1528,8 @@ export default function DespesasPage() {
                     filteredCommitments.map((item: any) => {
                       const isPaid = item.status === "COMPLETED";
                       const isSelected = selectedCommitmentIds.includes(item.id);
+                      const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
+
                       return (
                         <tr
                           key={item.id}
@@ -1577,7 +1566,7 @@ export default function DespesasPage() {
                                 {item.dueDateFormatted}
                               </span>
                               <span
-                                className={`inline-flex items-center w-max px-1 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
+                                className={`inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
                               >
                                 {item.dueBadge.label}
                               </span>
@@ -1586,7 +1575,7 @@ export default function DespesasPage() {
 
                           {/* 2. Descrição / Fornecedor */}
                           <td className="py-1.5 px-2 min-w-0">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
                                 item.tipo === "ASSINATURA"
                                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
@@ -1594,18 +1583,15 @@ export default function DespesasPage() {
                               }`}>
                                 {item.tipo === "ASSINATURA" ? <Zap className="w-2.5 h-2.5" /> : <Receipt className="w-2.5 h-2.5" />}
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-[150px] lg:max-w-[220px]">
+                              <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-[180px] lg:max-w-[280px]">
                                   {item.description}
                                 </span>
-                                <div className="flex flex-wrap items-center gap-1">
-                                  <span className="text-[9px] text-slate-400 dark:text-slate-500">
-                                    {item.recorrenciaLabel}
+                                {isRecurring && (
+                                  <span title="Compromisso recorrente mensal" className="inline-flex shrink-0">
+                                    <Repeat className="w-3 h-3 text-indigo-500/80 dark:text-indigo-400/80" />
                                   </span>
-                                  <span className="inline-flex items-center text-[8px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 px-1 py-0 rounded">
-                                    Ref: {item.competenciaLabel || `${item.competenceMonth}/${item.competenceYear}`}
-                                  </span>
-                                </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -1623,45 +1609,40 @@ export default function DespesasPage() {
                             </span>
                           </td>
 
-                          {/* 4. Valor */}
+                          {/* 4. Valor (Alinhado à direita com fonte monoespaçada) */}
                           <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                            <span className="font-black text-slate-900 dark:text-white text-xs font-tnum tabular-nums">
+                            <span className="font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
                               {brl(item.amount)}
                             </span>
                           </td>
 
-                          {/* 5. Status */}
-                          <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
-                                isPaid
-                                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                              }`}
-                            >
-                              {item.statusLabel}
-                            </span>
-                          </td>
-
-                          {/* 6. Forma de Pagamento */}
-                          <td className="py-1.5 px-1.5 text-center whitespace-nowrap">
+                          {/* 5. Status & Forma de Pagamento Consolidada */}
+                          <td className="py-1.5 px-2 text-center whitespace-nowrap">
                             {isPaid ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                <Check className="w-3 h-3 text-emerald-500 shrink-0" />
-                                {item.formaPagamentoLabel}
-                              </span>
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                                  <Check className="w-2.5 h-2.5" /> {item.statusLabel || "Pago"}
+                                </span>
+                                {item.formaPagamentoLabel && (
+                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                                    {item.formaPagamentoLabel}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-slate-400 text-xs font-bold">-</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                                {item.statusLabel || "Pendente"}
+                              </span>
                             )}
                           </td>
 
-                          {/* 7. Ações */}
+                          {/* 6. Ações (Botão discreto + Menu de 3 Pontos ⋮) */}
                           <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-0.5">
+                            <div className="flex items-center justify-end gap-1.5">
                               {!isPaid ? (
                                 <button
                                   onClick={() => openBaixaModal(item)}
-                                  className="inline-flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-1 rounded-lg shadow-xs transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white transition-all cursor-pointer shadow-2xs"
                                   title="Pagar / Dar Baixa"
                                 >
                                   <Check className="w-3 h-3" />
@@ -1670,7 +1651,7 @@ export default function DespesasPage() {
                               ) : (
                                 <button
                                   onClick={() => handleUndoCommitment(item.id)}
-                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-1.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition-colors cursor-pointer"
                                   title="Desfazer pagamento"
                                 >
                                   <RotateCcw className="w-3 h-3" />
@@ -1678,32 +1659,56 @@ export default function DespesasPage() {
                                 </button>
                               )}
 
-                              {/* Botão Replicar para o Mês Seguinte */}
-                              <button
-                                type="button"
-                                disabled={replicatingId === item.id}
-                                onClick={() => handleReplicateCommitment(item)}
-                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md transition-colors cursor-pointer disabled:opacity-50"
-                                title="Replicar compromisso para o próximo mês"
-                              >
-                                <Copy className="w-3.5 h-3.5" />
-                              </button>
-
-                              <button
-                                onClick={() => openEditCommitment(item)}
-                                className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                                title="Editar compromisso"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-
-                              <button
-                                onClick={() => handleDeleteCommitment(item.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer"
-                                title="Excluir compromisso"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              {/* Menu de 3 Pontos (⋮) */}
+                              <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                                  title="Mais opções"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                                {activeActionMenuId === item.id && (
+                                  <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                                    <button
+                                      type="button"
+                                      disabled={replicatingId === item.id}
+                                      onClick={() => {
+                                        setActiveActionMenuId(null);
+                                        handleReplicateCommitment(item);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                    >
+                                      <Copy className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>Replicar p/ Próximo Mês</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveActionMenuId(null);
+                                        openEditCommitment(item);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                      <span>Editar Compromisso</span>
+                                    </button>
+                                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveActionMenuId(null);
+                                        handleDeleteCommitment(item.id);
+                                      }}
+                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                      <span>Excluir Compromisso</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -1726,11 +1731,11 @@ export default function DespesasPage() {
                         {filteredCommitments.filter((i: any) => i.status === "PENDING").length} a pagar • {filteredCommitments.filter((i: any) => i.status === "COMPLETED").length} pagos
                       </td>
                       <td className="py-2 px-2 text-right whitespace-nowrap">
-                        <span className="font-black text-slate-900 dark:text-white text-xs sm:text-sm font-tnum tabular-nums">
+                        <span className="font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
                           {brl(filteredCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0))}
                         </span>
                       </td>
-                      <td className="py-2 px-2" colSpan={3}></td>
+                      <td className="py-2 px-2" colSpan={2}></td>
                     </tr>
                   </tfoot>
                 )}
@@ -1750,6 +1755,7 @@ export default function DespesasPage() {
                 filteredCommitments.map((item: any) => {
                   const isPaid = item.status === "COMPLETED";
                   const isSelected = selectedCommitmentIds.includes(item.id);
+                  const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
 
                   return (
                     <div
@@ -1778,13 +1784,18 @@ export default function DespesasPage() {
                             />
                           )}
                           <div className="min-w-0">
-                            <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                              {item.description}
-                            </h4>
-                            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                                {item.description}
+                              </h4>
+                              {isRecurring && (
+                                <span title="Recorrente mensal" className="inline-flex shrink-0">
+                                  <Repeat className="w-3.5 h-3.5 text-indigo-500" />
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
                               <span>{item.tipoLabel}</span>
-                              <span>•</span>
-                              <span>Ref: {item.competenciaLabel || `${item.competenceMonth}/${item.competenceYear}`}</span>
                             </div>
                           </div>
                         </div>
@@ -1817,55 +1828,80 @@ export default function DespesasPage() {
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                         <div>
                           <span className="text-[10px] text-slate-400 uppercase font-bold block">Valor</span>
-                          <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums font-tnum">
+                          <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums font-mono">
                             {brl(item.amount)}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           {!isPaid ? (
                             <button
                               onClick={() => openBaixaModal(item)}
-                              className="min-h-[38px] px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                              className="min-h-[36px] px-3.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:text-emerald-400 dark:bg-emerald-950/40 border border-emerald-500/20 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Pagar</span>
+                              <span>Pagar / Baixar</span>
                             </button>
                           ) : (
                             <button
                               onClick={() => handleUndoCommitment(item.id)}
-                              className="min-h-[38px] px-3 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                              className="min-h-[36px] px-3 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
                             >
                               <RotateCcw className="w-3 h-3" />
                               <span>Desfazer</span>
                             </button>
                           )}
 
-                          <button
-                            type="button"
-                            disabled={replicatingId === item.id}
-                            onClick={() => handleReplicateCommitment(item)}
-                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-xl transition-colors cursor-pointer"
-                            title="Replicar para o próximo mês"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            onClick={() => openEditCommitment(item)}
-                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                            title="Editar"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteCommitment(item.id)}
-                            className="min-w-[38px] min-h-[38px] flex items-center justify-center p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer"
-                            title="Excluir"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          {/* Menu de 3 Pontos (⋮) no Mobile */}
+                          <div className="relative" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                              className="min-w-[36px] min-h-[36px] flex items-center justify-center p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
+                              title="Mais opções"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                            {activeActionMenuId === item.id && (
+                              <div className="absolute right-0 bottom-full mb-1.5 z-30 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                                <button
+                                  type="button"
+                                  disabled={replicatingId === item.id}
+                                  onClick={() => {
+                                    setActiveActionMenuId(null);
+                                    handleReplicateCommitment(item);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                >
+                                  <Copy className="w-4 h-4 text-slate-400" />
+                                  <span>Replicar p/ Próximo Mês</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionMenuId(null);
+                                    openEditCommitment(item);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Pencil className="w-4 h-4 text-slate-400" />
+                                  <span>Editar Compromisso</span>
+                                </button>
+                                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionMenuId(null);
+                                    handleDeleteCommitment(item.id);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Trash2 className="w-4 h-4 text-rose-500" />
+                                  <span>Excluir Compromisso</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>

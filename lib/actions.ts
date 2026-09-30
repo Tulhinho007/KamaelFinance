@@ -9447,37 +9447,43 @@ export async function getMonthlyCommitmentsAction(
       dueBadge = {
         label: "Pago",
         type: "pago",
-        color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+        color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold",
       };
     } else if (diffDays < 0) {
       dueBadge = {
         label: "Atrasado (" + Math.abs(diffDays) + "d)",
         type: "atrasado",
-        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
+        color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-black",
       };
     } else if (diffDays === 0) {
       dueBadge = {
         label: "Hoje",
         type: "hoje",
-        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
+        color: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-black",
       };
     } else if (diffDays === 1) {
       dueBadge = {
         label: "Amanhã",
         type: "hoje",
-        color: "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 font-bold",
+        color: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 font-bold",
       };
-    } else if (diffDays <= 5) {
+    } else if (diffDays >= 2 && diffDays <= 5) {
       dueBadge = {
         label: "Em " + diffDays + " dias",
         type: "restante",
-        color: "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/60 font-bold",
+        color: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 font-semibold",
+      };
+    } else if (diffDays >= 6 && diffDays <= 7) {
+      dueBadge = {
+        label: "Em " + diffDays + " dias",
+        type: "restante",
+        color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-semibold",
       };
     } else {
       dueBadge = {
         label: "Em " + diffDays + " dias",
         type: "restante",
-        color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700",
+        color: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 font-medium",
       };
     }
 
