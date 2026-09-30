@@ -10,7 +10,7 @@ import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
-  getRevenues, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction,
+  getRevenues, getReceitasBundleAction, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction,
   duplicateRevenueToNextMonthAction, markBatchRevenuesAsReceivedAction
 } from "@/lib/actions";
 import { parseCurrencyInput } from "@/lib/constants";
@@ -374,10 +374,10 @@ export default function ReceitasPage() {
 
   const loadData = async (active = true, cacheKey?: string) => {
     try {
-      const [data, walletList] = await Promise.all([
-        getRevenues(selectedMonth, selectedYear),
-        getWalletsAction(),
-      ]);
+      const { revenues: data, wallets: walletList } = await getReceitasBundleAction(
+        selectedMonth,
+        selectedYear
+      );
       if (!active) return;
       setRevenues(data);
       setWallets(walletList || []);

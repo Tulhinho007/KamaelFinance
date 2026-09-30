@@ -76,6 +76,8 @@ function isSubscriptionPaymentTransaction(t: {
  * 2. Tenta o DEV_USER_ID do .env se existir no banco.
  * 3. Fallback: primeiro usuário cadastrado.
  */
+const sessionUserCache = new Map<string, { id: string; expiresAt: number }>();
+
 const getActiveUserIdCached = cache(async (): Promise<string> => {
   try {
     const cookieStore = await cookies();
@@ -83,11 +85,19 @@ const getActiveUserIdCached = cache(async (): Promise<string> => {
     if (sessionVal) {
       const parsed = JSON.parse(sessionVal);
       if (parsed?.id) {
+        const cached = sessionUserCache.get(parsed.id);
+        if (cached && cached.expiresAt > Date.now()) {
+          return cached.id;
+        }
+
         const userExists = await prisma.user.findUnique({
           where: { id: parsed.id },
           select: { id: true }
         });
-        if (userExists) return userExists.id;
+        if (userExists) {
+          sessionUserCache.set(parsed.id, { id: userExists.id, expiresAt: Date.now() + 60_000 });
+          return userExists.id;
+        }
       }
     }
   } catch (e) {
@@ -216,9 +226,11 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 
 // ---------- Actions de Receitas ----------
 
-export async function getRevenues(month?: number | null | string, year: number = 2026) {
-  const userId = await getActiveUserId();
-  
+export async function getRevenues(
+  month?: number | null | string,
+  year: number = 2026,
+  preloadedTransactions?: any[]
+) {
   const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
 
   let from: Date;
@@ -239,33 +251,39 @@ export async function getRevenues(month?: number | null | string, year: number =
     "Ticket", "Benefício", "Beneficio"
   ];
 
-  let transactions: any[] = await prisma.transaction.findMany({
-    where: {
-      wallet: { 
-        userId,
-        walletType: {
-          notIn: BENEFIT_TYPES
-        }
-      },
-      type: "INCOME",
-      deletedAt: null,
-      ...(!isAnnualView ? {
-        OR: [
-          { competenceMonth: Number(month), competenceYear: year },
-          { competenceDate: { gte: from, lte: to } },
-          { competenceMonth: null, competenceDate: null, date: { gte: from, lte: to } }
-        ]
-      } : {
-        OR: [
-          { competenceYear: year },
-          { competenceDate: { gte: from, lte: to } },
-          { competenceYear: null, competenceDate: null, date: { gte: from, lte: to } }
-        ]
-      })
-    } as any,
-    include: { wallet: true },
-    orderBy: { date: "asc" }
-  });
+  let transactions: any[];
+  if (preloadedTransactions) {
+    transactions = preloadedTransactions.filter((t: any) => t.type === "INCOME" && !t.deletedAt);
+  } else {
+    const userId = await getActiveUserId();
+    transactions = await prisma.transaction.findMany({
+      where: {
+        wallet: { 
+          userId,
+          walletType: {
+            notIn: BENEFIT_TYPES
+          }
+        },
+        type: "INCOME",
+        deletedAt: null,
+        ...(!isAnnualView ? {
+          OR: [
+            { competenceMonth: Number(month), competenceYear: year },
+            { competenceDate: { gte: from, lte: to } },
+            { competenceMonth: null, competenceDate: null, date: { gte: from, lte: to } }
+          ]
+        } : {
+          OR: [
+            { competenceYear: year },
+            { competenceDate: { gte: from, lte: to } },
+            { competenceYear: null, competenceDate: null, date: { gte: from, lte: to } }
+          ]
+        })
+      } as any,
+      include: { wallet: true },
+      orderBy: { date: "asc" }
+    });
+  }
 
   // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios e filtragem por competência
   return transactions
@@ -302,6 +320,52 @@ export async function getRevenues(month?: number | null | string, year: number =
       walletType: t.wallet?.walletType,
       isBeneficio: false
     }));
+}
+
+/**
+ * Action unificada da página de Receitas
+ * Carrega receitas e carteiras em 1 único round-trip paralelo ao banco,
+ * eliminando requisições duplicadas do cliente e otimizando o processamento em memória.
+ */
+export async function getReceitasBundleAction(
+  month?: number | null | string,
+  year: number = 2026
+): Promise<{
+  revenues: Awaited<ReturnType<typeof getRevenues>>;
+  wallets: Awaited<ReturnType<typeof getWalletsAction>>;
+}> {
+  const t0 = Date.now();
+  const userId = await getActiveUserId();
+
+  const [wallets, transactions] = await Promise.all([
+    prisma.wallet.findMany({
+      where: { userId },
+      orderBy: { title: "asc" },
+    }),
+    prisma.transaction.findMany({
+      where: {
+        wallet: { userId },
+        deletedAt: null,
+      },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        wallet: true,
+      },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
+  const tDb = Date.now() - t0;
+
+  const [revenues, walletList] = await Promise.all([
+    getRevenues(month, year, transactions),
+    getWalletsAction(wallets, transactions),
+  ]);
+
+  const total = Date.now() - t0;
+  console.log(`[PERF] getReceitasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms)`);
+
+  return { revenues, wallets: walletList };
 }
 
 export async function getSalaryCycleSummary(month: number, year: number) {
@@ -9869,6 +9933,7 @@ export async function getDashboardBundleAction(
   wallets: Awaited<ReturnType<typeof getWalletsAction>>;
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
+  const t0 = Date.now();
   const userId = await getActiveUserId();
 
   // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
@@ -9906,6 +9971,7 @@ export async function getDashboardBundleAction(
     getGoals(userId),
   ]);
 
+  const tDb = Date.now() - t0;
   const preloaded = { userId, wallets, transactions, paidInvoices, goals };
 
   const [overview, walletsResult, cashFlow] = await Promise.all([
@@ -9913,6 +9979,9 @@ export async function getDashboardBundleAction(
     getWalletsAction(wallets, transactions),
     getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
   ]);
+
+  const total = Date.now() - t0;
+  console.log(`[PERF] getDashboardBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
 
   return { overview, wallets: walletsResult, cashFlow };
 }
@@ -9937,6 +10006,7 @@ export async function getDespesasBundleAction(
   commitments: Awaited<ReturnType<typeof getMonthlyCommitmentsAction>>;
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
+  const t0 = Date.now();
   const userId = await getActiveUserId();
 
   // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
@@ -9961,6 +10031,7 @@ export async function getDespesasBundleAction(
     }),
   ]);
 
+  const tDb = Date.now() - t0;
   const preloaded = { userId, wallets, transactions, paidInvoices };
 
   // ⚡ TODOS OS 9 CÁLCULOS EXECUTADOS 100% EM MEMÓRIA (0ms I/O adicional ao banco)
@@ -9983,6 +10054,9 @@ export async function getDespesasBundleAction(
     items: windowBills?.pendingRevenues || [],
     total: windowBills?.receitasPendentesDoMes || 0,
   };
+
+  const total = Date.now() - t0;
+  console.log(`[PERF] getDespesasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
 
   return {
     cards, paidInvoices: paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
