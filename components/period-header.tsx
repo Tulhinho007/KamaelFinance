@@ -73,22 +73,24 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
       {/* 2. Seletor de Período executivo */}
       <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-between sm:justify-start" ref={dropdownRef}>
-        <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-2 py-1.5 rounded-xl shadow-xs text-slate-700 dark:text-slate-300 text-xs font-semibold relative flex-1 sm:flex-initial max-w-full">
+        <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl shadow-xs text-slate-700 dark:text-slate-300 text-xs font-semibold relative flex-1 sm:flex-initial max-w-full">
           <button 
             onClick={prevMonth}
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+            aria-label="Mês Anterior"
             title="Mês Anterior"
           >
             <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
           
-          <span className="uppercase tracking-wider px-1 sm:px-3 font-bold text-slate-900 dark:text-slate-100 min-w-[90px] sm:min-w-[130px] text-center text-xs truncate">
+          <span className="uppercase tracking-wider px-2 sm:px-3 font-bold text-slate-900 dark:text-slate-100 min-w-[90px] sm:min-w-[130px] text-center text-xs truncate">
             {monthLabel} {selectedYear}
           </span>
           
           <button 
             onClick={nextMonth}
-            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+            className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+            aria-label="Próximo Mês"
             title="Próximo Mês"
           >
             <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -96,9 +98,10 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
           <button 
             onClick={() => setDropdownOpen(!dropdownOpen)}
-            className={`p-1.5 border-l border-slate-200 dark:border-slate-800 ml-1 pl-2 transition-colors rounded-r-lg cursor-pointer shrink-0 ${
+            className={`min-w-[38px] min-h-[38px] flex items-center justify-center border-l border-slate-200 dark:border-slate-800 ml-1 transition-colors rounded-r-lg cursor-pointer shrink-0 ${
               dropdownOpen ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             }`}
+            aria-label="Escolher Período"
             title="Escolher Período"
           >
             <Calendar className="w-4 h-4" />
@@ -106,14 +109,14 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
           {/* Dropdown de Calendário */}
           {dropdownOpen && (
-            <div className="absolute top-full right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xl z-50 w-[calc(100vw-32px)] sm:w-72 max-w-xs flex flex-col gap-3">
+            <div className="absolute top-full right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xl z-50 w-[min(calc(100vw-32px),20rem)] flex flex-col gap-3">
               
               <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Ano Selecionado</span>
                 <select
                   value={selectedYear}
                   onChange={(e) => handleSelectYear(Number(e.target.value))}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                 >
                   {YEARS_LIST.map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -132,9 +135,9 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
                         handleSelectMonth(i);
                         setDropdownOpen(false);
                       }}
-                      className={`py-1.5 rounded-lg font-semibold text-xs text-center transition-all cursor-pointer ${
+                      className={`min-h-[38px] flex items-center justify-center rounded-lg font-semibold text-xs text-center transition-all cursor-pointer ${
                         isSelected
-                          ? "bg-indigo-600 text-white shadow-xs"
+                          ? "bg-indigo-600 text-white shadow-xs font-bold"
                           : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
                       }`}
                     >
@@ -150,7 +153,7 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
 
         <button 
           onClick={goToCurrentMonth}
-          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 py-2 rounded-xl shadow-xs transition-colors text-xs font-semibold tracking-wide uppercase shrink-0 cursor-pointer whitespace-nowrap"
+          className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 min-h-[44px] flex items-center justify-center rounded-xl shadow-xs transition-colors text-xs font-semibold tracking-wide uppercase shrink-0 cursor-pointer whitespace-nowrap"
         >
           Mês Atual
         </button>

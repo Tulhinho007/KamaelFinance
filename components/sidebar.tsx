@@ -233,13 +233,13 @@ export function Sidebar() {
     <>
       {/* 
         BREAKPOINT RESPONSIVO: MOBILE TOPBAR (< 1024px)
-        Menu Hambúrguer com cabeçalho fixo no topo em celulares e tablets
+        Menu Hambúrguer com cabeçalho fixo no topo em celulares e tablets, adaptado ao notch
       */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/70 px-4 flex items-center justify-between z-40 shadow-xs">
-        <div className="flex items-center gap-3">
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/70 px-4 flex items-center justify-between z-40 shadow-xs">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
             aria-label="Abrir Menu"
           >
             {isMobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -255,17 +255,17 @@ export function Sidebar() {
           </Link>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={togglePrivacy}
             title={isPrivate ? "Mostrar valores" : "Ocultar valores"}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+            className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors cursor-pointer ${
               isPrivate ? "text-amber-500 bg-amber-500/10" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             }`}
           >
             {isPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
-          <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
             {initials}
           </div>
         </div>
@@ -273,7 +273,7 @@ export function Sidebar() {
 
       {/* 
         BREAKPOINT RESPONSIVO: MOBILE DRAWER OVERLAY (< 1024px)
-        Menu deslizante que abre ao clicar no ícone hambúrguer
+        Menu deslizante que abre ao clicar no ícone hambúrguer, com 100dvh e safe areas
       */}
       {isMobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
@@ -282,8 +282,8 @@ export function Sidebar() {
             onClick={() => setIsMobileOpen(false)}
           />
 
-          <aside className="relative w-72 max-w-[80vw] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 h-full flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200">
-            <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 dark:border-slate-800/70">
+          <aside className="relative w-72 max-w-[85vw] bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 h-[100dvh] pb-[env(safe-area-inset-bottom)] flex flex-col z-10 shadow-2xl animate-in slide-in-from-left duration-200">
+            <div className="h-16 pt-[env(safe-area-inset-top)] flex items-center justify-between px-5 border-b border-slate-100 dark:border-slate-800/70">
               <div className="flex items-center gap-3">
                 <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-sm shadow-indigo-600/30 flex items-center justify-center">
                   <ShieldCheck className="w-4 h-4" />
@@ -300,7 +300,8 @@ export function Sidebar() {
 
               <button
                 onClick={() => setIsMobileOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl transition-colors cursor-pointer"
+                aria-label="Fechar Menu"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import { PeriodProvider } from "@/components/period-context";
@@ -7,6 +7,7 @@ import { PrivacyProvider } from "@/components/privacy-context";
 import { CustomDialogProvider } from "@/components/ui/custom-dialog-provider";
 import { AppShell } from "@/components/app-shell";
 import { WarmupTrigger } from "@/components/warmup-trigger";
+import { PwaRegister } from "@/components/pwa-register";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -18,9 +19,30 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#090D16" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "Kamael Finance",
   description: "Plataforma de gestão financeira executiva",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Kamael Finance",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -39,6 +61,7 @@ export default function RootLayout({
             <PeriodProvider>
               <CustomDialogProvider>
                 <WarmupTrigger />
+                <PwaRegister />
                 <AppShell>{children}</AppShell>
               </CustomDialogProvider>
             </PeriodProvider>
