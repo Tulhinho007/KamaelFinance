@@ -62,7 +62,13 @@ export function middleware(request: NextRequest) {
   }
 
   const sessionCookie = request.cookies.get("kamael_session")?.value;
-  const isPublicRoute = pathname === "/login" || pathname === "/cadastro";
+  const isPublicRoute =
+    pathname === "/login" ||
+    pathname === "/cadastro" ||
+    pathname === "/manifest.json" ||
+    pathname === "/sw.js" ||
+    pathname === "/icon.svg" ||
+    pathname.startsWith("/icon");
 
   // Se o usuário NÃO estiver logado e tentar acessar uma rota protegida -> redireciona para /login
   if (!sessionCookie && !isPublicRoute) {
@@ -85,8 +91,8 @@ export const config = {
   matcher: [
     /*
      * Intercepta todas as rotas do app exceto arquivos estáticos, imagens, fontes,
-     * requisições internas do Next.js e ícone favicon.
+     * requisições internas do Next.js, manifest PWA e service worker.
      */
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sw.js|icon.svg|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2|json)$).*)",
   ],
 };

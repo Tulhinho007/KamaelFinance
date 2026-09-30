@@ -19,6 +19,11 @@ import {
 import { usePeriod } from "@/components/period-context";
 import { getPaymentHistoryData } from "@/lib/actions";
 
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -57,7 +62,24 @@ export default function PaymentHistoryPage() {
       })
       .catch((err) => {
         console.error("Erro ao carregar histórico de pagamentos:", err);
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setData((prev) => prev || {
+            periodStr: `${MONTH_NAMES[(selectedMonth || 1) - 1] || "Mês"}/${selectedYear}`,
+            month: selectedMonth,
+            year: selectedYear,
+            metrics: {
+              totalCreditPaid: 0,
+              totalDebitPix: 0,
+              totalGeral: 0,
+              economyInsight: "Acompanhe seus lançamentos mensais para gerar comparativos automáticos.",
+              economyPct: 0,
+              isEconomyPositive: true,
+              prevTotal: 0,
+            },
+            items: [],
+          });
+          setLoading(false);
+        }
       });
     return () => {
       isMounted = false;
@@ -110,7 +132,7 @@ export default function PaymentHistoryPage() {
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-xs font-black text-slate-900 dark:text-white px-2 uppercase tracking-wider min-w-[120px] text-center">
-              {data?.periodStr || "Carregando..."}
+              {data?.periodStr || `${MONTH_NAMES[(selectedMonth || 1) - 1] || "Mês"}/${selectedYear}`}
             </span>
             <button
               onClick={nextMonth}
