@@ -1369,17 +1369,6 @@ export default function CartaoDetailPage() {
                         <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                         Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
                       </h2>
-                      {selectedIds.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={handleDuplicateBatchToNextMonth}
-                          disabled={duplicatingBatch}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-black shadow-sm transition-all cursor-pointer animate-in fade-in"
-                        >
-                          <CopyPlus className="w-3.5 h-3.5" />
-                          {duplicatingBatch ? "Replicando..." : `Replicar Selecionados (${selectedIds.length}) para ${nextMonthName}`}
-                        </button>
-                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {/* Abas simples de texto discretas */}
@@ -1426,14 +1415,6 @@ export default function CartaoDetailPage() {
                     <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
                       <thead className="bg-slate-50 dark:bg-slate-900/80 border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-400 dark:text-slate-500 tracking-wider">
                         <tr>
-                          <th className="py-3 px-3 w-8">
-                            <input
-                              type="checkbox"
-                              checked={filtered.length > 0 && selectedIds.length === filtered.length}
-                              onChange={() => setSelectedIds(prev => prev.length === filtered.length ? [] : filtered.map(e => e.id))}
-                              className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            />
-                          </th>
                           <th className="py-3 px-4">DATA</th>
                           <th className="py-3 px-4">DESCRIÇÃO</th>
                           <th className="py-3 px-4">MEIO</th>
@@ -1445,7 +1426,7 @@ export default function CartaoDetailPage() {
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                         {filtered.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
+                            <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
                               Nenhuma movimentação registrada para este filtro.
                             </td>
                           </tr>
@@ -1454,25 +1435,14 @@ export default function CartaoDetailPage() {
                             const isIncome = t.type === "INCOME";
                             const badge = getMovementTypeBadge(t);
                             const runningBalance = withBalanceMap.get(t.id) ?? 0;
-                            const isSelected = selectedIds.includes(t.id);
                             const rawDate = (t as any).purchaseDate || t.date || "";
                             const dateBR = formatDateBR(rawDate);
 
                             return (
                               <tr
                                 key={t.id}
-                                className={`group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
-                                  isSelected ? "bg-indigo-50/50 dark:bg-indigo-950/20" : ""
-                                }`}
+                                className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
                               >
-                                <td className="py-3 px-3">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => setSelectedIds(prev => prev.includes(t.id) ? prev.filter(i => i !== t.id) : [...prev, t.id])}
-                                    className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                  />
-                                </td>
                                 <td className="py-3 px-4 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap text-xs">
                                   {dateBR}
                                 </td>
@@ -1505,22 +1475,6 @@ export default function CartaoDetailPage() {
                                       className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                                     >
                                       <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      title="Replicar para o próximo mês"
-                                      onClick={async () => {
-                                        try {
-                                          const res = await duplicateExpenseToNextMonthAction(t.id);
-                                          await loadData();
-                                          showAlert(`"${t.description}" duplicado para ${res.newMonthLabel}!`, { variant: "success" });
-                                        } catch (e) {
-                                          showAlert("Erro ao duplicar.", { variant: "error" });
-                                        }
-                                      }}
-                                      className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                                    >
-                                      <CopyPlus className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       type="button"
@@ -1701,7 +1655,7 @@ export default function CartaoDetailPage() {
       )}
 
       {/* ── BARRA FLUTUANTE MÍNIMA DE SELEÇÃO EM LOTE ───────────────────── */}
-      {selectedIds.length > 0 && (
+      {!isBank && selectedIds.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-slate-950/95 border border-slate-700/80 rounded-2xl shadow-2xl px-5 py-3 flex items-center gap-4 animate-in slide-in-from-bottom-5 duration-200 backdrop-blur-md text-white">
           <div className="text-xs font-bold whitespace-nowrap">
             <span>
@@ -1742,7 +1696,7 @@ export default function CartaoDetailPage() {
       )}
 
       {/* ── MODAL DE AÇÕES EM LOTE ─────────────────────────────────────── */}
-      {batchActionsModalOpen && (
+      {!isBank && batchActionsModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto flex flex-col gap-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -1849,7 +1803,7 @@ export default function CartaoDetailPage() {
       )}
 
       {/* ── MODAL CUSTOMIZADO DE CONFIRMAÇÃO DE EXCLUSÃO EM LOTE ────────────── */}
-      {batchDeleteModalOpen && (
+      {!isBank && batchDeleteModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-3 sm:p-4 animate-in fade-in duration-200">
           <div className="bg-slate-900 rounded-3xl p-5 sm:p-6 w-[95%] sm:w-full max-w-sm max-h-[90vh] overflow-y-auto flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
             <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
