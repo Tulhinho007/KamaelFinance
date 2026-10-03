@@ -9,7 +9,7 @@ import {
 import {
   Plus, TrendingUp, TrendingDown, DollarSign, Target, CreditCard,
   Building2, Zap, ChevronRight, CheckCircle2, Clock, AlertCircle,
-  Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Tag, Filter, HelpCircle
+  Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Filter, HelpCircle
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -25,7 +25,6 @@ import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
-  getAllTags,
   MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
 
@@ -70,10 +69,8 @@ export function DashboardOverview() {
   const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
   const [monthlyRollForward, setMonthlyRollForward] = useState<MonthlyCashFlowRollForwardResult | null>(null);
 
-  // Tags, Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
+  // Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
   const [ofxModalOpen, setOfxModalOpen] = useState(false);
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [activeMetricModal, setActiveMetricModal] = useState<MetricKey | null>(null);
 
   // Modais de ação rápida
@@ -168,8 +165,7 @@ export function DashboardOverview() {
       // ⚡ Uma única chamada ao servidor consolidada em 1 round-trip
       const { overview, wallets: wList, cashFlow: rollForwardRes } = await getDashboardBundleAction(
         selectedDashboardYear,
-        selectedDashboardMonth,
-        selectedTag
+        selectedDashboardMonth
       );
       setData(overview);
       setMonthlyRollForward(rollForwardRes || null);
@@ -181,7 +177,7 @@ export function DashboardOverview() {
       }
       // Persiste no cache da sessão para abertura instantânea (0ms) no próximo carregamento
       try {
-        const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}_${selectedTag || "all"}`;
+        const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}`;
         sessionStorage.setItem(cacheKey, JSON.stringify({ overview, wallets: walletsData, cashFlow: rollForwardRes }));
       } catch (cacheErr) {}
     } catch (err: any) {
@@ -189,15 +185,6 @@ export function DashboardOverview() {
       setError(err?.message || "Erro ao carregar dados do painel.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadTags = async () => {
-    try {
-      const tags = await getAllTags();
-      setAvailableTags(tags);
-    } catch (err) {
-      console.error(err);
     }
   };
 
@@ -213,7 +200,7 @@ export function DashboardOverview() {
   useEffect(() => {
     let hasCache = false;
     try {
-      const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}_${selectedTag || "all"}`;
+      const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}`;
       const cachedStr = sessionStorage.getItem(cacheKey);
       if (cachedStr) {
         const cached = JSON.parse(cachedStr);
@@ -227,11 +214,7 @@ export function DashboardOverview() {
       }
     } catch (cacheErr) {}
     loadDashboardData(hasCache);
-  }, [selectedDashboardYear, selectedDashboardMonth, selectedTag]);
-
-  useEffect(() => {
-    loadTags();
-  }, []);
+  }, [selectedDashboardYear, selectedDashboardMonth]);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -445,37 +428,7 @@ export function DashboardOverview() {
         </div>
       </div>
 
-      {/* ── BARRA DE TAGS / CENTRO DE CUSTOS ───────────────────────────────── */}
-      {availableTags.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 shrink-0">
-            <Tag className="w-3 h-3 text-indigo-400" /> Tags:
-          </span>
-          <button
-            onClick={() => setSelectedTag(null)}
-            className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
-              selectedTag === null
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-800"
-            }`}
-          >
-            Todas
-          </button>
-          {availableTags.map(tag => (
-            <button
-              key={tag}
-              onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
-              className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
-                selectedTag === tag
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 hover:bg-indigo-500/20"
-              }`}
-            >
-              {tag}
-            </button>
-          ))}
-        </div>
-      )}
+
 
       {/* ── 1.5. CARDS: SALDO CONSOLIDADO & SALDO PREVISTO PÓS-CONTAS ──────── */}
       {(() => {
