@@ -708,12 +708,16 @@ export default function CartaoDetailPage() {
   const handleDelete = async () => {
     if (!selectedPurchase) return;
     try {
-      await deleteCardPurchase(selectedPurchase.id);
-      loadData();
+      const res = await deleteCardPurchase(selectedPurchase.id);
+      if (res && res.success === false) {
+        throw new Error(res.error || "Erro ao excluir lançamento.");
+      }
+      await loadData();
       setModalType(null);
-    } catch (err) {
+      showAlert("Lançamento excluído com sucesso!", { variant: "success" });
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao excluir lançamento.", { variant: "error" });
+      showAlert(err?.message || "Erro ao excluir lançamento.", { variant: "error" });
     }
   };
 
@@ -722,14 +726,17 @@ export default function CartaoDetailPage() {
     setDeletingBatch(true);
     try {
       const count = selectedIds.length;
-      await deleteBatchPurchasesAction(selectedIds);
+      const res = await deleteBatchPurchasesAction(selectedIds);
+      if (res && res.success === false) {
+        throw new Error(res.error || "Erro ao excluir despesas selecionadas.");
+      }
       await loadData();
       setSelectedIds([]);
       setBatchDeleteModalOpen(false);
       showAlert(`${count} ${count === 1 ? "despesa excluída" : "despesas excluídas"} com sucesso!`, { variant: "success" });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao excluir despesas selecionadas.", { variant: "error" });
+      showAlert(err?.message || "Erro ao excluir despesas selecionadas.", { variant: "error" });
     } finally {
       setDeletingBatch(false);
     }

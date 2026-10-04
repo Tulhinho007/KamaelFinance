@@ -164,24 +164,11 @@ export async function updateTransaction(
 
 // Regra A: Exclusão de transação sem deletar a operação mãe de PIX no Crédito
 export async function deleteTransaction(id: string) {
-  try {
-    await prisma.transaction.delete({
-      where: { id },
-    });
-  } catch {
-    await (prisma.transaction as any).updateMany({
-      where: { id },
-      data: { deletedAt: new Date(), pixCreditOperationId: null },
-    });
-  }
-
-  revalidatePath("/dashboard");
-  revalidatePath("/cartoes");
-  revalidatePath("/despesas");
+  return deleteCardPurchase(id);
 }
 
 export async function deleteExpense(id: string) {
-  return deleteTransaction(id);
+  return deleteCardPurchase(id);
 }
 
 export async function createWallet(input: z.infer<typeof createWalletSchema>) {
@@ -2727,39 +2714,240 @@ export async function updateCardPurchase(
   return { success: true, id };
 }
 
-export async function deleteCardPurchase(id: string) {
-  // Regra A: A exclusão de uma parcela ou despesa de dentro do extrato do cartão ou conta
-  // NUNCA deve apagar a operação mãe de "PIX no Crédito". Apenas a transação selecionada é removida.
+export async function deleteCardPurchase(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await prisma.transaction.delete({
+    if (!id || typeof id !== "string") {
+      return { success: false, error: "ID do lançamento inválido." };
+    }
+
+    const tx = await prisma.transaction.findUnique({
       where: { id },
+      select: {
+        id: true,
+        walletId: true,
+        type: true,
+        amount: true,
+        status: true,
+        deletedAt: true,
+      },
     });
-  } catch {
-    await (prisma.transaction as any).updateMany({
+
+    if (!tx || tx.deletedAt) {
+      return { success: true };
+    }
+
+    // 1. Desvincula com segurança quaisquer referências de tabelas filhas (sem quebrar chaves)
+    try {
+      await (prisma as any).goalHistory?.updateMany({
+        where: { transactionId: id },
+        data: { transactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).eventItem?.updateMany({
+        where: { transactionId: id },
+        data: { transactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).invoicePayment?.updateMany({
+        where: { paymentTransactionId: id },
+        data: { paymentTransactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).subscriptionPayment?.updateMany({
+        where: { paymentTransactionId: id },
+        data: { paymentTransactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).creditPixOperation?.updateMany({
+        where: { incomeTransactionId: id },
+        data: { incomeTransactionId: null },
+      });
+    } catch (e) {}
+
+    // 2. Soft Delete garantido (padrão de segurança financeira)
+    // Marca deletedAt para que suma imediatamente de todas as consultas e cálculos
+    await prisma.transaction.updateMany({
       where: { id },
-      data: { deletedAt: new Date(), pixCreditOperationId: null },
+      data: { deletedAt: new Date() },
     });
+
+    // Tenta desvincular pixCreditOperationId se a coluna existir no banco
+    try {
+      await (prisma.transaction as any).updateMany({
+        where: { id },
+        data: { pixCreditOperationId: null },
+      });
+    } catch (e) {}
+
+    // 3. Tenta exclusão física (Hard Delete) caso não haja restrição externa
+    try {
+      await prisma.transaction.delete({
+        where: { id },
+      });
+    } catch (hardDeleteErr) {
+      console.log("Transação mantida via Soft Delete devido a dependências históricas:", hardDeleteErr);
+    }
+
+    // 4. Se pertencia a uma conta corrente, atualiza o currentBalance
+    if (tx.walletId && tx.status === "COMPLETED") {
+      try {
+        const wallet = await prisma.wallet.findUnique({
+          where: { id: tx.walletId },
+          select: { id: true, currentBalance: true, initialBalance: true, walletType: true },
+        });
+
+        if (wallet && wallet.walletType !== "CREDIT_CARD") {
+          const amount = Number(tx.amount || 0);
+          const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
+          const updatedBalance = tx.type === "INCOME" ? currentVal - amount : currentVal + amount;
+          await prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { currentBalance: updatedBalance },
+          });
+        }
+      } catch (balErr) {
+        console.warn("Aviso ao sincronizar currentBalance após exclusão:", balErr);
+      }
+    }
+
+    revalidatePath("/cartoes");
+    if (tx.walletId) {
+      revalidatePath(`/cartoes/${tx.walletId}`);
+    }
+    revalidatePath("/despesas");
+    revalidatePath("/dashboard");
+    revalidatePath("/receitas");
+    revalidatePath("/contas");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir lançamento:", error);
+    return {
+      success: false,
+      error: error?.message || "Erro interno ao excluir lançamento.",
+    };
   }
-  revalidatePath("/cartoes");
-  revalidatePath("/despesas");
-  revalidatePath("/dashboard");
 }
 
-export async function deleteBatchPurchasesAction(ids: string[]) {
-  if (!ids || ids.length === 0) return;
+export async function deleteBatchPurchasesAction(ids: string[]): Promise<{ success: boolean; error?: string }> {
+  if (!ids || ids.length === 0) return { success: true };
   try {
-    await prisma.transaction.deleteMany({
-      where: { id: { in: ids } },
+    const txs = await prisma.transaction.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+      select: { id: true, walletId: true, type: true, amount: true, status: true },
     });
-  } catch {
-    await (prisma.transaction as any).updateMany({
-      where: { id: { in: ids } },
-      data: { deletedAt: new Date(), pixCreditOperationId: null },
+
+    if (txs.length === 0) return { success: true };
+
+    const validIds = txs.map(t => t.id);
+
+    // 1. Limpar referências filhas
+    try {
+      await (prisma as any).goalHistory?.updateMany({
+        where: { transactionId: { in: validIds } },
+        data: { transactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).eventItem?.updateMany({
+        where: { transactionId: { in: validIds } },
+        data: { transactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).invoicePayment?.updateMany({
+        where: { paymentTransactionId: { in: validIds } },
+        data: { paymentTransactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).subscriptionPayment?.updateMany({
+        where: { paymentTransactionId: { in: validIds } },
+        data: { paymentTransactionId: null },
+      });
+    } catch (e) {}
+
+    try {
+      await (prisma as any).creditPixOperation?.updateMany({
+        where: { incomeTransactionId: { in: validIds } },
+        data: { incomeTransactionId: null },
+      });
+    } catch (e) {}
+
+    // 2. Soft delete garantido primeiro
+    await prisma.transaction.updateMany({
+      where: { id: { in: validIds } },
+      data: { deletedAt: new Date() },
     });
+
+    try {
+      await (prisma.transaction as any).updateMany({
+        where: { id: { in: validIds } },
+        data: { pixCreditOperationId: null },
+      });
+    } catch (e) {}
+
+    // 3. Tenta hard delete
+    try {
+      await prisma.transaction.deleteMany({
+        where: { id: { in: validIds } },
+      });
+    } catch (hardDeleteErr) {
+      console.log("Transações em lote mantidas via Soft Delete:", hardDeleteErr);
+    }
+
+    // 4. Reajuste de saldos para contas bancárias
+    const walletIds = Array.from(new Set(txs.map(t => t.walletId).filter(Boolean)));
+    for (const wId of walletIds) {
+      try {
+        const wallet = await prisma.wallet.findUnique({
+          where: { id: wId },
+          select: { id: true, currentBalance: true, initialBalance: true, walletType: true },
+        });
+        if (wallet && wallet.walletType !== "CREDIT_CARD") {
+          const walletTxs = txs.filter(t => t.walletId === wId && t.status === "COMPLETED");
+          let diff = 0;
+          for (const t of walletTxs) {
+            const amt = Number(t.amount || 0);
+            diff += t.type === "INCOME" ? -amt : amt;
+          }
+          const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
+          await prisma.wallet.update({
+            where: { id: wId },
+            data: { currentBalance: currentVal + diff },
+          });
+        }
+      } catch (e) {}
+    }
+
+    revalidatePath("/cartoes");
+    for (const wId of walletIds) {
+      revalidatePath(`/cartoes/${wId}`);
+    }
+    revalidatePath("/despesas");
+    revalidatePath("/dashboard");
+    revalidatePath("/receitas");
+    revalidatePath("/contas");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir transações em lote:", error);
+    return {
+      success: false,
+      error: error?.message || "Erro interno ao excluir despesas selecionadas.",
+    };
   }
-  revalidatePath("/cartoes");
-  revalidatePath("/despesas");
-  revalidatePath("/dashboard");
 }
 
 export async function cleanFutureRecurringProjectionsAction() {
