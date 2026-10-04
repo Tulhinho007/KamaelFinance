@@ -465,7 +465,7 @@ export async function getCreditPixOverviewAction(): Promise<CreditPixOverviewDat
 
       return {
         id: op.id,
-        operationDate: opDate.toISOString(),
+        operationDate: !isNaN(opDate.getTime()) ? opDate.toISOString() : new Date().toISOString(),
         operationDateFormatted: formattedDate,
         sourceCard: {
           id: sourceCard.id,

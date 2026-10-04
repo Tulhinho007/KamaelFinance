@@ -22,12 +22,16 @@ function getOptimizedDatabaseUrl(): string | undefined {
   }
 
   // IMPORTANTE: NUNCA limitar o pool serverless a 1 conexão (connection_limit=1).
-  // connection_limit=1 transforma qualquer Promise.all em fila estritamente serial,
-  // multiplicando os round-trips de rede entre GRU e AWS us-east-1 (150ms * N queries = dezenas de segundos).
-  if (url.includes("connection_limit=1")) {
-    url = url.replace("connection_limit=1", "connection_limit=10");
-  } else if (!url.includes("connection_limit=")) {
+  // connection_limit=1 transforma qualquer Promise.all em fila estritamente serial.
+  // Usa regex delimitado para NUNCA transformar connection_limit=10 em connection_limit=100.
+  if (/(?:[?&])connection_limit=1(?=[&#]|$)/.test(url)) {
+    url = url.replace(/([?&])connection_limit=1(?=[&#]|$)/, "$1connection_limit=10");
+  } else if (!/(?:[?&])connection_limit=\d+/.test(url)) {
     url += (url.includes("?") ? "&" : "?") + "connection_limit=10";
+  }
+
+  if (!url.includes("pool_timeout=")) {
+    url += (url.includes("?") ? "&" : "?") + "pool_timeout=15";
   }
 
   return url;

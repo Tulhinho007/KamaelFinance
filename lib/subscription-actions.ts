@@ -6,40 +6,7 @@ import { cookies } from "next/headers";
 
 const db = prisma as any;
 
-async function getActiveUserId(): Promise<string> {
-  try {
-    const cookieStore = await cookies();
-    const sessionVal = cookieStore.get("kamael_session")?.value;
-    if (sessionVal) {
-      const parsed = JSON.parse(sessionVal);
-      if (parsed?.id) {
-        const userExists = await prisma.user.findUnique({
-          where: { id: parsed.id },
-          select: { id: true }
-        });
-        if (userExists) return userExists.id;
-      }
-    }
-  } catch (e) {
-    // Ignora erro de leitura de cookie
-  }
-
-  const devId = process.env.DEV_USER_ID;
-  if (devId && devId !== "00000000-0000-0000-0000-000000000000") {
-    const user = await prisma.user.findUnique({ where: { id: devId }, select: { id: true } });
-    if (user) return user.id;
-  }
-
-  const user =
-    (await prisma.user.findFirst({ where: { email: "kamaelcontatos@gmail.com" }, select: { id: true } })) ||
-    (await prisma.user.findFirst({ where: { role: "MASTER" }, select: { id: true }, orderBy: { createdAt: "asc" } })) ||
-    (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } }));
-
-  if (!user) {
-    throw new Error("Nenhum usuário encontrado no sistema.");
-  }
-  return user.id;
-}
+import { getActiveUserId } from "@/lib/actions";
 
 export type SubscriptionWithStatus = {
   id: string;

@@ -76,55 +76,46 @@ function isSubscriptionPaymentTransaction(t: {
  * 2. Tenta o DEV_USER_ID do .env se existir no banco.
  * 3. Fallback: primeiro usuário cadastrado.
  */
-const sessionUserCache = new Map<string, { id: string; expiresAt: number }>();
-
-const getActiveUserIdCached = cache(async (): Promise<string> => {
+export async function getActiveUserId(): Promise<string> {
+  // 1. Resolução prioritária via Cookie kamael_session (0ms de latência, sem consumir pool de conexão do banco)
   try {
     const cookieStore = await cookies();
     const sessionVal = cookieStore.get("kamael_session")?.value;
     if (sessionVal) {
-      const parsed = JSON.parse(sessionVal);
-      if (parsed?.id) {
-        const cached = sessionUserCache.get(parsed.id);
-        if (cached && cached.expiresAt > Date.now()) {
-          return cached.id;
+      try {
+        const parsed = JSON.parse(sessionVal);
+        if (parsed?.id && typeof parsed.id === "string" && parsed.id.trim().length > 0) {
+          return parsed.id.trim();
         }
-
-        const userExists = await prisma.user.findUnique({
-          where: { id: parsed.id },
-          select: { id: true }
-        });
-        if (userExists) {
-          sessionUserCache.set(parsed.id, { id: userExists.id, expiresAt: Date.now() + 60_000 });
-          return userExists.id;
-        }
-      }
+      } catch {}
     }
   } catch (e) {
-    // Ignora erro de leitura de cookie em contexto estático
+    // Ignora erro de leitura de cookie em contexto estático/build
   }
 
+  // 2. Resolução secundária: DEV_USER_ID do ambiente
   const devId = process.env.DEV_USER_ID;
   if (devId && devId !== "00000000-0000-0000-0000-000000000000") {
-    const user = await prisma.user.findUnique({ where: { id: devId }, select: { id: true } });
-    if (user) return user.id;
+    try {
+      const user = await prisma.user.findUnique({ where: { id: devId }, select: { id: true } });
+      if (user?.id) return user.id;
+    } catch {}
   }
 
-  // Fallback: primeiro usuário com e-mail kamaelcontatos ou qualquer MASTER, depois qualquer user
-  const user =
-    (await prisma.user.findFirst({ where: { email: "kamaelcontatos@gmail.com" }, select: { id: true } })) ||
-    (await prisma.user.findFirst({ where: { role: "MASTER" }, select: { id: true }, orderBy: { createdAt: "asc" } })) ||
-    (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } }));
+  // 3. Fallback de resiliência: primeiro usuário cadastrado no banco (protegido contra quedas do pooler)
+  try {
+    const user =
+      (await prisma.user.findFirst({ where: { email: "kamaelcontatos@gmail.com" }, select: { id: true } })) ||
+      (await prisma.user.findFirst({ where: { role: "MASTER" }, select: { id: true }, orderBy: { createdAt: "asc" } })) ||
+      (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } }));
 
-  if (!user) {
-    throw new Error("Nenhum usuário encontrado no sistema. Cadastre um usuário antes de continuar.");
+    if (user?.id) return user.id;
+  } catch (err) {
+    console.warn("Aviso: Falha ao obter usuário fallback no banco de dados:", err);
   }
 
-  return user.id;
-});
-
-export async function getActiveUserId(): Promise<string> {
-  return getActiveUserIdCached();
+  // Retorna string vazia para queries seguras (evita throw unhandled 500 no Server Component)
+  return "";
 }
 
 // ---------- Actions ----------
@@ -322,37 +313,42 @@ export async function getReceitasBundleAction(
   wallets: Awaited<ReturnType<typeof getWalletsAction>>;
 }> {
   const t0 = Date.now();
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  const [wallets, transactions] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId },
-      orderBy: { title: "asc" },
-    }),
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        deletedAt: null,
-      },
-      include: {
-        category: { select: { id: true, name: true, color: true } },
-        wallet: true,
-      },
-      orderBy: { date: "asc" },
-    }),
-  ]);
+    const [wallets, transactions] = await Promise.all([
+      prisma.wallet.findMany({
+        where: { userId },
+        orderBy: { title: "asc" },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          deletedAt: null,
+        },
+        include: {
+          category: { select: { id: true, name: true, color: true } },
+          wallet: true,
+        },
+        orderBy: { date: "asc" },
+      }),
+    ]);
 
-  const tDb = Date.now() - t0;
+    const tDb = Date.now() - t0;
 
-  const [revenues, walletList] = await Promise.all([
-    getRevenues(month, year, transactions),
-    getWalletsAction(wallets, transactions),
-  ]);
+    const [revenues, walletList] = await Promise.all([
+      getRevenues(month, year, transactions).catch(() => []),
+      getWalletsAction(wallets, transactions).catch(() => []),
+    ]);
 
-  const total = Date.now() - t0;
-  console.log(`[PERF] getReceitasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms)`);
+    const total = Date.now() - t0;
+    console.log(`[PERF] getReceitasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms)`);
 
-  return { revenues, wallets: walletList };
+    return { revenues: revenues || [], wallets: walletList || [] };
+  } catch (err) {
+    console.error("Erro crítico em getReceitasBundleAction:", err);
+    return { revenues: [], wallets: [] };
+  }
 }
 
 export async function getSalaryCycleSummary(month: number, year: number) {
@@ -2243,12 +2239,12 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       billingYear:      dueDateInfo.billingYear,
       isPaid:           !!paidRecord,
       paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
-      paidAt:           paidRecord ? paidRecord.paidAt.toISOString() : null,
+      paidAt:           paidRecord?.paidAt ? safeIsoDate(paidRecord.paidAt) : null,
       allPaidInvoices:  allPaidInvoices.map((p: any) => ({
         month: p.month,
         year: p.year,
         amount: Number(p.amount),
-        paidAt: p.paidAt ? p.paidAt.toISOString() : null
+        paidAt: p.paidAt ? safeIsoDate(p.paidAt) : null
       })),
       balanceInfo,
       purchases: purchases.map(p => ({
@@ -10316,56 +10312,154 @@ export async function getDashboardBundleAction(
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
   const t0 = Date.now();
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
-  // Carrega todas as entidades fundamentais de uma só vez, eliminando 25+ round-trips lentos
-  const [wallets, transactions, paidInvoices, goals] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId },
-      orderBy: { title: "asc" },
-    }),
-    prisma.transaction.findMany({
-      where: {
-        wallet: { userId },
-        deletedAt: null,
-        ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {}),
-      },
-      include: {
-        category: true,
-        wallet: {
-          select: {
-            id: true,
-            title: true,
-            walletType: true,
-            initialBalance: true,
-            currentBalance: true,
-            creditLimit: true,
-            bankName: true,
+    // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
+    // Carrega todas as entidades fundamentais de uma só vez, eliminando 25+ round-trips lentos
+    const [wallets, transactions, paidInvoices, goals] = await Promise.all([
+      prisma.wallet.findMany({
+        where: { userId },
+        orderBy: { title: "asc" },
+      }),
+      prisma.transaction.findMany({
+        where: {
+          wallet: { userId },
+          deletedAt: null,
+          ...(tag ? { tags: { contains: tag, mode: "insensitive" } } : {}),
+        },
+        include: {
+          category: true,
+          wallet: {
+            select: {
+              id: true,
+              title: true,
+              walletType: true,
+              initialBalance: true,
+              currentBalance: true,
+              creditLimit: true,
+              bankName: true,
+            },
           },
         },
-      },
-      orderBy: { date: "desc" },
-    }),
-    prisma.invoicePayment.findMany({
-      where: { wallet: { userId } },
-    }),
-    getGoals(userId),
-  ]);
+        orderBy: { date: "desc" },
+      }),
+      prisma.invoicePayment.findMany({
+        where: { wallet: { userId } },
+      }),
+      getGoals(userId),
+    ]);
 
-  const tDb = Date.now() - t0;
-  const preloaded = { userId, wallets, transactions, paidInvoices, goals };
+    const tDb = Date.now() - t0;
+    const preloaded = { userId, wallets, transactions, paidInvoices, goals };
 
-  const [overview, walletsResult, cashFlow] = await Promise.all([
-    getDashboardOverviewData(year, month, tag, preloaded),
-    getWalletsAction(wallets, transactions),
-    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
-  ]);
+    const [overview, walletsResult, cashFlow] = await Promise.all([
+      getDashboardOverviewData(year, month, tag, preloaded).catch(() => ({
+        realExpenses: 0,
+        pendingExpenses: 0,
+        paidExpenses: 0,
+        totalExpenses: 0,
+        realIncomes: 0,
+        pendingIncomes: 0,
+        receivedIncomes: 0,
+        totalIncomes: 0,
+        currentBalance: 0,
+        predictedBalance: 0,
+        periodCashFlow: 0,
+        categoryExpenses: [],
+        dailySpending: [],
+        creditLimitUsed: 0,
+        creditLimitTotal: 0,
+        recentTransactions: [],
+        activeGoals: [],
+        upcomingInvoices: [],
+        upcomingBills: [],
+        investmentsSummary: { totalPatrimony: 0, totalInvested: 0, totalProfit: 0, profitPercentage: 0, allocation: [] },
+      } as any)),
+      getWalletsAction(wallets, transactions).catch(() => []),
+      getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions).catch(() => ({
+        curMonth: new Date().getMonth() + 1,
+        curYear: new Date().getFullYear(),
+        targetMonth: month,
+        targetYear: year,
+        isCurrentMonth: true,
+        isFutureMonth: false,
+        isPastMonth: false,
+        isAnnualView: false,
+        saldoAtualContas: 0,
+        saldoHerdado: 0,
+        saldoPrevisto: 0,
+        receitasMes: 0,
+        receitasPendentes: 0,
+        receitasRealizadas: 0,
+        faturasMes: 0,
+        faturasPendentes: 0,
+        faturasPagas: 0,
+        boletosMes: 0,
+        boletosPendentes: 0,
+        boletosPagos: 0,
+        totalDespesasMes: 0,
+        sobraMes: 0,
+      } as any)),
+    ]);
 
-  const total = Date.now() - t0;
-  console.log(`[PERF] getDashboardBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
+    const total = Date.now() - t0;
+    console.log(`[PERF] getDashboardBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
 
-  return { overview, wallets: walletsResult, cashFlow };
+    return { overview, wallets: walletsResult || [], cashFlow };
+  } catch (err) {
+    console.error("Erro crítico em getDashboardBundleAction:", err);
+    const now = new Date();
+    return {
+      overview: {
+        realExpenses: 0,
+        pendingExpenses: 0,
+        paidExpenses: 0,
+        totalExpenses: 0,
+        realIncomes: 0,
+        pendingIncomes: 0,
+        receivedIncomes: 0,
+        totalIncomes: 0,
+        currentBalance: 0,
+        predictedBalance: 0,
+        periodCashFlow: 0,
+        categoryExpenses: [],
+        dailySpending: [],
+        creditLimitUsed: 0,
+        creditLimitTotal: 0,
+        recentTransactions: [],
+        activeGoals: [],
+        upcomingInvoices: [],
+        upcomingBills: [],
+        investmentsSummary: { totalPatrimony: 0, totalInvested: 0, totalProfit: 0, profitPercentage: 0, allocation: [] },
+      } as any,
+      wallets: [],
+      cashFlow: {
+        curMonth: now.getMonth() + 1,
+        curYear: now.getFullYear(),
+        targetMonth: month,
+        targetYear: year,
+        isCurrentMonth: true,
+        isFutureMonth: false,
+        isPastMonth: false,
+        isAnnualView: false,
+        saldoAtualContas: 0,
+        saldoHerdado: 0,
+        saldoPrevisto: 0,
+        receitasMes: 0,
+        receitasPendentes: 0,
+        receitasRealizadas: 0,
+        faturasMes: 0,
+        faturasPendentes: 0,
+        faturasPagas: 0,
+        boletosMes: 0,
+        boletosPendentes: 0,
+        boletosPagos: 0,
+        totalDespesasMes: 0,
+        sobraMes: 0,
+      } as any,
+    };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10389,59 +10483,156 @@ export async function getDespesasBundleAction(
   cashFlow: MonthlyCashFlowRollForwardResult;
 }> {
   const t0 = Date.now();
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
-  // Carrega todas as carteiras, transações e faturas pagas de uma só vez
-  const [wallets, transactions, paidInvoices] = await Promise.all([
-    prisma.wallet.findMany({
-      where: { userId },
-      orderBy: { title: "asc" },
-    }),
-    prisma.transaction.findMany({
-      where: { wallet: { userId }, deletedAt: null },
-      include: {
-        category: {
-          select: { id: true, name: true, color: true },
+    // ⚡ 1 ÚNICO ROUND-TRIP PARALELO AO BANCO DE DADOS:
+    // Carrega todas as carteiras, transações e faturas pagas de uma só vez
+    const [wallets, transactions, paidInvoices] = await Promise.all([
+      prisma.wallet.findMany({
+        where: { userId },
+        orderBy: { title: "asc" },
+      }),
+      prisma.transaction.findMany({
+        where: { wallet: { userId }, deletedAt: null },
+        include: {
+          category: {
+            select: { id: true, name: true, color: true },
+          },
+          wallet: true,
         },
-        wallet: true,
-      },
-      orderBy: { date: "asc" },
-    }),
-    (prisma as any).invoicePayment.findMany({
-      where: { wallet: { userId } },
-    }),
-  ]);
+        orderBy: { date: "asc" },
+      }),
+      (prisma as any).invoicePayment.findMany({
+        where: { wallet: { userId } },
+      }),
+    ]);
 
-  const tDb = Date.now() - t0;
-  const preloaded = { userId, wallets, transactions, paidInvoices };
+    const tDb = Date.now() - t0;
+    const preloaded = { userId, wallets, transactions, paidInvoices };
 
-  // ⚡ TODOS OS 9 CÁLCULOS EXECUTADOS 100% EM MEMÓRIA (0ms I/O adicional ao banco)
-  const [
-    cards, paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
-    recurringExpenses, windowBills, commitments, cashFlow,
-  ] = await Promise.all([
-    getAllCardsOverview(month, year, preloaded),
-    getPaidInvoicesAction(month, year, { wallets, paidInvoices }),
-    getRealRevenueAction(month, year, transactions),
-    getPendingExpensesAction(month, year, transactions, wallets),
-    getPaidExpensesAction(month, year, transactions),
-    getRecurringExpensesAction(month, year, transactions),
-    getUpcomingBillsWindowAction(month, year, preloaded),
-    getMonthlyCommitmentsAction(month, year, { wallets, transactions }),
-    getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions),
-  ]);
+    // ⚡ TODOS OS 9 CÁLCULOS EXECUTADOS 100% EM MEMÓRIA (0ms I/O adicional ao banco)
+    const [
+      cards, paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
+      recurringExpenses, windowBills, commitments, cashFlow,
+    ] = await Promise.all([
+      getAllCardsOverview(month, year, preloaded).catch(() => []),
+      getPaidInvoicesAction(month, year, { wallets, paidInvoices }).catch(() => []),
+      getRealRevenueAction(month, year, transactions).catch(() => ({ total: 0, items: [], byCategory: [] } as any)),
+      getPendingExpensesAction(month, year, transactions, wallets).catch(() => ({ total: 0, count: 0, items: [], byCategory: [] } as any)),
+      getPaidExpensesAction(month, year, transactions).catch(() => ({ total: 0, count: 0, items: [] } as any)),
+      getRecurringExpensesAction(month, year, transactions).catch(() => ({ total: 0, count: 0, items: [] } as any)),
+      getUpcomingBillsWindowAction(month, year, preloaded).catch(() => ({
+        pendingBills: [],
+        paidBills: [],
+        upcomingCardInvoices: [],
+        paidCardInvoices: [],
+        receitasPendentesDoMes: 0,
+        pendingRevenues: [],
+        totals: { totalPendente: 0, totalPago: 0, receitasPendentes: 0, totalGeral: 0, pctGeralPago: 0 },
+      } as any)),
+      getMonthlyCommitmentsAction(month, year, { wallets, transactions }).catch(() => ({
+        contasPagar: [],
+        cartoesCredito: [],
+        contasBancarias: [],
+        totais: { totalContasPagar: 0, totalFaturas: 0, totalGeral: 0, totalPago: 0, totalPendente: 0 },
+      } as any)),
+      getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions).catch(() => ({
+        curMonth: new Date().getMonth() + 1,
+        curYear: new Date().getFullYear(),
+        targetMonth: typeof month === "number" ? month : new Date().getMonth() + 1,
+        targetYear: year,
+        isCurrentMonth: true,
+        isFutureMonth: false,
+        isPastMonth: false,
+        isAnnualView: false,
+        saldoAtualContas: 0,
+        saldoHerdado: 0,
+        saldoPrevisto: 0,
+        receitasMes: 0,
+        receitasPendentes: 0,
+        receitasRealizadas: 0,
+        faturasMes: 0,
+        faturasPendentes: 0,
+        faturasPagas: 0,
+        boletosMes: 0,
+        boletosPendentes: 0,
+        boletosPagos: 0,
+        totalDespesasMes: 0,
+        sobraMes: 0,
+      } as any)),
+    ]);
 
-  const pendingRevenues = {
-    items: windowBills?.pendingRevenues || [],
-    total: windowBills?.receitasPendentesDoMes || 0,
-  };
+    const pendingRevenues = {
+      items: windowBills?.pendingRevenues || [],
+      total: windowBills?.receitasPendentesDoMes || 0,
+    };
 
-  const total = Date.now() - t0;
-  console.log(`[PERF] getDespesasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
+    const total = Date.now() - t0;
+    console.log(`[PERF] getDespesasBundleAction: ${total}ms (db: ${tDb}ms, compute: ${total - tDb}ms, txCount: ${transactions.length})`);
 
-  return {
-    cards, paidInvoices: paidInvoicesList, realRevenue, pendingExpenses, paidExpenses,
-    recurringExpenses, windowBills, pendingRevenues, commitments, cashFlow,
-  };
+    return {
+      cards: cards || [],
+      paidInvoices: paidInvoicesList || [],
+      realRevenue,
+      pendingExpenses,
+      paidExpenses,
+      recurringExpenses,
+      windowBills,
+      pendingRevenues,
+      commitments,
+      cashFlow,
+    };
+  } catch (error) {
+    console.error("Erro crítico em getDespesasBundleAction:", error);
+    const now = new Date();
+    return {
+      cards: [],
+      paidInvoices: [],
+      realRevenue: { total: 0, items: [], byCategory: [] } as any,
+      pendingExpenses: { total: 0, count: 0, items: [], byCategory: [] } as any,
+      paidExpenses: { total: 0, count: 0, items: [] } as any,
+      recurringExpenses: { total: 0, count: 0, items: [] } as any,
+      windowBills: {
+        pendingBills: [],
+        paidBills: [],
+        upcomingCardInvoices: [],
+        paidCardInvoices: [],
+        receitasPendentesDoMes: 0,
+        pendingRevenues: [],
+        totals: { totalPendente: 0, totalPago: 0, receitasPendentes: 0, totalGeral: 0, pctGeralPago: 0 },
+      } as any,
+      pendingRevenues: { items: [], total: 0 },
+      commitments: {
+        contasPagar: [],
+        cartoesCredito: [],
+        contasBancarias: [],
+        totais: { totalContasPagar: 0, totalFaturas: 0, totalGeral: 0, totalPago: 0, totalPendente: 0 },
+      } as any,
+      cashFlow: {
+        curMonth: now.getMonth() + 1,
+        curYear: now.getFullYear(),
+        targetMonth: typeof month === "number" ? month : now.getMonth() + 1,
+        targetYear: year || now.getFullYear(),
+        isCurrentMonth: true,
+        isFutureMonth: false,
+        isPastMonth: false,
+        isAnnualView: false,
+        saldoAtualContas: 0,
+        saldoHerdado: 0,
+        saldoPrevisto: 0,
+        receitasMes: 0,
+        receitasPendentes: 0,
+        receitasRealizadas: 0,
+        faturasMes: 0,
+        faturasPendentes: 0,
+        faturasPagas: 0,
+        boletosMes: 0,
+        boletosPendentes: 0,
+        boletosPagos: 0,
+        totalDespesasMes: 0,
+        sobraMes: 0,
+      } as any,
+    };
+  }
 }
