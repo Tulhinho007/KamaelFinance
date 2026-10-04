@@ -158,7 +158,7 @@ export function CreditCardLimitBreakdown({
       {/* ── 4 CARDS DE VALORES DETALHADOS ────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
         {/* 1. Limite Total */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col justify-between">
+        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 dark:shadow-lg flex flex-col justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             1. Limite Total Contratado
           </span>
@@ -168,55 +168,55 @@ export function CreditCardLimitBreakdown({
               className="text-lg font-black text-slate-900 dark:text-white font-tnum tabular-nums"
             />
           </div>
-          <span className="text-[10px] text-slate-400 font-medium">
+          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
             Teto máximo do emissor
           </span>
         </div>
 
         {/* 2. Fatura Corrente */}
-        <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+        <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-slate-900/80 border border-indigo-200/60 dark:border-indigo-500/30 dark:shadow-lg dark:shadow-indigo-950/20 flex flex-col justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
             2. Fatura Corrente (Mês)
           </span>
           <div className="my-1.5">
             <CurrencyValue
               value={faturaCorrenteEfetiva}
-              className="text-lg font-black text-indigo-700 dark:text-indigo-300 font-tnum tabular-nums"
+              className="text-lg font-black text-indigo-700 dark:text-indigo-400 font-tnum tabular-nums"
             />
           </div>
-          <span className="text-[10px] text-indigo-600/80 dark:text-indigo-400 font-medium">
+          <span className="text-[10px] text-indigo-600/80 dark:text-slate-400 font-medium">
             {isInvoicePaid ? "✓ Já liquidada no período" : "Compromisso em aberto"}
           </span>
         </div>
 
         {/* 3. Faturas Futuras */}
-        <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+        <div className="p-3.5 rounded-2xl bg-amber-50/50 dark:bg-slate-900/80 border border-amber-200/60 dark:border-amber-500/30 dark:shadow-lg dark:shadow-amber-950/20 flex flex-col justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
             3. Parcelas a Vencer (D+30+)
           </span>
           <div className="my-1.5">
             <CurrencyValue
               value={faturasFuturasEfetivas}
-              className="text-lg font-black text-amber-700 dark:text-amber-300 font-tnum tabular-nums"
+              className="text-lg font-black text-amber-700 dark:text-amber-400 font-tnum tabular-nums"
             />
           </div>
-          <span className="text-[10px] text-amber-600/80 dark:text-amber-400 font-medium">
+          <span className="text-[10px] text-amber-600/80 dark:text-slate-400 font-medium">
             Compras parceladas futuras
           </span>
         </div>
 
         {/* 4. Limite Real Disponível */}
-        <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 flex flex-col justify-between">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+        <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-slate-900/80 border border-emerald-200/60 dark:border-emerald-500/30 dark:shadow-lg dark:shadow-emerald-950/20 flex flex-col justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
             4. Limite Real Disponível
           </span>
           <div className="my-1.5">
             <CurrencyValue
               value={limiteDisponivel}
-              className="text-lg font-black text-emerald-700 dark:text-emerald-300 font-tnum tabular-nums"
+              className="text-lg font-black text-emerald-700 dark:text-emerald-400 font-tnum tabular-nums"
             />
           </div>
-          <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400 font-medium">
+          <span className="text-[10px] text-emerald-600/80 dark:text-slate-400 font-medium">
             Poder de compra restante
           </span>
         </div>

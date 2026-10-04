@@ -1,5 +1,5 @@
 // Service Worker para Kamael Finance PWA
-const CACHE_NAME = "kamael-pwa-v1";
+const CACHE_NAME = "kamael-pwa-v2";
 const OFFLINE_URL = "/";
 
 const STATIC_ASSETS = [
@@ -45,26 +45,34 @@ self.addEventListener("fetch", (event) => {
   // Ignora requisições de API internas do Next ou extensões de terceiros
   if (url.origin !== self.location.origin) return;
 
+  // Navegações (SSR), payloads RSC, assets do Next e APIs vão direto para a rede,
+  // sem interceptação: evita "Failed to convert value to 'Response'".
+  if (
+    event.request.mode === "navigate" ||
+    event.request.headers.get("RSC") ||
+    event.request.headers.get("Next-Router-State-Tree") ||
+    url.searchParams.has("_rsc") ||
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.startsWith("/api/")
+  ) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
-        // Atualiza o cache dinâmico com a resposta fresca se válida
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === "basic") {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
-          });
+          }).catch(() => {});
         }
         return networkResponse;
       })
-      .catch(() => {
-        // Se a rede falhar (offline), busca no cache
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) return cachedResponse;
-          if (event.request.mode === "navigate") {
-            return caches.match(OFFLINE_URL);
-          }
-        });
+      .catch(async () => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) return cachedResponse;
+        return new Response("", { status: 504, statusText: "Offline" });
       })
   );
 });
