@@ -1905,20 +1905,6 @@ export async function calculateAccountBalance(
   existingWallet?: any,
   existingTransactions?: any[]
 ) {
-  // Trava absoluta de data de início da conta: Julho de 2026 (meses anteriores ficam 100% zerados)
-  const isPriorToJuly2026 = year < 2026 || (year === 2026 && month < 7);
-  if (isPriorToJuly2026) {
-    return {
-      initialBalance: 0,
-      carryoverBalance: 0,
-      previousBalance: 0,
-      totalAvailable: 0,
-      monthIncome: 0,
-      monthExpense: 0,
-      finalBalance: 0,
-    };
-  }
-
   const wallet = existingWallet || await prisma.wallet.findUnique({
     where: { id: walletId },
   });
@@ -1937,26 +1923,19 @@ export async function calculateAccountBalance(
 
   const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
   const endOfMonth   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+  const now = new Date();
 
-  // Fetch ALL historical non-deleted transactions for this wallet up to endOfMonth
+  // Fetch ALL historical non-deleted transactions for this wallet
   const allWalletTransactions = existingTransactions
     ? existingTransactions.filter((t: any) => {
         if (t.walletId !== walletId || t.deletedAt || t.source === "RECURRING_PROJECTION") return false;
-        const d = new Date(t.competenceDate || t.paymentDate || t.dueDate || t.purchaseDate || t.date);
-        return d <= endOfMonth;
+        return true;
       })
     : await (prisma.transaction as any).findMany({
         where: {
           walletId: walletId,
           deletedAt: null,
-          source: { not: "RECURRING_PROJECTION" },
-          OR: [
-            { competenceDate: { lte: endOfMonth } },
-            { purchaseDate: { lte: endOfMonth } },
-            { date: { lte: endOfMonth } },
-            { paymentDate: { lte: endOfMonth } },
-            { dueDate: { lte: endOfMonth } }
-          ]
+          source: { not: "RECURRING_PROJECTION" }
         },
         select: { 
           type: true, 
@@ -1984,7 +1963,43 @@ export async function calculateAccountBalance(
     return { month: d.getUTCMonth() + 1, year: d.getUTCFullYear() };
   };
 
-  // Calculate historical totals up to endOfMonth (baseado na data efetiva de caixa para o saldo real da conta)
+  // 1. SALDO REAL ATUAL (HOJE - Atemporal): todas as transações liquidadas até o exato momento presente
+  const totalEntradasHoje = (allWalletTransactions as any[])
+    .filter((t: any) => {
+      if (t.type !== "INCOME" || t.status === "PENDING") return false;
+      const cashDate = getTxCashDate(t);
+      return cashDate <= now;
+    })
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
+
+  const totalSaidasHoje = (allWalletTransactions as any[])
+    .filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
+      const cashDate = getTxCashDate(t);
+      return cashDate <= now;
+    })
+    .reduce((s: number, t: any) => s + Number(t.amount), 0);
+
+  const currentRealBalance = Math.round(
+    (Number(wallet.initialBalance || 0) + totalEntradasHoje - totalSaidasHoje) * 100
+  ) / 100;
+
+  // Trava de competência histórica para meses anteriores a Julho de 2026
+  const isPriorToJuly2026 = year < 2026 || (year === 2026 && month < 7);
+  if (isPriorToJuly2026) {
+    return {
+      initialBalance: Number(wallet.initialBalance || 0),
+      carryoverBalance: 0,
+      previousBalance: 0,
+      totalAvailable: 0,
+      monthIncome: 0,
+      monthExpense: 0,
+      finalBalance: 0,
+      currentRealBalance,
+    };
+  }
+
+  // 2. Saldo Histórico até o final do mês selecionado
   const totalEntradasHistoricas = (allWalletTransactions as any[])
     .filter((t: any) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
@@ -2001,8 +2016,9 @@ export async function calculateAccountBalance(
     })
     .reduce((s: number, t: any) => s + Number(t.amount), 0);
 
-  // Saldo Disponível Consolidado (Todas as Entradas - Todas as Saídas Liquidadas na conta)
-  const finalBalance = (Number(wallet.initialBalance || 0) + totalEntradasHistoricas) - totalSaidasHistoricas;
+  const finalBalance = Math.round(
+    (Number(wallet.initialBalance || 0) + totalEntradasHistoricas - totalSaidasHistoricas) * 100
+  ) / 100;
 
   // Transações do mês selecionado por competência
   const monthTransactions = (allWalletTransactions as any[]).filter((t: any) => {
@@ -2050,6 +2066,7 @@ export async function calculateAccountBalance(
     monthIncome,
     monthExpense,
     finalBalance,
+    currentRealBalance,
   };
 }
 
@@ -4033,8 +4050,8 @@ export async function getAllCardsOverview(
   const result = wallets.map((w) => {
     const isCredit = w.walletType === "CREDIT_CARD";
     const balanceInfo = isCredit
-      ? { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0 }
-      : (bankBalanceMap.get(w.id) || { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0 });
+      ? { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0, currentRealBalance: 0 }
+      : (bankBalanceMap.get(w.id) || { initialBalance: 0, carryoverBalance: 0, previousBalance: 0, totalAvailable: 0, monthIncome: 0, monthExpense: 0, finalBalance: 0, currentRealBalance: Number(w.initialBalance || 0) });
 
     const rawTransactions = rawTransactionsByWallet.get(w.id) || [];
     const isBank = !isCredit && w.walletType !== "TICKET";
@@ -4205,13 +4222,14 @@ export async function getAllCardsOverview(
       bankName:         w.bankName || w.title,
       walletType:       w.walletType,
       tipo:             w.walletType,
-      saldoAtual:       isCredit ? 0 : balanceInfo.finalBalance,
+      saldoAtual:       isCredit ? 0 : balanceInfo.currentRealBalance,
+      currentRealBalance: isCredit ? 0 : balanceInfo.currentRealBalance,
       holder:           (w as any).holder || "",
       agencia:          w.agencia || "",
       conta:            w.conta || "",
       lastDigits,
       cardBrand:        isCredit ? "VISA" : "",
-      limitTotal,
+      limitTotal:       isCredit ? limitTotal : balanceInfo.currentRealBalance,
       limitUsed:        isCredit ? Math.min(limitUsed, limitTotal) : limitUsed,
       faturaAtual,
       faturaPaga,
@@ -5145,8 +5163,43 @@ export async function getMonthlyCashFlowRollForwardAction(
     ]);
   }
 
-  const saldoAtualContas = bankWallets.reduce(
-    (s, w) => s + Number(w.currentBalance || w.initialBalance || 0),
+  let bankWalletsWithReal: any[] = [];
+  if (preloadedWallets && preloadedTransactions) {
+    bankWalletsWithReal = bankWallets.map((w: any) => {
+      if (w.currentRealBalance !== undefined) return w;
+      const wTxs = (preloadedTransactions || []).filter((t: any) => t.walletId === w.id && !t.deletedAt);
+      const inc = wTxs.filter((t: any) => t.type === "INCOME" && t.status !== "PENDING" && new Date(t.paymentDate || t.date) <= now).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+      const exp = wTxs.filter((t: any) => t.type === "EXPENSE" && t.status !== "PENDING" && new Date(t.paymentDate || t.date) <= now).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+      const realBal = Math.round((Number(w.initialBalance || 0) + inc - exp) * 100) / 100;
+      return { ...w, currentRealBalance: realBal };
+    });
+  } else {
+    const txsList = await prisma.transaction.findMany({
+      where: {
+        walletId: { in: bankWallets.map(w => w.id) },
+        deletedAt: null,
+        status: { not: "PENDING" },
+        date: { lte: now }
+      },
+      select: { walletId: true, type: true, amount: true, paymentDate: true, date: true }
+    });
+    const txsByWallet = new Map<string, any[]>();
+    for (const t of txsList) {
+      let l = txsByWallet.get(t.walletId);
+      if (!l) { l = []; txsByWallet.set(t.walletId, l); }
+      l.push(t);
+    }
+    bankWalletsWithReal = bankWallets.map((w: any) => {
+      const wTxs = txsByWallet.get(w.id) || [];
+      const inc = wTxs.filter((t: any) => t.type === "INCOME").reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+      const exp = wTxs.filter((t: any) => t.type === "EXPENSE").reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+      const realBal = Math.round((Number(w.initialBalance || 0) + inc - exp) * 100) / 100;
+      return { ...w, currentRealBalance: realBal };
+    });
+  }
+
+  const saldoAtualContas = bankWalletsWithReal.reduce(
+    (s: number, w: any) => s + Number(w.currentRealBalance ?? w.currentBalance ?? w.initialBalance ?? 0),
     0
   );
 
@@ -6335,7 +6388,12 @@ export async function getDashboardOverviewData(
     }
   }
 
+  const totalRealBalance = cards
+    .filter((c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO")
+    .reduce((sum: number, c: any) => sum + (Number(c.currentRealBalance ?? c.saldoAtual ?? 0)), 0);
+
   console.log("[getDashboardOverviewData] Concluído:", {
+    totalRealBalance,
     totalReceitas,
     totalGastos,
     categoryBreakdownCount: categoryBreakdown.length,
@@ -6343,6 +6401,7 @@ export async function getDashboardOverviewData(
   });
 
   return {
+    totalRealBalance,
     totalReceitas,
     totalIncomes: totalReceitas,
     totalCreditExpenses,
@@ -10356,6 +10415,7 @@ export async function getDashboardBundleAction(
 
     const [overview, walletsResult, cashFlow] = await Promise.all([
       getDashboardOverviewData(year, month, tag, preloaded).catch(() => ({
+        totalRealBalance: 0,
         totalReceitas: 0,
         totalIncomes: 0,
         totalCreditExpenses: 0,
@@ -10424,6 +10484,7 @@ export async function getDashboardBundleAction(
     const now = new Date();
     return {
       overview: {
+        totalRealBalance: 0,
         totalReceitas: 0,
         totalIncomes: 0,
         totalCreditExpenses: 0,

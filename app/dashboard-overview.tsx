@@ -438,12 +438,15 @@ export function DashboardOverview() {
         const contasBancarias = bankAccounts.map((c: any) => ({
           id: c.id,
           banco: c.bankName || c.title,
-          saldo: Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0),
+          saldo: Number(c.currentRealBalance ?? c.saldoAtual ?? c.finalBalance ?? c.limitTotal ?? 0),
         }));
-        const saldoConsolidado = monthlyRollForward?.saldoAtualContas ?? contasBancarias.reduce(
+        const totalRealBalanceCalculated = contasBancarias.reduce(
           (sum: number, c: any) => sum + (Number(c.saldo) || 0),
           0
         );
+        const saldoConsolidado = (data?.totalRealBalance !== undefined && data?.totalRealBalance !== null)
+          ? Number(data.totalRealBalance)
+          : totalRealBalanceCalculated;
 
         const saldoHerdado = monthlyRollForward?.saldoHerdado ?? 0;
         const saldoPrevisto = monthlyRollForward?.saldoPrevisto ?? 0;
@@ -459,10 +462,19 @@ export function DashboardOverview() {
                     <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl shadow-xs">
                       👛
                     </div>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
-                      Saldo Consolidado<br />
-                      <span className="text-slate-400 dark:text-slate-500 font-medium">({contasBancarias.length > 0 ? `${contasBancarias.length} Contas` : "Todas as Contas"})</span>
-                    </span>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
+                          Saldo Consolidado
+                        </span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                          Tempo Real (Hoje)
+                        </span>
+                      </div>
+                      <span className="text-slate-400 dark:text-slate-500 font-medium text-[11px] mt-0.5">
+                        ({contasBancarias.length > 0 ? `${contasBancarias.length} Contas` : "Todas as Contas"})
+                      </span>
+                    </div>
                   </div>
                   <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
                     ✽ Todas as Contas
@@ -474,7 +486,7 @@ export function DashboardOverview() {
                     R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </h2>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-                    Soma dos saldos em conta corrente
+                    Soma de todo o dinheiro em conta hoje (independente do filtro)
                   </p>
                 </div>
               </div>
@@ -533,7 +545,9 @@ export function DashboardOverview() {
             const isCredit = card.walletType === "CREDIT_CARD";
             const isTicket = card.walletType === "TICKET";
             const isBank = !isCredit && !isTicket;
-            const saldoDisp = isCredit ? card.limitTotal - card.limitUsed : (card.finalBalance ?? card.limitTotal);
+            const saldoDisp = isCredit
+              ? card.limitTotal - card.limitUsed
+              : Number(card.currentRealBalance ?? card.saldoAtual ?? card.finalBalance ?? card.limitTotal);
             const Icon = walletIcon(card.walletType);
             const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
             const entradasNoMes = card.accountIncomes ?? card.monthIncome ?? card.recargaMes ?? 0;
@@ -560,9 +574,16 @@ export function DashboardOverview() {
                 </div>
 
                 <div className="mt-3">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
-                    {isCredit ? "Limite Disponível" : "Saldo Atual"}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                      {isCredit ? "Limite Disponível" : "Saldo Atual (Hoje)"}
+                    </span>
+                    {!isCredit && (
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/60 px-1.5 py-0.5 rounded-md">
+                        Tempo Real
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
                     <CurrencyValue value={saldoDisp} />
                   </p>
@@ -604,10 +625,10 @@ export function DashboardOverview() {
                     /* Conta Corrente: Apenas o que de fato transitou por ela */
                     <>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Entradas: <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
+                        Entradas (Mês): <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
                       </span>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Saídas: <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
+                        Saídas (Mês): <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
                       </span>
                     </>
                   )}
@@ -1261,7 +1282,7 @@ export function DashboardOverview() {
               .map((c: any) => ({
                 id: c.id,
                 banco: c.bankName || c.title,
-                saldo: Number(c.finalBalance ?? c.saldoAtual ?? c.limitTotal ?? 0),
+                saldo: Number(c.currentRealBalance ?? c.saldoAtual ?? c.finalBalance ?? c.limitTotal ?? 0),
               }))
           }
           walletId={
