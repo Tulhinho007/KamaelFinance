@@ -5462,27 +5462,182 @@ export async function updateCardAccount(
   revalidatePath("/cartoes");
 }
 
-export async function deleteCardAccount(walletId: string) {
+export async function deleteCardAccount(walletId: string): Promise<{ success: boolean; error?: string }> {
   try {
+    const userId = await getActiveUserId();
+    if (!walletId || typeof walletId !== "string") {
+      return { success: false, error: "ID do cartão ou conta bancária inválido." };
+    }
+
+    const wallet = await prisma.wallet.findUnique({
+      where: { id: walletId },
+      select: { id: true, userId: true, title: true, walletType: true },
+    });
+
+    if (!wallet) {
+      return { success: false, error: "Cartão ou conta bancária não encontrado(a)." };
+    }
+
+    if (wallet.userId !== userId) {
+      return { success: false, error: "Você não tem permissão para excluir este registro." };
+    }
+
     await prisma.$transaction(async (tx) => {
-      await tx.transaction.deleteMany({ where: { walletId } });
-      await tx.invoicePayment.deleteMany({ where: { walletId } });
-      await tx.subscription.updateMany({ where: { defaultWalletId: walletId }, data: { defaultWalletId: null } });
-      await tx.goalHistory.deleteMany({ where: { walletId } });
-      await tx.goal.deleteMany({ where: { walletId } });
-      await tx.wallet.delete({ where: { id: walletId } });
+      // 1. Operações de PIX no Crédito (CreditPixOperation) vinculadas como cartão ou conta de destino
+      try {
+        const creditPixOps = await (tx as any).creditPixOperation?.findMany({
+          where: {
+            OR: [
+              { sourceCardWalletId: walletId },
+              { destAccountWalletId: walletId },
+            ],
+          },
+          select: { id: true, installmentGroupId: true, incomeTransactionId: true },
+        });
+
+        if (creditPixOps && creditPixOps.length > 0) {
+          const opIds = creditPixOps.map((op: any) => op.id);
+          const groupIds = creditPixOps.map((op: any) => op.installmentGroupId).filter(Boolean);
+
+          await tx.transaction.updateMany({
+            where: {
+              OR: [
+                { pixCreditOperationId: { in: opIds } },
+                { installmentGroupId: { in: groupIds } },
+              ],
+            },
+            data: {
+              pixCreditOperationId: null,
+            },
+          });
+
+          await (tx as any).creditPixOperation.deleteMany({
+            where: { id: { in: opIds } },
+          });
+        }
+      } catch (pixErr) {
+        console.warn("Aviso ao desvincular PIX no Crédito:", pixErr);
+      }
+
+      // 2. Transações vinculadas à carteira (coleta IDs para desvincular chaves dependentes)
+      const walletTransactions = await tx.transaction.findMany({
+        where: { walletId },
+        select: { id: true },
+      });
+      const txIds = walletTransactions.map((t) => t.id);
+
+      if (txIds.length > 0) {
+        // Desvincula EventItem que apontem para transações desta carteira
+        try {
+          await (tx as any).eventItem?.updateMany({
+            where: { transactionId: { in: txIds } },
+            data: { transactionId: null },
+          });
+        } catch (e) {}
+
+        // Desvincula GoalHistory que apontem para transações desta carteira
+        try {
+          await tx.goalHistory.updateMany({
+            where: { transactionId: { in: txIds } },
+            data: { transactionId: null },
+          });
+        } catch (e) {}
+
+        // Desvincula InvoicePayment que apontem para transações pagadoras
+        try {
+          await (tx as any).invoicePayment?.updateMany({
+            where: { paymentTransactionId: { in: txIds } },
+            data: { paymentTransactionId: null },
+          });
+        } catch (e) {}
+
+        // Desvincula SubscriptionPayment que apontem para transações pagadoras
+        try {
+          await (tx as any).subscriptionPayment?.updateMany({
+            where: { paymentTransactionId: { in: txIds } },
+            data: { paymentTransactionId: null },
+          });
+        } catch (e) {}
+
+        // Remove todas as transações da carteira
+        await tx.transaction.deleteMany({
+          where: { walletId },
+        });
+      }
+
+      // 3. Faturas de Cartão (InvoicePayment)
+      // Se for o próprio cartão: exclui os pagamentos de fatura dele
+      try {
+        await (tx as any).invoicePayment?.deleteMany({
+          where: { walletId },
+        });
+      } catch (e) {}
+
+      // Se for conta bancária usada para pagar faturas de cartões: desvincula o ID da carteira
+      try {
+        await (tx as any).invoicePayment?.updateMany({
+          where: { paymentWalletId: walletId },
+          data: { paymentWalletId: null, paymentTransactionId: null },
+        });
+      } catch (e) {}
+
+      // 4. Assinaturas e Pagamentos de Assinatura
+      try {
+        await tx.subscription.updateMany({
+          where: { defaultWalletId: walletId },
+          data: { defaultWalletId: null },
+        });
+      } catch (e) {}
+
+      try {
+        await (tx as any).subscriptionPayment?.updateMany({
+          where: { paymentWalletId: walletId },
+          data: { paymentWalletId: null, paymentTransactionId: null },
+        });
+      } catch (e) {}
+
+      // 5. Metas e Cofrinhos (Goal e GoalHistory)
+      // Desvincula a carteira sem apagar as metas ou aportes do usuário
+      try {
+        await tx.goalHistory.updateMany({
+          where: { walletId },
+          data: { walletId: null, transactionId: null },
+        });
+      } catch (e) {}
+
+      try {
+        await tx.goal.updateMany({
+          where: { walletId },
+          data: { walletId: null },
+        });
+      } catch (e) {}
+
+      // 6. Deletar a Wallet definitivamente
+      await tx.wallet.delete({
+        where: { id: walletId },
+      });
     }, PRISMA_TX_OPTIONS);
 
     revalidatePath("/despesas");
     revalidatePath("/cartoes");
+    revalidatePath("/contas");
     revalidatePath("/dashboard");
     revalidatePath("/historico-pagamentos");
+    revalidatePath("/metas");
+    revalidatePath("/planejamento");
+
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro ao deletar cartão/carteira:", error);
-    throw error;
+    return {
+      success: false,
+      error: error?.message || "Erro interno ao processar a exclusão no banco de dados.",
+    };
   }
 }
+
+export const deleteWalletAccount = deleteCardAccount;
+export const deleteWalletAction = deleteCardAccount;
 
 // ---------- Busca de Faturas Pendentes a Vencer (Ordenação Cronológica) ----------
 

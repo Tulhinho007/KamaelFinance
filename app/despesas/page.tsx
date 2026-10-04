@@ -1158,19 +1158,28 @@ export default function DespesasPage() {
       }
 
       closeModal();
-    } catch (err) {
+      const isBank = formType === "CONTA_CORRENTE";
+      const isTicket = formType === "TICKET";
+      showAlert(`${isBank ? "Conta bancária" : isTicket ? "Ticket" : "Cartão"} cadastrado(a) com sucesso!`, { variant: "success" });
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao cadastrar. Tente novamente.", { variant: "error" });
+      const isBank = formType === "CONTA_CORRENTE";
+      const isTicket = formType === "TICKET";
+      const entityLabel = isBank ? "conta bancária" : isTicket ? "ticket" : "cartão";
+      showAlert(err?.message || `Erro ao cadastrar ${entityLabel}. Tente novamente.`, { variant: "error" });
     } finally {
       setFormSaving(false);
     }
   };
 
-  // ── Handler: Editar cartão ───────────────────────────────────────────────────
+  // ── Handler: Editar cartão / conta ───────────────────────────────────────────
   const handleEditCard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCard || !formBank) return;
     setFormSaving(true);
+    const isBank = formType === "CONTA_CORRENTE";
+    const isTicket = formType === "TICKET";
+    const entityLabel = isBank ? "conta bancária" : isTicket ? "ticket" : "cartão";
     try {
       await updateCardAccount(selectedCard.id, {
         bankName:       formBank,
@@ -1186,25 +1195,37 @@ export default function DespesasPage() {
       const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
       setCards(fresh);
       closeModal();
-    } catch (err) {
+      showAlert(`${isBank ? "Conta bancária" : isTicket ? "Ticket" : "Cartão"} atualizado(a) com sucesso!`, { variant: "success" });
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao atualizar cartão. Tente novamente.", { variant: "error" });
+      showAlert(err?.message || `Erro ao atualizar ${entityLabel}. Tente novamente.`, { variant: "error" });
     } finally {
       setFormSaving(false);
     }
   };
 
-  // ── Handler: Excluir cartão ──────────────────────────────────────────────────
+  // ── Handler: Excluir cartão / conta bancária / ticket ─────────────────────────
   const handleDeleteCard = async () => {
     if (!selectedCard) return;
     setFormSaving(true);
+    const isBank = selectedCard.walletType === "CONTA_CORRENTE" || (selectedCard as any).tipo === "CONTA_CORRENTE";
+    const isTicket = selectedCard.walletType === "TICKET" || (selectedCard as any).tipo === "TICKET";
+    const entityLabel = isBank ? "conta bancária" : isTicket ? "ticket" : "cartão";
+
     try {
-      await deleteCardAccount(selectedCard.id);
+      const res = await deleteCardAccount(selectedCard.id);
+      if (res && !res.success) {
+        throw new Error(res.error || `Erro ao excluir ${entityLabel}. Tente novamente.`);
+      }
       setCards(prev => prev.filter(c => c.id !== selectedCard.id));
       closeModal();
-    } catch (err) {
+      showAlert(`${isBank ? "Conta bancária" : isTicket ? "Ticket" : "Cartão"} excluído(a) com sucesso!`, { variant: "success" });
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao excluir cartão. Tente novamente.", { variant: "error" });
+      const msg = err?.message && !err.message.includes("Server Components")
+        ? err.message
+        : `Erro ao excluir ${entityLabel}. Tente novamente.`;
+      showAlert(msg, { variant: "error" });
     } finally {
       setFormSaving(false);
     }
