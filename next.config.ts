@@ -4,7 +4,8 @@ const nextConfig: NextConfig = {
   // ─── Redirects ───────────────────────────────────────────────────────────
   async redirects() {
     return [
-      { source: "/historico", destination: "/historico-pagamentos", permanent: false },
+      { source: "/historico", destination: "/despesas", permanent: false },
+      { source: "/historico-pagamentos", destination: "/despesas", permanent: false },
       { source: "/radar", destination: "/gestao-financeira/radar-gastos", permanent: false },
       { source: "/objetivos", destination: "/metas", permanent: false },
       { source: "/viagens", destination: "/planejamento", permanent: false },

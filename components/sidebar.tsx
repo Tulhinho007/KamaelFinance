@@ -19,7 +19,6 @@ import {
   LogOut,
   Menu,
   X,
-  History,
   Zap,
   Wrench,
   Plane,
@@ -50,7 +49,6 @@ export const sidebarNavigation: SidebarNavGroup[] = [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
       { name: "Compromissos & Contas", href: "/despesas", icon: CreditCard },
       { name: "Receitas", href: "/receitas", icon: TrendingUp },
-      { name: "Histórico de Pagamentos", href: "/historico-pagamentos", icon: History },
     ],
   },
   {
