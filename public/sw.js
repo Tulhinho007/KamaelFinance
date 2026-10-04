@@ -45,18 +45,10 @@ self.addEventListener("fetch", (event) => {
   // Ignora requisições de API internas do Next ou extensões de terceiros
   if (url.origin !== self.location.origin) return;
 
-  // Navegações (SSR), payloads RSC, assets do Next e APIs vão direto para a rede,
-  // sem interceptação: evita "Failed to convert value to 'Response'".
-  if (
-    event.request.mode === "navigate" ||
-    event.request.headers.get("RSC") ||
-    event.request.headers.get("Next-Router-State-Tree") ||
-    url.searchParams.has("_rsc") ||
-    url.pathname.startsWith("/_next/") ||
-    url.pathname.startsWith("/api/")
-  ) {
-    return;
-  }
+  // O SW só atua sobre os assets estáticos do PWA. Páginas, RSC, rotas dinâmicas
+  // e dados financeiros vão SEMPRE direto para a rede (sem interceptação).
+  const STATIC_PATHS = ["/manifest.json", "/icon.svg", "/favicon.ico"];
+  if (!STATIC_PATHS.includes(url.pathname)) return;
 
   event.respondWith(
     fetch(event.request)

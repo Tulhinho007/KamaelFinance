@@ -8678,6 +8678,7 @@ export async function purgeSubscriptionsDataAction() {
   };
 }
 
+const histCatch = (label: string) => (e: any) => { console.error(`[getPaymentHistoryData] consulta ${label} falhou:`, e?.message || e); return [] as any[]; };
 export async function getPaymentHistoryData(month: number, year: number) {
   const numMonth = Number(month) || (new Date().getMonth() + 1);
   const numYear  = Number(year) || new Date().getFullYear();
@@ -8709,19 +8710,19 @@ export async function getPaymentHistoryData(month: number, year: number) {
       prevPaidInvoicesRaw,
       prevMonthCommitmentsRaw,
     ] = await Promise.all([
-      prisma.wallet.findMany({ where: { userId }, orderBy: { title: "asc" } }).catch(() => []),
+      prisma.wallet.findMany({ where: { userId }, orderBy: { title: "asc" } }).catch(histCatch("q1")),
       prisma.transaction.findMany({
         where: { wallet: { userId }, date: { gte: startOfMonth, lte: endOfMonth }, deletedAt: null },
         include: { category: true },
-      }).catch(() => []),
+      }).catch(histCatch("q2")),
       (prisma as any).invoicePayment?.findMany
-        ? (prisma as any).invoicePayment.findMany({ where: { wallet: { userId }, month: numMonth, year: numYear } }).catch(() => [])
+        ? (prisma as any).invoicePayment.findMany({ where: { wallet: { userId }, month: numMonth, year: numYear } }).catch(histCatch("q3"))
         : Promise.resolve([]),
       prisma.transaction.findMany({
         where: { wallet: { userId }, date: { gte: startOfPrevMonth, lte: endOfPrevMonth }, deletedAt: null },
         select: { walletId: true, type: true, amount: true, status: true },
-      }).catch(() => []),
-      getAllCardsOverview(numMonth, numYear).catch(() => []),
+      }).catch(histCatch("q4")),
+      getAllCardsOverview(numMonth, numYear).catch(histCatch("q5")),
       prisma.transaction.findMany({
         where: {
           wallet: { userId },
@@ -8763,11 +8764,11 @@ export async function getPaymentHistoryData(month: number, year: number) {
           { dueDate: "asc" },
           { date: "asc" },
         ],
-      }).catch(() => []),
+      }).catch(histCatch("q6")),
       (prisma as any).invoicePayment?.findMany
         ? (prisma as any).invoicePayment.findMany({
             where: { wallet: { userId }, month: prevMonth, year: prevYear },
-          }).catch(() => [])
+          }).catch(histCatch("q7"))
         : Promise.resolve([]),
       prisma.transaction.findMany({
         where: {
@@ -8804,7 +8805,7 @@ export async function getPaymentHistoryData(month: number, year: number) {
           ],
         },
         select: { amount: true },
-      }).catch(() => []),
+      }).catch(histCatch("q8")),
     ]);
 
     const wallets = Array.isArray(walletsRaw) ? walletsRaw : [];
