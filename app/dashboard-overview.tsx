@@ -329,7 +329,7 @@ export function DashboardOverview() {
 
   const today = new Date();
 
-  const upcomingBills: any[] = data.upcomingBills ?? data.cards
+  const upcomingBills: any[] = data?.upcomingBills ?? (data?.cards || [])
     .filter((c: any) => c.walletType === "CREDIT_CARD" && c.faturaAtual > 0 && !c.isPaid)
     .map((c: any) => ({
       id: c.id,
@@ -529,7 +529,7 @@ export function DashboardOverview() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {data.cards.map((card: any) => {
+          {(data?.cards || []).map((card: any) => {
             const isCredit = card.walletType === "CREDIT_CARD";
             const isTicket = card.walletType === "TICKET";
             const isBank = !isCredit && !isTicket;
@@ -639,7 +639,7 @@ export function DashboardOverview() {
 
             <div className="w-full h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.monthlyHistory} margin={{ top: 15, right: 25, left: 15, bottom: 15 }}>
+                <AreaChart data={data?.monthlyHistory || []} margin={{ top: 15, right: 25, left: 15, bottom: 15 }}>
                   <defs>
                     <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
@@ -861,7 +861,7 @@ export function DashboardOverview() {
 
           {/* BLOCO 2: Gastos por Meio de Pagamento */}
           <PaymentMethodChart
-            data={data.paymentMethodBreakdown}
+            data={data?.paymentMethodBreakdown || []}
             periodLabel={`Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
           />
 
@@ -877,11 +877,11 @@ export function DashboardOverview() {
               </Link>
             </div>
 
-            {data.goals.length === 0 ? (
+            {(data?.goals || []).length === 0 ? (
               <p className="py-6 text-xs font-medium text-slate-500 dark:text-slate-400 text-center">Nenhuma meta cadastrada.</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {data.goals.slice(0, 3).map((goal: any) => (
+                {(data?.goals || []).slice(0, 3).map((goal: any) => (
                   <div key={goal.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-black text-slate-900 dark:text-white">{goal.title}</span>
