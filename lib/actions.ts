@@ -9593,18 +9593,19 @@ export async function getMonthlyCommitmentsAction(
         t.paymentMethod === "BOLETO";
       if (!isComm) return false;
 
+      const due = t.dueDate || t.date;
+      if (!due) return false;
+      const d = new Date(due);
+
       if (numMonth) {
-        if (t.competenceMonth === numMonth && t.competenceYear === year) return true;
-        const due = t.dueDate || t.date;
-        if (!due) return false;
-        const d = new Date(due);
-        return d >= from && d <= to;
+        // Filtragem estrita pelo vencimento (dueDate) dentro do mês e ano selecionados
+        const dMonth = d.getUTCMonth() + 1;
+        const dYear = d.getUTCFullYear();
+        return dMonth === numMonth && dYear === year;
       } else {
-        if (t.competenceYear === year) return true;
-        const due = t.dueDate || t.date;
-        if (!due) return false;
-        const d = new Date(due);
-        return d >= from && d <= to;
+        // Visão anual: estritamente dentro do ano selecionado
+        const dYear = d.getUTCFullYear();
+        return dYear === year;
       }
     });
   } else {
@@ -9697,24 +9698,13 @@ export async function getMonthlyCommitmentsAction(
         AND: [
           {
             OR: [
-              ...(numMonth
-                ? [
-                    { competenceMonth: numMonth, competenceYear: year },
-                    {
-                      AND: [
-                        { competenceMonth: null },
-                        { dueDate: { gte: from, lte: to } },
-                      ],
-                    },
-                    {
-                      AND: [
-                        { competenceMonth: null },
-                        { dueDate: null },
-                        { date: { gte: from, lte: to } },
-                      ],
-                    },
-                  ]
-                : [{ competenceYear: year }]),
+              { dueDate: { gte: from, lte: to } },
+              {
+                AND: [
+                  { dueDate: null },
+                  { date: { gte: from, lte: to } },
+                ],
+              },
             ],
           },
         ],

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight, ChevronLeft,
@@ -735,7 +735,36 @@ export default function DespesasPage() {
     }
   };
 
-  const filteredCommitments = (commitmentsData?.items || []).filter((item: any) => {
+  // Compromissos filtrados estritamente pelo mês e ano ativos (pelo vencimento)
+  const currentMonthCommitments = useMemo(() => {
+    return (commitmentsData?.items || []).filter((item: any) => {
+      if (activeMonth) {
+        const rawDue = item.dueDateInput || (item.dueDateRaw ? item.dueDateRaw.split("T")[0] : "");
+        if (rawDue && rawDue.includes("-")) {
+          const [y, m] = rawDue.split("-").map(Number);
+          if (y !== activeYear || m !== activeMonth) return false;
+        }
+      }
+      return true;
+    });
+  }, [commitmentsData?.items, activeMonth, activeYear]);
+
+  // Totais calculados exclusivamente sobre os registros do mês ativo
+  const currentMonthTotals = useMemo(() => {
+    const totalMes = currentMonthCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+    const totalPendente = currentMonthCommitments.filter((i: any) => i.status === "PENDING").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+    const totalPago = currentMonthCommitments.filter((i: any) => i.status === "COMPLETED").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+    return {
+      totalMes,
+      totalPendente,
+      totalPago,
+      totalCount: currentMonthCommitments.length,
+      pendingCount: currentMonthCommitments.filter((i: any) => i.status === "PENDING").length,
+      paidCount: currentMonthCommitments.filter((i: any) => i.status === "COMPLETED").length,
+    };
+  }, [currentMonthCommitments]);
+
+  const filteredCommitments = currentMonthCommitments.filter((item: any) => {
     if (commitmentStatusFilter === "PENDENTE" && item.status !== "PENDING") return false;
     if (commitmentStatusFilter === "PAGO" && item.status !== "COMPLETED") return false;
     if (commitmentSearch.trim()) {
@@ -750,7 +779,7 @@ export default function DespesasPage() {
 
   const pendingCommitments = filteredCommitments.filter((c: any) => c.status === "PENDING");
   const allPendingSelected = pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id));
-  const selectedCommitmentItems = (commitmentsData?.items || []).filter((i: any) => selectedCommitmentIds.includes(i.id));
+  const selectedCommitmentItems = currentMonthCommitments.filter((i: any) => selectedCommitmentIds.includes(i.id));
   const selectedTotalAmount = selectedCommitmentItems.reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
 
   const handleMarkBillPaid = async (billId: string) => {
@@ -1387,12 +1416,12 @@ export default function DespesasPage() {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {brl(commitmentsData.totals.totalMes)}
+                  {brl(currentMonthTotals.totalMes)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>Soma de todos os boletos e assinaturas do mês</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{commitmentsData.items.length} itens</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">{currentMonthTotals.totalCount} itens</span>
               </div>
             </div>
 
@@ -1409,13 +1438,13 @@ export default function DespesasPage() {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-                  {brl(commitmentsData.totals.totalPendente)}
+                  {brl(currentMonthTotals.totalPendente)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>O que ainda precisa ser quitado no período</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400">
-                  {commitmentsData.items.filter(i => i.status === "PENDING").length} pendentes
+                  {currentMonthTotals.pendingCount} pendentes
                 </span>
               </div>
             </div>
@@ -1433,13 +1462,13 @@ export default function DespesasPage() {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  {brl(commitmentsData.totals.totalPago)}
+                  {brl(currentMonthTotals.totalPago)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
                 <span>O montante que já recebeu baixa</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {commitmentsData.items.filter(i => i.status === "COMPLETED").length} liquidados
+                  {currentMonthTotals.paidCount} liquidados
                 </span>
               </div>
             </div>
@@ -1458,7 +1487,7 @@ export default function DespesasPage() {
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  Todos ({commitmentsData.items.length})
+                  Todos ({currentMonthTotals.totalCount})
                 </button>
                 <button
                   onClick={() => setCommitmentStatusFilter("PENDENTE")}
@@ -1469,7 +1498,7 @@ export default function DespesasPage() {
                   }`}
                 >
                   <Clock className="w-3 h-3" />
-                  A Pagar ({commitmentsData.items.filter(i => i.status === "PENDING").length})
+                  A Pagar ({currentMonthTotals.pendingCount})
                 </button>
                 <button
                   onClick={() => setCommitmentStatusFilter("PAGO")}
@@ -1480,7 +1509,7 @@ export default function DespesasPage() {
                   }`}
                 >
                   <CheckCircle2 className="w-3 h-3" />
-                  Pagos ({commitmentsData.items.filter(i => i.status === "COMPLETED").length})
+                  Pagos ({currentMonthTotals.paidCount})
                 </button>
               </div>
 
