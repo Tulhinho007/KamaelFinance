@@ -9,7 +9,7 @@ import { GoalCelebrationModal } from "@/components/goal-celebration-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { EmergencyFundCalculator } from "@/components/emergency-fund-calculator";
 import {
-  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw, ShieldCheck
+  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw, ShieldCheck, GraduationCap, Laptop, Heart, ShoppingBag, MoreHorizontal
 } from "lucide-react";
 
 import { parseCurrencyInput } from "@/lib/constants";
@@ -42,7 +42,7 @@ type Goal = {
   acumulado: number;
   objetivo: number;
   pct: number;
-  iconName: "Plane" | "Car" | "Home" | "Target";
+  iconName: string;
   tipo?: "VISUAL" | "COFRINHO";
   isRealSaving?: boolean;
   status?: string;
@@ -56,24 +56,71 @@ type Goal = {
   history: GoalHistoryEntry[];
 };
 
-const ICON_MAP = {
-  Plane: Plane,
-  Car: Car,
-  Home: Home,
-  Target: Target
+export const AVAILABLE_ICONS = [
+  { name: "Target", label: "Objetivo", icon: Target },
+  { name: "TrendingUp", label: "Investimentos", icon: TrendingUp },
+  { name: "ShieldCheck", label: "Reserva", icon: ShieldCheck },
+  { name: "Plane", label: "Viagem", icon: Plane },
+  { name: "Car", label: "Veículo", icon: Car },
+  { name: "Home", label: "Imóvel", icon: Home },
+  { name: "GraduationCap", label: "Educação", icon: GraduationCap },
+  { name: "Laptop", label: "Tecnologia", icon: Laptop },
+  { name: "Heart", label: "Saúde", icon: Heart },
+  { name: "Sparkles", label: "Sonhos", icon: Sparkles },
+  { name: "ShoppingBag", label: "Compras", icon: ShoppingBag },
+  { name: "MoreHorizontal", label: "Outros", icon: MoreHorizontal },
+];
+
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Target,
+  TrendingUp,
+  ShieldCheck,
+  Plane,
+  Car,
+  Home,
+  GraduationCap,
+  Laptop,
+  Heart,
+  Sparkles,
+  ShoppingBag,
+  MoreHorizontal,
 };
 
 // Helper de estilos circulares translúcidos por tipo de ícone/meta
 function getIconBadgeStyle(iconName: string, title: string) {
   const t = title.toLowerCase();
-  if (iconName === "Plane" || t.includes("viagem") || t.includes("voo") || t.includes("férias")) {
-    return "bg-sky-500/20 text-sky-300 border-sky-400/40 shadow-[0_0_12px_rgba(56,189,248,0.2)]";
+  if (iconName === "TrendingUp" || t.includes("invest") || t.includes("ação") || t.includes("fundo") || t.includes("cdb")) {
+    return "bg-emerald-500/20 text-emerald-400 border-emerald-400/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]";
   }
-  if (iconName === "Home" || t.includes("casa") || t.includes("reforma") || t.includes("ap")) {
-    return "bg-emerald-500/20 text-emerald-300 border-emerald-400/40 shadow-[0_0_12px_rgba(52,211,153,0.2)]";
+  if (iconName === "ShieldCheck" || t.includes("reserva") || t.includes("emergên") || t.includes("emergenc")) {
+    return "bg-amber-500/20 text-amber-400 border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.25)]";
+  }
+  if (iconName === "Plane" || t.includes("viagem") || t.includes("voo") || t.includes("férias")) {
+    return "bg-sky-500/20 text-sky-400 border-sky-400/40 shadow-[0_0_12px_rgba(56,189,248,0.25)]";
+  }
+  if (iconName === "Home" || t.includes("casa") || t.includes("reforma") || t.includes("ap") || t.includes("imóvel")) {
+    return "bg-teal-500/20 text-teal-400 border-teal-400/40 shadow-[0_0_12px_rgba(20,184,166,0.25)]";
   }
   if (iconName === "Car" || t.includes("carro") || t.includes("moto") || t.includes("veículo")) {
-    return "bg-amber-500/20 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.2)]";
+    return "bg-orange-500/20 text-orange-400 border-orange-400/40 shadow-[0_0_12px_rgba(249,115,22,0.25)]";
+  }
+  if (iconName === "GraduationCap" || t.includes("estudo") || t.includes("curso") || t.includes("faculdade") || t.includes("livro")) {
+    return "bg-indigo-500/20 text-indigo-400 border-indigo-400/40 shadow-[0_0_12px_rgba(99,102,241,0.25)]";
+  }
+  if (iconName === "Laptop" || t.includes("computador") || t.includes("notebook") || t.includes("tech") || t.includes("celular")) {
+    return "bg-blue-500/20 text-blue-400 border-blue-400/40 shadow-[0_0_12px_rgba(59,130,246,0.25)]";
+  }
+  if (iconName === "Heart" || t.includes("saúde") || t.includes("saude") || t.includes("família") || t.includes("vida")) {
+    return "bg-rose-500/20 text-rose-400 border-rose-400/40 shadow-[0_0_12px_rgba(244,63,94,0.25)]";
+  }
+  if (iconName === "Sparkles" || t.includes("sonho") || t.includes("conquista")) {
+    return "bg-fuchsia-500/20 text-fuchsia-400 border-fuchsia-400/40 shadow-[0_0_12px_rgba(217,70,239,0.25)]";
+  }
+  if (iconName === "ShoppingBag" || t.includes("compra") || t.includes("shopping")) {
+    return "bg-pink-500/20 text-pink-400 border-pink-400/40 shadow-[0_0_12px_rgba(236,72,153,0.25)]";
+  }
+  if (iconName === "MoreHorizontal" || iconName === "Outros") {
+    return "bg-slate-500/20 text-slate-300 border-slate-400/40 shadow-[0_0_12px_rgba(148,163,184,0.25)]";
   }
   return "bg-purple-500/20 text-purple-300 border-purple-400/40 shadow-[0_0_12px_rgba(192,132,252,0.2)]";
 }
@@ -158,7 +205,7 @@ export default function MetasPage() {
   const [formDataFim, setFormDataFim] = useState("");
   const [formObjetivo, setFormObjetivo] = useState<string | number>("");
   const [formAcumuladoInicial, setFormAcumuladoInicial] = useState<string | number>("");
-  const [formIconName, setFormIconName] = useState<"Plane" | "Car" | "Home" | "Target">("Target");
+  const [formIconName, setFormIconName] = useState<string>("Target");
   const [formWalletId, setFormWalletId] = useState("");
   const [formTipo, setFormTipo] = useState<"VISUAL" | "COFRINHO">("VISUAL");
   const [formAporteVal, setFormAporteVal] = useState<string | number>("");
@@ -268,7 +315,7 @@ export default function MetasPage() {
     setFormDataFim(targetDateStr);
     setFormObjetivo(data.targetAmount);
     setFormAcumuladoInicial(data.currentAmount > 0 ? data.currentAmount : "");
-    setFormIconName("Target");
+    setFormIconName("ShieldCheck");
     setFormWalletId("");
     setFormTipo("COFRINHO");
     setModalType("create");
@@ -1082,29 +1129,39 @@ export default function MetasPage() {
                   </div>
                 )}
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">Selecionar Ícone</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { name: "Plane", icon: Plane },
-                      { name: "Car", icon: Car },
-                      { name: "Home", icon: Home },
-                      { name: "Target", icon: Target }
-                    ].map(ico => {
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
+                      Selecionar Ícone
+                    </label>
+                    {AVAILABLE_ICONS.find(i => i.name === formIconName) && (
+                      <span className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/70 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60 shadow-xs">
+                        {AVAILABLE_ICONS.find(i => i.name === formIconName)?.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 pt-0.5">
+                    {AVAILABLE_ICONS.map(ico => {
                       const SelectedIcon = ico.icon;
                       const isSelected = formIconName === ico.name;
                       return (
                         <button
                           key={ico.name}
                           type="button"
-                          onClick={() => setFormIconName(ico.name as any)}
-                          className={`p-3 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+                          onClick={() => setFormIconName(ico.name)}
+                          title={ico.label}
+                          className={`group p-2 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
                             isSelected 
-                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" 
-                              : "bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                              ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-[1.02] ring-2 ring-indigo-400 dark:ring-indigo-300" 
+                              : "bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
                           }`}
                         >
-                          <SelectedIcon className="w-5 h-5" />
+                          <SelectedIcon className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110" />
+                          <span className={`text-[10px] font-bold tracking-tight text-center truncate max-w-full leading-none ${
+                            isSelected ? "text-white" : "text-slate-600 dark:text-slate-400"
+                          }`}>
+                            {ico.label}
+                          </span>
                         </button>
                       );
                     })}

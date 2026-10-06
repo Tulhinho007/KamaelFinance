@@ -998,7 +998,7 @@ export async function getGoals(customUserId?: string, preloadedGoals?: any[]) {
           acumulado,
           objetivo,
           pct,
-          iconName: g.iconName as "Plane" | "Car" | "Home" | "Target",
+          iconName: (g.iconName || "Target") as string,
           tipo: ((g.tipo as "VISUAL" | "COFRINHO") || (g.isRealSaving ? "COFRINHO" : "VISUAL")),
           isRealSaving: !!(g.isRealSaving || g.tipo === "COFRINHO"),
           walletId: g.walletId || null,
