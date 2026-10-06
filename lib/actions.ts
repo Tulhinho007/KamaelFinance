@@ -9514,86 +9514,9 @@ function safeRevalidatePath(path: string) {
 }
 
 async function ensureRecurringCommitmentsForMonth(userId: string, targetMonth: number, targetYear: number) {
-  try {
-    const from = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
-    const to = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
-    const daysInMonth = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
-
-    // ⚡ Busca templates E ocorrências existentes em paralelo (2 queries em vez de N+1)
-    const [templates, existingThisMonth] = await Promise.all([
-      prisma.transaction.findMany({
-        where: { wallet: { userId }, type: "EXPENSE", deletedAt: null, isRecurring: true },
-        select: {
-          id: true, walletId: true, description: true, amount: true,
-          recurringDay: true, installmentGroupId: true,
-          paymentMethod: true, tags: true,
-        },
-      }),
-      prisma.transaction.findMany({
-        where: {
-          wallet: { userId },
-          deletedAt: null,
-          OR: [
-            { competenceMonth: targetMonth, competenceYear: targetYear },
-            { dueDate: { gte: from, lte: to } },
-          ],
-        },
-        select: { installmentGroupId: true },
-      }),
-    ]);
-
-    // Monta um Set com os groupKeys que JÁ existem para o mês — sem nova query ao banco
-    const existingGroupKeys = new Set(
-      existingThisMonth.map((t) => t.installmentGroupId).filter(Boolean)
-    );
-
-    const seenGroups = new Set<string>();
-    const toCreate: Parameters<typeof prisma.transaction.create>[0]["data"][] = [];
-
-    for (const t of templates) {
-      const groupKey = t.installmentGroupId || t.id;
-      if (seenGroups.has(groupKey) || existingGroupKeys.has(groupKey)) continue;
-      seenGroups.add(groupKey);
-
-      const day = Math.min(Math.max(1, t.recurringDay || 10), daysInMonth);
-      const due = new Date(Date.UTC(targetYear, targetMonth - 1, day, 12, 0, 0));
-
-      let cleanDesc = t.description;
-      if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
-      if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
-
-      const cleanTags = (t.tags || "")
-        .replace(/#pago/g, "")
-        .replace(/FORMA:[A-Z_]+/g, "")
-        .replace(/origDesc:[^ ]+/g, "")
-        .trim();
-
-      toCreate.push({
-        walletId: t.walletId,
-        description: cleanDesc,
-        amount: t.amount,
-        type: "EXPENSE",
-        date: due,
-        dueDate: due,
-        competenceMonth: targetMonth,
-        competenceYear: targetYear,
-        status: "PENDING",
-        source: "COMMITMENT",
-        isRecurring: true,
-        recurringDay: day,
-        installmentGroupId: groupKey,
-        paymentMethod: t.paymentMethod || "BOLETO",
-        tags: cleanTags ? cleanTags + " #mensal" : "#compromisso #mensal",
-      });
-    }
-
-    // ⚡ Um único createMany em vez de N creates sequenciais
-    if (toCreate.length > 0) {
-      await (prisma.transaction as any).createMany({ data: toCreate, skipDuplicates: true });
-    }
-  } catch (err) {
-    console.error("Erro ao garantir compromissos recorrentes:", err);
-  }
+  // Desativado: criação automática causava duplicações indesejadas no banco e alteração de datas ao editar.
+  // A replicação deve ser acionada sob demanda ("Replicar p/ Próximo Mês").
+  return;
 }
 
 
@@ -9934,7 +9857,7 @@ export async function getMonthlyCommitmentsAction(
       competenceYear: cYear,
       dueDateFormatted: dueFormatted,
       dueDateRaw: d.toISOString(),
-      dueDateInput: d.toISOString().split("T")[0],
+      dueDateInput: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`,
       dueBadge,
       tipo,
       tipoLabel,
@@ -10282,15 +10205,15 @@ export async function updateCommitmentAction(input: {
 
   const due = parseInputDate(input.dueDate);
   const isMensal = input.recorrencia === "MENSAL";
-  const compMonth = input.competenceMonth || tx.competenceMonth || (due.getUTCMonth() + 1);
-  const compYear = input.competenceYear || tx.competenceYear || due.getUTCFullYear();
+  const dueMonth = due.getUTCMonth() + 1;
+  const dueYear = due.getUTCFullYear();
+  const compMonth = input.competenceMonth || dueMonth;
+  const compYear = input.competenceYear || dueYear;
   const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
   const isPaid = tx.status === "COMPLETED" || tx.status === "PAID";
-  let newDesc = input.description.trim();
-  if (isPaid && !newDesc.startsWith("Pagamento Boleto: ")) {
-    newDesc = "Pagamento Boleto: " + newDesc;
-  }
+  // Mantém estritamente a descrição digitada pelo usuário, sem inventar prefixos nem nomes novos
+  const newDesc = input.description.trim();
 
   const tags = "#compromisso #" + input.tipo.toLowerCase() + " #" + input.recorrencia.toLowerCase() + (isPaid ? " #pago" : "");
 
@@ -10306,6 +10229,8 @@ export async function updateCommitmentAction(input: {
       competenceDate: compDate,
       isRecurring: isMensal,
       recurringDay: due.getUTCDate(),
+      installmentGroupId: tx.installmentGroupId || tx.id,
+      paymentMethod: input.tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
       tags,
     },
   });
