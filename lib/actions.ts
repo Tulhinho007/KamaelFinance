@@ -10998,17 +10998,54 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
 
   const now = new Date();
   const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+  const to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+  const walletIds = wallets.map((w) => w.id);
 
-  // 1. Contas Bancárias & Saldos Reais
+  // 1. Transações do ano nas contas correntes/débito para apuração dos subtotais da conta
+  const allYearAccountTxs = walletIds.length > 0
+    ? await prisma.transaction.findMany({
+        where: {
+          walletId: { in: walletIds },
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          OR: [
+            { competenceYear: year },
+            { date: { gte: from, lte: to } },
+            { paymentDate: { gte: from, lte: to } },
+            { competenceDate: { gte: from, lte: to } },
+          ],
+        },
+        include: {
+          category: { select: { id: true, name: true, color: true } },
+          wallet: { select: { id: true, title: true, bankName: true } },
+        },
+        orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
+      })
+    : [];
+
+  // Contas Bancárias & Saldos Reais com subtotais anuais da conta específica
   const accounts = await Promise.all(
     wallets.map(async (w) => {
       const bInfo = await calculateAccountBalance(w.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+      const accountTxs = allYearAccountTxs.filter((t) => t.walletId === w.id);
+      const entradasAno = accountTxs
+        .filter((t) => t.type === "INCOME")
+        .reduce((s, t) => s + Number(t.amount || 0), 0);
+      const saidasAno = accountTxs
+        .filter((t) => t.type === "EXPENSE")
+        .reduce((s, t) => s + Number(t.amount || 0), 0);
+      const balancoAno = entradasAno - saidasAno;
+
       return {
         id: w.id,
         title: w.title,
         bankName: w.bankName || w.title,
         walletType: w.walletType,
         saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+        entradasAno,
+        saidasAno,
+        balancoAno,
+        movimentacoesCount: accountTxs.length,
       };
     })
   );
@@ -11016,7 +11053,6 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
   const totalRealBalance = accounts.reduce((s, a) => s + (a.saldoAtual || 0), 0);
 
   // 2. Extrato da Conta: Estritamente movimentações que já aconteceram (status != PENDING, data <= hoje)
-  const walletIds = wallets.map((w) => w.id);
   const realizedTxs = walletIds.length > 0
     ? await prisma.transaction.findMany({
         where: {
@@ -11050,7 +11086,40 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
     tags: (t as any).tags || undefined,
   }));
 
-  // 3. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
+  // 3. Receitas do Ano / Receitas Previstas no período
+  const allYearIncomes = await prisma.transaction.findMany({
+    where: {
+      wallet: {
+        userId,
+        walletType: { notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "CREDIT_CARD"] },
+      },
+      type: "INCOME",
+      deletedAt: null,
+      source: { not: "RECURRING_PROJECTION" },
+      OR: [
+        { competenceYear: year },
+        { date: { gte: from, lte: to } },
+        { paymentDate: { gte: from, lte: to } },
+        { competenceDate: { gte: from, lte: to } },
+      ],
+    },
+    include: {
+      category: { select: { id: true, name: true, color: true } },
+      wallet: { select: { id: true, title: true, bankName: true } },
+    },
+  });
+
+  const totalRealizedIncome = allYearIncomes
+    .filter((t) => t.status === "COMPLETED" || t.status === "PAID")
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  const totalPendingIncome = allYearIncomes
+    .filter((t) => t.status !== "COMPLETED" && t.status !== "PAID")
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  const totalReceitasAno = totalRealizedIncome + totalPendingIncome;
+
+  // 4. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
   const commitmentsResult = await getMonthlyCommitmentsAction("ALL", year);
   const pendingCommitments = (commitmentsResult.items || []).filter(
     (item: any) => item.status === "PENDING"
@@ -11061,7 +11130,11 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
     0
   );
 
-  const saldoProjetado = totalRealBalance - totalPendentesAno;
+  // 5. Ajuste no Saldo Projetado:
+  // Saldo Projetado = Saldo Real + Receitas Previstas (a receber / ano) - Despesas Pendentes (a pagar)
+  // Caso a aplicação registre o fluxo acumulado anual, soma as entradas totais do período
+  const receitasParaProjecao = totalPendingIncome > 0 ? totalPendingIncome : totalReceitasAno;
+  const saldoProjetado = totalRealBalance + receitasParaProjecao - totalPendentesAno;
 
   return {
     accounts,
@@ -11071,6 +11144,10 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
     cartoesCredito: commitmentsResult.cartoesCredito || [],
     totals: {
       totalRealBalance,
+      totalReceitasAno,
+      totalRealizedIncome,
+      totalPendingIncome,
+      receitasParaProjecao,
       totalPendentesAno,
       saldoProjetado,
       pendingCount: pendingCommitments.length,

@@ -72,6 +72,10 @@ export default function GestaoCaixaContasPage() {
   const [cartoesCredito, setCartoesCredito] = useState<any[]>([]);
   const [totals, setTotals] = useState({
     totalRealBalance: 0,
+    totalReceitasAno: 0,
+    totalRealizedIncome: 0,
+    totalPendingIncome: 0,
+    receitasParaProjecao: 0,
     totalPendentesAno: 0,
     saldoProjetado: 0,
     pendingCount: 0,
@@ -544,8 +548,8 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* ── 1. Visão Geral Superior: 3 Cards Consolidados ────────────────── */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+      {/* ── 1. Visão Geral Superior: 4 Cards Consolidados (Grid de 4 colunas desktop) ────────────────── */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Card 1: Saldo Real em Conta */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div>
@@ -562,18 +566,40 @@ export default function GestaoCaixaContasPage() {
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Saldo líquido atualizado disponível</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">{accounts.length} contas ativas</span>
+            <span>Saldo líquido atualizado</span>
+            <span className="font-bold text-slate-700 dark:text-slate-300">{accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}</span>
           </div>
         </div>
 
-        {/* Card 2: Compromissos Pendentes (Ano) */}
+        {/* Card 2: Receitas do Período (Ano) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-emerald-200/70 dark:border-emerald-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
+                Receitas do Período ({selectedYear})
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
+                <TrendingUp className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums">
+              {brl(totals.totalReceitasAno)}
+            </div>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+            <span>Realizadas: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{brl(totals.totalRealizedIncome)}</strong></span>
+            <span>A receber: <strong className="text-slate-700 dark:text-slate-300 font-bold">{brl(totals.totalPendingIncome)}</strong></span>
+          </div>
+        </div>
+
+        {/* Card 3: Despesas / Compromissos Pendentes (Ano) */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-amber-200/70 dark:border-amber-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
-                Compromissos Pendentes (Ano)
+                Despesas Pendentes (Ano)
               </span>
               <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
                 <Clock className="w-3.5 h-3.5" />
@@ -584,37 +610,57 @@ export default function GestaoCaixaContasPage() {
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Boletos & contas com status pendente</span>
+            <span>Boletos & contas a pagar</span>
             <span className="font-bold text-amber-600 dark:text-amber-400">
-              {totals.pendingCount} {totals.pendingCount === 1 ? "conta a pagar" : "contas a pagar"}
+              {totals.pendingCount} {totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}
             </span>
           </div>
         </div>
 
-        {/* Card 3: Saldo Projetado */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-emerald-200/70 dark:border-emerald-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+        {/* Card 4: Saldo Projetado */}
+        <div className={`p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border shadow-xs relative overflow-hidden flex flex-col justify-between ${
+          totals.saldoProjetado >= 0
+            ? "border-emerald-200/70 dark:border-emerald-900/50"
+            : "border-rose-200/70 dark:border-rose-900/50"
+        }`}>
+          <div className={`absolute top-0 left-0 right-0 h-1 ${totals.saldoProjetado >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
+              <span className={`text-[10px] font-black uppercase tracking-wider ${
+                totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+              }`}>
                 Saldo Projetado
               </span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
-                <CheckCircle2 className="w-3.5 h-3.5" />
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${
+                totals.saldoProjetado >= 0
+                  ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50"
+                  : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200/50 dark:border-rose-800/50"
+              }`}>
+                {totals.saldoProjetado >= 0 ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5" />
+                )}
               </div>
             </div>
-            <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
+            <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+              totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"
+            }`}>
               {brl(totals.saldoProjetado)}
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Saldo Real − Compromissos Pendentes</span>
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">Livre pós-obrigações</span>
+            <span title="Saldo Real + Receitas Previstas - Compromissos Pendentes">
+              Saldo Real + Receitas Previstas − Compromissos Pendentes
+            </span>
+            <span className={`font-bold ${totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+              {totals.saldoProjetado >= 0 ? "Livre pós-obrigações" : "Déficit previsto"}
+            </span>
           </div>
         </div>
       </section>
 
-      {/* ── Mini-Cards de Contas Correntes Cadastradas ───────────────────── */}
+      {/* ── Mini-Cards de Contas Bancárias Cadastradas ───────────────────── */}
       {accounts.length > 0 && (
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
@@ -628,33 +674,83 @@ export default function GestaoCaixaContasPage() {
               + Adicionar Conta
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {accounts.map((acc) => (
-              <div
-                key={acc.id}
-                onClick={() => setExtratoAccountFilter(extratoAccountFilter === acc.id ? "ALL" : acc.id)}
-                className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
-                  extratoAccountFilter === acc.id
-                    ? "bg-indigo-50/70 dark:bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/20"
-                    : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
-                    {acc.bankName}
-                  </span>
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase">
-                    {acc.walletType === "CONTA_CORRENTE" ? "CC" : "Conta"}
-                  </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {accounts.map((acc) => {
+              const entradas = Number(acc.entradasAno || 0);
+              const saidas = Number(acc.saidasAno || 0);
+              const balanco = Number(acc.balancoAno ?? (entradas - saidas));
+              const isSelected = extratoAccountFilter === acc.id;
+
+              return (
+                <div
+                  key={acc.id}
+                  onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : acc.id)}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col sm:flex-row items-stretch justify-between gap-4 ${
+                    isSelected
+                      ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
+                      : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                  }`}
+                >
+                  {/* Lado Esquerdo: Identificação e Saldo Atual */}
+                  <div className="flex-1 flex flex-col justify-between min-w-0">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
+                            <Building2 className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                            {acc.bankName}
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase shrink-0">
+                          {acc.walletType === "CONTA_CORRENTE" ? "CC" : "Conta"}
+                        </span>
+                      </div>
+                      <div className="mt-2.5">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                          Saldo Real em Conta
+                        </span>
+                        <p className={`text-lg sm:text-xl font-black tabular-nums ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
+                          {brl(acc.saldoAtual)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium mt-2 block">
+                      {isSelected ? "✓ Filtrando extrato" : "Clique p/ filtrar extrato"}
+                    </span>
+                  </div>
+
+                  {/* Lado Direito: Subtotais Anuais da Conta Específica */}
+                  <div className="sm:w-60 shrink-0 pt-3 sm:pt-0 sm:pl-4 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 flex flex-col justify-center gap-1.5 text-xs">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-500" /> Entradas acumuladas:
+                      </span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                        +{brl(entradas)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-rose-500" /> Saídas acumuladas:
+                      </span>
+                      <span className="font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+                        -{brl(saidas)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-semibold">
+                      <span className="text-slate-600 dark:text-slate-300">
+                        Balanço da conta:
+                      </span>
+                      <span className={`font-black tabular-nums ${balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        {balanco >= 0 ? `+${brl(balanco)}` : `-${brl(Math.abs(balanco))}`}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <p className="mt-1.5 text-base font-black text-slate-900 dark:text-white tabular-nums">
-                  {brl(acc.saldoAtual)}
-                </p>
-                <span className="text-[10px] text-slate-400 mt-1 block">
-                  {extratoAccountFilter === acc.id ? "✓ Filtrando extrato" : "Clique p/ filtrar extrato"}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
