@@ -24,6 +24,7 @@ import {
   getRadarExpensesAction,
   RadarOverviewData
 } from "@/lib/radar-actions";
+import { MonthlyClosingView } from "@/components/monthly-closing-view";
 
 const brl = (v: number) =>
   (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -32,6 +33,7 @@ const PRESET_LIMITS = [20, 30, 50, 80, 100, 150];
 
 export default function RadarGastosPage() {
   const { selectedMonth, selectedYear } = usePeriod();
+  const [activeTab, setActiveTab] = useState<"closing" | "micro">("closing");
   const [maxLimit, setMaxLimit] = useState<number>(50);
   const [customInput, setCustomInput] = useState<string>("50");
   const [loading, setLoading] = useState<boolean>(true);
@@ -57,8 +59,10 @@ export default function RadarGastosPage() {
   );
 
   useEffect(() => {
-    fetchRadarData(maxLimit);
-  }, [fetchRadarData, maxLimit]);
+    if (activeTab === "micro") {
+      fetchRadarData(maxLimit);
+    }
+  }, [fetchRadarData, maxLimit, activeTab]);
 
   const handleSelectPreset = (limit: number) => {
     setMaxLimit(limit);
@@ -148,11 +152,44 @@ export default function RadarGastosPage() {
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Cabeçalho Executivo de Período */}
       <PeriodHeader
-        title="Radar de Pequenos Gastos"
-        tagline="Descubra o impacto real dos pequenos gastos acumulados no seu orçamento."
+        title="Radar de Gastos & Fechamento Mensal"
+        tagline="Acompanhe o fechamento de gastos por modalidade (Crédito vs. Débito) e o impacto de compras no orçamento."
         badge="GESTÃO"
       />
 
+      {/* Abas Superiores */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 dark:border-slate-800 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveTab("closing")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === "closing"
+              ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
+              : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Fechamento por Modalidade (Crédito vs. Débito)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("micro")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+            activeTab === "micro"
+              ? "bg-indigo-600 text-white shadow-sm shadow-indigo-600/30"
+              : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          Microdespesas & Gastos Formiga
+        </button>
+      </div>
+
+      {activeTab === "closing" ? (
+        <MonthlyClosingView />
+      ) : (
+        <div className="space-y-6">
       {/* Bar de Controle & Parametrização do Limite */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xs transition-all duration-200">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -508,5 +545,7 @@ export default function RadarGastosPage() {
         </>
       )}
     </div>
-  );
+  )}
+</div>
+);
 }
