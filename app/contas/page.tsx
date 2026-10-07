@@ -28,6 +28,7 @@ import {
   MoreVertical,
   Zap,
   RotateCcw,
+  RotateCw,
   Sparkles,
   Layers,
   CreditCard,
@@ -45,6 +46,7 @@ import {
   updateCommitmentAction,
   deleteCommitmentAction,
   undoCommitmentPaymentAction,
+  duplicateCommitmentToNextMonthAction,
 } from "@/lib/actions";
 
 const brl = (v: number) =>
@@ -232,6 +234,25 @@ export default function GestaoCaixaContasPage() {
       .filter((it) => selectedCommitmentIds.includes(it.id))
       .reduce((sum, it) => sum + Number(it.amount || 0), 0);
   }, [pendingCommitments, selectedCommitmentIds]);
+
+  // Handlers: Duplicar / Repetir no Mês Seguinte
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+
+  const handleDuplicateToNextMonth = async (item: any) => {
+    setDuplicatingId(item.id);
+    try {
+      const res = await duplicateCommitmentToNextMonthAction(item.id);
+      if (res.success) {
+        showAlert(`Compromisso duplicado com sucesso para ${res.formattedTarget}!`, { variant: "success" });
+        await loadData();
+      }
+    } catch (err: any) {
+      console.error("Erro ao duplicar compromisso:", err);
+      showAlert(err?.message || "Erro ao duplicar compromisso para o próximo mês.", { variant: "error" });
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
 
   // Handlers: Pagamento / Baixa de Compromisso
   const handleOpenBaixaModal = (item: any) => {
@@ -877,6 +898,18 @@ export default function GestaoCaixaContasPage() {
                                   >
                                     <Pencil className="w-3.5 h-3.5 text-slate-400" />
                                     <span>Editar</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={duplicatingId === item.id}
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      handleDuplicateToNextMonth(item);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>Repetir no próximo mês</span>
                                   </button>
                                   <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                                   <button

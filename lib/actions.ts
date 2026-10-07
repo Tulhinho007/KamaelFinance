@@ -11079,3 +11079,107 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
   };
 }
 
+export async function duplicateCommitmentToNextMonthAction(commitmentId: string) {
+  const userId = await getActiveUserId();
+
+  const orig = await prisma.transaction.findFirst({
+    where: {
+      id: commitmentId,
+      wallet: { userId },
+    },
+    include: {
+      wallet: true,
+      category: true,
+    },
+  });
+
+  if (!orig) {
+    throw new Error("Compromisso não encontrado.");
+  }
+
+  // 1. Data de Vencimento base
+  const origDue = orig.dueDate || orig.date;
+  const origDate = new Date(origDue);
+
+  const origYear = origDate.getUTCFullYear();
+  const origMonth = origDate.getUTCMonth() + 1; // 1-12
+  const origDay = origDate.getUTCDate();
+
+  // Avança exatamente 1 mês
+  let nextMonth = origMonth + 1;
+  let nextYear = origYear;
+  if (nextMonth > 12) {
+    nextMonth = 1;
+    nextYear += 1;
+  }
+
+  // Tratamento de final de mês (ex.: 31 de outubro -> 30 de novembro, 31 de janeiro -> 28/29 de fevereiro)
+  const maxDaysInNextMonth = new Date(Date.UTC(nextYear, nextMonth, 0)).getUTCDate();
+  const nextDay = Math.min(origDay, maxDaysInNextMonth);
+
+  const nextDueDate = new Date(Date.UTC(nextYear, nextMonth - 1, nextDay, 12, 0, 0));
+
+  // 2. Atualizar competência (+1 mês)
+  let nextCompMonth = (orig.competenceMonth || origMonth) + 1;
+  let nextCompYear = orig.competenceYear || origYear;
+  if (nextCompMonth > 12) {
+    nextCompMonth = 1;
+    nextCompYear += 1;
+  }
+  const nextCompDate = new Date(Date.UTC(nextCompYear, nextCompMonth - 1, 1, 12, 0, 0));
+
+  // 3. Limpeza de descrição (remover eventuais prefixos de liquidação)
+  let cleanDesc = orig.description || "Compromisso";
+  if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+  if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+  // 4. Tags
+  let tipoTag = "boleto";
+  if (orig.paymentMethod === "CREDITO" || orig.tags?.toLowerCase().includes("assinatura")) {
+    tipoTag = "assinatura";
+  }
+  const cleanTags = `#compromisso #${tipoTag} ${orig.isRecurring ? "#mensal" : "#unico"}`;
+
+  // 5. Salvar o novo registro com status SEMPRE PENDENTE
+  const duplicated = await prisma.transaction.create({
+    data: {
+      walletId: orig.walletId,
+      description: cleanDesc,
+      type: "EXPENSE",
+      amount: orig.amount,
+      date: nextDueDate,
+      dueDate: nextDueDate,
+      competenceMonth: nextCompMonth,
+      competenceYear: nextCompYear,
+      competenceDate: nextCompDate,
+      status: "PENDING",
+      source: "COMMITMENT",
+      isRecurring: orig.isRecurring,
+      recurringDay: nextDay,
+      paymentMethod: orig.paymentMethod || "BOLETO",
+      categoryId: orig.categoryId,
+      tags: cleanTags,
+    },
+  });
+
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/despesas");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/compromissos");
+
+  const monthNames = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+  const targetMonthName = monthNames[nextCompMonth - 1] || `Mês ${nextCompMonth}`;
+
+  return {
+    success: true,
+    duplicated,
+    targetMonthName,
+    targetYear: nextCompYear,
+    formattedTarget: `${targetMonthName}/${nextCompYear}`,
+  };
+}
+
+
