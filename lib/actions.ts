@@ -3564,6 +3564,8 @@ function mapMovementToPaymentMethod(movementType: string): PaymentMethod {
       return PaymentMethod.BOLETO;
     case "SAQUE":
       return PaymentMethod.DINHEIRO;
+    case "DEBITO_AUTOMATICO":
+      return PaymentMethod.DEBITO;
     default:
       return PaymentMethod.DEBITO;
   }
@@ -3575,11 +3577,11 @@ export async function createBankAccountMovementAction(input: {
   description: string;
   amount: number;
   dateStr: string;
-  movementType: "SALARIO" | "PIX_RECEBIDO" | "INJECAO" | "BOLETO" | "FATURA_CARTAO" | "PIX_ENVIADO" | "SAQUE" | string;
+  movementType: "SALARIO" | "PIX_RECEBIDO" | "INJECAO" | "BOLETO" | "FATURA_CARTAO" | "PIX_ENVIADO" | "SAQUE" | "DEBITO_AUTOMATICO" | string;
 }) {
   const userId = await getActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.walletId, userId }
+    where: { id: input.walletId, ...(userId ? { userId } : {}) }
   });
   if (!wallet) throw new Error("Conta Bancária não encontrada.");
 
@@ -3603,6 +3605,7 @@ export async function createBankAccountMovementAction(input: {
     FATURA_CARTAO: "Pagamento de Fatura",
     PIX_ENVIADO: "Pix / Transferência",
     SAQUE: "Saque em Dinheiro",
+    DEBITO_AUTOMATICO: "Débito Automático",
   };
 
   const categoryName = categoryMap[input.movementType] || (isEntrada ? "Entrada em Conta" : "Saída da Conta");
@@ -3629,6 +3632,7 @@ export async function createBankAccountMovementAction(input: {
       paymentDate: txDate,
       purchaseDate: txDate,
       competenceDate: txDate,
+      dueDate: txDate,
       competenceMonth: month,
       competenceYear: year,
       paymentMethod: mapMovementToPaymentMethod(input.movementType),
@@ -3663,7 +3667,7 @@ export async function recordBankAccountMovementAction(input: {
 }) {
   const userId = await getActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.contaId, userId }
+    where: { id: input.contaId, ...(userId ? { userId } : {}) }
   });
   if (!wallet) throw new Error("Conta Bancária não encontrada.");
 
@@ -3704,6 +3708,7 @@ export async function recordBankAccountMovementAction(input: {
       paymentDate: txDate,
       purchaseDate: txDate,
       competenceDate: txDate,
+      dueDate: txDate,
       competenceMonth: month,
       competenceYear: year,
       paymentMethod: isEntrada ? PaymentMethod.PIX : PaymentMethod.DEBITO,
@@ -3742,7 +3747,7 @@ export async function getBankAccountsListAction() {
   const userId = await getActiveUserId();
   const wallets = await prisma.wallet.findMany({
     where: {
-      userId,
+      ...(userId ? { userId } : {}),
       walletType: { in: ["CONTA_CORRENTE", "DEBITO", "CONTA"] }
     },
     orderBy: { title: "asc" }
@@ -3777,9 +3782,13 @@ export async function updateBankAccountMovementAction(input: {
     where: { id: input.transactionId },
     include: { wallet: true }
   });
-  if (!tx || tx.wallet.userId !== userId) throw new Error("Transação não encontrada.");
+  if (!tx) throw new Error("Transação não encontrada.");
+  if (userId && tx.wallet?.userId && tx.wallet.userId !== userId) {
+    throw new Error("Transação não encontrada ou sem permissão.");
+  }
 
   const amount = Math.abs(Number(input.amount));
+  if (isNaN(amount) || amount <= 0) throw new Error("Valor inválido.");
   const isEntrada = input.type === "ENTRADA";
 
   const dateParts = input.dateStr.split("-");
@@ -3796,6 +3805,7 @@ export async function updateBankAccountMovementAction(input: {
     FATURA_CARTAO: "Pagamento de Fatura",
     PIX_ENVIADO: "Pix / Transferência",
     SAQUE: "Saque em Dinheiro",
+    DEBITO_AUTOMATICO: "Débito Automático",
   };
 
   const categoryName = categoryMap[input.movementType] || (isEntrada ? "Entrada em Conta" : "Saída da Conta");
@@ -3810,7 +3820,27 @@ export async function updateBankAccountMovementAction(input: {
     });
   }
 
-  await prisma.transaction.update({
+  // Ajusta o saldo da carteira com base na diferença de valor / tipo
+  const oldAmount = Number(tx.amount || 0);
+  const oldIsIncome = tx.type === "INCOME";
+  const oldNet = oldIsIncome ? oldAmount : -oldAmount;
+  const newNet = isEntrada ? amount : -amount;
+  const balanceDiff = newNet - oldNet;
+
+  if (balanceDiff !== 0 && tx.walletId) {
+    await prisma.wallet.update({
+      where: { id: tx.walletId },
+      data: { currentBalance: { increment: balanceDiff } } as any
+    }).catch(() => {});
+  }
+
+  // Preserva marcadores de compromisso se a transação for vinculada a compromisso pago
+  const isComm = tx.source === "COMMITMENT" || (tx.tags && tx.tags.includes("#compromisso"));
+  const finalTags = isComm
+    ? (input.movementType.includes("#compromisso") ? input.movementType : `#compromisso #pago FORMA:${input.movementType} ${input.movementType}`)
+    : input.movementType;
+
+  const updatedTx = await prisma.transaction.update({
     where: { id: input.transactionId },
     data: {
       description: input.description.trim() || categoryName,
@@ -3821,19 +3851,41 @@ export async function updateBankAccountMovementAction(input: {
       paymentDate: txDate,
       purchaseDate: txDate,
       competenceDate: txDate,
+      dueDate: txDate,
       competenceMonth: month,
       competenceYear: year,
       paymentMethod: mapMovementToPaymentMethod(input.movementType),
-      tags: input.movementType,
+      tags: finalTags,
       status: "COMPLETED",
     }
   });
 
   revalidatePath("/cartoes");
-  revalidatePath(`/cartoes/${tx.walletId}`);
+  if (tx.walletId) {
+    revalidatePath(`/cartoes/${tx.walletId}`);
+  }
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/receitas");
+  revalidatePath("/compromissos");
+  revalidatePath("/historico-pagamentos");
+
+  return {
+    id: updatedTx.id,
+    description: updatedTx.description,
+    amount: Number(updatedTx.amount),
+    type: updatedTx.type,
+    date: safeIsoDate(updatedTx.date),
+    purchaseDate: safeIsoDate(updatedTx.purchaseDate || updatedTx.date),
+    paymentDate: safeIsoDate(updatedTx.paymentDate || updatedTx.date),
+    dueDate: safeIsoDate(updatedTx.dueDate || updatedTx.date),
+    competenceDate: safeIsoDate(updatedTx.competenceDate || updatedTx.date),
+    competenceMonth: updatedTx.competenceMonth,
+    competenceYear: updatedTx.competenceYear,
+    paymentMethod: updatedTx.paymentMethod,
+    tags: updatedTx.tags,
+    status: updatedTx.status,
+  };
 }
 
 export async function createTicketExpense(

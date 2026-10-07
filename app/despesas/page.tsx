@@ -1363,11 +1363,21 @@ export default function DespesasPage() {
             <span className="font-bold text-[11px] sm:text-xs text-slate-800 dark:text-slate-200">
               {item.dueDateFormatted}
             </span>
-            <span
-              className={`inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
-            >
-              {item.dueBadge.label}
-            </span>
+            <div className="flex items-center gap-1 flex-wrap">
+              <span
+                className={`inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
+              >
+                {item.dueBadge.label}
+              </span>
+              {(item.competenciaLabel || item.competenciaShort) && (
+                <span
+                  title={`Mês de Referência: ${item.competenciaLabel || item.competenciaShort}`}
+                  className="inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-semibold bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/50"
+                >
+                  Ref: {item.competenciaLabel || item.competenciaShort}
+                </span>
+              )}
+            </div>
           </div>
         </td>
 
@@ -1573,14 +1583,23 @@ export default function DespesasPage() {
         </div>
 
         {/* Informações de Vencimento e Prazo */}
-        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
-          <div className="flex items-center gap-2">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-bold text-slate-700 dark:text-slate-300">
-              Venc: {item.dueDateFormatted}
-            </span>
+        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs gap-2">
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-300">
+                Venc: {item.dueDateFormatted}
+              </span>
+            </div>
+            {(item.competenciaLabel || item.competenciaShort) && (
+              <div className="pl-5">
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/50">
+                  Ref: {item.competenciaLabel || item.competenciaShort}
+                </span>
+              </div>
+            )}
           </div>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border shrink-0 ${item.dueBadge.color}`}>
             {item.dueBadge.label}
           </span>
         </div>

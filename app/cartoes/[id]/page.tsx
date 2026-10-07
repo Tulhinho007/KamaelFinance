@@ -85,8 +85,14 @@ type TransactionItem = {
   date: string;
   competenceDate?: string;
   source?: string;
-  tags?: string;
+  tags?: string | null;
   isRecurring?: boolean;
+  purchaseDate?: string;
+  paymentDate?: string | null;
+  dueDate?: string | null;
+  paymentMethod?: string | null;
+  competenceMonth?: number | null;
+  competenceYear?: number | null;
 };
 
 type CardData = {
@@ -303,14 +309,22 @@ export default function CartaoDetailPage() {
     
     const pm = ((tx.tags || (tx as any).paymentMethod) || "").toUpperCase();
     if (tipo === "ENTRADA") {
-      if (["SALARIO", "PIX_RECEBIDO", "INJECAO"].includes(pm)) {
-        setBankMovTipoLancamento(pm);
-      } else {
+      if (pm.includes("SALARIO")) {
         setBankMovTipoLancamento("SALARIO");
+      } else if (pm.includes("INJECAO")) {
+        setBankMovTipoLancamento("INJECAO");
+      } else {
+        setBankMovTipoLancamento("PIX_RECEBIDO");
       }
     } else {
-      if (["BOLETO", "FATURA_CARTAO", "PIX_ENVIADO", "SAQUE"].includes(pm)) {
-        setBankMovTipoLancamento(pm);
+      if (pm.includes("DEBITO_AUTOMATICO")) {
+        setBankMovTipoLancamento("DEBITO_AUTOMATICO");
+      } else if (pm.includes("PIX")) {
+        setBankMovTipoLancamento("PIX_ENVIADO");
+      } else if (pm.includes("FATURA_CARTAO")) {
+        setBankMovTipoLancamento("FATURA_CARTAO");
+      } else if (pm.includes("SAQUE")) {
+        setBankMovTipoLancamento("SAQUE");
       } else {
         setBankMovTipoLancamento("BOLETO");
       }
@@ -327,7 +341,7 @@ export default function CartaoDetailPage() {
     setBankMovSaving(true);
     try {
       if (bankMovEditingId) {
-        await updateBankAccountMovementAction({
+        const updated = await updateBankAccountMovementAction({
           transactionId: bankMovEditingId,
           type: bankMovTipo,
           description: bankMovDesc.trim(),
@@ -335,6 +349,32 @@ export default function CartaoDetailPage() {
           dateStr: bankMovData,
           movementType: bankMovTipoLancamento
         });
+        if (updated) {
+          setCardData(prev => {
+            if (!prev) return prev;
+            const updatedAll = (prev.allTransactions || []).map(t => {
+              if (t.id === updated.id) {
+                return {
+                  ...t,
+                  description: updated.description,
+                  amount: updated.amount,
+                  type: updated.type,
+                  date: updated.date,
+                  purchaseDate: updated.purchaseDate,
+                  paymentDate: updated.paymentDate,
+                  dueDate: updated.dueDate,
+                  competenceDate: updated.competenceDate,
+                  competenceMonth: updated.competenceMonth,
+                  competenceYear: updated.competenceYear,
+                  paymentMethod: updated.paymentMethod,
+                  tags: updated.tags,
+                };
+              }
+              return t;
+            });
+            return { ...prev, allTransactions: updatedAll };
+          });
+        }
         showAlert("Lançamento atualizado com sucesso!", { variant: "success" });
       } else {
         await createBankAccountMovementAction({
@@ -348,6 +388,7 @@ export default function CartaoDetailPage() {
         showAlert("Lançamento registrado com sucesso!", { variant: "success" });
       }
       setBankMovModalOpen(false);
+      router.refresh();
       await loadData();
     } catch (err) {
       console.error("Erro ao salvar movimentação:", err);
@@ -359,26 +400,57 @@ export default function CartaoDetailPage() {
 
   const getMovementTypeBadge = (t: any) => {
     const pm = ((t.tags || (t as any).paymentMethod) || "").toUpperCase();
-    const desc = (t.description || "").toLowerCase();
     const isIncome = t.type === "INCOME";
 
     if (isIncome) {
-      if (pm === "SALARIO" || desc.includes("salário") || desc.includes("salario")) {
+      if (pm.includes("SALARIO")) {
         return { label: "Salário", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
       }
-      if (pm === "INJECAO" || desc.includes("injeção") || desc.includes("aporte") || desc.includes("saldo")) {
+      if (pm.includes("INJECAO")) {
+        return { label: "Injeção / Saldo", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" };
+      }
+      if (pm.includes("PIX")) {
+        return { label: "Pix Recebido", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
+      }
+      const desc = (t.description || "").toLowerCase();
+      if (desc.includes("salário") || desc.includes("salario")) {
+        return { label: "Salário", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
+      }
+      if (desc.includes("injeção") || desc.includes("injecao") || desc.includes("aporte") || desc.includes("saldo")) {
         return { label: "Injeção / Saldo", color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" };
       }
       return { label: "Pix Recebido", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" };
     } else {
-      if (pm === "BOLETO" || desc.includes("boleto") || desc.includes("luz") || desc.includes("água") || desc.includes("internet")) {
-        return { label: "Boleto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
+      if (pm.includes("DEBITO_AUTOMATICO") || pm.includes("FORMA:DEBITO_AUTOMATICO")) {
+        return { label: "Débito Automático", color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20" };
       }
-      if (pm === "FATURA_CARTAO" || desc.includes("fatura") || desc.includes("cartão") || desc.includes("cartao")) {
+      if (pm.includes("PIX") || pm.includes("FORMA:PIX")) {
+        return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
+      }
+      if (pm.includes("FATURA_CARTAO")) {
         return { label: "Fatura de Cartão", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" };
       }
-      if (pm === "SAQUE" || desc.includes("saque") || desc.includes("retirada")) {
+      if (pm.includes("SAQUE")) {
         return { label: "Saque", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20" };
+      }
+      if (pm.includes("BOLETO")) {
+        return { label: "Boleto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
+      }
+      const desc = (t.description || "").toLowerCase();
+      if (desc.includes("débito automático") || desc.includes("debito automatico")) {
+        return { label: "Débito Automático", color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20" };
+      }
+      if (desc.includes("pix") || desc.includes("transferência") || desc.includes("transferencia")) {
+        return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
+      }
+      if (desc.includes("fatura") || desc.includes("cartão") || desc.includes("cartao")) {
+        return { label: "Fatura de Cartão", color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" };
+      }
+      if (desc.includes("saque") || desc.includes("retirada")) {
+        return { label: "Saque", color: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20" };
+      }
+      if (desc.includes("boleto") || desc.includes("luz") || desc.includes("água") || desc.includes("agua") || desc.includes("internet")) {
+        return { label: "Boleto", color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" };
       }
       return { label: "Pix Enviado", color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" };
     }
@@ -2243,6 +2315,7 @@ export default function CartaoDetailPage() {
                   ) : (
                     <>
                       <option value="BOLETO">Pagamento de Boleto</option>
+                      <option value="DEBITO_AUTOMATICO">Débito Automático</option>
                       <option value="FATURA_CARTAO">Pagamento de Fatura</option>
                       <option value="PIX_ENVIADO">Pix / Transferência Enviada</option>
                       <option value="SAQUE">Saque / Ajuste Negativo</option>
