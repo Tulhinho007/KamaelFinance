@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CreditCard,
   Calendar,
@@ -13,6 +14,7 @@ import {
   ArrowLeft,
   ShieldCheck,
   AlertCircle,
+  Pencil,
   Trash2,
   X,
   Repeat,
@@ -27,6 +29,7 @@ import {
   deleteCardPurchase,
 } from "@/lib/actions";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
+import { EditCardTransactionModal } from "@/components/edit-card-transaction-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -42,6 +45,7 @@ const formatDateBR = (dateStr?: string | null) => {
 };
 
 export default function CartoesPage() {
+  const router = useRouter();
   const { selectedMonth, selectedYear } = usePeriod();
   const { showAlert } = useModal();
 
@@ -57,6 +61,8 @@ export default function CartoesPage() {
   // Modais
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
   const [newCardModalOpen, setNewCardModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [txToEdit, setTxToEdit] = useState<any | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [txToDelete, setTxToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -151,6 +157,7 @@ export default function CartoesPage() {
         setDeleteModalOpen(false);
         setTxToDelete(null);
         await loadData();
+        router.refresh();
       } else {
         showAlert(res.error || "Erro ao excluir lançamento.", { variant: "error" });
       }
@@ -428,7 +435,7 @@ export default function CartoesPage() {
                   <th className="py-3 px-4">CATEGORIA</th>
                   <th className="py-3 px-4">PARCELA</th>
                   <th className="py-3 px-4 text-right">VALOR</th>
-                  <th className="py-3 px-4 text-center w-20">AÇÃO</th>
+                  <th className="py-3 px-4 text-center w-24">AÇÃO</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
@@ -480,17 +487,30 @@ export default function CartoesPage() {
                         {brl(tx.amount)}
                       </td>
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setTxToDelete(tx);
-                            setDeleteModalOpen(true);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                          title="Excluir lançamento"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTxToEdit(tx);
+                              setEditModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                            title="Editar lançamento"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTxToDelete(tx);
+                              setDeleteModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                            title="Excluir lançamento"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -678,6 +698,21 @@ export default function CartoesPage() {
         isOpen={purchaseModalOpen}
         onClose={() => setPurchaseModalOpen(false)}
         onSuccess={loadData}
+      />
+
+      {/* Modal: Editar Lançamento do Cartão */}
+      <EditCardTransactionModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setTxToEdit(null);
+        }}
+        transaction={txToEdit}
+        cards={cards}
+        onSuccess={async () => {
+          await loadData();
+          router.refresh();
+        }}
       />
 
     </div>

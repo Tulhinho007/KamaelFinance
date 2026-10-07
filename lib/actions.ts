@@ -2727,6 +2727,271 @@ export async function updateCardPurchase(
   return { success: true, id };
 }
 
+export type UpdateCreditCardTransactionInput = {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  purchaseDate: string; // YYYY-MM-DD
+  walletId: string;
+  applyToAllInstallments?: boolean;
+};
+
+export async function updateCreditCardTransactionAction(
+  data: UpdateCreditCardTransactionInput
+): Promise<{ success: boolean; error?: string; updatedCount?: number }> {
+  try {
+    const { id, description, category, amount, purchaseDate, walletId, applyToAllInstallments } = data;
+    if (!id || typeof id !== "string") {
+      return { success: false, error: "ID do lançamento inválido." };
+    }
+    if (!description?.trim()) {
+      return { success: false, error: "Descrição é obrigatória." };
+    }
+    const numAmount = Number(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      return { success: false, error: "Valor da parcela deve ser maior que zero." };
+    }
+    if (!purchaseDate) {
+      return { success: false, error: "Data da compra é obrigatória." };
+    }
+    if (!walletId) {
+      return { success: false, error: "Cartão vinculado é obrigatório." };
+    }
+
+    const tx = await prisma.transaction.findUnique({
+      where: { id },
+      include: { wallet: true },
+    });
+
+    if (!tx || tx.deletedAt) {
+      return { success: false, error: "Lançamento não encontrado." };
+    }
+
+    const targetWallet = await prisma.wallet.findUnique({
+      where: { id: walletId },
+    });
+    if (!targetWallet) {
+      return { success: false, error: "Cartão de destino não encontrado." };
+    }
+
+    let dbCategory = await prisma.category.findFirst({
+      where: { name: { equals: category.trim(), mode: "insensitive" } },
+    }) || await prisma.category.findFirst({
+      where: { name: category.trim() },
+    });
+    if (!dbCategory) {
+      dbCategory = await prisma.category.create({
+        data: {
+          name: category.trim(),
+          color: getCategoryColor(category.trim()),
+        },
+      });
+    }
+
+    const oldWalletId = tx.walletId;
+    const closingDay = targetWallet.diaFechamento || 1;
+    const baseParsedPurchaseDate = parseInputDate(purchaseDate);
+
+    // Identificar transações a serem atualizadas (única ou todas as parcelas do grupo)
+    let targetTxs: Array<{
+      id: string;
+      currentInstallment?: number | null;
+      installmentsCount?: number | null;
+      description?: string | null;
+      purchaseDate?: Date | null;
+      date?: Date | null;
+    }> = [{
+      id: tx.id,
+      currentInstallment: (tx as any).currentInstallment,
+      installmentsCount: tx.installmentsCount,
+      description: tx.description,
+      purchaseDate: tx.purchaseDate,
+      date: tx.date,
+    }];
+
+    const isInstallmentGroup = Boolean(
+      tx.installmentGroupId ||
+      (tx.installmentsCount && tx.installmentsCount > 1) ||
+      /\((\d+)\/(\d+)\)/.test(tx.description || "") ||
+      /Parcela\s*\d+\/\d+/i.test(tx.description || "")
+    );
+
+    if (applyToAllInstallments && isInstallmentGroup) {
+      if (tx.installmentGroupId) {
+        const groupTxs = await prisma.transaction.findMany({
+          where: {
+            walletId: tx.walletId,
+            installmentGroupId: tx.installmentGroupId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            currentInstallment: true,
+            installmentsCount: true,
+            description: true,
+            purchaseDate: true,
+            date: true,
+          },
+          orderBy: { currentInstallment: "asc" },
+        });
+        if (groupTxs.length > 0) {
+          targetTxs = groupTxs;
+        }
+      } else if (tx.installmentsCount && tx.installmentsCount > 1) {
+        const cleanDesc = (tx.description || "")
+          .replace(/\s*\(\d+\/\d+\)$/, "")
+          .replace(/\s*Parcela\s*\d+\/\d+/i, "")
+          .trim();
+        if (cleanDesc) {
+          const matchingTxs = await prisma.transaction.findMany({
+            where: {
+              walletId: tx.walletId,
+              deletedAt: null,
+              installmentsCount: tx.installmentsCount,
+              description: { startsWith: cleanDesc },
+            },
+            select: {
+              id: true,
+              currentInstallment: true,
+              installmentsCount: true,
+              description: true,
+              purchaseDate: true,
+              date: true,
+            },
+            orderBy: { date: "asc" },
+          });
+          if (matchingTxs.length > 0) {
+            targetTxs = matchingTxs;
+          }
+        }
+      }
+    }
+
+    const cleanBaseDesc = description
+      .replace(/\s*\(\d+\/\d+\)$/, "")
+      .replace(/\s*Parcela\s*\d+\/\d+/i, "")
+      .trim();
+
+    if (applyToAllInstallments && isInstallmentGroup && targetTxs.length > 1) {
+      // Localiza o índice da parcela da transação selecionada para calcular o delta de meses
+      const selectedMatch = (tx.description || "").match(/\((\d+)\/(\d+)\)/);
+      const currentTxInstIndex =
+        (tx as any).currentInstallment ||
+        (selectedMatch ? Number(selectedMatch[1]) : 1);
+      const totalCount = tx.installmentsCount || targetTxs.length;
+
+      for (let i = 0; i < targetTxs.length; i++) {
+        const t = targetTxs[i];
+        const instMatch = (t.description || "").match(/\((\d+)\/(\d+)\)/);
+        const instIndex =
+          t.currentInstallment ||
+          (instMatch ? Number(instMatch[1]) : i + 1);
+
+        const instDesc = `${cleanBaseDesc} (${instIndex}/${totalCount})`;
+
+        // Calcula a nova data da parcela com base no deslocamento de meses
+        const monthOffset = instIndex - currentTxInstIndex;
+        const instPurchaseDate = addMonthsUTC(baseParsedPurchaseDate, monthOffset);
+
+        // Competência da fatura calculada com base no dia de fechamento
+        const pYear = instPurchaseDate.getUTCFullYear();
+        const pMonth = instPurchaseDate.getUTCMonth(); // 0 a 11
+        const pDay = instPurchaseDate.getUTCDate();
+
+        let invoiceMonth = pMonth;
+        let invoiceYear = pYear;
+        if (pDay >= closingDay) {
+          invoiceMonth += 1;
+          if (invoiceMonth > 11) {
+            invoiceMonth = 0;
+            invoiceYear += 1;
+          }
+        }
+
+        const instCompDate = new Date(Date.UTC(invoiceYear, invoiceMonth, 1, 12, 0, 0));
+
+        await prisma.transaction.update({
+          where: { id: t.id },
+          data: {
+            walletId,
+            categoryId: dbCategory.id,
+            description: instDesc,
+            amount: numAmount,
+            purchaseDate: instPurchaseDate,
+            date: instPurchaseDate,
+            competenceDate: instCompDate,
+            competenceMonth: invoiceMonth + 1,
+            competenceYear: invoiceYear,
+          } as any,
+        });
+      }
+    } else {
+      // Atualiza apenas a parcela individual selecionada
+      const pYear = baseParsedPurchaseDate.getUTCFullYear();
+      const pMonth = baseParsedPurchaseDate.getUTCMonth();
+      const pDay = baseParsedPurchaseDate.getUTCDate();
+
+      let invoiceMonth = pMonth;
+      let invoiceYear = pYear;
+      if (pDay >= closingDay) {
+        invoiceMonth += 1;
+        if (invoiceMonth > 11) {
+          invoiceMonth = 0;
+          invoiceYear += 1;
+        }
+      }
+
+      const compDate = new Date(Date.UTC(invoiceYear, invoiceMonth, 1, 12, 0, 0));
+
+      let singleDesc = description.trim();
+      const isSingleParcel = Boolean(
+        (tx.installmentsCount && tx.installmentsCount > 1) ||
+        /\((\d+)\/(\d+)\)/.test(tx.description || "")
+      );
+      if (isSingleParcel) {
+        const clean = singleDesc
+          .replace(/\s*\(\d+\/\d+\)$/, "")
+          .replace(/\s*Parcela\s*\d+\/\d+/i, "")
+          .trim();
+        const instMatch = (tx.description || "").match(/\((\d+)\/(\d+)\)/);
+        const cur = (tx as any).currentInstallment || (instMatch ? Number(instMatch[1]) : 1);
+        const tot = tx.installmentsCount || (instMatch ? Number(instMatch[2]) : 1);
+        if (tot > 1) {
+          singleDesc = `${clean} (${cur}/${tot})`;
+        }
+      }
+
+      await prisma.transaction.update({
+        where: { id },
+        data: {
+          walletId,
+          categoryId: dbCategory.id,
+          description: singleDesc,
+          amount: numAmount,
+          purchaseDate: baseParsedPurchaseDate,
+          date: baseParsedPurchaseDate,
+          competenceDate: compDate,
+          competenceMonth: invoiceMonth + 1,
+          competenceYear: invoiceYear,
+        } as any,
+      });
+    }
+
+    revalidatePath("/cartoes");
+    if (walletId) revalidatePath(`/cartoes/${walletId}`);
+    if (oldWalletId && oldWalletId !== walletId) revalidatePath(`/cartoes/${oldWalletId}`);
+    revalidatePath("/despesas");
+    revalidatePath("/contas");
+    revalidatePath("/dashboard");
+
+    return { success: true, updatedCount: targetTxs.length };
+  } catch (err: any) {
+    console.error("Erro ao atualizar transação do cartão:", err);
+    return { success: false, error: err?.message || "Erro interno ao atualizar transação." };
+  }
+}
+
 export async function deleteCardPurchase(
   id: string,
   options?: { cascadeAllInstallments?: boolean }
