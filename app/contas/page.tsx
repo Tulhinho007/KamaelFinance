@@ -270,27 +270,42 @@ export default function GestaoCaixaContasPage() {
 
   const handleConfirmBaixa = async () => {
     if (!payCommitmentItem) return;
-    if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
-      showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
-      return;
-    }
-    if (baixaForma === "CARTAO_CREDITO" && !baixaCartaoId) {
-      showAlert("Selecione o cartão de crédito para lançamento.", { variant: "warning" });
-      return;
+    const isInvoice = Boolean(payCommitmentItem.isCardInvoice || payCommitmentItem.tipo === "FATURA_CARTAO");
+
+    if (isInvoice) {
+      if (!baixaContaId) {
+        showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+        return;
+      }
+    } else {
+      if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
+        showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+        return;
+      }
+      if (baixaForma === "CARTAO_CREDITO" && !baixaCartaoId) {
+        showAlert("Selecione o cartão de crédito para lançamento.", { variant: "warning" });
+        return;
+      }
     }
 
     setPayingCommitment(true);
     try {
       await payCommitmentAction({
         commitmentId: payCommitmentItem.id,
-        formaPagamento: baixaForma,
+        formaPagamento: isInvoice ? "SALDO_CONTA" : baixaForma,
         contaBancariaId: baixaContaId,
         cartaoCreditoId: baixaCartaoId,
         dataBaixa: baixaData,
+        faturaId: payCommitmentItem.faturaId,
       });
       setPayCommitmentItem(null);
       await loadData();
-      showAlert("Conta liquidada com sucesso! Lançamento gerado no extrato.", { variant: "success" });
+      showAlert(
+        isInvoice
+          ? "Fatura liquidada com sucesso! Limite restaurado e lançamento gerado no extrato."
+          : "Conta liquidada com sucesso! Lançamento gerado no extrato.",
+        { variant: "success" }
+      );
     } catch (err: any) {
       console.error(err);
       showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
@@ -927,11 +942,19 @@ export default function GestaoCaixaContasPage() {
                         <td className="py-2.5 px-3 min-w-0">
                           <div className="flex items-center gap-2">
                             <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              item.tipo === "ASSINATURA"
+                              item.tipo === "FATURA_CARTAO"
+                                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                                : item.tipo === "ASSINATURA"
                                 ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                                 : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
                             }`}>
-                              {item.tipo === "ASSINATURA" ? <Zap className="w-3 h-3" /> : <Receipt className="w-3 h-3" />}
+                              {item.tipo === "FATURA_CARTAO" ? (
+                                <CreditCard className="w-3 h-3" />
+                              ) : item.tipo === "ASSINATURA" ? (
+                                <Zap className="w-3 h-3" />
+                              ) : (
+                                <Receipt className="w-3 h-3" />
+                              )}
                             </div>
                             <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[220px]">
                               {item.description}
@@ -940,9 +963,15 @@ export default function GestaoCaixaContasPage() {
                         </td>
 
                         <td className="py-2.5 px-2 whitespace-nowrap">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            {item.tipoLabel || "Boleto"}
-                          </span>
+                          {item.tipo === "FATURA_CARTAO" ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                              Fatura de Cartão
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                              {item.tipoLabel || "Boleto"}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
@@ -976,49 +1005,61 @@ export default function GestaoCaixaContasPage() {
                                 <MoreVertical className="w-3.5 h-3.5" />
                               </button>
                               {activeActionMenuId === item.id && (
-                                <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      setEditItem(item);
-                                      setEditDesc(item.description);
-                                      setEditAmount(String(item.amount));
-                                      setEditDueDate(item.dueDate ? item.dueDate.split("T")[0] : "");
-                                      setEditTipo(item.tipo || "BOLETO");
-                                      setEditRecorrencia(item.recorrencia || "MENSAL");
-                                      setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
-                                      setEditCompYear(item.competenceYear || selectedYear);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>Editar</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={duplicatingId === item.id}
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      handleDuplicateToNextMonth(item);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                  >
-                                    <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>Repetir no próximo mês</span>
-                                  </button>
-                                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      setItemToDelete(item);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                    <span>Excluir</span>
-                                  </button>
+                                <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                                  {item.isCardInvoice ? (
+                                    <Link
+                                      href={`/cartoes/${item.cardWalletId || item.walletId}`}
+                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
+                                    >
+                                      <CreditCard className="w-3.5 h-3.5" />
+                                      <span>Ver Fatura no Cartão</span>
+                                    </Link>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          setEditItem(item);
+                                          setEditDesc(item.description);
+                                          setEditAmount(String(item.amount));
+                                          setEditDueDate(item.dueDate ? item.dueDate.split("T")[0] : "");
+                                          setEditTipo(item.tipo || "BOLETO");
+                                          setEditRecorrencia(item.recorrencia || "MENSAL");
+                                          setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
+                                          setEditCompYear(item.competenceYear || selectedYear);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                        <span>Editar</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={duplicatingId === item.id}
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          handleDuplicateToNextMonth(item);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                      >
+                                        <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span>Repetir no próximo mês</span>
+                                      </button>
+                                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveActionMenuId(null);
+                                          setItemToDelete(item);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                        <span>Excluir</span>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -1464,9 +1505,11 @@ export default function GestaoCaixaContasPage() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Confirmar Pagamento</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  {payCommitmentItem.isCardInvoice ? "Liquidar Fatura de Cartão" : "Confirmar Pagamento"}
+                </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Conta: <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
+                  {payCommitmentItem.isCardInvoice ? "Fatura: " : "Conta: "} <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
                 </p>
               </div>
               <button
@@ -1478,64 +1521,105 @@ export default function GestaoCaixaContasPage() {
             </div>
 
             <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Forma de Pagamento *</label>
-                <select
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
-                  value={baixaForma}
-                  onChange={(e) => setBaixaForma(e.target.value as any)}
-                >
-                  <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
-                  <option value="DEBITO_AUTOMATICO">Débito Automático (Conta Corrente)</option>
-                  <option value="PIX">Pix (Sai da Conta Corrente)</option>
-                  <option value="CARTAO_CREDITO">Cartão de Crédito (Gera Fatura)</option>
-                  <option value="DINHEIRO">Dinheiro em Espécie (Caixa Físico)</option>
-                </select>
-              </div>
+              {payCommitmentItem.isCardInvoice ? (
+                <>
+                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 text-xs text-purple-700 dark:text-purple-300">
+                    <div className="flex items-center gap-1.5 font-bold mb-1">
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>Sincronização Automática</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-purple-600 dark:text-purple-400">
+                      Ao confirmar a liquidação, o status da fatura será atualizado para pago no módulo do cartão (restaurando o limite) e o débito será registrado no extrato da conta bancária selecionada.
+                    </p>
+                  </div>
 
-              {["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && (
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Corrente Debitar?</label>
-                  <select
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                    value={baixaContaId}
-                    onChange={(e) => setBaixaContaId(e.target.value)}
-                  >
-                    {contasBancarias.map((conta) => (
-                      <option key={conta.id} value={conta.id}>
-                        {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Bancária Debitar? *</label>
+                    <select
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                      value={baixaContaId}
+                      onChange={(e) => setBaixaContaId(e.target.value)}
+                    >
+                      {contasBancarias.map((conta) => (
+                        <option key={conta.id} value={conta.id}>
+                          {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Data do Pagamento *</label>
+                    <input
+                      type="date"
+                      value={baixaData}
+                      onChange={(e) => setBaixaData(e.target.value)}
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Forma de Pagamento *</label>
+                    <select
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
+                      value={baixaForma}
+                      onChange={(e) => setBaixaForma(e.target.value as any)}
+                    >
+                      <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
+                      <option value="DEBITO_AUTOMATICO">Débito Automático (Conta Corrente)</option>
+                      <option value="PIX">Pix (Sai da Conta Corrente)</option>
+                      <option value="CARTAO_CREDITO">Cartão de Crédito (Gera Fatura)</option>
+                      <option value="DINHEIRO">Dinheiro em Espécie (Caixa Físico)</option>
+                    </select>
+                  </div>
+
+                  {["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && (
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Corrente Debitar?</label>
+                      <select
+                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                        value={baixaContaId}
+                        onChange={(e) => setBaixaContaId(e.target.value)}
+                      >
+                        {contasBancarias.map((conta) => (
+                          <option key={conta.id} value={conta.id}>
+                            {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {baixaForma === "CARTAO_CREDITO" && (
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Cartão de Crédito?</label>
+                      <select
+                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                        value={baixaCartaoId}
+                        onChange={(e) => setBaixaCartaoId(e.target.value)}
+                      >
+                        {cartoesCredito.map((cartao) => (
+                          <option key={cartao.id} value={cartao.id}>
+                            {cartao.nome} - Limite Disp: R$ {cartao.limiteDisponivel.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Data da Baixa</label>
+                    <input
+                      type="date"
+                      value={baixaData}
+                      onChange={(e) => setBaixaData(e.target.value)}
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                    />
+                  </div>
+                </>
               )}
-
-              {baixaForma === "CARTAO_CREDITO" && (
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Cartão de Crédito?</label>
-                  <select
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                    value={baixaCartaoId}
-                    onChange={(e) => setBaixaCartaoId(e.target.value)}
-                  >
-                    {cartoesCredito.map((cartao) => (
-                      <option key={cartao.id} value={cartao.id}>
-                        {cartao.nome} - Limite Disp: R$ {cartao.limiteDisponivel.toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Data da Baixa</label>
-                <input
-                  type="date"
-                  value={baixaData}
-                  onChange={(e) => setBaixaData(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
-                />
-              </div>
             </div>
 
             <div className="flex gap-2 mt-6">
