@@ -9627,9 +9627,8 @@ export async function getMonthlyCommitmentsAction(
         const dYear = d.getUTCFullYear();
         return dMonth === numMonth && dYear === year;
       } else {
-        // Visão anual: estritamente dentro do ano selecionado
-        const dYear = d.getUTCFullYear();
-        return dYear === year;
+        // Visão anual: estritamente dentro do intervalo de 01/01 a 31/12 do ano selecionado
+        return d >= from && d <= to;
       }
     });
   } else {
@@ -9894,6 +9893,7 @@ export async function getMonthlyCommitmentsAction(
     items,
     totals: {
       totalMes: Math.round(totalMes * 100) / 100,
+      totalAno: Math.round(totalMes * 100) / 100,
       totalPendente: Math.round(totalPendente * 100) / 100,
       totalPago: Math.round(totalPago * 100) / 100,
     },

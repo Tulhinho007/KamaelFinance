@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
-  Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight, ChevronLeft,
+  Plus, CreditCard, Wallet, Building2, Zap, X, ChevronRight, ChevronLeft, ChevronDown,
   AlertCircle, CheckCircle2, Clock, Sparkles,
   BarChart3, Calendar, MoreHorizontal, MoreVertical, Pencil, Trash2, Download,
   PieChart, Eye, Filter, ArrowUpRight, FileSpreadsheet, Layers, Check,
@@ -367,23 +367,24 @@ export default function DespesasPage() {
   const [injectOrigin, setInjectOrigin]             = useState<BalanceMovementOrigin>("DEPOSITO");
   const [injectTipoOperacao, setInjectTipoOperacao] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
 
-  // ── Central de Compromissos Fixos e Contas a Pagar do Mês ──
+  // ── Central de Compromissos Fixos e Contas a Pagar ──
   const [mainView, setMainView] = useState<"compromissos" | "cartoes">("cartoes");
   const [commitmentsLoading, setCommitmentsLoading] = useState(true);
   const [commitmentsData, setCommitmentsData] = useState<{
     items: any[];
-    totals: { totalMes: number; totalPendente: number; totalPago: number };
+    totals: { totalMes: number; totalAno?: number; totalPendente: number; totalPago: number };
     contasBancarias: { id: string; banco: string; saldoAtual: number }[];
     cartoesCredito: { id: string; nome: string; limiteDisponivel: number; limiteTotal: number; faturaAtual: number }[];
   }>({
     items: [],
-    totals: { totalMes: 0, totalPendente: 0, totalPago: 0 },
+    totals: { totalMes: 0, totalAno: 0, totalPendente: 0, totalPago: 0 },
     contasBancarias: [],
     cartoesCredito: [],
   });
 
   const [commitmentStatusFilter, setCommitmentStatusFilter] = useState<"TODOS" | "PENDENTE" | "PAGO">("TODOS");
   const [commitmentSearch, setCommitmentSearch] = useState("");
+  const [showPaidItems, setShowPaidItems] = useState(false);
 
   // Modal "+ Novo Boleto / Assinatura"
   const [newCommitmentModalOpen, setNewCommitmentModalOpen] = useState(false);
@@ -726,15 +727,10 @@ export default function DespesasPage() {
 
   const reloadAllData = async () => {
     try {
-      const isCartoesAnnual = mainView === "cartoes";
-      const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
-      const bundle = await getDespesasBundleAction(reqMonth, selectedYear);
+      const bundle = await getDespesasBundleAction(null, selectedYear);
       applyBundleData(bundle);
       try {
-        const cacheKey = isCartoesAnnual
-          ? `kamael_despesas_ANNUAL_${selectedYear}`
-          : `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
-        sessionStorage.setItem(cacheKey, JSON.stringify(bundle));
+        sessionStorage.setItem(`kamael_despesas_ANNUAL_${selectedYear}`, JSON.stringify(bundle));
       } catch (e) {}
       setCommitmentsLoading(false);
     } catch (e) {
@@ -742,51 +738,91 @@ export default function DespesasPage() {
     }
   };
 
-  // Compromissos filtrados estritamente pelo mês e ano ativos (pelo vencimento)
-  const currentMonthCommitments = useMemo(() => {
+  const getCommitmentDueMs = (it: any): number => {
+    if (it.dueDateRaw) {
+      const ms = new Date(it.dueDateRaw).getTime();
+      if (!Number.isNaN(ms)) return ms;
+    }
+    if (it.dueDateInput && it.dueDateInput.includes("-")) {
+      const [y, m, d] = it.dueDateInput.split("-").map(Number);
+      return new Date(y, m - 1, d).getTime();
+    }
+    return 0;
+  };
+
+  // Compromissos filtrados estritamente pelo ano selecionado (01/01 a 31/12)
+  const currentYearCommitments = useMemo(() => {
     return (commitmentsData?.items || []).filter((item: any) => {
-      if (activeMonth) {
-        const rawDue = item.dueDateInput || (item.dueDateRaw ? item.dueDateRaw.split("T")[0] : "");
-        if (rawDue && rawDue.includes("-")) {
-          const [y, m] = rawDue.split("-").map(Number);
-          if (y !== activeYear || m !== activeMonth) return false;
-        }
+      const rawDue = item.dueDateInput || (item.dueDateRaw ? item.dueDateRaw.split("T")[0] : "");
+      if (rawDue && rawDue.includes("-")) {
+        const [y] = rawDue.split("-").map(Number);
+        if (y !== selectedYear) return false;
       }
       return true;
     });
-  }, [commitmentsData?.items, activeMonth, activeYear]);
+  }, [commitmentsData?.items, selectedYear]);
 
-  // Totais calculados exclusivamente sobre os registros do mês ativo
-  const currentMonthTotals = useMemo(() => {
-    const totalMes = currentMonthCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
-    const totalPendente = currentMonthCommitments.filter((i: any) => i.status === "PENDING").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
-    const totalPago = currentMonthCommitments.filter((i: any) => i.status === "COMPLETED").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+  // Totais acumulados no ano selecionado (01/01 a 31/12)
+  const currentYearTotals = useMemo(() => {
+    const totalAno = currentYearCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+    const totalPendente = currentYearCommitments.filter((i: any) => i.status === "PENDING").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
+    const totalPago = currentYearCommitments.filter((i: any) => i.status === "COMPLETED").reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0);
     return {
-      totalMes,
+      totalAno,
+      totalMes: totalAno, // retrocompatibilidade com referências existentes
       totalPendente,
       totalPago,
-      totalCount: currentMonthCommitments.length,
-      pendingCount: currentMonthCommitments.filter((i: any) => i.status === "PENDING").length,
-      paidCount: currentMonthCommitments.filter((i: any) => i.status === "COMPLETED").length,
+      totalCount: currentYearCommitments.length,
+      pendingCount: currentYearCommitments.filter((i: any) => i.status === "PENDING").length,
+      paidCount: currentYearCommitments.filter((i: any) => i.status === "COMPLETED").length,
     };
-  }, [currentMonthCommitments]);
+  }, [currentYearCommitments]);
 
-  const filteredCommitments = currentMonthCommitments.filter((item: any) => {
-    if (commitmentStatusFilter === "PENDENTE" && item.status !== "PENDING") return false;
-    if (commitmentStatusFilter === "PAGO" && item.status !== "COMPLETED") return false;
-    if (commitmentSearch.trim()) {
-      const q = commitmentSearch.toLowerCase().trim();
-      const matchDesc = (item.description || "").toLowerCase().includes(q);
-      const matchTipo = (item.tipoLabel || "").toLowerCase().includes(q);
-      const matchForma = (item.formaPagamentoLabel || "").toLowerCase().includes(q);
-      if (!matchDesc && !matchTipo && !matchForma) return false;
-    }
-    return true;
-  });
+  // Compatibilidade com variáveis legadas
+  const currentMonthCommitments = currentYearCommitments;
+  const currentMonthTotals = currentYearTotals;
 
-  const pendingCommitments = filteredCommitments.filter((c: any) => c.status === "PENDING");
+  // Busca textual aplicada sobre os compromissos do ano
+  const searchFilteredCommitments = useMemo(() => {
+    return currentYearCommitments.filter((item: any) => {
+      if (commitmentSearch.trim()) {
+        const q = commitmentSearch.toLowerCase().trim();
+        const matchDesc = (item.description || "").toLowerCase().includes(q);
+        const matchTipo = (item.tipoLabel || "").toLowerCase().includes(q);
+        const matchForma = (item.formaPagamentoLabel || "").toLowerCase().includes(q);
+        if (!matchDesc && !matchTipo && !matchForma) return false;
+      }
+      return true;
+    });
+  }, [currentYearCommitments, commitmentSearch]);
+
+  // Pendentes: ordenados por vencimento ascendente (atrasados e mais próximos no topo)
+  const pendingCommitmentsList = useMemo(() => {
+    return searchFilteredCommitments
+      .filter((c: any) => c.status === "PENDING")
+      .sort((a: any, b: any) => getCommitmentDueMs(a) - getCommitmentDueMs(b));
+  }, [searchFilteredCommitments]);
+
+  // Pagos: ordenados por vencimento ascendente
+  const paidCommitmentsList = useMemo(() => {
+    return searchFilteredCommitments
+      .filter((c: any) => c.status === "COMPLETED")
+      .sort((a: any, b: any) => getCommitmentDueMs(a) - getCommitmentDueMs(b));
+  }, [searchFilteredCommitments]);
+
+  const paidCount = paidCommitmentsList.length;
+  const paidTotal = paidCommitmentsList.reduce((s: number, it: any) => s + Number(it.amount || 0), 0);
+
+  // Lista tradicional filtrada pelas abas para compatibilidade
+  const filteredCommitments = useMemo(() => {
+    if (commitmentStatusFilter === "PENDENTE") return pendingCommitmentsList;
+    if (commitmentStatusFilter === "PAGO") return paidCommitmentsList;
+    return searchFilteredCommitments;
+  }, [commitmentStatusFilter, pendingCommitmentsList, paidCommitmentsList, searchFilteredCommitments]);
+
+  const pendingCommitments = pendingCommitmentsList;
   const allPendingSelected = pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id));
-  const selectedCommitmentItems = currentMonthCommitments.filter((i: any) => selectedCommitmentIds.includes(i.id));
+  const selectedCommitmentItems = currentYearCommitments.filter((i: any) => selectedCommitmentIds.includes(i.id));
   const selectedTotalAmount = selectedCommitmentItems.reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
 
   const handleMarkBillPaid = async (billId: string) => {
@@ -836,9 +872,7 @@ export default function DespesasPage() {
 
   const loadPaidInvoices = async () => {
     try {
-      const isCartoesAnnual = mainView === "cartoes";
-      const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
-      const list = await getPaidInvoicesAction(reqMonth, selectedYear);
+      const list = await getPaidInvoicesAction(null, selectedYear);
       setPaidInvoicesList(list);
     } catch (e) {
       console.error("Erro ao carregar faturas pagas:", e);
@@ -886,14 +920,10 @@ export default function DespesasPage() {
   const [formDiaRecarga,  setFormDiaRecarga]  = useState<number>(1);
   const [formSaving,      setFormSaving]      = useState(false);
 
-  // ── Carrega dados em modo Anual ou Mensal com SWR Instantâneo (0ms) ──────────
+  // ── Carrega dados em modo Anual com SWR Instantâneo (0ms) ──────────────────
   useEffect(() => {
     let active = true;
-    const isCartoesAnnual = mainView === "cartoes";
-    const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
-    const cacheKey = isCartoesAnnual
-      ? `kamael_despesas_ANNUAL_${selectedYear}`
-      : `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
+    const cacheKey = `kamael_despesas_ANNUAL_${selectedYear}`;
 
     // ⚡ 1. SWR Instantâneo: Carrega instantaneamente do sessionStorage (0ms)
     try {
@@ -915,7 +945,7 @@ export default function DespesasPage() {
     }
 
     // ⚡ 2. Revalidação consolidada em 1 único round-trip HTTP sem chamadas redundantes
-    getDespesasBundleAction(reqMonth, selectedYear)
+    getDespesasBundleAction(null, selectedYear)
       .then((bundle) => {
         if (!active) return;
         applyBundleData(bundle);
@@ -936,7 +966,7 @@ export default function DespesasPage() {
     return () => {
       active = false;
     };
-  }, [mainView, selectedMonthFilter, selectedYear]);
+  }, [mainView, selectedYear]);
 
   // ── Titulares únicos para o filtro rápido ────────────────────────────────────
   const uniqueHolders = Array.from(
@@ -1292,6 +1322,353 @@ export default function DespesasPage() {
     }
   };
 
+  // ── Renderizadores de Linha e Card de Compromisso ───────────────────────────
+  const renderCommitmentRow = (item: any) => {
+    const isPaid = item.status === "COMPLETED";
+    const isSelected = selectedCommitmentIds.includes(item.id);
+    const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
+
+    return (
+      <tr
+        key={item.id}
+        className={`transition-colors group border-b border-slate-100 dark:border-slate-800/60 ${
+          isSelected
+            ? "bg-indigo-50/60 dark:bg-indigo-950/40"
+            : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+        }`}
+      >
+        {/* 0. Checkbox */}
+        <td className="py-1.5 px-1.5 text-center">
+          {!isPaid ? (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedCommitmentIds((prev) => [...prev, item.id]);
+                } else {
+                  setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
+                }
+              }}
+              className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+            />
+          ) : (
+            <span className="text-slate-300 dark:text-slate-700 text-xs">—</span>
+          )}
+        </td>
+
+        {/* 1. Vencimento */}
+        <td className="py-1.5 px-2 whitespace-nowrap">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-bold text-[11px] sm:text-xs text-slate-800 dark:text-slate-200">
+              {item.dueDateFormatted}
+            </span>
+            <span
+              className={`inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
+            >
+              {item.dueBadge.label}
+            </span>
+          </div>
+        </td>
+
+        {/* 2. Descrição / Fornecedor */}
+        <td className="py-1.5 px-2 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+              item.tipo === "ASSINATURA"
+                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+            }`}>
+              {item.tipo === "ASSINATURA" ? <Zap className="w-2.5 h-2.5" /> : <Receipt className="w-2.5 h-2.5" />}
+            </div>
+            <div className="min-w-0 flex-1 flex items-center gap-1.5">
+              <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-[180px] lg:max-w-[280px]">
+                {item.description}
+              </span>
+              {isRecurring && (
+                <span title="Compromisso recorrente mensal" className="inline-flex shrink-0">
+                  <Repeat className="w-3 h-3 text-indigo-500/80 dark:text-indigo-400/80" />
+                </span>
+              )}
+            </div>
+          </div>
+        </td>
+
+        {/* 3. Tipo */}
+        <td className="py-1.5 px-1.5 whitespace-nowrap">
+          <span
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+              item.tipo === "ASSINATURA"
+                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
+                : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+            }`}
+          >
+            {item.tipoLabel}
+          </span>
+        </td>
+
+        {/* 4. Valor */}
+        <td className="py-1.5 px-2 text-right whitespace-nowrap">
+          <span className="font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
+            {brl(item.amount)}
+          </span>
+        </td>
+
+        {/* 5. Status & Forma de Pagamento */}
+        <td className="py-1.5 px-2 text-center whitespace-nowrap">
+          {isPaid ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                <Check className="w-2.5 h-2.5" /> {item.statusLabel || "Pago"}
+              </span>
+              {item.formaPagamentoLabel && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                  {item.formaPagamentoLabel}
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+              {item.statusLabel || "Pendente"}
+            </span>
+          )}
+        </td>
+
+        {/* 6. Ações */}
+        <td className="py-1.5 px-2 text-right whitespace-nowrap">
+          <div className="flex items-center justify-end gap-1.5">
+            {!isPaid ? (
+              <button
+                onClick={() => openBaixaModal(item)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white transition-all cursor-pointer shadow-2xs"
+                title="Pagar / Dar Baixa"
+              >
+                <Check className="w-3 h-3" />
+                <span>Pagar / Baixar</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleUndoCommitment(item.id)}
+                className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition-colors cursor-pointer"
+                title="Desfazer pagamento"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Desfazer</span>
+              </button>
+            )}
+
+            {/* Menu de 3 Pontos (⋮) */}
+            <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                title="Mais opções"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+              {activeActionMenuId === item.id && (
+                <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      openEditCommitment(item);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Editar Compromisso</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={replicatingId === item.id}
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      handleReplicateCommitment(item);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Replicar p/ Próximo Mês</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      openDeleteCommitmentModal(item);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Excluir Compromisso</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderCommitmentCard = (item: any) => {
+    const isPaid = item.status === "COMPLETED";
+    const isSelected = selectedCommitmentIds.includes(item.id);
+    const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
+
+    return (
+      <div
+        key={item.id}
+        className={`bg-white dark:bg-slate-900 p-4 rounded-2xl border shadow-sm space-y-3 transition-all ${
+          isSelected
+            ? "border-indigo-500/50 bg-indigo-50/20 dark:bg-indigo-950/30 ring-1 ring-indigo-500/30"
+            : "border-slate-200/80 dark:border-slate-800"
+        }`}
+      >
+        {/* Topo do Card: Checkbox + Descrição + Status */}
+        <div className="flex items-start justify-between gap-2.5">
+          <div className="flex items-start gap-2.5 min-w-0">
+            {!isPaid && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedCommitmentIds((prev) => [...prev, item.id]);
+                  } else {
+                    setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
+                  }
+                }}
+                className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                  {item.description}
+                </h4>
+                {isRecurring && (
+                  <span title="Recorrente mensal" className="inline-flex shrink-0">
+                    <Repeat className="w-3.5 h-3.5 text-indigo-500" />
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                <span>{item.tipoLabel}</span>
+              </div>
+            </div>
+          </div>
+
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider shrink-0 ${
+              isPaid
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+            }`}
+          >
+            {item.statusLabel}
+          </span>
+        </div>
+
+        {/* Informações de Vencimento e Prazo */}
+        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-bold text-slate-700 dark:text-slate-300">
+              Venc: {item.dueDateFormatted}
+            </span>
+          </div>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}>
+            {item.dueBadge.label}
+          </span>
+        </div>
+
+        {/* Rodapé do Card: Valor e Ações Touch-Friendly */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+          <div>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block">Valor</span>
+            <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums font-mono">
+              {brl(item.amount)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isPaid ? (
+              <button
+                onClick={() => openBaixaModal(item)}
+                className="min-h-[36px] px-3.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:text-emerald-400 dark:bg-emerald-950/40 border border-emerald-500/20 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Pagar / Baixar</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => handleUndoCommitment(item.id)}
+                className="min-h-[36px] px-3 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Desfazer</span>
+              </button>
+            )}
+
+            {/* Menu de 3 Pontos (⋮) no Mobile */}
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                className="min-w-[36px] min-h-[36px] flex items-center justify-center p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
+                title="Mais opções"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+              {activeActionMenuId === item.id && (
+                <div className="absolute right-0 bottom-full mb-1.5 z-30 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      openEditCommitment(item);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Pencil className="w-4 h-4 text-slate-400" />
+                    <span>Editar Compromisso</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={replicatingId === item.id}
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      handleReplicateCommitment(item);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Copy className="w-4 h-4 text-slate-400" />
+                    <span>Replicar p/ Próximo Mês</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveActionMenuId(null);
+                      openDeleteCommitmentModal(item);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-500" />
+                    <span>Excluir Compromisso</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-6xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative">
@@ -1303,84 +1680,45 @@ export default function DespesasPage() {
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Despesas & Contas
             </h1>
-            {mainView === "cartoes" ? (
-              <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                ANO {selectedYear}
-              </span>
-            ) : (
-              <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                {getMonthName(activeMonth)}/{selectedYear}
-              </span>
-            )}
+            <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+              ANO {selectedYear}
+            </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            {mainView === "cartoes"
-              ? `Lançamentos, cartões e compromissos do ano de ${selectedYear}.`
-              : `Lançamentos, cartões e compromissos do mês de ${getMonthName(activeMonth)} de ${selectedYear}.`}
+            Lançamentos, cartões e compromissos do ano de {selectedYear}.
           </p>
         </div>
 
-        {/* ── Seletor de Período Padronizado (< Ano > ou < Mês Ano >) ── */}
+        {/* ── Seletor de Período Padronizado Anual (< 2026 > e ANO ATUAL) ── */}
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          {mainView === "cartoes" ? (
-            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
-              <button
-                onClick={() => prevYear()}
-                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Ano Anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[90px] text-center">
-                {selectedYear}
-              </span>
-              <button
-                onClick={() => nextYear()}
-                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Próximo Ano"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => goToCurrentYear()}
-                className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
-              >
-                ANO ATUAL
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
-              <button
-                onClick={() => prevMonth()}
-                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Mês Anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[130px] text-center">
-                {getMonthName(activeMonth)} {selectedYear}
-              </span>
-              <button
-                onClick={() => nextMonth()}
-                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Próximo Mês"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  goToCurrentMonth();
-                  setSelectedMonthFilter(new Date().getMonth() + 1);
-                }}
-                className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
-              >
-                MÊS ATUAL
-              </button>
-            </div>
-          )}
+          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
+            <button
+              onClick={() => prevYear()}
+              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Ano Anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[90px] text-center">
+              {selectedYear}
+            </span>
+            <button
+              onClick={() => nextYear()}
+              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Próximo Ano"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => goToCurrentYear()}
+              className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+            >
+              ANO ATUAL
+            </button>
+          </div>
 
           <button
-            onClick={() => exportExpensesCSV(cards, paidInvoicesList, mainView === "cartoes" ? null : activeMonth, selectedYear)}
+            onClick={() => exportExpensesCSV(cards, paidInvoicesList, null, selectedYear)}
             className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Exportar relatório CSV"
           >
@@ -1429,7 +1767,7 @@ export default function DespesasPage() {
                 ? "bg-white/20 text-white"
                 : "bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
             }`}>
-              {commitmentsData.items.length}
+              {currentYearTotals.totalCount}
             </span>
           </button>
         </div>
@@ -1458,30 +1796,30 @@ export default function DespesasPage() {
       {/* ── 2.1. CONTEÚDO: CENTRAL DE COMPROMISSOS FIXOS & CONTAS A PAGAR ─────── */}
       {mainView === "compromissos" && (
         <div className="flex flex-col gap-6">
-          {/* Cards Resumo do Topo da Página */}
+          {/* Cards Resumo do Topo da Página (Acumulado de 01/01 a 31/12 do ano selecionado) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-            {/* Card 1: TOTAL DO MÊS */}
+            {/* Card 1: TOTAL DO ANO */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
-                    TOTAL DO MÊS
+                    TOTAL DO ANO
                   </span>
                   <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
                     <Receipt className="w-3.5 h-3.5" />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                  {brl(currentMonthTotals.totalMes)}
+                  {brl(currentYearTotals.totalAno)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                <span>Soma de todos os boletos e assinaturas do mês</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{currentMonthTotals.totalCount} itens</span>
+                <span>Soma de todos os compromissos do ano</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">{currentYearTotals.totalCount} itens</span>
               </div>
             </div>
 
-            {/* Card 2: A PAGAR (PENDENTES) - Laranja/Amarelo */}
+            {/* Card 2: A PAGAR (PENDENTES) */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-amber-200/70 dark:border-amber-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
               <div>
@@ -1494,37 +1832,37 @@ export default function DespesasPage() {
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-                  {brl(currentMonthTotals.totalPendente)}
+                  {brl(currentYearTotals.totalPendente)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                <span>O que ainda precisa ser quitado no período</span>
+                <span>Total pendente a quitar no ano</span>
                 <span className="font-bold text-amber-600 dark:text-amber-400">
-                  {currentMonthTotals.pendingCount} pendentes
+                  {currentYearTotals.pendingCount} pendentes
                 </span>
               </div>
             </div>
 
-            {/* Card 3: PAGO NO MÊS - Verde */}
+            {/* Card 3: PAGO NO ANO */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-[#131B2E] border border-emerald-200/70 dark:border-emerald-900/50 shadow-sm relative overflow-hidden flex flex-col justify-between">
               <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
-                    PAGO NO MÊS
+                    PAGO NO ANO
                   </span>
                   <div className="w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                   </div>
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                  {brl(currentMonthTotals.totalPago)}
+                  {brl(currentYearTotals.totalPago)}
                 </div>
               </div>
               <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-                <span>O montante que já recebeu baixa</span>
+                <span>Total liquidado no ano</span>
                 <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                  {currentMonthTotals.paidCount} liquidados
+                  {currentYearTotals.paidCount} liquidados
                 </span>
               </div>
             </div>
@@ -1543,7 +1881,7 @@ export default function DespesasPage() {
                       : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
-                  Todos ({currentMonthTotals.totalCount})
+                  Todos ({currentYearTotals.totalCount})
                 </button>
                 <button
                   onClick={() => setCommitmentStatusFilter("PENDENTE")}
@@ -1554,7 +1892,7 @@ export default function DespesasPage() {
                   }`}
                 >
                   <Clock className="w-3 h-3" />
-                  A Pagar ({currentMonthTotals.pendingCount})
+                  A Pagar ({currentYearTotals.pendingCount})
                 </button>
                 <button
                   onClick={() => setCommitmentStatusFilter("PAGO")}
@@ -1565,7 +1903,7 @@ export default function DespesasPage() {
                   }`}
                 >
                   <CheckCircle2 className="w-3 h-3" />
-                  Pagos ({currentMonthTotals.paidCount})
+                  Pagos ({currentYearTotals.paidCount})
                 </button>
               </div>
 
@@ -1599,17 +1937,17 @@ export default function DespesasPage() {
                     <th className="py-2 px-1.5 w-7 text-center">
                       <input
                         type="checkbox"
-                        checked={pendingCommitments.length > 0 && pendingCommitments.every((c: any) => selectedCommitmentIds.includes(c.id))}
+                        checked={pendingCommitmentsList.length > 0 && pendingCommitmentsList.every((c: any) => selectedCommitmentIds.includes(c.id))}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedCommitmentIds(pendingCommitments.map((c: any) => c.id));
+                            setSelectedCommitmentIds(pendingCommitmentsList.map((c: any) => c.id));
                           } else {
                             setSelectedCommitmentIds([]);
                           }
                         }}
-                        disabled={pendingCommitments.length === 0}
+                        disabled={pendingCommitmentsList.length === 0}
                         className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40"
-                        title={pendingCommitments.length > 0 ? "Selecionar todas as pendentes" : "Nenhum compromisso pendente"}
+                        title={pendingCommitmentsList.length > 0 ? "Selecionar todas as pendentes" : "Nenhum compromisso pendente"}
                       />
                     </th>
                     <th className="py-2 px-2 whitespace-nowrap">Vencimento</th>
@@ -1621,236 +1959,155 @@ export default function DespesasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                  {filteredCommitments.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                          <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
-                            Nenhum compromisso encontrado para este período.
-                          </p>
-                          <p className="text-xs text-slate-400 max-w-sm">
-                            Cadastre contas fixas, boletos ou assinaturas para controlar prazos e dar baixa com débito automático no banco ou cartão.
-                          </p>
-                          <button
-                            onClick={openNewCommitmentModal}
-                            className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            Cadastrar Primeiro Boleto / Assinatura
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredCommitments.map((item: any) => {
-                      const isPaid = item.status === "COMPLETED";
-                      const isSelected = selectedCommitmentIds.includes(item.id);
-                      const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
+                  {commitmentStatusFilter === "PENDENTE" && (
+                    pendingCommitmentsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <CheckCircle2 className="w-8 h-8 text-emerald-500/80 dark:text-emerald-400/80" />
+                            <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
+                              Nenhum compromisso pendente a pagar neste ano.
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Todas as contas cadastradas já foram quitadas ou não há compromissos em aberto.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      pendingCommitmentsList.map(renderCommitmentRow)
+                    )
+                  )}
 
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`transition-colors group border-b border-slate-100 dark:border-slate-800/60 ${
-                            isSelected
-                              ? "bg-indigo-50/60 dark:bg-indigo-950/40"
-                              : "hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
-                          }`}
-                        >
-                          {/* 0. Checkbox */}
-                          <td className="py-1.5 px-1.5 text-center">
-                            {!isPaid ? (
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedCommitmentIds((prev) => [...prev, item.id]);
-                                  } else {
-                                    setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
-                                  }
-                                }}
-                                className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                              />
-                            ) : (
-                              <span className="text-slate-300 dark:text-slate-700 text-xs">—</span>
-                            )}
-                          </td>
+                  {commitmentStatusFilter === "PAGO" && (
+                    paidCommitmentsList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <Clock className="w-8 h-8 text-amber-500/80 dark:text-amber-400/80" />
+                            <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
+                              Nenhum compromisso pago encontrado para este ano.
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Os compromissos que receberem baixa constarão nesta aba.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      paidCommitmentsList.map(renderCommitmentRow)
+                    )
+                  )}
 
-                          {/* 1. Vencimento */}
-                          <td className="py-1.5 px-2 whitespace-nowrap">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-[11px] sm:text-xs text-slate-800 dark:text-slate-200">
-                                {item.dueDateFormatted}
-                              </span>
-                              <span
-                                className={`inline-flex items-center w-max px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge.color}`}
+                  {commitmentStatusFilter === "TODOS" && (
+                    <>
+                      {pendingCommitmentsList.length === 0 && paidCommitmentsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="py-12 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                              <p className="font-semibold text-sm text-slate-600 dark:text-slate-300">
+                                Nenhum compromisso encontrado para o ano de {selectedYear}.
+                              </p>
+                              <p className="text-xs text-slate-400 max-w-sm">
+                                Cadastre contas fixas, boletos ou assinaturas para controlar prazos e dar baixa com débito automático no banco ou cartão.
+                              </p>
+                              <button
+                                onClick={openNewCommitmentModal}
+                                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer"
                               >
-                                {item.dueBadge.label}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* 2. Descrição / Fornecedor */}
-                          <td className="py-1.5 px-2 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-                                item.tipo === "ASSINATURA"
-                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                              }`}>
-                                {item.tipo === "ASSINATURA" ? <Zap className="w-2.5 h-2.5" /> : <Receipt className="w-2.5 h-2.5" />}
-                              </div>
-                              <div className="min-w-0 flex-1 flex items-center gap-1.5">
-                                <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-[180px] lg:max-w-[280px]">
-                                  {item.description}
-                                </span>
-                                {isRecurring && (
-                                  <span title="Compromisso recorrente mensal" className="inline-flex shrink-0">
-                                    <Repeat className="w-3 h-3 text-indigo-500/80 dark:text-indigo-400/80" />
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* 3. Tipo */}
-                          <td className="py-1.5 px-1.5 whitespace-nowrap">
-                            <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                                item.tipo === "ASSINATURA"
-                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20"
-                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                              }`}
-                            >
-                              {item.tipoLabel}
-                            </span>
-                          </td>
-
-                          {/* 4. Valor (Alinhado à direita com fonte monoespaçada) */}
-                          <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                            <span className="font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
-                              {brl(item.amount)}
-                            </span>
-                          </td>
-
-                          {/* 5. Status & Forma de Pagamento Consolidada */}
-                          <td className="py-1.5 px-2 text-center whitespace-nowrap">
-                            {isPaid ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
-                                  <Check className="w-2.5 h-2.5" /> {item.statusLabel || "Pago"}
-                                </span>
-                                {item.formaPagamentoLabel && (
-                                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
-                                    {item.formaPagamentoLabel}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                                {item.statusLabel || "Pendente"}
-                              </span>
-                            )}
-                          </td>
-
-                          {/* 6. Ações (Botão discreto + Menu de 3 Pontos ⋮) */}
-                          <td className="py-1.5 px-2 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {!isPaid ? (
-                                <button
-                                  onClick={() => openBaixaModal(item)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-600 dark:hover:text-white transition-all cursor-pointer shadow-2xs"
-                                  title="Pagar / Dar Baixa"
-                                >
-                                  <Check className="w-3 h-3" />
-                                  <span>Pagar / Baixar</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleUndoCommitment(item.id)}
-                                  className="inline-flex items-center gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px] font-bold transition-colors cursor-pointer"
-                                  title="Desfazer pagamento"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                  <span>Desfazer</span>
-                                </button>
-                              )}
-
-                              {/* Menu de 3 Pontos (⋮) */}
-                              <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
-                                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                                  title="Mais opções"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
-                                {activeActionMenuId === item.id && (
-                                  <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveActionMenuId(null);
-                                        openEditCommitment(item);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                                      <span>Editar Compromisso</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={replicatingId === item.id}
-                                      onClick={() => {
-                                        setActiveActionMenuId(null);
-                                        handleReplicateCommitment(item);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                    >
-                                      <Copy className="w-3.5 h-3.5 text-slate-400" />
-                                      <span>Replicar p/ Próximo Mês</span>
-                                    </button>
-                                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveActionMenuId(null);
-                                        openDeleteCommitmentModal(item);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                      <span>Excluir Compromisso</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                                <Plus className="w-3.5 h-3.5" />
+                                Cadastrar Primeiro Boleto / Assinatura
+                              </button>
                             </div>
                           </td>
                         </tr>
-                      );
-                    })
+                      ) : (
+                        <>
+                          {/* Se todas as contas já foram pagas e não há pendentes */}
+                          {pendingCommitmentsList.length === 0 && paidCommitmentsList.length > 0 && (
+                            <tr>
+                              <td colSpan={7} className="py-4 px-4 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20">
+                                🎉 Todos os compromissos deste ano já foram pagos!
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* 1. Compromissos PENDENTES (visíveis e abertos por padrão, ordenados por vencimento com atrasados no topo) */}
+                          {pendingCommitmentsList.map(renderCommitmentRow)}
+
+                          {/* 2. Seção Expansível (Accordion / Toggle) para os PAGOS */}
+                          {paidCommitmentsList.length > 0 && (
+                            <tr className="bg-slate-50/70 dark:bg-slate-900/50 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-colors">
+                              <td colSpan={7} className="p-2 sm:p-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowPaidItems(!showPaidItems)}
+                                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all cursor-pointer shadow-xs group"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20 group-hover:scale-105 transition-transform">
+                                      {showPaidItems ? (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      )}
+                                    </div>
+                                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                                      {showPaidItems ? "Ocultar compromissos já pagos" : "Ver compromissos já pagos"}
+                                    </span>
+                                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                      ({paidCount} {paidCount === 1 ? "item pago" : "itens pagos"} — {brl(paidTotal)})
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                    <span>{showPaidItems ? "Recolher" : "Expandir"}</span>
+                                    {showPaidItems ? (
+                                      <ChevronDown className="w-3 h-3" />
+                                    ) : (
+                                      <ChevronRight className="w-3 h-3" />
+                                    )}
+                                  </div>
+                                </button>
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* 3. Listagem das contas pagas (expandida via accordion) */}
+                          {showPaidItems && paidCommitmentsList.map(renderCommitmentRow)}
+                        </>
+                      )}
+                    </>
                   )}
                 </tbody>
                 {/* ── 5. Totalizador / Linha de Rodapé na Tabela (tfoot) ── */}
-                {filteredCommitments.length > 0 && (
+                {(pendingCommitmentsList.length > 0 || paidCommitmentsList.length > 0) && (
                   <tfoot className="border-t-2 border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-900/70 text-xs font-bold">
                     <tr>
                       <td className="py-2 px-1.5 text-center text-slate-400">—</td>
                       <td className="py-2 px-2 text-slate-900 dark:text-white font-extrabold whitespace-nowrap">
                         TOTAL LISTADO
                         <span className="ml-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                          ({filteredCommitments.length} {filteredCommitments.length === 1 ? "item" : "itens"})
+                          ({commitmentStatusFilter === "PENDENTE"
+                            ? `${pendingCommitmentsList.length} ${pendingCommitmentsList.length === 1 ? "item" : "itens"}`
+                            : commitmentStatusFilter === "PAGO"
+                            ? `${paidCommitmentsList.length} ${paidCommitmentsList.length === 1 ? "item" : "itens"}`
+                            : `${currentYearTotals.totalCount} ${currentYearTotals.totalCount === 1 ? "item" : "itens"}`}
+                          )
                         </span>
                       </td>
                       <td className="py-2 px-2 text-slate-500 dark:text-slate-400 text-[10px]" colSpan={2}>
-                        {filteredCommitments.filter((i: any) => i.status === "PENDING").length} a pagar • {filteredCommitments.filter((i: any) => i.status === "COMPLETED").length} pagos
+                        {currentYearTotals.pendingCount} a pagar • {currentYearTotals.paidCount} pagos
                       </td>
                       <td className="py-2 px-2 text-right whitespace-nowrap">
                         <span className="font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
-                          {brl(filteredCommitments.reduce((sum: number, it: any) => sum + Number(it.amount || 0), 0))}
+                          {brl(
+                            commitmentStatusFilter === "PENDENTE"
+                              ? currentYearTotals.totalPendente
+                              : commitmentStatusFilter === "PAGO"
+                              ? currentYearTotals.totalPago
+                              : currentYearTotals.totalAno
+                          )}
                         </span>
                       </td>
                       <td className="py-2 px-2" colSpan={2}></td>
@@ -1862,169 +2119,89 @@ export default function DespesasPage() {
 
             {/* 2. Visão Mobile (Celulares/Tablets pequenos): Lista de Cards Empilhados */}
             <div className="md:hidden p-3.5 space-y-3">
-              {filteredCommitments.length === 0 ? (
-                <div className="py-10 text-center text-slate-400">
-                  <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                  <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
-                    Nenhum compromisso encontrado.
-                  </p>
-                </div>
-              ) : (
-                filteredCommitments.map((item: any) => {
-                  const isPaid = item.status === "COMPLETED";
-                  const isSelected = selectedCommitmentIds.includes(item.id);
-                  const isRecurring = item.recorrencia === "MENSAL" || item.isRecurring || item.recorrenciaLabel?.includes("Repetir");
+              {commitmentStatusFilter === "PENDENTE" && (
+                pendingCommitmentsList.length === 0 ? (
+                  <div className="py-10 text-center text-slate-400">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-500/80 dark:text-emerald-400/80 mx-auto mb-2" />
+                    <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
+                      Nenhum compromisso pendente neste ano.
+                    </p>
+                  </div>
+                ) : (
+                  pendingCommitmentsList.map(renderCommitmentCard)
+                )
+              )}
 
-                  return (
-                    <div
-                      key={item.id}
-                      className={`bg-white dark:bg-slate-900 p-4 rounded-2xl border shadow-sm space-y-3 transition-all ${
-                        isSelected
-                          ? "border-indigo-500/50 bg-indigo-50/20 dark:bg-indigo-950/30 ring-1 ring-indigo-500/30"
-                          : "border-slate-200/80 dark:border-slate-800"
-                      }`}
-                    >
-                      {/* Topo do Card: Checkbox + Descrição + Status */}
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          {!isPaid && (
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedCommitmentIds((prev) => [...prev, item.id]);
-                                } else {
-                                  setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
-                                }
-                              }}
-                              className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                            />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">
-                                {item.description}
-                              </h4>
-                              {isRecurring && (
-                                <span title="Recorrente mensal" className="inline-flex shrink-0">
-                                  <Repeat className="w-3.5 h-3.5 text-indigo-500" />
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                              <span>{item.tipoLabel}</span>
-                            </div>
-                          </div>
-                        </div>
+              {commitmentStatusFilter === "PAGO" && (
+                paidCommitmentsList.length === 0 ? (
+                  <div className="py-10 text-center text-slate-400">
+                    <Clock className="w-8 h-8 text-amber-500/80 dark:text-amber-400/80 mx-auto mb-2" />
+                    <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
+                      Nenhum compromisso pago neste ano.
+                    </p>
+                  </div>
+                ) : (
+                  paidCommitmentsList.map(renderCommitmentCard)
+                )
+              )}
 
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider shrink-0 ${
-                            isPaid
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          }`}
-                        >
-                          {item.statusLabel}
-                        </span>
-                      </div>
-
-                      {/* Informações de Vencimento e Prazo */}
-                      <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80 text-xs">
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="font-bold text-slate-700 dark:text-slate-300">
-                            Venc: {item.dueDateFormatted}
-                          </span>
-                        </div>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold border ${item.dueBadge.color}`}>
-                          {item.dueBadge.label}
-                        </span>
-                      </div>
-
-                      {/* Rodapé do Card: Valor e Ações Touch-Friendly */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                        <div>
-                          <span className="text-[10px] text-slate-400 uppercase font-bold block">Valor</span>
-                          <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums font-mono">
-                            {brl(item.amount)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {!isPaid ? (
-                            <button
-                              onClick={() => openBaixaModal(item)}
-                              className="min-h-[36px] px-3.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-600 hover:text-white dark:text-emerald-400 dark:bg-emerald-950/40 border border-emerald-500/20 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Pagar / Baixar</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleUndoCommitment(item.id)}
-                              className="min-h-[36px] px-3 text-slate-600 dark:text-slate-300 hover:text-amber-600 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Desfazer</span>
-                            </button>
-                          )}
-
-                          {/* Menu de 3 Pontos (⋮) no Mobile */}
-                          <div className="relative" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
-                              className="min-w-[36px] min-h-[36px] flex items-center justify-center p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
-                              title="Mais opções"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                            {activeActionMenuId === item.id && (
-                              <div className="absolute right-0 bottom-full mb-1.5 z-30 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    openEditCommitment(item);
-                                  }}
-                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                >
-                                  <Pencil className="w-4 h-4 text-slate-400" />
-                                  <span>Editar Compromisso</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={replicatingId === item.id}
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    handleReplicateCommitment(item);
-                                  }}
-                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                >
-                                  <Copy className="w-4 h-4 text-slate-400" />
-                                  <span>Replicar p/ Próximo Mês</span>
-                                </button>
-                                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    openDeleteCommitmentModal(item);
-                                  }}
-                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                >
-                                  <Trash2 className="w-4 h-4 text-rose-500" />
-                                  <span>Excluir Compromisso</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
+              {commitmentStatusFilter === "TODOS" && (
+                <>
+                  {pendingCommitmentsList.length === 0 && paidCommitmentsList.length === 0 ? (
+                    <div className="py-10 text-center text-slate-400">
+                      <Receipt className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
+                        Nenhum compromisso encontrado para o ano de {selectedYear}.
+                      </p>
                     </div>
-                  );
-                })
+                  ) : (
+                    <>
+                      {pendingCommitmentsList.length === 0 && paidCommitmentsList.length > 0 && (
+                        <div className="p-3 text-center text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/50 dark:border-emerald-900/30">
+                          🎉 Todos os compromissos deste ano já foram pagos!
+                        </div>
+                      )}
+
+                      {/* 1. Pendentes abertos por padrão */}
+                      {pendingCommitmentsList.map(renderCommitmentCard)}
+
+                      {/* 2. Accordion para contas pagas */}
+                      {paidCommitmentsList.length > 0 && (
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowPaidItems(!showPaidItems)}
+                            className="w-full flex items-center justify-between p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60 text-slate-700 dark:text-slate-200 font-bold text-xs transition-all cursor-pointer shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                                {showPaidItems ? (
+                                  <ChevronDown className="w-4 h-4" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
+                              </div>
+                              <div className="text-left">
+                                <p className="font-extrabold text-xs">
+                                  {showPaidItems ? "Ocultar compromissos já pagos" : "Ver compromissos já pagos"}
+                                </p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
+                                  {paidCount} {paidCount === 1 ? "item pago" : "itens pagos"} — {brl(paidTotal)}
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                              {showPaidItems ? "Recolher ▲" : "Expandir ▼"}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 3. Pagos expandidos */}
+                      {showPaidItems && paidCommitmentsList.map(renderCommitmentCard)}
+                    </>
+                  )}
+                </>
               )}
             </div>
           </div>
