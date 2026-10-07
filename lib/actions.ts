@@ -10421,7 +10421,7 @@ export async function deleteCommitmentAction(commitmentId: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getDashboardBundleAction(
   year: number,
-  month: number,
+  month?: number | null,
   tag?: string | null
 ): Promise<{
   overview: Awaited<ReturnType<typeof getDashboardOverviewData>>;
@@ -10509,12 +10509,12 @@ export async function getDashboardBundleAction(
       getMonthlyCashFlowRollForwardAction(month, year, wallets, transactions).catch(() => ({
         curMonth: new Date().getMonth() + 1,
         curYear: new Date().getFullYear(),
-        targetMonth: month,
+        targetMonth: month || (new Date().getMonth() + 1),
         targetYear: year,
         isCurrentMonth: true,
         isFutureMonth: false,
         isPastMonth: false,
-        isAnnualView: false,
+        isAnnualView: !month,
         saldoAtualContas: 0,
         saldoHerdado: 0,
         saldoPrevisto: 0,

@@ -8,18 +8,16 @@ import {
 } from "recharts";
 import {
   Plus, TrendingUp, TrendingDown, DollarSign, Target, CreditCard,
-  Building2, Zap, ChevronRight, CheckCircle2, Clock, AlertCircle,
+  Building2, Zap, ChevronRight, ChevronLeft, CheckCircle2, Clock, AlertCircle,
   Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Filter, HelpCircle
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
-import { PeriodHeader } from "@/components/period-header";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
 import { PaymentMethodChart } from "@/components/payment-method-chart";
 import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
-import { CardSaldoPrevisto } from "@/components/card-saldo-previsto";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -66,7 +64,6 @@ export function DashboardOverview() {
   const [error, setError] = useState<string | null>(null);
 
   const [selectedDashboardYear, setSelectedDashboardYear] = useState<number>(() => selectedYear || new Date().getFullYear());
-  const [selectedDashboardMonth, setSelectedDashboardMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
   const [monthlyRollForward, setMonthlyRollForward] = useState<MonthlyCashFlowRollForwardResult | null>(null);
 
   // Conciliação OFX & Modal de Detalhamento do Cálculo (Auditoria)
@@ -138,34 +135,32 @@ export function DashboardOverview() {
   const [aporteAmount, setAporteAmount] = useState<number | "">("");
   const [savingAporte, setSavingAporte] = useState(false);
 
-  // Sincronização se o período mudar externamente (via PeriodContext)
+  // Sincronização se o ano mudar externamente (via PeriodContext)
   useEffect(() => {
     if (selectedYear && selectedYear !== selectedDashboardYear) {
       setSelectedDashboardYear(selectedYear);
     }
-    if (selectedMonth && selectedMonth !== selectedDashboardMonth) {
-      setSelectedDashboardMonth(selectedMonth);
-    }
-  }, [selectedMonth, selectedYear]);
+  }, [selectedYear]);
 
   const handleYearChange = (newYear: number) => {
     setSelectedDashboardYear(newYear);
-    setPeriod(selectedDashboardMonth, newYear);
+    setPeriod(0, newYear);
   };
 
-  const handleMonthChange = (newMonth: number) => {
-    setSelectedDashboardMonth(newMonth);
-    setPeriod(newMonth, selectedDashboardYear);
+  const handleGoToCurrentYear = () => {
+    const curYear = new Date().getFullYear();
+    setSelectedDashboardYear(curYear);
+    setPeriod(0, curYear);
   };
 
   const loadDashboardData = async (skipLoadingState = false) => {
     if (!skipLoadingState) setLoading(true);
     setError(null);
     try {
-      // ⚡ Uma única chamada ao servidor consolidada em 1 round-trip
+      // ⚡ Chamada consolidada no escopo anual (month = null)
       const { overview, wallets: wList, cashFlow: rollForwardRes } = await getDashboardBundleAction(
         selectedDashboardYear,
-        selectedDashboardMonth
+        null
       );
       setData(overview);
       setMonthlyRollForward(rollForwardRes || null);
@@ -177,7 +172,7 @@ export function DashboardOverview() {
       }
       // Persiste no cache da sessão para abertura instantânea (0ms) no próximo carregamento
       try {
-        const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}`;
+        const cacheKey = `kamael_dash_${selectedDashboardYear}_annual`;
         sessionStorage.setItem(cacheKey, JSON.stringify({ overview, wallets: walletsData, cashFlow: rollForwardRes }));
       } catch (cacheErr) {}
     } catch (err: any) {
@@ -188,19 +183,10 @@ export function DashboardOverview() {
     }
   };
 
-  const handleGoToCurrentMonth = () => {
-    const now = new Date();
-    const curYear = now.getFullYear();
-    const curMonth = now.getMonth() + 1;
-    setSelectedDashboardYear(curYear);
-    setSelectedDashboardMonth(curMonth);
-    setPeriod(curMonth, curYear);
-  };
-
   useEffect(() => {
     let hasCache = false;
     try {
-      const cacheKey = `kamael_dash_${selectedDashboardYear}_${selectedDashboardMonth}`;
+      const cacheKey = `kamael_dash_${selectedDashboardYear}_annual`;
       const cachedStr = sessionStorage.getItem(cacheKey);
       if (cachedStr) {
         const cached = JSON.parse(cachedStr);
@@ -214,7 +200,7 @@ export function DashboardOverview() {
       }
     } catch (cacheErr) {}
     loadDashboardData(hasCache);
-  }, [selectedDashboardYear, selectedDashboardMonth]);
+  }, [selectedDashboardYear]);
 
   const handleRevenueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -335,7 +321,7 @@ export function DashboardOverview() {
       id: c.id,
       title: c.title,
       valor: c.faturaAtual,
-      vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`,
+      vencimento: c.vencimentoStr || `${String(c.vencimento).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${selectedDashboardYear}`,
       isPast: !!c.isPast,
       statusLabel: c.isPast ? "VENCIDA" : "PENDENTE",
       statusBadgeVariant: c.isPast ? "overdue" : "pending",
@@ -347,7 +333,7 @@ export function DashboardOverview() {
       {/* ── 0. BANNER DE ALERTAS DE VENCIMENTO IMINENTE (D-3 e D-1) ─────────── */}
       <UpcomingDueAlertBanner bills={upcomingBills} />
 
-      {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO (EXCLUSIVO MENSAL) ── */}
+      {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO (EXCLUSIVO ANUAL) ── */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -355,51 +341,61 @@ export function DashboardOverview() {
               Dashboard Financeiro
             </h1>
             <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              MÊS {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
+              ANO {selectedDashboardYear}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Detalhamento pontual das movimentações de {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}.
+            Detalhamento consolidado das movimentações do ano de {selectedDashboardYear}.
           </p>
         </div>
 
-        {/* Barra de Filtros Limpa (Ano, Mês e Mês Atual) */}
+        {/* Barra de Filtros Exclusiva por Ano */}
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
           <div className="flex items-center gap-2 flex-1 sm:flex-initial flex-wrap">
-            {/* Seletor de Ano */}
-            <select
-              value={selectedDashboardYear}
-              onChange={(e) => handleYearChange(Number(e.target.value))}
-              className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer min-w-[90px]"
-            >
-              {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
-                <option key={y} value={y}>Ano {y}</option>
-              ))}
-            </select>
+            {/* Navegador de Ano: < [Dropdown] > */}
+            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => handleYearChange(selectedDashboardYear - 1)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                title="Ano anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-            {/* Seletor de Mês */}
-            <select
-              value={selectedDashboardMonth}
-              onChange={(e) => handleMonthChange(Number(e.target.value))}
-              className="flex-1 sm:flex-initial bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white text-xs font-bold px-3 py-2 rounded-xl focus:outline-none focus:border-indigo-500 cursor-pointer min-w-[110px]"
-            >
-              {[
-                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
-              ].map((mName, idx) => (
-                <option key={idx + 1} value={idx + 1}>{mName}</option>
-              ))}
-            </select>
+              <select
+                value={selectedDashboardYear}
+                onChange={(e) => handleYearChange(Number(e.target.value))}
+                className="bg-transparent text-slate-900 dark:text-white text-xs font-bold px-2 py-1.5 focus:outline-none cursor-pointer min-w-[96px] text-center"
+              >
+                {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
+                  <option key={y} value={y} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Ano {y}</option>
+                ))}
+              </select>
 
-            {/* Botão Mês Atual */}
+              <button
+                type="button"
+                onClick={() => handleYearChange(selectedDashboardYear + 1)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                title="Próximo ano"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Botão Ano Atual */}
             <button
               type="button"
-              onClick={handleGoToCurrentMonth}
-              className="px-3.5 py-2 text-xs font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap"
-              title="Ir para o Mês Atual"
+              onClick={handleGoToCurrentYear}
+              className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap ${
+                selectedDashboardYear === new Date().getFullYear()
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/60"
+              }`}
+              title="Ir para o Ano Atual"
             >
               <Calendar className="w-3.5 h-3.5" />
-              MÊS ATUAL
+              ANO ATUAL
             </button>
           </div>
 
@@ -428,9 +424,7 @@ export function DashboardOverview() {
         </div>
       </div>
 
-
-
-      {/* ── 1.5. CARDS: SALDO CONSOLIDADO & SALDO PREVISTO PÓS-CONTAS ──────── */}
+      {/* ── 1.5. CARD DE DESTAQUE: SALDO CONSOLIDADO (Tempo Real) ──────────── */}
       {(() => {
         const bankAccounts = (data?.cards || []).filter(
           (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO"
@@ -448,57 +442,65 @@ export function DashboardOverview() {
           ? Number(data.totalRealBalance)
           : totalRealBalanceCalculated;
 
-        const saldoHerdado = monthlyRollForward?.saldoHerdado ?? 0;
-        const saldoPrevisto = monthlyRollForward?.saldoPrevisto ?? 0;
-        const totalEntradasMes = monthlyRollForward?.receitasMes ?? 0;
+        const totalReceitasAno = Number(data?.totalReceitas ?? data?.totalIncomes ?? 0);
+        const totalGastosAno = Number(data?.totalGastos ?? data?.totalExpenses ?? 0);
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-2">
-            {/* Card 1: Saldo Consolidado */}
-            <div className="bg-white dark:bg-[#131B2E] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div className="bg-white dark:bg-[#131B2E] p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl shadow-xs shrink-0">
+                👛
+              </div>
               <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl shadow-xs">
-                      👛
-                    </div>
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide leading-tight">
-                          Saldo Consolidado
-                        </span>
-                        <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
-                          Tempo Real (Hoje)
-                        </span>
-                      </div>
-                      <span className="text-slate-400 dark:text-slate-500 font-medium text-[11px] mt-0.5">
-                        ({contasBancarias.length > 0 ? `${contasBancarias.length} Contas` : "Todas as Contas"})
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-2.5 py-1 rounded-full border border-emerald-200/60 dark:border-emerald-800/60">
-                    ✽ Todas as Contas
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Saldo Consolidado
+                  </span>
+                  <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                    Tempo Real (Hoje)
+                  </span>
+                  <span className="text-slate-400 dark:text-slate-500 font-bold text-[11px]">
+                    • {contasBancarias.length > 0 ? `${contasBancarias.length} contas bancárias` : "Todas as contas"}
                   </span>
                 </div>
+                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white font-tnum tabular-nums tracking-tight mt-1">
+                  R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-1">
+                  Disponibilidade líquida consolidada em conta corrente e débito
+                </p>
+              </div>
+            </div>
 
-                <div className="mt-4">
-                  <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white font-tnum tabular-nums tracking-tight">
-                    R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </h2>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-                    Soma de todo o dinheiro em conta hoje (independente do filtro)
-                  </p>
+            {/* Subtotais Consolidados do Ano & Ações Rápidas */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 lg:gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-800/80">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-6 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                    Receitas ({selectedDashboardYear})
+                  </span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
+                    +{brl(totalReceitasAno)}
+                  </span>
+                </div>
+                <div className="sm:border-l border-slate-200 dark:border-slate-800 sm:pl-6">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                    Despesas ({selectedDashboardYear})
+                  </span>
+                  <span className="text-sm font-black text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+                    -{brl(totalGastosAno)}
+                  </span>
                 </div>
               </div>
 
-              {/* Ações Rápidas */}
-              <div className="flex gap-2.5 mt-5">
+              {/* Botões Rápidos de Ajuste de Saldo */}
+              <div className="flex sm:flex-col gap-2 shrink-0">
                 <button
                   onClick={() => {
                     setInjectTipoOperacao("ENTRADA");
                     setInjectModalOpen(true);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                 >
                   ↗ + Adicionar Saldo
                 </button>
@@ -507,24 +509,12 @@ export function DashboardOverview() {
                     setInjectTipoOperacao("SAIDA");
                     setInjectModalOpen(true);
                   }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-4 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                 >
                   ↘ - Retirar / Abater
                 </button>
               </div>
             </div>
-
-            {/* Card 2: Saldo Previsto Pós-Contas com Memória de Cálculo */}
-            <CardSaldoPrevisto
-              saldoContas={saldoConsolidado}
-              saldoHerdado={saldoHerdado}
-              isFutureMonth={Boolean(monthlyRollForward?.isFutureMonth)}
-              previousMonthLabel={monthlyRollForward?.previousMonthLabel}
-              entradasMes={totalEntradasMes}
-              faturasMes={monthlyRollForward?.faturasMes ?? 0}
-              boletosMes={monthlyRollForward?.boletosMes ?? 0}
-              saldoPrevisto={saldoPrevisto}
-            />
           </div>
         );
       })()}
@@ -592,7 +582,7 @@ export function DashboardOverview() {
                     <div className="mt-1.5">
                       <span className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                         Pendente ({(() => {
-                          const curM = selectedDashboardMonth || (new Date().getMonth() + 1);
+                          const curM = new Date().getMonth() + 1;
                           const curY = selectedDashboardYear || new Date().getFullYear();
                           const nextDate = new Date(curY, curM, 1);
                           return nextDate.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
@@ -615,20 +605,20 @@ export function DashboardOverview() {
                   ) : isTicket ? (
                     <>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
-                        Gasto no Mês:
+                        Gasto no Ano:
                       </span>
                       <span className="text-xs font-black font-tnum tabular-nums text-slate-800 dark:text-slate-200">
                         <CurrencyValue value={accountSpentInPeriod} />
                       </span>
                     </>
                   ) : (
-                    /* Conta Corrente: Apenas o que de fato transitou por ela */
+                    /* Conta Corrente: Apenas o que de fato transitou por ela no ano */
                     <>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Entradas (Mês): <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
+                        Entradas (Ano): <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
                       </span>
                       <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Saídas (Mês): <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
+                        Saídas (Ano): <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
                       </span>
                     </>
                   )}
@@ -653,7 +643,7 @@ export function DashboardOverview() {
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Evolução Financeira</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Comparativo de receitas vs. gastos nos últimos 7 meses até {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
+                  Comparativo anual de receitas vs. gastos consolidados em {selectedDashboardYear}
                 </p>
               </div>
             </div>
@@ -721,7 +711,7 @@ export function DashboardOverview() {
               <div>
                 <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Distribuição por Categoria</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Divisão dos gastos consolidados do mês {String(selectedDashboardMonth).padStart(2, "0")}/{selectedDashboardYear}
+                  Divisão dos gastos consolidados do ano de {selectedDashboardYear}
                 </p>
               </div>
             </div>
@@ -883,7 +873,7 @@ export function DashboardOverview() {
           {/* BLOCO 2: Gastos por Meio de Pagamento */}
           <PaymentMethodChart
             data={data?.paymentMethodBreakdown || []}
-            periodLabel={`Divisão dos gastos consolidados do mês ${String(selectedDashboardMonth).padStart(2, "0")}/${selectedDashboardYear}`}
+            periodLabel={`Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`}
           />
 
           {/* BLOCO 3: Resumo de Metas */}
