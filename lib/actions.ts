@@ -2727,7 +2727,10 @@ export async function updateCardPurchase(
   return { success: true, id };
 }
 
-export async function deleteCardPurchase(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteCardPurchase(
+  id: string,
+  options?: { cascadeAllInstallments?: boolean }
+): Promise<{ success: boolean; error?: string; deletedCount?: number; isInstallmentGroup?: boolean }> {
   try {
     if (!id || typeof id !== "string") {
       return { success: false, error: "ID do lançamento inválido." };
@@ -2741,46 +2744,94 @@ export async function deleteCardPurchase(id: string): Promise<{ success: boolean
         type: true,
         amount: true,
         status: true,
+        description: true,
+        installmentsCount: true,
+        currentInstallment: true,
+        installmentGroupId: true,
         deletedAt: true,
       },
     });
 
     if (!tx || tx.deletedAt) {
-      return { success: true };
+      return { success: true, deletedCount: 0 };
+    }
+
+    // Identifica transações a serem excluídas (única ou cascata de parcelas)
+    let targetIds: string[] = [tx.id];
+    let isInstallmentGroup = false;
+
+    // Se a exclusão em cascata for solicitada ou se for grupo com identificador comum
+    if (options?.cascadeAllInstallments || (options?.cascadeAllInstallments === undefined && tx.installmentGroupId)) {
+      if (tx.installmentGroupId) {
+        const groupTxs = await prisma.transaction.findMany({
+          where: {
+            walletId: tx.walletId,
+            installmentGroupId: tx.installmentGroupId,
+            deletedAt: null,
+          },
+          select: { id: true },
+        });
+        if (groupTxs.length > 0) {
+          targetIds = groupTxs.map((t) => t.id);
+          isInstallmentGroup = targetIds.length > 1;
+        }
+      } else if (tx.installmentsCount && tx.installmentsCount > 1) {
+        // Fallback para parcelas sem installmentGroupId: busca pelo mesmo cartão e prefixo da descrição
+        const cleanDesc = (tx.description || "")
+          .replace(/\s*\(\d+\/\d+\)$/, "")
+          .replace(/\s*Parcela\s*\d+\/\d+/i, "")
+          .trim();
+
+        if (cleanDesc) {
+          const matchingTxs = await prisma.transaction.findMany({
+            where: {
+              walletId: tx.walletId,
+              deletedAt: null,
+              installmentsCount: tx.installmentsCount,
+              description: { startsWith: cleanDesc },
+            },
+            select: { id: true },
+          });
+          if (matchingTxs.length > 0) {
+            targetIds = matchingTxs.map((t) => t.id);
+            isInstallmentGroup = targetIds.length > 1;
+          }
+        }
+      }
     }
 
     // 1. Desvincula com segurança quaisquer referências de tabelas filhas (sem quebrar chaves)
     try {
       await (prisma as any).goalHistory?.updateMany({
-        where: { transactionId: id },
+        where: { transactionId: { in: targetIds } },
         data: { transactionId: null },
       });
     } catch (e) {}
 
     try {
       await (prisma as any).eventItem?.updateMany({
-        where: { transactionId: id },
+        where: { transactionId: { in: targetIds } },
         data: { transactionId: null },
       });
     } catch (e) {}
 
     try {
       await (prisma as any).invoicePayment?.updateMany({
-        where: { paymentTransactionId: id },
+        where: { paymentTransactionId: { in: targetIds } },
         data: { paymentTransactionId: null },
       });
     } catch (e) {}
 
     try {
       await (prisma as any).subscriptionPayment?.updateMany({
-        where: { paymentTransactionId: id },
+        where: { paymentTransactionId: { in: targetIds } },
         data: { paymentTransactionId: null },
       });
     } catch (e) {}
 
     try {
       await (prisma as any).creditPixOperation?.updateMany({
-        where: { incomeTransactionId: id },
+        where: { incomeTransactionId: { in: targetIds } },
         data: { incomeTransactionId: null },
       });
     } catch (e) {}
@@ -2788,22 +2839,22 @@ export async function deleteCardPurchase(id: string): Promise<{ success: boolean
     // 2. Soft Delete garantido (padrão de segurança financeira)
     // Marca deletedAt para que suma imediatamente de todas as consultas e cálculos
     await prisma.transaction.updateMany({
-      where: { id },
+      where: { id: { in: targetIds } },
       data: { deletedAt: new Date() },
     });
 
     // Tenta desvincular pixCreditOperationId se a coluna existir no banco
     try {
       await (prisma.transaction as any).updateMany({
-        where: { id },
+        where: { id: { in: targetIds } },
         data: { pixCreditOperationId: null },
       });
     } catch (e) {}
 
     // 3. Tenta exclusão física (Hard Delete) caso não haja restrição externa
     try {
-      await prisma.transaction.delete({
-        where: { id },
+      await prisma.transaction.deleteMany({
+        where: { id: { in: targetIds } },
       });
     } catch (hardDeleteErr) {
       console.log("Transação mantida via Soft Delete devido a dependências históricas:", hardDeleteErr);
@@ -2818,12 +2869,21 @@ export async function deleteCardPurchase(id: string): Promise<{ success: boolean
         });
 
         if (wallet && wallet.walletType !== "CREDIT_CARD") {
-          const amount = Number(tx.amount || 0);
+          const allDeletedTxs = await prisma.transaction.findMany({
+            where: { id: { in: targetIds } },
+            select: { amount: true, type: true, status: true },
+          });
+          let diff = 0;
+          for (const t of allDeletedTxs) {
+            if (t.status === "COMPLETED") {
+              const amount = Number(t.amount || 0);
+              diff += t.type === "INCOME" ? -amount : amount;
+            }
+          }
           const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-          const updatedBalance = tx.type === "INCOME" ? currentVal - amount : currentVal + amount;
           await prisma.wallet.update({
             where: { id: wallet.id },
-            data: { currentBalance: updatedBalance },
+            data: { currentBalance: currentVal + diff },
           });
         }
       } catch (balErr) {
@@ -2840,7 +2900,7 @@ export async function deleteCardPurchase(id: string): Promise<{ success: boolean
     revalidatePath("/receitas");
     revalidatePath("/contas");
 
-    return { success: true };
+    return { success: true, deletedCount: targetIds.length, isInstallmentGroup };
   } catch (error: any) {
     console.error("Erro ao excluir lançamento:", error);
     return {
@@ -2848,6 +2908,12 @@ export async function deleteCardPurchase(id: string): Promise<{ success: boolean
       error: error?.message || "Erro interno ao excluir lançamento.",
     };
   }
+}
+
+export async function deleteCascadePurchaseAction(
+  id: string
+): Promise<{ success: boolean; error?: string; deletedCount?: number; isInstallmentGroup?: boolean }> {
+  return deleteCardPurchase(id, { cascadeAllInstallments: true });
 }
 
 export async function deleteBatchPurchasesAction(ids: string[]): Promise<{ success: boolean; error?: string }> {

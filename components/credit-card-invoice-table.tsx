@@ -29,6 +29,7 @@ export interface CreditCardTransaction {
   installmentLabel?: string;
   currentInstallment?: number;
   installmentsCount?: number;
+  installmentGroupId?: string | null;
   isRecurring?: boolean;
   repeatNextMonth?: boolean;
   tags?: string | null;

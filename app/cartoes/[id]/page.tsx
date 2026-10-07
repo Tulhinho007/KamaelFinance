@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   getCardDataById, saveCardLimit, saveCardDates, updateCardPurchase, deleteCardPurchase,
-  deleteBatchPurchasesAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
+  deleteBatchPurchasesAction, deleteCascadePurchaseAction, markBatchTransactionsPaidAction, unmarkBatchTransactionsPaidAction,
   duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
   addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction,
   createRevenueAction, payCardInvoiceAction, undoCardInvoicePaymentAction, getAllCardsOverview,
@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, ChevronUp, FolderTree, List, ChevronRight, Check, Repeat
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, AlertTriangle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, ChevronUp, FolderTree, List, ChevronRight, Check, Repeat
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -184,6 +184,7 @@ export default function CartaoDetailPage() {
   const [bankMovTipoLancamento, setBankMovTipoLancamento] = useState<string>("SALARIO");
   const [bankMovEditingId, setBankMovEditingId] = useState<string | null>(null);
   const [bankMovSaving, setBankMovSaving] = useState(false);
+  const [isDeletingPurchase, setIsDeletingPurchase] = useState(false);
 
   // Cálculo da soma total das despesas selecionadas (Hook posicionado no topo, ANTES de retornos condicionais)
   const selectedTotalAmount = React.useMemo(() => {
@@ -754,19 +755,41 @@ export default function CartaoDetailPage() {
     setModalType("edit");
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (cascadeAll = false) => {
     if (!selectedPurchase) return;
+    setIsDeletingPurchase(true);
     try {
-      const res = await deleteCardPurchase(selectedPurchase.id);
+      const isParcelado = Boolean(
+        (selectedPurchase as any).subtype === "parcelado" ||
+        selectedPurchase.type === "parcelado" ||
+        Boolean(selectedPurchase.installmentsCount && selectedPurchase.installmentsCount > 1) ||
+        Boolean((selectedPurchase as any).installmentGroupId) ||
+        Boolean((selectedPurchase as any).installmentLabel) ||
+        /\((\d+)\/(\d+)\)/.test(selectedPurchase.description) ||
+        /Parcela\s*\d+\/\d+/i.test(selectedPurchase.description)
+      );
+
+      const shouldCascade = cascadeAll || isParcelado;
+
+      const res = await deleteCardPurchase(selectedPurchase.id, { cascadeAllInstallments: shouldCascade });
       if (res && res.success === false) {
         throw new Error(res.error || "Erro ao excluir lançamento.");
       }
       await loadData();
       setModalType(null);
-      showAlert("Lançamento excluído com sucesso!", { variant: "success" });
+      if (shouldCascade && (res as any).deletedCount && (res as any).deletedCount > 1) {
+        showAlert(
+          `Todas as ${(res as any).deletedCount} parcelas foram excluídas com sucesso de todas as faturas e o limite foi recalculado!`,
+          { variant: "success" }
+        );
+      } else {
+        showAlert("Lançamento excluído com sucesso!", { variant: "success" });
+      }
     } catch (err: any) {
       console.error(err);
       showAlert(err?.message || "Erro ao excluir lançamento.", { variant: "error" });
+    } finally {
+      setIsDeletingPurchase(false);
     }
   };
 
@@ -1017,7 +1040,7 @@ export default function CartaoDetailPage() {
             cardTitle={cardData.title}
           />
 
-          <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 items-stretch w-full">
+          <section className="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-stretch w-full">
             {/* Card 1 — LIMITE TOTAL */}
             <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">
@@ -1091,78 +1114,6 @@ export default function CartaoDetailPage() {
                 )}
               </div>
             </div>
-
-            {/* Card 4 — DATA DE FECHAMENTO */}
-            <div
-              onClick={openDatesModal}
-              title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-indigo-500/40 transition-all overflow-hidden"
-            >
-              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
-                  Data Fechamento
-                </span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-500 transition-colors shrink-0" />
-              </div>
-              <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className="text-xl md:text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight leading-none whitespace-nowrap">
-                  Dia {String(cardData.diaFechamento || 1).padStart(2, "0")}
-                </p>
-              </div>
-              <div className="h-7 flex items-center w-full">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2.5 py-1 rounded-full truncate">
-                  Encerramento da fatura
-                </span>
-              </div>
-            </div>
-
-            {/* Card 5 — DIA DE VENCIMENTO */}
-            <div
-              onClick={openDatesModal}
-              title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-amber-500/40 transition-all overflow-hidden"
-            >
-              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
-                  Dia Vencimento
-                </span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-500 transition-colors shrink-0" />
-              </div>
-              <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className="text-xl md:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight leading-none whitespace-nowrap">
-                  Dia {String(cardData.vencimento || 10).padStart(2, "0")}
-                </p>
-              </div>
-              <div className="h-7 flex items-center w-full">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-100 dark:border-amber-800 px-2.5 py-1 rounded-full truncate">
-                  Limite de pagamento
-                </span>
-              </div>
-            </div>
-
-            {/* Card 6 — MELHOR DIA COMPRA */}
-            <div
-              onClick={openDatesModal}
-              title="Clique para alterar as datas do cartão"
-              className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm cursor-pointer group hover:border-emerald-500/40 transition-all overflow-hidden"
-            >
-              <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
-                  Melhor Dia Compra
-                </span>
-                <Edit2 className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-500 transition-colors shrink-0" />
-              </div>
-              <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className="text-xl md:text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight leading-none whitespace-nowrap">
-                  Dia {String(cardData.melhorDiaCompra || 2).padStart(2, "0")}
-                </p>
-              </div>
-              <div className="h-7 flex items-center w-full">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-800 px-2.5 py-1 rounded-full truncate">
-                  Próxima fatura (+30d)
-                </span>
-              </div>
-            </div>
           </section>
 
           {/* EXTRATO CRONOLÓGICO — CARTÃO DE CRÉDITO */}
@@ -1183,6 +1134,7 @@ export default function CartaoDetailPage() {
               installmentLabel?: string;
               installmentsCount?: number;
               currentInstallment?: number;
+              installmentGroupId?: string | null;
             };
 
             const allCreditEntries: CreditEntry[] = [
@@ -1209,6 +1161,7 @@ export default function CartaoDetailPage() {
                 installmentLabel: `${p.currentInstallment}/${p.installmentsCount}`,
                 installmentsCount: p.installmentsCount,
                 currentInstallment: p.currentInstallment,
+                installmentGroupId: p.installmentGroupId || (p as any).installmentGroupId || null,
               })),
             ].sort((a, b) => {
               const da = new Date((a.purchaseDate || a.competenceDate || a.date).split("T")[0]).getTime();
@@ -1272,6 +1225,7 @@ export default function CartaoDetailPage() {
                     installmentLabel: entry.installmentLabel,
                     currentInstallment: entry.currentInstallment,
                     installmentsCount: entry.installmentsCount,
+                    installmentGroupId: entry.installmentGroupId || null,
                     isRecurring: entry.isRecurring,
                     tags: entry.tags,
                     subtype: entry.subtype,
@@ -1739,19 +1693,139 @@ export default function CartaoDetailPage() {
 
 
 
-      {/* Modal Excluir Lançamento Individual */}
-      {modalType === "delete" && selectedPurchase && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-sm flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
-            <h3 className="text-sm font-black text-white">Excluir Lançamento</h3>
-            <p className="text-xs text-slate-400">Tem certeza que deseja excluir "{selectedPurchase.description}"?</p>
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-              <button onClick={() => setModalType(null)} className="flex-1 py-2.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer">Cancelar</button>
-              <button onClick={handleDelete} className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl cursor-pointer">Excluir</button>
+      {/* Modal Excluir Lançamento Individual / Compra Parcelada */}
+      {modalType === "delete" && selectedPurchase && (() => {
+        const isParcelado = Boolean(
+          (selectedPurchase as any).subtype === "parcelado" ||
+          selectedPurchase.type === "parcelado" ||
+          Boolean(selectedPurchase.installmentsCount && selectedPurchase.installmentsCount > 1) ||
+          Boolean((selectedPurchase as any).installmentGroupId) ||
+          Boolean((selectedPurchase as any).installmentLabel) ||
+          /\((\d+)\/(\d+)\)/.test(selectedPurchase.description) ||
+          /Parcela\s*\d+\/\d+/i.test(selectedPurchase.description)
+        );
+
+        let parcelLabel = (selectedPurchase as any).installmentLabel || "";
+        if (!parcelLabel) {
+          if (selectedPurchase.currentInstallment && selectedPurchase.installmentsCount) {
+            parcelLabel = `${selectedPurchase.currentInstallment}/${selectedPurchase.installmentsCount}`;
+          } else {
+            const match = selectedPurchase.description.match(/\((\d+)\/(\d+)\)/) || selectedPurchase.description.match(/Parcela\s*(\d+)\/(\d+)/i);
+            if (match) {
+              parcelLabel = `${match[1]}/${match[2]}`;
+            } else if (selectedPurchase.installmentsCount) {
+              parcelLabel = `1/${selectedPurchase.installmentsCount}`;
+            }
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-slate-900 rounded-3xl p-6 w-full max-w-md flex flex-col gap-4 text-center shadow-2xl border border-slate-800 animate-in zoom-in-95">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto border border-rose-500/20">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+
+              <div>
+                <h3 className="text-base font-black text-white">
+                  {isParcelado ? "Excluir Compra Parcelada" : "Excluir Lançamento"}
+                </h3>
+                {isParcelado && parcelLabel && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 mt-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                    Parcela {parcelLabel}
+                  </span>
+                )}
+              </div>
+
+              {isParcelado ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-200 leading-relaxed font-semibold">
+                    Esta é uma compra parcelada{parcelLabel ? ` (ex: ${parcelLabel})` : ""}. Deseja excluir todas as parcelas desta compra de todas as faturas?
+                  </p>
+                  <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-left text-[11px] text-slate-400 space-y-1">
+                    <p className="font-bold text-slate-200 truncate">
+                      Item: <span className="font-medium text-slate-300">{selectedPurchase.description}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 leading-normal">
+                      💡 Ao confirmar, todas as parcelas vinculadas serão excluídas do sistema e o seu limite disponível será recalculado e liberado imediatamente.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Tem certeza que deseja excluir "{selectedPurchase.description}"?
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2 pt-2 border-t border-slate-800">
+                {isParcelado ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isDeletingPurchase}
+                      onClick={() => handleDelete(true)}
+                      className="w-full py-2.5 px-4 text-xs font-black text-white bg-rose-600 hover:bg-rose-500 active:scale-98 rounded-xl cursor-pointer transition-all shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isDeletingPurchase ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Excluindo parcelas em cascata...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Excluir Todas as Parcelas ({parcelLabel || "Cascata"})</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isDeletingPurchase}
+                      onClick={() => handleDelete(false)}
+                      className="w-full py-2 px-3 text-xs font-semibold text-slate-400 hover:text-rose-400 hover:bg-rose-950/20 rounded-xl cursor-pointer transition-colors disabled:opacity-50"
+                    >
+                      Excluir apenas esta parcela individual
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isDeletingPurchase}
+                      onClick={() => setModalType(null)}
+                      className="w-full py-2 px-3 text-xs font-bold text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 rounded-xl cursor-pointer transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={isDeletingPurchase}
+                      onClick={() => setModalType(null)}
+                      className="flex-1 py-2.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl cursor-pointer transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingPurchase}
+                      onClick={() => handleDelete(false)}
+                      className="flex-1 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl cursor-pointer transition-colors shadow-md shadow-rose-600/30 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {isDeletingPurchase ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span>Excluir</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── BARRA FLUTUANTE MÍNIMA DE SELEÇÃO EM LOTE ───────────────────── */}
       {!isBank && selectedIds.length > 0 && (
