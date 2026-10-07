@@ -186,7 +186,7 @@ function walletBadgeStyle(type: string) {
 }
 
 // ─── Exportador CSV ──────────────────────────────────────────────────────────
-function exportExpensesCSV(cards: CardOverview[], paidList: any[], month: number, year: number) {
+function exportExpensesCSV(cards: CardOverview[], paidList: any[], month: number | null, year: number) {
   const headers = ["Tipo", "Nome / Banco", "Titular", "Limite / Saldo Total", "Fatura / Uso Atual", "Fechamento / Vencimento"];
   const rows = cards.map(c => [
     `"${walletLabel(c.walletType)}"`,
@@ -202,7 +202,10 @@ function exportExpensesCSV(cards: CardOverview[], paidList: any[], month: number
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.setAttribute("download", `Relatorio_Despesas_${String(month).padStart(2, "0")}_${year}.csv`);
+  const fileName = month
+    ? `Relatorio_Despesas_${String(month).padStart(2, "0")}_${year}.csv`
+    : `Relatorio_Despesas_Ano_${year}.csv`;
+  link.setAttribute("download", fileName);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -300,7 +303,7 @@ function CategoryDonutChart({ cards }: { cards: CardOverview[] }) {
 // ─── Componente Principal ─────────────────────────────────────────────────────
 export default function DespesasPage() {
   const { showAlert } = useModal();
-  const { selectedMonth, selectedYear, prevMonth, nextMonth, goToCurrentMonth, setPeriod } = usePeriod();
+  const { selectedMonth, selectedYear, prevMonth, nextMonth, prevYear, nextYear, goToCurrentMonth, goToCurrentYear, setPeriod, setYear } = usePeriod();
 
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | null>(selectedMonth || (new Date().getMonth() + 1));
   const [activeActionMenuId, setActiveActionMenuId]   = useState<string | null>(null);
@@ -723,10 +726,14 @@ export default function DespesasPage() {
 
   const reloadAllData = async () => {
     try {
-      const bundle = await getDespesasBundleAction(selectedMonthFilter, selectedYear);
+      const isCartoesAnnual = mainView === "cartoes";
+      const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
+      const bundle = await getDespesasBundleAction(reqMonth, selectedYear);
       applyBundleData(bundle);
       try {
-        const cacheKey = `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
+        const cacheKey = isCartoesAnnual
+          ? `kamael_despesas_ANNUAL_${selectedYear}`
+          : `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
         sessionStorage.setItem(cacheKey, JSON.stringify(bundle));
       } catch (e) {}
       setCommitmentsLoading(false);
@@ -829,7 +836,9 @@ export default function DespesasPage() {
 
   const loadPaidInvoices = async () => {
     try {
-      const list = await getPaidInvoicesAction(selectedMonthFilter, selectedYear);
+      const isCartoesAnnual = mainView === "cartoes";
+      const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
+      const list = await getPaidInvoicesAction(reqMonth, selectedYear);
       setPaidInvoicesList(list);
     } catch (e) {
       console.error("Erro ao carregar faturas pagas:", e);
@@ -847,9 +856,7 @@ export default function DespesasPage() {
         payModalCard.amount,
         selectedPaymentWalletId
       );
-      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
-      setCards(fresh);
-      await loadPaidInvoices();
+      await reloadAllData();
       setPayModalCard(null);
     } catch (e) {
       console.error(e);
@@ -862,9 +869,7 @@ export default function DespesasPage() {
   const handleUndoPayment = async (cardWalletId: string, month: number, year: number) => {
     try {
       await undoCardInvoicePaymentAction(cardWalletId, month, year);
-      const fresh = await getAllCardsOverview(selectedMonthFilter, selectedYear);
-      setCards(fresh);
-      await loadPaidInvoices();
+      await reloadAllData();
     } catch (e) {
       console.error(e);
       showAlert("Erro ao desfazer pagamento da fatura.", { variant: "error" });
@@ -884,7 +889,11 @@ export default function DespesasPage() {
   // ── Carrega dados em modo Anual ou Mensal com SWR Instantâneo (0ms) ──────────
   useEffect(() => {
     let active = true;
-    const cacheKey = `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
+    const isCartoesAnnual = mainView === "cartoes";
+    const reqMonth = isCartoesAnnual ? null : selectedMonthFilter;
+    const cacheKey = isCartoesAnnual
+      ? `kamael_despesas_ANNUAL_${selectedYear}`
+      : `kamael_despesas_${selectedMonthFilter || "ALL"}_${selectedYear}`;
 
     // ⚡ 1. SWR Instantâneo: Carrega instantaneamente do sessionStorage (0ms)
     try {
@@ -906,7 +915,7 @@ export default function DespesasPage() {
     }
 
     // ⚡ 2. Revalidação consolidada em 1 único round-trip HTTP sem chamadas redundantes
-    getDespesasBundleAction(selectedMonthFilter, selectedYear)
+    getDespesasBundleAction(reqMonth, selectedYear)
       .then((bundle) => {
         if (!active) return;
         applyBundleData(bundle);
@@ -927,7 +936,7 @@ export default function DespesasPage() {
     return () => {
       active = false;
     };
-  }, [selectedMonthFilter, selectedYear]);
+  }, [mainView, selectedMonthFilter, selectedYear]);
 
   // ── Titulares únicos para o filtro rápido ────────────────────────────────────
   const uniqueHolders = Array.from(
@@ -1020,10 +1029,13 @@ export default function DespesasPage() {
     return 0;
   }, []);
 
-  // 1. Faturas de Cartão a Vencer para o mês selecionado
+  // 1. Faturas de Cartão a Vencer para o período selecionado (Mês ou Ano)
   const upcomingCardBills = React.useMemo(() => {
     if (windowBills?.upcomingCardInvoices && windowBills.upcomingCardInvoices.length > 0) {
       return windowBills.upcomingCardInvoices.filter((c: any) => {
+        if (mainView === "cartoes") {
+          return !c.year || c.year === selectedYear;
+        }
         return (!c.month || c.month === activeMonth) && (!c.year || c.year === selectedYear);
       });
     }
@@ -1034,12 +1046,13 @@ export default function DespesasPage() {
         const dueDateInfo = getInvoiceDueDateInfo(
           (c as any).diaFechamento || 1,
           c.vencimento || 10,
-          activeMonth,
+          mainView === "cartoes" ? (new Date().getMonth() + 1) : activeMonth,
           selectedYear
         );
 
         return {
           id:         c.id,
+          cardId:     c.id,
           title:      c.title,
           bankName:   c.bankName || c.title,
           vencimento: dueDateInfo.dateStr,
@@ -1047,20 +1060,21 @@ export default function DespesasPage() {
           dueDateRaw: dueDateInfo.dueDate.toISOString(),
           dueDateMs:  dueDateInfo.dueDate.getTime(),
           status:     dueDateInfo.isPast ? ("vencido" as const) : ("aberto" as const),
-          month:      activeMonth,
+          month:      mainView === "cartoes" ? dueDateInfo.billingMonth : activeMonth,
           billingMonth: dueDateInfo.billingMonth,
           billingYear:  dueDateInfo.billingYear,
           year:       selectedYear,
         };
       });
-  }, [windowBills, creditCards, activeMonth, selectedYear, isCardInvoicePaidForPeriod]);
+  }, [windowBills, creditCards, mainView, activeMonth, selectedYear, isCardInvoicePaidForPeriod]);
 
-  // 2. Lista unificada para a seção "Contas e Faturas a Vencer" (exclusivamente Faturas de Cartão do mês selecionado)
+  // 2. Lista unificada para a seção "Contas e Faturas a Vencer" (exclusivamente Faturas de Cartão do período selecionado)
   const unifiedUpcomingItems = React.useMemo(() => {
     return upcomingCardBills.map((bill: any) => {
       const dueMs = parseDueDateMs(bill.vencimento, bill.dueDateRaw);
       return {
         id: bill.id,
+        cardId: bill.cardId || bill.id,
         itemType: "CARD_INVOICE" as const,
         description: `Fatura ${bill.title || bill.bankName}`,
         dueDate: bill.vencimento,
@@ -1070,23 +1084,29 @@ export default function DespesasPage() {
         paymentMethod: "CARTÃO DE CRÉDITO",
         bankName: bill.bankName || bill.title,
         isRecurring: false,
-        month: bill.month || activeMonth,
+        month: bill.month || (mainView === "cartoes" ? (new Date().getMonth() + 1) : activeMonth),
         year: bill.year || selectedYear,
       };
     }).sort((a: any, b: any) => a.dueDateMs - b.dueDateMs);
-  }, [upcomingCardBills, parseDueDateMs, activeMonth, selectedYear]);
+  }, [upcomingCardBills, parseDueDateMs, mainView, activeMonth, selectedYear]);
 
-  // 3. Faturas de Cartão Pagas no mês selecionado
+  // 3. Faturas de Cartão Pagas no período selecionado
   const filteredPaidCardInvoices = React.useMemo(() => {
     if (windowBills?.paidCardInvoices && windowBills.paidCardInvoices.length > 0) {
       return windowBills.paidCardInvoices.filter((item: any) => {
+        if (mainView === "cartoes") {
+          return !item.year || item.year === selectedYear;
+        }
         return (!item.month || item.month === activeMonth) && (!item.year || item.year === selectedYear);
       });
     }
     return unifiedPaidInvoices.filter((item: any) => {
+      if (mainView === "cartoes") {
+        return Number(item.year) === selectedYear;
+      }
       return (Number(item.month) === activeMonth && Number(item.year) === selectedYear);
     });
-  }, [windowBills, unifiedPaidInvoices, activeMonth, selectedYear]);
+  }, [windowBills, unifiedPaidInvoices, mainView, activeMonth, selectedYear]);
 
   // ── Contas e Faturas Pendentes / Pagas (Cálculo Corrigido com Roll-Forward) ──────────────────
   const totalFaturasPendentes = upcomingCardBills.reduce((s, b) => s + Number(b.valor || 0), 0);
@@ -1283,48 +1303,84 @@ export default function DespesasPage() {
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
               Despesas & Contas
             </h1>
-            <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-              {getMonthName(activeMonth)}/{selectedYear}
-            </span>
+            {mainView === "cartoes" ? (
+              <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                ANO {selectedYear}
+              </span>
+            ) : (
+              <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                {getMonthName(activeMonth)}/{selectedYear}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-            Lançamentos, cartões e compromissos do mês de {getMonthName(activeMonth)} de {selectedYear}.
+            {mainView === "cartoes"
+              ? `Lançamentos, cartões e compromissos do ano de ${selectedYear}.`
+              : `Lançamentos, cartões e compromissos do mês de ${getMonthName(activeMonth)} de ${selectedYear}.`}
           </p>
         </div>
 
-        {/* ── Seletor de Período Padronizado (< Mês Ano >) ── */}
+        {/* ── Seletor de Período Padronizado (< Ano > ou < Mês Ano >) ── */}
         <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
-          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
-            <button
-              onClick={() => prevMonth()}
-              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Mês Anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[130px] text-center">
-              {getMonthName(activeMonth)} {selectedYear}
-            </span>
-            <button
-              onClick={() => nextMonth()}
-              className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Próximo Mês"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                goToCurrentMonth();
-                setSelectedMonthFilter(new Date().getMonth() + 1);
-              }}
-              className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
-            >
-              MÊS ATUAL
-            </button>
-          </div>
+          {mainView === "cartoes" ? (
+            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
+              <button
+                onClick={() => prevYear()}
+                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Ano Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[90px] text-center">
+                {selectedYear}
+              </span>
+              <button
+                onClick={() => nextYear()}
+                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Próximo Ano"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => goToCurrentYear()}
+                className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+              >
+                ANO ATUAL
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
+              <button
+                onClick={() => prevMonth()}
+                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Mês Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-black text-slate-800 dark:text-white px-3 uppercase tracking-wider min-w-[130px] text-center">
+                {getMonthName(activeMonth)} {selectedYear}
+              </span>
+              <button
+                onClick={() => nextMonth()}
+                className="p-1.5 rounded-xl text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Próximo Mês"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  goToCurrentMonth();
+                  setSelectedMonthFilter(new Date().getMonth() + 1);
+                }}
+                className="px-2.5 py-1 text-[10px] font-extrabold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer"
+              >
+                MÊS ATUAL
+              </button>
+            </div>
+          )}
 
           <button
-            onClick={() => exportExpensesCSV(cards, paidInvoicesList, activeMonth, selectedYear)}
+            onClick={() => exportExpensesCSV(cards, paidInvoicesList, mainView === "cartoes" ? null : activeMonth, selectedYear)}
             className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
             title="Exportar relatório CSV"
           >
@@ -2047,6 +2103,7 @@ export default function DespesasPage() {
           saldoContas={saldoTotalContas}
           saldoHerdado={saldoHerdado}
           isFutureMonth={Boolean(monthlyRollForward?.isFutureMonth)}
+          isAnnual={mainView === "cartoes"}
           previousMonthLabel={monthlyRollForward?.previousMonthLabel}
           entradasMes={totalEntradasMes}
           faturasMes={monthlyRollForward?.faturasMes ?? totalFaturasPendentes}
@@ -2132,7 +2189,9 @@ export default function DespesasPage() {
               </div>
               <div>
                 <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">Distribuição dos Gastos por Cartão</h3>
-                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">Visão consolidada das faturas ativas no mês</p>
+                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                  {mainView === "cartoes" ? "Visão consolidada das faturas ativas no ano" : "Visão consolidada das faturas ativas no mês"}
+                </p>
               </div>
             </div>
           </div>
@@ -2233,7 +2292,7 @@ export default function DespesasPage() {
                   <CardTile
                     key={card.id}
                     card={card}
-                    selectedMonth={selectedMonthFilter}
+                    selectedMonth={mainView === "cartoes" ? null : selectedMonthFilter}
                     selectedYear={selectedYear}
                     isPaid={isCardInvoicePaidForPeriod(card)}
                     onTogglePaid={(id) => {
@@ -2352,7 +2411,7 @@ export default function DespesasPage() {
                       onClick={() => {
                         setSelectedPaymentWalletId("NONE");
                         setPayModalCard({
-                          id: fatura.id,
+                          id: (fatura as any).cardId || fatura.id,
                           title: cardName,
                           amount: fatura.amount,
                           month: fatura.month || activeMonth,

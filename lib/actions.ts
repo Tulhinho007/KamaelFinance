@@ -4241,11 +4241,11 @@ export async function getAllCardsOverview(
       periodExpenseCount: transactions.length,
       periodIncomeCount:  periodIncomes.length,
       carryoverBalance: balanceInfo.carryoverBalance,
-      monthIncome:      balanceInfo.monthIncome,
-      monthExpense:     balanceInfo.monthExpense,
+      monthIncome:      isAnnualView ? accountIncomes : balanceInfo.monthIncome,
+      monthExpense:     isAnnualView ? accountExpenses : balanceInfo.monthExpense,
       finalBalance:     balanceInfo.finalBalance,
-      gastoMes:         balanceInfo.monthExpense,
-      recargaMes:       balanceInfo.monthIncome,
+      gastoMes:         isAnnualView ? accountExpenses : balanceInfo.monthExpense,
+      recargaMes:       isAnnualView ? accountIncomes : balanceInfo.monthIncome,
       totalPendenteProximoMes: Math.round(totalPendenteProximoMes * 100) / 100,
       vencimento:       w.vencimento ?? 10,
       diaFechamento:    (w as any).diaFechamento ?? 1,
@@ -4795,10 +4795,15 @@ export async function getUpcomingBillsWindowAction(
 ) {
   const now = new Date();
   const curYear = year || now.getFullYear();
-  const targetMonth = month && month !== "ALL" && !isNaN(Number(month)) ? Number(month) : (now.getMonth() + 1);
+  const isAnnualView = !month || month === "ALL" || month === "0" || Number.isNaN(Number(month));
+  const targetMonth = isAnnualView ? null : Number(month);
 
-  const from = new Date(Date.UTC(curYear, targetMonth - 1, 1, 0, 0, 0));
-  const to   = new Date(Date.UTC(curYear, targetMonth, 0, 23, 59, 59, 999));
+  const from = isAnnualView
+    ? new Date(Date.UTC(curYear, 0, 1, 0, 0, 0))
+    : new Date(Date.UTC(curYear, (targetMonth || 1) - 1, 1, 0, 0, 0));
+  const to = isAnnualView
+    ? new Date(Date.UTC(curYear, 11, 31, 23, 59, 59, 999))
+    : new Date(Date.UTC(curYear, targetMonth || 1, 0, 23, 59, 59, 999));
 
   let creditCards: any[];
   let allPaidInvoices: any[];
@@ -4807,10 +4812,17 @@ export async function getUpcomingBillsWindowAction(
   if (preloaded?.wallets && preloaded?.transactions && preloaded?.paidInvoices) {
     creditCards = preloaded.wallets.filter((w: any) => w.walletType === "CREDIT_CARD");
     const cardIds = creditCards.map(c => c.id);
-    allPaidInvoices = preloaded.paidInvoices.filter((p: any) => cardIds.includes(p.walletId) && p.month === targetMonth && p.year === curYear);
+    allPaidInvoices = preloaded.paidInvoices.filter((p: any) =>
+      cardIds.includes(p.walletId) &&
+      (isAnnualView ? p.year === curYear : (p.month === targetMonth && p.year === curYear))
+    );
     allCardPurchases = preloaded.transactions.filter((t: any) => {
       if (!cardIds.includes(t.walletId) || t.type !== "EXPENSE" || t.deletedAt || t.source === "RECURRING_PROJECTION") return false;
-      if (t.competenceMonth === targetMonth && t.competenceYear === curYear) return true;
+      if (t.competenceMonth != null && t.competenceYear != null) {
+        return isAnnualView
+          ? t.competenceYear === curYear
+          : (t.competenceMonth === targetMonth && t.competenceYear === curYear);
+      }
       const d = new Date(t.competenceDate || t.purchaseDate || t.date);
       return d >= from && d <= to;
     });
@@ -4824,7 +4836,11 @@ export async function getUpcomingBillsWindowAction(
     [allPaidInvoices, allCardPurchases] = await Promise.all([
       cardIds.length > 0
         ? (prisma as any).invoicePayment.findMany({
-            where: { walletId: { in: cardIds }, month: targetMonth, year: curYear }
+            where: {
+              walletId: { in: cardIds },
+              year: curYear,
+              ...(!isAnnualView && targetMonth ? { month: targetMonth } : {})
+            }
           })
         : Promise.resolve([]),
       cardIds.length > 0
@@ -4835,7 +4851,7 @@ export async function getUpcomingBillsWindowAction(
               deletedAt: null,
               source: { not: "RECURRING_PROJECTION" },
               OR: [
-                { competenceMonth: targetMonth, competenceYear: curYear },
+                ...(!isAnnualView && targetMonth ? [{ competenceMonth: targetMonth, competenceYear: curYear }] : [{ competenceYear: curYear }]),
                 { competenceDate: { gte: from, lte: to } },
                 { purchaseDate: { gte: from, lte: to } },
                 { date: { gte: from, lte: to } }
@@ -4856,7 +4872,6 @@ export async function getUpcomingBillsWindowAction(
     ]);
   }
 
-  const paidByCard = new Map<string, any>(allPaidInvoices.map((p: any) => [p.walletId, p]));
   const purchasesByCard = new Map<string, any[]>();
   for (const t of allCardPurchases) {
     const list = purchasesByCard.get(t.walletId) ?? [];
@@ -4868,55 +4883,64 @@ export async function getUpcomingBillsWindowAction(
   const paidCardInvoices: any[] = [];
 
   for (const card of creditCards) {
-    const paidThisMonth = paidByCard.get(card.id);
     const cardPurchases = purchasesByCard.get(card.id) ?? [];
+    const monthsToCheck = isAnnualView ? Array.from({ length: 12 }, (_, i) => i + 1) : [targetMonth || (now.getMonth() + 1)];
 
-    const monthTxs = cardPurchases.filter((t: any) => {
-      if (t.competenceMonth != null && t.competenceYear != null) {
-        return t.competenceMonth === targetMonth && t.competenceYear === curYear;
+    for (const m of monthsToCheck) {
+      const paidThisMonth = allPaidInvoices.find((p: any) => p.walletId === card.id && p.month === m && p.year === curYear);
+      const monthTxs = cardPurchases.filter((t: any) => {
+        if (t.competenceMonth != null && t.competenceYear != null) {
+          return t.competenceMonth === m && t.competenceYear === curYear;
+        }
+        const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+        const mFrom = new Date(Date.UTC(curYear, m - 1, 1, 0, 0, 0));
+        const mTo = new Date(Date.UTC(curYear, m, 0, 23, 59, 59, 999));
+        return d >= mFrom && d <= mTo;
+      });
+
+      const totalFatura = monthTxs.reduce((s, t) => s + Number(t.amount), 0);
+
+      const dueDateInfo = getInvoiceDueDateInfo(
+        (card as any).diaFechamento ?? 1,
+        card.vencimento ?? 10,
+        m,
+        curYear
+      );
+
+      if (paidThisMonth) {
+        paidCardInvoices.push({
+          id: paidThisMonth.id,
+          walletId: card.id,
+          cardTitle: card.title || card.bankName,
+          amount: Number(paidThisMonth.amount),
+          paidAt: paidThisMonth.paidAt ? (typeof paidThisMonth.paidAt === "string" ? paidThisMonth.paidAt : paidThisMonth.paidAt.toISOString()) : new Date().toISOString(),
+          month: m,
+          year: curYear,
+          paymentWalletId: paidThisMonth.paymentWalletId || null,
+          paymentWalletTitle: "Conta Bancária",
+        });
+      } else if (totalFatura > 0) {
+        upcomingCardInvoices.push({
+          id: isAnnualView ? `${card.id}-${curYear}-${m}` : card.id,
+          cardId: card.id,
+          title: card.title || card.bankName,
+          bankName: card.bankName || card.title,
+          vencimento: dueDateInfo.dateStr,
+          valor: totalFatura,
+          dueDateRaw: dueDateInfo.dueDate.toISOString(),
+          dueDateMs: dueDateInfo.dueDate.getTime(),
+          status: dueDateInfo.isPast ? "vencido" : "aberto",
+          month: m,
+          billingMonth: dueDateInfo.billingMonth,
+          billingYear: dueDateInfo.billingYear,
+          year: curYear,
+        });
       }
-      const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-      return d >= from && d <= to;
-    });
-
-    const totalFatura = monthTxs.reduce((s, t) => s + Number(t.amount), 0);
-
-    const dueDateInfo = getInvoiceDueDateInfo(
-      (card as any).diaFechamento ?? 1,
-      card.vencimento ?? 10,
-      targetMonth,
-      curYear
-    );
-
-    if (paidThisMonth) {
-      paidCardInvoices.push({
-        id: paidThisMonth.id,
-        walletId: card.id,
-        cardTitle: card.title || card.bankName,
-        amount: Number(paidThisMonth.amount),
-        paidAt: paidThisMonth.paidAt ? (typeof paidThisMonth.paidAt === "string" ? paidThisMonth.paidAt : paidThisMonth.paidAt.toISOString()) : new Date().toISOString(),
-        month: targetMonth,
-        year: curYear,
-        paymentWalletId: paidThisMonth.paymentWalletId || null,
-        paymentWalletTitle: "Conta Bancária",
-      });
-    } else if (totalFatura > 0) {
-      upcomingCardInvoices.push({
-        id: card.id,
-        title: card.title || card.bankName,
-        bankName: card.bankName || card.title,
-        vencimento: dueDateInfo.dateStr,
-        valor: totalFatura,
-        dueDateRaw: dueDateInfo.dueDate.toISOString(),
-        dueDateMs: dueDateInfo.dueDate.getTime(),
-        status: dueDateInfo.isPast ? "vencido" : "aberto",
-        month: targetMonth,
-        billingMonth: dueDateInfo.billingMonth,
-        billingYear: dueDateInfo.billingYear,
-        year: curYear,
-      });
     }
   }
+
+  upcomingCardInvoices.sort((a, b) => a.dueDateMs - b.dueDateMs);
+  paidCardInvoices.sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
 
   const totalFaturasPendentes = upcomingCardInvoices.reduce((s: number, c: any) => s + Number(c.valor || 0), 0);
   const totalFaturasPagas = paidCardInvoices.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);

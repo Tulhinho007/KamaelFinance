@@ -8,6 +8,8 @@ export interface CardSaldoPrevistoProps {
   saldoContas?: number;
   saldoHerdado?: number;
   isFutureMonth?: boolean;
+  isAnnual?: boolean;
+  entradasLabel?: string;
   previousMonthLabel?: string;
   entradasMes?: number;
   faturasMes?: number;
@@ -20,6 +22,8 @@ export function CardSaldoPrevisto({
   saldoContas = 0,
   saldoHerdado = 0,
   isFutureMonth = false,
+  isAnnual = false,
+  entradasLabel,
   previousMonthLabel,
   entradasMes = 0,
   faturasMes = 0,
@@ -102,7 +106,7 @@ export function CardSaldoPrevisto({
                   </div>
 
                   <div className="space-y-2 font-mono text-[11px]">
-                    {isFutureMonth ? (
+                    {isFutureMonth && !isAnnual ? (
                       <div className="flex justify-between text-indigo-300">
                         <span className="truncate pr-2">
                           (+) Saldo Herdado {previousMonthLabel ? `(${previousMonthLabel})` : ""}:
@@ -122,21 +126,21 @@ export function CardSaldoPrevisto({
                     )}
 
                     <div className="flex justify-between text-emerald-400">
-                      <span className="truncate pr-2">(+) Entradas do Mês:</span>
+                      <span className="truncate pr-2">(+) {isAnnual ? "Entradas do Ano:" : "Entradas do Mês:"}</span>
                       <span className="font-semibold whitespace-nowrap">
                         + R$ {entradasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="flex justify-between text-rose-400">
-                      <span className="truncate pr-2">(-) Faturas de Cartão:</span>
+                      <span className="truncate pr-2">(-) {isAnnual ? "Faturas de Cartão (Ano):" : "Faturas de Cartão:"}</span>
                       <span className="font-semibold whitespace-nowrap">
                         - R$ {faturasMes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
 
                     <div className="flex justify-between text-rose-400">
-                      <span className="truncate pr-2">(-) Boletos / Assinaturas:</span>
+                      <span className="truncate pr-2">(-) {isAnnual ? "Boletos / Assinaturas (Ano):" : "Boletos / Assinaturas:"}</span>
                       <span className="font-semibold whitespace-nowrap">
                         - R$ {boletosMes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
@@ -177,7 +181,9 @@ export function CardSaldoPrevisto({
           <CurrencyValue value={saldoPrevisto} showSign={true} />
         </h2>
         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 font-medium">
-          {isFutureMonth
+          {isAnnual
+            ? "Considerando receitas acumuladas, faturas e compromissos do ano"
+            : isFutureMonth
             ? "Considerando saldo herdado, faturas e boletos a vencer no mês"
             : "Considerando faturas e boletos a vencer no mês"}
         </p>
@@ -185,7 +191,7 @@ export function CardSaldoPrevisto({
 
       {/* Rodapé com Herança e Entradas */}
       <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
-        {isFutureMonth && (
+        {isFutureMonth && !isAnnual && (
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-1.5">
               <span>Saldo Inicial Herdado:</span>
@@ -205,7 +211,7 @@ export function CardSaldoPrevisto({
           </div>
         )}
         <div className="flex justify-between items-center">
-          <span>Entradas do Mês:</span>
+          <span>{isAnnual ? "Entradas do Ano:" : (entradasLabel || "Entradas do Mês:")}</span>
           <span className="font-bold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums inline-flex items-center gap-1">
             <ArrowUpRight className="w-3.5 h-3.5" />
             <CurrencyValue value={entradasMes} />
