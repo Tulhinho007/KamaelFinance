@@ -10984,3 +10984,98 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
     },
   };
 }
+
+export async function getGestaoCaixaPageDataAction(year: number = 2026) {
+  const userId = await getActiveUserId();
+
+  const wallets = await prisma.wallet.findMany({
+    where: {
+      userId,
+      walletType: { in: ["CONTA_CORRENTE", "DEBITO", "CONTA"] },
+    },
+    orderBy: { title: "asc" },
+  });
+
+  const now = new Date();
+  const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+
+  // 1. Contas Bancárias & Saldos Reais
+  const accounts = await Promise.all(
+    wallets.map(async (w) => {
+      const bInfo = await calculateAccountBalance(w.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+      return {
+        id: w.id,
+        title: w.title,
+        bankName: w.bankName || w.title,
+        walletType: w.walletType,
+        saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+      };
+    })
+  );
+
+  const totalRealBalance = accounts.reduce((s, a) => s + (a.saldoAtual || 0), 0);
+
+  // 2. Extrato da Conta: Estritamente movimentações que já aconteceram (status != PENDING, data <= hoje)
+  const walletIds = wallets.map((w) => w.id);
+  const realizedTxs = walletIds.length > 0
+    ? await prisma.transaction.findMany({
+        where: {
+          walletId: { in: walletIds },
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          status: { not: "PENDING" },
+          date: { lte: now, gte: from },
+        },
+        include: {
+          category: { select: { id: true, name: true, color: true } },
+          wallet: { select: { id: true, title: true, bankName: true } },
+        },
+        orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
+      })
+    : [];
+
+  const realizedTransactions = realizedTxs.map((t) => ({
+    id: t.id,
+    description: t.description || "Movimentação Bancária",
+    amount: Number(t.amount || 0),
+    type: t.type as "INCOME" | "EXPENSE",
+    date: safeIsoDate(t.date),
+    paymentDate: safeIsoDate(t.paymentDate || t.date),
+    status: t.status || "COMPLETED",
+    category: t.category?.name || (t.type === "INCOME" ? "Entrada" : "Saída"),
+    categoryColor: t.category?.color || (t.type === "INCOME" ? "#10B981" : "#EF4444"),
+    walletId: t.walletId,
+    walletName: t.wallet?.title || t.wallet?.bankName || "Conta",
+    paymentMethod: (t as any).paymentMethod || (t.type === "INCOME" ? "PIX" : "DEBITO"),
+    tags: (t as any).tags || undefined,
+  }));
+
+  // 3. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
+  const commitmentsResult = await getMonthlyCommitmentsAction("ALL", year);
+  const pendingCommitments = (commitmentsResult.items || []).filter(
+    (item: any) => item.status === "PENDING"
+  );
+
+  const totalPendentesAno = pendingCommitments.reduce(
+    (sum: number, it: any) => sum + Number(it.amount || 0),
+    0
+  );
+
+  const saldoProjetado = totalRealBalance - totalPendentesAno;
+
+  return {
+    accounts,
+    realizedTransactions,
+    pendingCommitments,
+    contasBancarias: commitmentsResult.contasBancarias || [],
+    cartoesCredito: commitmentsResult.cartoesCredito || [],
+    totals: {
+      totalRealBalance,
+      totalPendentesAno,
+      saldoProjetado,
+      pendingCount: pendingCommitments.length,
+      realizedCount: realizedTransactions.length,
+    },
+  };
+}
+
