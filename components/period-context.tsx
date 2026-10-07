@@ -7,8 +7,12 @@ type PeriodContextType = {
   selectedYear: number;  // ex: 2026
   prevMonth: () => void;
   nextMonth: () => void;
+  prevYear: () => void;
+  nextYear: () => void;
   setPeriod: (month: number, year: number) => void;
+  setYear: (year: number) => void;
   goToCurrentMonth: () => void;
+  goToCurrentYear: () => void;
 };
 
 const PeriodContext = createContext<PeriodContextType | undefined>(undefined);
@@ -38,13 +42,29 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const prevYear = () => {
+    setSelectedYear((y) => y - 1);
+  };
+
+  const nextYear = () => {
+    setSelectedYear((y) => y + 1);
+  };
+
   const setPeriod = (month: number, year: number) => {
     setSelectedMonth(month);
     setSelectedYear(year);
   };
 
+  const setYear = (year: number) => {
+    setSelectedYear(year);
+  };
+
   const goToCurrentMonth = () => {
     setSelectedMonth(now.getMonth() + 1);
+    setSelectedYear(now.getFullYear());
+  };
+
+  const goToCurrentYear = () => {
     setSelectedYear(now.getFullYear());
   };
 
@@ -55,8 +75,12 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
         selectedYear,
         prevMonth,
         nextMonth,
+        prevYear,
+        nextYear,
         setPeriod,
+        setYear,
         goToCurrentMonth,
+        goToCurrentYear,
       }}
     >
       {children}

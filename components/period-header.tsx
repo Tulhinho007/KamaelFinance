@@ -10,6 +10,7 @@ type PeriodHeaderProps = {
   title: string;
   tagline?: string;
   badge?: string;
+  mode?: "monthly" | "annual";
   children?: React.ReactNode;
 };
 
@@ -20,12 +21,25 @@ const MONTH_NAMES = [
 
 const YEARS_LIST = Array.from({ length: 11 }, (_, i) => 2020 + i);
 
-export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderProps) {
-  const { selectedMonth, selectedYear, prevMonth, nextMonth, setPeriod, goToCurrentMonth } = usePeriod();
+export function PeriodHeader({ title, tagline, badge, mode = "monthly", children }: PeriodHeaderProps) {
+  const {
+    selectedMonth,
+    selectedYear,
+    prevMonth,
+    nextMonth,
+    prevYear,
+    nextYear,
+    setPeriod,
+    setYear,
+    goToCurrentMonth,
+    goToCurrentYear,
+  } = usePeriod();
   const { theme, toggleTheme } = useTheme();
   const { isPrivate, togglePrivacy } = usePrivacyMode();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const isAnnual = mode === "annual";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -44,7 +58,11 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
   };
 
   const handleSelectYear = (year: number) => {
-    setPeriod(selectedMonth, year);
+    if (isAnnual) {
+      setYear(year);
+    } else {
+      setPeriod(selectedMonth, year);
+    }
   };
 
   return (
@@ -75,23 +93,23 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
       <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-between sm:justify-start" ref={dropdownRef}>
         <div className="flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl shadow-xs text-slate-700 dark:text-slate-300 text-xs font-semibold relative flex-1 sm:flex-initial max-w-full">
           <button 
-            onClick={prevMonth}
+            onClick={isAnnual ? prevYear : prevMonth}
             className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-            aria-label="Mês Anterior"
-            title="Mês Anterior"
+            aria-label={isAnnual ? "Ano Anterior" : "Mês Anterior"}
+            title={isAnnual ? "Ano Anterior" : "Mês Anterior"}
           >
             <ChevronLeft className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
           
-          <span className="uppercase tracking-wider px-2 sm:px-3 font-bold text-slate-900 dark:text-slate-100 min-w-[90px] sm:min-w-[130px] text-center text-xs truncate">
-            {monthLabel} {selectedYear}
+          <span className="uppercase tracking-wider px-2 sm:px-3 font-bold text-slate-900 dark:text-slate-100 min-w-[70px] sm:min-w-[100px] text-center text-xs truncate">
+            {isAnnual ? selectedYear : `${monthLabel} ${selectedYear}`}
           </span>
           
           <button 
-            onClick={nextMonth}
+            onClick={isAnnual ? nextYear : nextMonth}
             className="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[38px] min-h-[38px] flex items-center justify-center rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer shrink-0"
-            aria-label="Próximo Mês"
-            title="Próximo Mês"
+            aria-label={isAnnual ? "Próximo Ano" : "Próximo Mês"}
+            title={isAnnual ? "Próximo Ano" : "Próximo Mês"}
           >
             <ChevronRight className="w-4 h-4 text-slate-500 dark:text-slate-400" />
           </button>
@@ -101,61 +119,91 @@ export function PeriodHeader({ title, tagline, badge, children }: PeriodHeaderPr
             className={`min-w-[38px] min-h-[38px] flex items-center justify-center border-l border-slate-200 dark:border-slate-800 ml-1 transition-colors rounded-r-lg cursor-pointer shrink-0 ${
               dropdownOpen ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
             }`}
-            aria-label="Escolher Período"
-            title="Escolher Período"
+            aria-label={isAnnual ? "Escolher Ano" : "Escolher Período"}
+            title={isAnnual ? "Escolher Ano" : "Escolher Período"}
           >
             <Calendar className="w-4 h-4" />
           </button>
 
-          {/* Dropdown de Calendário */}
+          {/* Dropdown de Calendário / Ano */}
           {dropdownOpen && (
             <div className="absolute top-full right-0 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xl z-50 w-[min(calc(100vw-32px),20rem)] flex flex-col gap-3">
-              
-              <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Ano Selecionado</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => handleSelectYear(Number(e.target.value))}
-                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                >
-                  {YEARS_LIST.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-3 gap-1.5">
-                {MONTH_NAMES.map((name, i) => {
-                  const isSelected = selectedMonth === i + 1;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => {
-                        handleSelectMonth(i);
-                        setDropdownOpen(false);
-                      }}
-                      className={`min-h-[38px] flex items-center justify-center rounded-lg font-semibold text-xs text-center transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-indigo-600 text-white shadow-xs font-bold"
-                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
-                      }`}
+              {isAnnual ? (
+                <>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider pb-1 border-b border-slate-100 dark:border-slate-800">
+                    Selecione o Ano
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {YEARS_LIST.map((y) => {
+                      const isSelected = selectedYear === y;
+                      return (
+                        <button
+                          key={y}
+                          type="button"
+                          onClick={() => {
+                            handleSelectYear(y);
+                            setDropdownOpen(false);
+                          }}
+                          className={`min-h-[38px] flex items-center justify-center rounded-lg font-semibold text-xs text-center transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-indigo-600 text-white shadow-xs font-bold"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          {y}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Ano Selecionado</span>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => handleSelectYear(Number(e.target.value))}
+                      className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-semibold text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                     >
-                      {name.substring(0, 3)}
-                    </button>
-                  );
-                })}
-              </div>
+                      {YEARS_LIST.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
 
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {MONTH_NAMES.map((name, i) => {
+                      const isSelected = selectedMonth === i + 1;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            handleSelectMonth(i);
+                            setDropdownOpen(false);
+                          }}
+                          className={`min-h-[38px] flex items-center justify-center rounded-lg font-semibold text-xs text-center transition-all cursor-pointer ${
+                            isSelected
+                              ? "bg-indigo-600 text-white shadow-xs font-bold"
+                              : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white"
+                          }`}
+                        >
+                          {name.substring(0, 3)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
 
         <button 
-          onClick={goToCurrentMonth}
+          onClick={isAnnual ? goToCurrentYear : goToCurrentMonth}
           className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-3 min-h-[44px] flex items-center justify-center rounded-xl shadow-xs transition-colors text-xs font-semibold tracking-wide uppercase shrink-0 cursor-pointer whitespace-nowrap"
         >
-          Mês Atual
+          {isAnnual ? "Ano Atual" : "Mês Atual"}
         </button>
       </div>
 

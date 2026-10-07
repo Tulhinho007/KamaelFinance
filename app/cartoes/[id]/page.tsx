@@ -13,7 +13,7 @@ import {
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
-  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, FolderTree, List, ChevronRight, Check, Repeat
+  ArrowLeft, CreditCard, Building2, Zap, AlertCircle, CheckCircle2, Minus, Calendar, RotateCcw, CopyPlus, ChevronDown, ChevronUp, FolderTree, List, ChevronRight, Check, Repeat
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -110,6 +110,7 @@ type CardData = {
     monthIncome: number;
     monthExpense: number;
     finalBalance: number;
+    currentRealBalance?: number;
   } | null;
   purchases: Purchase[];
   allTransactions?: TransactionItem[];
@@ -149,6 +150,12 @@ export default function CartaoDetailPage() {
   // Filtro de fluxo (Todas | Entradas | Saídas)
   const [flowFilter, setFlowFilter] = useState<"all" | "income" | "expense">("all");
   const [bankFlowFilter, setBankFlowFilter] = useState<"all" | "income" | "expense">("all");
+  const [showAllBankMovements, setShowAllBankMovements] = useState(false);
+
+  const handleBankFlowFilterChange = (filter: "all" | "income" | "expense") => {
+    setBankFlowFilter(filter);
+    setShowAllBankMovements(false);
+  };
   // Filtro de recorrência (Todas | Compras Avulsas | Recorrentes / Fixas)
   const [recurrenceFilter, setRecurrenceFilter] = useState<"all" | "single" | "recurring">("all");
   const [bankRecurrenceFilter, setBankRecurrenceFilter] = useState<"all" | "single" | "recurring">("all");
@@ -219,6 +226,7 @@ export default function CartaoDetailPage() {
     loadData();
     setFormCargaMonth(selectedMonth);
     setFormCargaYear(selectedYear);
+    setShowAllBankMovements(false);
   }, [cardId, selectedMonth, selectedYear]);
 
   if (loading) {
@@ -272,8 +280,12 @@ export default function CartaoDetailPage() {
     setBankMovValor("");
     const now = new Date();
     const curYear = selectedYear;
-    const curMonth = String(selectedMonth).padStart(2, "0");
-    const curDay = String(Math.min(now.getDate(), 28)).padStart(2, "0");
+    const curMonth = curYear === now.getFullYear() 
+      ? String(now.getMonth() + 1).padStart(2, "0")
+      : "01";
+    const curDay = curYear === now.getFullYear() 
+      ? String(Math.min(now.getDate(), 28)).padStart(2, "0")
+      : "01";
     setBankMovData(`${curYear}-${curMonth}-${curDay}`);
     setBankMovTipoLancamento(tipo === "ENTRADA" ? "SALARIO" : "BOLETO");
     setBankMovModalOpen(true);
@@ -702,7 +714,29 @@ export default function CartaoDetailPage() {
   // Total disponível = Saldo acumulado anterior + Receitas do mês atual
   const totalAvailable   = cardData.balanceInfo?.totalAvailable ?? (previousBalance + monthIncome);
   // Saldo final = Total disponível - Despesas do mês
-  const saldoAtualCalculado = cardData.balanceInfo?.finalBalance ?? (totalAvailable - totalGastosMes);
+  const saldoAtualCalculado = isBank
+    ? (cardData.balanceInfo?.currentRealBalance ?? cardData.balanceInfo?.finalBalance ?? (totalAvailable - totalGastosMes))
+    : (cardData.balanceInfo?.finalBalance ?? (totalAvailable - totalGastosMes));
+
+  // Cálculos do Resumo Anual para Conta Bancária (01/01 a 31/12)
+  const bankYearTransactions = (cardData.allTransactions || []).filter((t) => {
+    if ((t as any).source === "RECURRING_PROJECTION") return false;
+    if (isBank && t.status === "PENDING") return false;
+    const { year } = getTransactionDisplayYearMonth(t);
+    return year === selectedYear;
+  });
+
+  const totalEntradasAno = bankYearTransactions
+    .filter((t) => t.type === "INCOME")
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
+  const totalSaidasAno = bankYearTransactions
+    .filter((t) => t.type === "EXPENSE")
+    .reduce((s, t) => s + (t.amount || 0), 0);
+
+  const balancoAno = totalEntradasAno - totalSaidasAno;
+  const entradasCountAno = bankYearTransactions.filter((t) => t.type === "INCOME").length;
+  const saidasCountAno = bankYearTransactions.filter((t) => t.type === "EXPENSE").length;
 
   const ticketUsagePct = totalAvailable > 0 ? Math.min(100, Math.round((totalGastosMes / totalAvailable) * 100)) : 0;
   const ticketRemainingPct = 100 - ticketUsagePct;
@@ -793,6 +827,7 @@ export default function CartaoDetailPage() {
           <ArrowLeft className="w-4 h-4" /> Voltar para Despesas & Contas
         </Link>
         <PeriodHeader
+          mode={isBank ? "annual" : "monthly"}
           title={isBank ? (cardData.title.toLowerCase().includes("conta") ? cardData.title : `${cardData.bankName || cardData.title} — Conta Corrente`) : cardData.title}
           tagline={isBank ? undefined : `Gerencie as movimentações e extrato de ${cardData.title}`}
         />
@@ -1292,28 +1327,28 @@ export default function CartaoDetailPage() {
                 </span>
               </div>
               
-              {/* Linha discreta de fluxo do mês */}
+              {/* Linha discreta de fluxo do ano */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
                 <span className="flex items-center gap-1.5">
                   <span className="text-slate-400 dark:text-slate-500">Entradas:</span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                    + {brl(totalEntradasMes)}
+                    + {brl(totalEntradasAno)}
                   </span>
                 </span>
                 <span className="text-slate-300 dark:text-slate-700">•</span>
                 <span className="flex items-center gap-1.5">
                   <span className="text-slate-400 dark:text-slate-500">Saídas:</span>
                   <span className="font-semibold text-rose-600 dark:text-rose-400 tabular-nums">
-                    - {brl(totalGastosMes)}
+                    - {brl(totalSaidasAno)}
                   </span>
                 </span>
                 <span className="text-slate-300 dark:text-slate-700">•</span>
                 <span className="flex items-center gap-1.5">
-                  <span className="text-slate-400 dark:text-slate-500">Balanço:</span>
+                  <span className="text-slate-400 dark:text-slate-500">Balanço do Ano:</span>
                   <span className={`font-semibold tabular-nums ${
-                    (totalEntradasMes - totalGastosMes) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                    balancoAno >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
                   }`}>
-                    {(totalEntradasMes - totalGastosMes) >= 0 ? `+ ${brl(totalEntradasMes - totalGastosMes)}` : `- ${brl(Math.abs(totalEntradasMes - totalGastosMes))}`}
+                    {balancoAno >= 0 ? `+ ${brl(balancoAno)}` : `- ${brl(Math.abs(balancoAno))}`}
                   </span>
                 </span>
               </div>
@@ -1334,17 +1369,33 @@ export default function CartaoDetailPage() {
           {/* EXTRATO CRONOLÓGICO — CONTA BANCÁRIA */}
           <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm dark:shadow-xl overflow-hidden">
             {(() => {
-              const monthTransactions = (cardData.allTransactions || [])
-                .filter((t) => {
-                  if ((t as any).source === "RECURRING_PROJECTION") return false;
-                  if (isBank && t.status === "PENDING") return false;
-                  const { year, month } = getTransactionDisplayYearMonth(t);
-                  return year === selectedYear && month === selectedMonth;
-                });
+              const yearTransactions = bankYearTransactions;
+
+              // Auditoria de Saldo Inicial vs Lançamentos anteriores ao ano selecionado
+              const hasOpeningTxInList = (cardData.allTransactions || []).some(
+                (t) => t.type === "INCOME" && (t.description?.includes("Saldo Inicial") || t.description?.includes("Abertura"))
+              );
+
+              const transactionsBeforeYear = (cardData.allTransactions || []).filter((t) => {
+                if ((t as any).source === "RECURRING_PROJECTION") return false;
+                if (t.status === "PENDING") return false;
+                const { year } = getTransactionDisplayYearMonth(t);
+                return year > 0 && year < selectedYear;
+              });
+
+              const incomeBefore = transactionsBeforeYear
+                .filter((t) => t.type === "INCOME")
+                .reduce((s, t) => s + (t.amount || 0), 0);
+
+              const expenseBefore = transactionsBeforeYear
+                .filter((t) => t.type === "EXPENSE")
+                .reduce((s, t) => s + (t.amount || 0), 0);
+
+              const baseInitial = hasOpeningTxInList ? 0 : (cardData.initialBalance || 0);
+              const startingBalance = baseInitial + incomeBefore - expenseBefore;
 
               // Ordenação cronológica crescente para cálculo de saldo acumulado
-              const startingBalance = cardData.balanceInfo?.previousBalance ?? ((cardData.initialBalance || 0) + carryoverBalance);
-              const sortedAsc = [...monthTransactions].sort((a, b) => {
+              const sortedAsc = [...yearTransactions].sort((a, b) => {
                 const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
                 const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
                 if (da !== db) return da - db;
@@ -1363,24 +1414,27 @@ export default function CartaoDetailPage() {
               }
 
               // Ordenação decrescente (mais recentes primeiro) para exibição clássica de extrato bancário
-              const sortedDesc = [...monthTransactions].sort((a, b) => {
+              const sortedDesc = [...yearTransactions].sort((a, b) => {
                 const da = new Date(((a as any).purchaseDate || a.date).split("T")[0]).getTime();
                 const db = new Date(((b as any).purchaseDate || b.date).split("T")[0]).getTime();
                 if (da !== db) return db - da;
                 return b.id.localeCompare(a.id);
               });
 
-              const totalEntradasExtrato = monthTransactions.filter(t => t.type === "INCOME").reduce((s, t) => s + (t.amount || 0), 0);
-              const totalSaidasExtrato = monthTransactions.filter(t => t.type === "EXPENSE").reduce((s, t) => s + (t.amount || 0), 0);
-              const balancoLiquidoExtrato = totalEntradasExtrato - totalSaidasExtrato;
-              const entradasCount = monthTransactions.filter(t => t.type === "INCOME").length;
-              const saidasCount = monthTransactions.filter(t => t.type === "EXPENSE").length;
+              const totalEntradasExtrato = totalEntradasAno;
+              const totalSaidasExtrato = totalSaidasAno;
+              const balancoLiquidoExtrato = balancoAno;
+              const entradasCount = entradasCountAno;
+              const saidasCount = saidasCountAno;
 
               const filtered = sortedDesc.filter(t => {
                 if (bankFlowFilter === "income" && t.type !== "INCOME") return false;
                 if (bankFlowFilter === "expense" && t.type !== "EXPENSE") return false;
                 return true;
               });
+
+              const displayedMovements = showAllBankMovements ? filtered : filtered.slice(0, 10);
+              const remainingCount = filtered.length - 10;
 
               return (
                 <>
@@ -1389,7 +1443,7 @@ export default function CartaoDetailPage() {
                     <div className="flex flex-wrap items-center gap-3">
                       <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
                         <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                        Extrato da Conta — {getMonthName(selectedMonth)}/{selectedYear}
+                        Extrato da Conta — {selectedYear}
                       </h2>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1397,18 +1451,18 @@ export default function CartaoDetailPage() {
                       <div className="flex items-center gap-4 text-xs font-medium">
                         <button
                           type="button"
-                          onClick={() => setBankFlowFilter("all")}
+                          onClick={() => handleBankFlowFilterChange("all")}
                           className={`transition-colors cursor-pointer pb-0.5 ${
                             bankFlowFilter === "all"
                               ? "text-indigo-600 dark:text-indigo-400 font-bold border-b-2 border-indigo-600 dark:border-indigo-400"
                               : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                           }`}
                         >
-                          Todas ({monthTransactions.length})
+                          Todas ({yearTransactions.length})
                         </button>
                         <button
                           type="button"
-                          onClick={() => setBankFlowFilter("income")}
+                          onClick={() => handleBankFlowFilterChange("income")}
                           className={`transition-colors cursor-pointer pb-0.5 ${
                             bankFlowFilter === "income"
                               ? "text-emerald-600 dark:text-emerald-400 font-bold border-b-2 border-emerald-600 dark:border-emerald-400"
@@ -1419,7 +1473,7 @@ export default function CartaoDetailPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setBankFlowFilter("expense")}
+                          onClick={() => handleBankFlowFilterChange("expense")}
                           className={`transition-colors cursor-pointer pb-0.5 ${
                             bankFlowFilter === "expense"
                               ? "text-rose-600 dark:text-rose-400 font-bold border-b-2 border-rose-600 dark:border-rose-400"
@@ -1449,11 +1503,11 @@ export default function CartaoDetailPage() {
                         {filtered.length === 0 ? (
                           <tr>
                             <td colSpan={6} className="py-12 text-center text-slate-400 font-medium">
-                              Nenhuma movimentação registrada para este filtro.
+                              Nenhuma movimentação registrada para este filtro em {selectedYear}.
                             </td>
                           </tr>
                         ) : (
-                          filtered.map(t => {
+                          displayedMovements.map(t => {
                             const isIncome = t.type === "INCOME";
                             const badge = getMovementTypeBadge(t);
                             const runningBalance = withBalanceMap.get(t.id) ?? 0;
@@ -1516,14 +1570,37 @@ export default function CartaoDetailPage() {
                     </table>
                   </div>
 
+                  {/* Botão de Expansão / Colapso (+X restantes) */}
+                  {filtered.length > 10 && (
+                    <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex justify-center items-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllBankMovements(prev => !prev)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/60 transition-all cursor-pointer shadow-xs active:scale-95"
+                      >
+                        {showAllBankMovements ? (
+                          <>
+                            <span>Ver menos</span>
+                            <ChevronUp className="w-4 h-4" />
+                          </>
+                        ) : (
+                          <>
+                            <span>Ver todas as movimentações (+{remainingCount} restantes)</span>
+                            <ChevronDown className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Rodapé fixo */}
-                  {monthTransactions.length > 0 && (
+                  {yearTransactions.length > 0 && (
                     <div className="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/50 flex flex-wrap items-center gap-x-5 gap-y-1">
                       <span className="text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">Resumo</span>
                       <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums">Entradas: + {brl(totalEntradasExtrato)}</span>
                       <span className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums">Saídas: - {brl(totalSaidasExtrato)}</span>
                       <span className={`ml-auto text-xs font-black tabular-nums ${ balancoLiquidoExtrato >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400" }`}>
-                        Balanço do Mês: {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
+                        Balanço do Ano: {balancoLiquidoExtrato >= 0 ? `+ ${brl(balancoLiquidoExtrato)}` : `- ${brl(Math.abs(balancoLiquidoExtrato))}`}
                       </span>
                     </div>
                   )}
