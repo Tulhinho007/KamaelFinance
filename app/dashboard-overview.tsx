@@ -748,7 +748,7 @@ export function DashboardOverview() {
                         {brl(totalCatSum)}
                       </span>
                       <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
-                        Total Mês
+                        Total Anual
                       </span>
                     </div>
                   </div>
