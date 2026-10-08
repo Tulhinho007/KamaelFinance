@@ -20,7 +20,7 @@ export default function FechamentoMensalPage() {
         </Link>
         <PeriodHeader
           title="Fechamento Mensal de Gastos"
-          tagline="Discriminação objetiva de saídas agrupadas por modalidade (Crédito vs. Débito & Pix) e por conta/cartão."
+          tagline="Consulta de Fechamentos Históricos, Competências Mensais e Desembolsos Consolidados."
         />
       </div>
 

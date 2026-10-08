@@ -355,6 +355,22 @@ export type MonthlyHistoryItem = {
   total: number;
 };
 
+export type MonthlyClosingHistoryRecord = {
+  month: number;
+  year: number;
+  label: string;               // Ex: "Outubro/2026"
+  shortLabel: string;          // Ex: "Out/26"
+  totalExpense: number;        // Total geral desembolsado
+  creditTotal: number;
+  debitTotal: number;
+  previousMonthTotal: number;
+  diffAmount: number;          // totalExpense - previousMonthTotal
+  diffPercentage: number | null; // % de variação vs mês anterior
+  status: "CLOSED" | "OPEN" | "FUTURE"; // 🟢 Fechado ou 🟡 Em Aberto ou ⚪ Previsto
+  statusLabel: string;         // "Fechado" | "Em Aberto" | "Previsto"
+  isCurrent: boolean;          // true se for o mês corrente
+};
+
 export type MonthlyClosingExpensesData = {
   success: boolean;
   month: number;
@@ -362,9 +378,16 @@ export type MonthlyClosingExpensesData = {
   totalExpense: number;
   creditTotal: number;
   debitTotal: number;
+  previousMonthTotal: number;
+  diffAmount: number;
+  diffPercentage: number | null;
+  status: "CLOSED" | "OPEN" | "FUTURE";
+  statusLabel: string;
+  isCurrentMonth: boolean;
   creditCards: CardClosingItem[];
   bankAccounts: AccountClosingItem[];
   history6Months: MonthlyHistoryItem[];
+  monthlyClosingsHistory: MonthlyClosingHistoryRecord[];
 };
 
 export async function getMonthlyClosingExpensesAction({
@@ -574,11 +597,16 @@ export async function getMonthlyClosingExpensesAction({
 
     const totalExpense = Math.round((creditTotal + debitTotal) * 100) / 100;
 
-    // 5. Histórico dos Últimos 6 Meses Comparativo
+    // 5. Histórico e Evolução dos Últimos 6 Meses
     const MONTH_SHORT = [
       "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
       "Jul", "Ago", "Set", "Out", "Nov", "Dez",
     ];
+    const MONTH_NAMES_FULL = [
+      "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+      "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+    ];
+
     const monthsList: Array<{
       m: number;
       y: number;
@@ -605,8 +633,10 @@ export async function getMonthlyClosingExpensesAction({
       });
     }
 
-    const historyStart = monthsList[0].start;
-    const historyEnd = monthsList[monthsList.length - 1].end;
+    const yearStart = new Date(Date.UTC(year - 1, 11, 1, 0, 0, 0, 0)); // Dezembro do ano anterior
+    const yearEnd = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));  // Fim do ano corrente
+    const queryStart = monthsList[0].start < yearStart ? monthsList[0].start : yearStart;
+    const queryEnd = monthsList[monthsList.length - 1].end > yearEnd ? monthsList[monthsList.length - 1].end : yearEnd;
 
     const histTxs = await prisma.transaction.findMany({
       where: {
@@ -615,10 +645,10 @@ export async function getMonthlyClosingExpensesAction({
         deletedAt: null,
         source: { not: "RECURRING_PROJECTION" },
         OR: [
-          { competenceDate: { gte: historyStart, lte: historyEnd } },
-          { purchaseDate: { gte: historyStart, lte: historyEnd } },
-          { date: { gte: historyStart, lte: historyEnd } },
-          { paymentDate: { gte: historyStart, lte: historyEnd } },
+          { competenceDate: { gte: queryStart, lte: queryEnd } },
+          { purchaseDate: { gte: queryStart, lte: queryEnd } },
+          { date: { gte: queryStart, lte: queryEnd } },
+          { paymentDate: { gte: queryStart, lte: queryEnd } },
         ],
       },
       select: {
@@ -638,7 +668,10 @@ export async function getMonthlyClosingExpensesAction({
       },
     });
 
-    const history6Months: MonthlyHistoryItem[] = monthsList.map((slot) => {
+    // Função auxiliar para calcular totais de crédito e débito para qualquer (mês, ano)
+    const computeMonthTotals = (m: number, y: number) => {
+      const start = new Date(Date.UTC(y, m - 1, 1, 0, 0, 0, 0));
+      const end = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
       let cTot = 0;
       let dTot = 0;
 
@@ -649,19 +682,19 @@ export async function getMonthlyClosingExpensesAction({
 
         if (isCard) {
           if (t.competenceMonth != null && t.competenceYear != null) {
-            if (t.competenceMonth === slot.m && t.competenceYear === slot.y) {
+            if (t.competenceMonth === m && t.competenceYear === y) {
               cTot += amt;
             }
           } else {
             const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-            if (d >= slot.start && d <= slot.end) {
+            if (d >= start && d <= end) {
               cTot += amt;
             }
           }
         } else {
           if (t.status === "PENDING") continue;
           const d = new Date(t.paymentDate || t.date);
-          if (d >= slot.start && d <= slot.end) {
+          if (d >= start && d <= end) {
             dTot += amt;
           }
         }
@@ -669,16 +702,88 @@ export async function getMonthlyClosingExpensesAction({
 
       cTot = Math.round(cTot * 100) / 100;
       dTot = Math.round(dTot * 100) / 100;
-
       return {
-        month: slot.m,
-        year: slot.y,
-        label: slot.label,
         creditTotal: cTot,
         debitTotal: dTot,
         total: Math.round((cTot + dTot) * 100) / 100,
       };
+    };
+
+    // 5.1 Gráfico dos 6 Meses
+    const history6Months: MonthlyHistoryItem[] = monthsList.map((slot) => {
+      const res = computeMonthTotals(slot.m, slot.y);
+      return {
+        month: slot.m,
+        year: slot.y,
+        label: slot.label,
+        creditTotal: res.creditTotal,
+        debitTotal: res.debitTotal,
+        total: res.total,
+      };
     });
+
+    // 5.2 Histórico Completo de Fechamentos do Ano Selecionado
+    const now = new Date();
+    const nowMonth = now.getMonth() + 1;
+    const nowYear = now.getFullYear();
+
+    const decPrevYearTotals = computeMonthTotals(12, year - 1);
+    const yearMonthTotals = new Map<number, { creditTotal: number; debitTotal: number; total: number }>();
+    for (let m = 1; m <= 12; m++) {
+      yearMonthTotals.set(m, computeMonthTotals(m, year));
+    }
+
+    const monthlyClosingsHistory: MonthlyClosingHistoryRecord[] = [];
+    for (let m = 12; m >= 1; m--) {
+      const curr = yearMonthTotals.get(m)!;
+      const prev = m === 1 ? decPrevYearTotals : yearMonthTotals.get(m - 1)!;
+
+      const prevTotal = prev.total;
+      const diffAmount = Math.round((curr.total - prevTotal) * 100) / 100;
+      let diffPercentage: number | null = null;
+      if (prevTotal > 0) {
+        diffPercentage = Number((((curr.total - prevTotal) / prevTotal) * 100).toFixed(1));
+      } else if (prevTotal === 0 && curr.total === 0) {
+        diffPercentage = 0;
+      }
+
+      const isCurrent = (year === nowYear && m === nowMonth);
+      const isClosed = (year < nowYear || (year === nowYear && m < nowMonth));
+      const status: "CLOSED" | "OPEN" | "FUTURE" = isCurrent ? "OPEN" : (isClosed ? "CLOSED" : "FUTURE");
+      const statusLabel = isCurrent ? "Em Aberto" : (isClosed ? "Fechado" : "Previsto");
+
+      monthlyClosingsHistory.push({
+        month: m,
+        year,
+        label: `${MONTH_NAMES_FULL[m - 1]}/${year}`,
+        shortLabel: `${MONTH_SHORT[m - 1]}/${String(year).slice(2)}`,
+        totalExpense: curr.total,
+        creditTotal: curr.creditTotal,
+        debitTotal: curr.debitTotal,
+        previousMonthTotal: prevTotal,
+        diffAmount,
+        diffPercentage,
+        status,
+        statusLabel,
+        isCurrent,
+      });
+    }
+
+    // Comparativo do mês selecionado vs mês anterior
+    const selPrev = month === 1 ? decPrevYearTotals : (yearMonthTotals.get(month - 1) || computeMonthTotals(month - 1, year));
+    const previousMonthTotal = selPrev.total;
+    const diffAmount = Math.round((totalExpense - previousMonthTotal) * 100) / 100;
+    let diffPercentage: number | null = null;
+    if (previousMonthTotal > 0) {
+      diffPercentage = Number((((totalExpense - previousMonthTotal) / previousMonthTotal) * 100).toFixed(1));
+    } else if (previousMonthTotal === 0 && totalExpense === 0) {
+      diffPercentage = 0;
+    }
+
+    const isCurrentMonth = (year === nowYear && month === nowMonth);
+    const isClosed = (year < nowYear || (year === nowYear && month < nowMonth));
+    const status: "CLOSED" | "OPEN" | "FUTURE" = isCurrentMonth ? "OPEN" : (isClosed ? "CLOSED" : "FUTURE");
+    const statusLabel = isCurrentMonth ? "Em Aberto" : (isClosed ? "Fechado" : "Previsto");
 
     return {
       success: true,
@@ -687,9 +792,16 @@ export async function getMonthlyClosingExpensesAction({
       totalExpense,
       creditTotal,
       debitTotal,
+      previousMonthTotal,
+      diffAmount,
+      diffPercentage,
+      status,
+      statusLabel,
+      isCurrentMonth,
       creditCards,
       bankAccounts,
       history6Months,
+      monthlyClosingsHistory,
     };
   } catch (error) {
     console.error("Erro ao gerar fechamento mensal de despesas:", error);
@@ -700,9 +812,16 @@ export async function getMonthlyClosingExpensesAction({
       totalExpense: 0,
       creditTotal: 0,
       debitTotal: 0,
+      previousMonthTotal: 0,
+      diffAmount: 0,
+      diffPercentage: null,
+      status: "OPEN",
+      statusLabel: "Em Aberto",
+      isCurrentMonth: false,
       creditCards: [],
       bankAccounts: [],
       history6Months: [],
+      monthlyClosingsHistory: [],
     };
   }
 }
