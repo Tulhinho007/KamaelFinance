@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
       { source: "/historico", destination: "/despesas", permanent: false },
       { source: "/historico-pagamentos", destination: "/despesas", permanent: false },
       { source: "/radar", destination: "/gestao-financeira/radar-gastos", permanent: false },
+      { source: "/radar-de-gastos", destination: "/gestao-financeira/radar-gastos", permanent: false },
+      { source: "/fechamento-mensal", destination: "/gestao-financeira/radar-gastos", permanent: false },
       { source: "/objetivos", destination: "/metas", permanent: false },
       { source: "/viagens", destination: "/planejamento", permanent: false },
       { source: "/orcamentos", destination: "/gestao-financeira/orcamentos", permanent: false },

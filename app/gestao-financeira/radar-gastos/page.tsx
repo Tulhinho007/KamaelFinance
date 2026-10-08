@@ -16,7 +16,8 @@ import {
   Zap,
   TrendingDown,
   ChevronRight,
-  Info
+  Info,
+  Receipt
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
@@ -153,7 +154,7 @@ export default function RadarGastosPage() {
       {/* Cabeçalho Executivo de Período */}
       <PeriodHeader
         title="Radar de Gastos & Fechamento Mensal"
-        tagline="Acompanhe o fechamento de gastos por modalidade (Crédito vs. Débito) e o impacto de compras no orçamento."
+        tagline="Acompanhe o fechamento consolidado mensal, histórico de competências e o impacto de compras no orçamento."
         badge="GESTÃO"
       />
 
@@ -168,8 +169,8 @@ export default function RadarGastosPage() {
               : "bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           }`}
         >
-          <CreditCard className="w-4 h-4" />
-          Fechamento por Modalidade (Crédito vs. Débito)
+          <Receipt className="w-4 h-4" />
+          Fechamento Mensal
         </button>
 
         <button

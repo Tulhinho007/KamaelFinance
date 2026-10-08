@@ -11,7 +11,6 @@ import {
   TrendingUp,
   CreditCard,
   Building2,
-  Receipt,
   Radar,
   BarChart3,
   PieChart,
@@ -52,7 +51,6 @@ export const sidebarNavigation: SidebarNavGroup[] = [
       { name: "Cartões", href: "/cartoes", icon: CreditCard },
       { name: "Gestão de Caixa & Contas", href: "/contas", icon: Building2 },
       { name: "Receitas", href: "/receitas", icon: TrendingUp },
-      { name: "Fechamento Mensal", href: "/fechamento-mensal", icon: Receipt },
     ],
   },
   {
