@@ -310,7 +310,7 @@ export default function CartoesPage() {
                           </span>
                         ) : (
                           <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Aberta
+                            {card.vencimentoStr ? `Vence em ${card.vencimentoStr}` : "Aberta"}
                           </span>
                         )}
                       </div>

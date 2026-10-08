@@ -10361,10 +10361,6 @@ export async function getMonthlyCommitmentsAction(
     const cardPurchases = (allCardPurchases || []).filter((t: any) => t.walletId === card.id);
 
     for (const m of monthsToCheck) {
-      const paidRecord = (allPaidInvoices || []).find(
-        (p: any) => p.walletId === card.id && p.month === m && p.year === year
-      );
-
       const monthTxs = cardPurchases.filter((t: any) => {
         if (t.competenceMonth != null && t.competenceYear != null) {
           return t.competenceMonth === m && t.competenceYear === year;
@@ -10375,18 +10371,35 @@ export async function getMonthlyCommitmentsAction(
 
       const totalAmount = monthTxs.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
 
+      // Calcula o vencimento correto no mês subsequente (M+1) respeitando o dia configurado no cartão
+      const dueDateInfo = getInvoiceDueDateInfo(
+        (card as any).diaFechamento ?? 1,
+        card.vencimento ?? 10,
+        m,
+        year
+      );
+
+      const targetVencMonth = dueDateInfo.billingMonth;
+      const targetVencYear = dueDateInfo.billingYear;
+      const maxDaysInTargetMonth = new Date(targetVencYear, targetVencMonth, 0).getDate();
+      const dueDay = Math.min(card.vencimento || 10, maxDaysInTargetMonth);
+      const dueDate = new Date(Date.UTC(targetVencYear, targetVencMonth - 1, dueDay, 12, 0, 0));
+      const dueFormatted = dueDateInfo.dateStr;
+
+      const paidRecord = (allPaidInvoices || []).find(
+        (p: any) => p.walletId === card.id && (
+          (p.month === m && p.year === year) ||
+          (p.month === targetVencMonth && p.year === targetVencYear)
+        )
+      );
+
       // Se não há pagamento registrado e o valor consolidado é zero, não gera compromisso
       if (!paidRecord && totalAmount <= 0) continue;
 
       const isPaid = Boolean(paidRecord);
       const invoiceAmount = paidRecord ? Number(paidRecord.amount) : totalAmount;
 
-      const maxDays = new Date(year, m, 0).getDate();
-      const dueDay = Math.min(card.vencimento || 10, maxDays);
-      const dueDate = new Date(Date.UTC(year, m - 1, dueDay, 12, 0, 0));
-      const dueFormatted = String(dueDay).padStart(2, "0") + "/" + String(m).padStart(2, "0") + "/" + year;
-
-      const dMid = new Date(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate());
+      const dMid = new Date(targetVencYear, targetVencMonth - 1, dueDay);
       const nowMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
       const diffDays = Math.round((dMid.getTime() - nowMid.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -10458,7 +10471,7 @@ export async function getMonthlyCommitmentsAction(
         competenceYear: year,
         dueDateFormatted: dueFormatted,
         dueDateRaw: safeIsoDate(dueDate),
-        dueDateInput: `${year}-${String(m).padStart(2, "0")}-${String(dueDay).padStart(2, "0")}`,
+        dueDateInput: `${targetVencYear}-${String(targetVencMonth).padStart(2, "0")}-${String(dueDay).padStart(2, "0")}`,
         dueBadge,
         tipo: "FATURA_CARTAO" as const,
         tipoLabel: "Fatura de Cartão",
@@ -10467,7 +10480,7 @@ export async function getMonthlyCommitmentsAction(
         status: isPaid ? ("COMPLETED" as const) : ("PENDING" as const),
         statusLabel: isPaid ? "Pago" : "Pendente",
         formaPagamentoLabel: isPaid
-          ? `Saldo Conta • ${userWallets?.find((w: any) => w.id === paidRecord.paymentWalletId)?.title || userWallets?.find((w: any) => w.id === paidRecord.paymentWalletId)?.bankName || "Conta"}`
+          ? `Saldo Conta • ${userWallets?.find((w: any) => w.id === paidRecord?.paymentWalletId)?.title || userWallets?.find((w: any) => w.id === paidRecord?.paymentWalletId)?.bankName || "Conta"}`
           : "-",
         walletId: card.id,
         walletTitle: cardName,

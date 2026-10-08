@@ -20,11 +20,53 @@ export interface InvoiceStatusInfo {
 }
 
 /**
+ * Calcula a data exata de vencimento e metadados de uma fatura a partir da competência (M+1).
+ * dueDate = addMonths(competenceDate, 1) respeitando o dia configurado no cartão (dueDay).
+ */
+export function calculateInvoiceDueDateFromCompetence(
+  competenceMonth: number,
+  competenceYear: number,
+  dueDay: number = 10
+): {
+  dueDate: Date;
+  dateStr: string;
+  isoDate: string;
+  dueDay: number;
+  dueMonth: number;
+  dueYear: number;
+} {
+  let targetMonth = competenceMonth + 1;
+  let targetYear = competenceYear;
+
+  if (targetMonth > 12) {
+    targetMonth = 1;
+    targetYear += 1;
+  }
+
+  const maxDays = new Date(targetYear, targetMonth, 0).getDate();
+  const safeDay = Math.min(Math.max(1, dueDay || 10), maxDays);
+  const dueDate = new Date(targetYear, targetMonth - 1, safeDay);
+  dueDate.setHours(0, 0, 0, 0);
+
+  const dateStr = `${String(safeDay).padStart(2, "0")}/${String(targetMonth).padStart(2, "0")}/${targetYear}`;
+  const isoDate = `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
+
+  return {
+    dueDate,
+    dateStr,
+    isoDate,
+    dueDay: safeDay,
+    dueMonth: targetMonth,
+    dueYear: targetYear,
+  };
+}
+
+/**
  * Calcula a data exata de vencimento da fatura de cartão de crédito para uma determinada competência (selectedMonth, selectedYear).
  * 
- * Regra:
- * Para a competência do mês selecionado (ex: Agosto/2026 = Mês 8), o vencimento da fatura ocorre no mês subsequente (+1 mês, ex: 10/09/2026).
- * Adiciona exatamente +1 mês à competência selecionada sem pular múltiplos meses.
+ * Regra de Negócio:
+ * Para a competência do mês selecionado (ex: Outubro/2026 = Mês 10), o vencimento da fatura ocorre no mês subsequente (+1 mês / M+1, ex: 10/11/2026).
+ * Adiciona exatamente +1 mês à competência selecionada respeitando o dia de vencimento configurado.
  */
 export function getInvoiceDueDateInfo(
   diaFechamento: number,
@@ -33,32 +75,18 @@ export function getInvoiceDueDateInfo(
   selectedYear: number,
   _latestTransactionDate?: string | Date | null
 ): InvoiceDueDateInfo {
-  const vencDay = diaVencimento || 10;
-
+  const calc = calculateInvoiceDueDateFromCompetence(selectedMonth, selectedYear, diaVencimento || 10);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Mês/Ano de vencimento é exatamente +1 mês da competência selecionada
-  let targetVencMonth = selectedMonth + 1;
-  let targetVencYear = selectedYear;
-
-  if (targetVencMonth > 12) {
-    targetVencMonth = 1;
-    targetVencYear += 1;
-  }
-
-  const dueDate = new Date(targetVencYear, targetVencMonth - 1, vencDay);
-  dueDate.setHours(0, 0, 0, 0);
-
-  const isPast = dueDate < today;
-  const dateStr = `${String(vencDay).padStart(2, "0")}/${String(targetVencMonth).padStart(2, "0")}/${targetVencYear}`;
+  const isPast = calc.dueDate < today;
 
   return {
-    dateStr,
-    dueDate,
+    dateStr: calc.dateStr,
+    dueDate: calc.dueDate,
     isPast,
-    billingMonth: targetVencMonth,
-    billingYear: targetVencYear,
+    billingMonth: calc.dueMonth,
+    billingYear: calc.dueYear,
   };
 }
 
