@@ -33,6 +33,7 @@ import {
   Layers,
   CreditCard,
   AlertCircle,
+  CalendarRange,
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -40,6 +41,7 @@ import {
   getGestaoCaixaPageDataAction,
   createNewCard,
   createBankAccountMovementAction,
+  createBatchWeeklyDebitAction,
   createCommitmentAction,
   payCommitmentAction,
   payBatchCommitmentsAction,
@@ -137,6 +139,21 @@ export default function GestaoCaixaContasPage() {
   const [accBankName, setAccBankName] = useState("");
   const [accHolder, setAccHolder] = useState("");
   const [accInitialBalance, setAccInitialBalance] = useState<number | "">("");
+
+  // Modal: Fechamento em Lote / Semanal (Débito & Pix)
+  const [batchWeeklyModalOpen, setBatchWeeklyModalOpen] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);
+  const [batchWalletId, setBatchWalletId] = useState("");
+  const [batchPeriodType, setBatchPeriodType] = useState<"S1" | "S2" | "S3" | "S4" | "CUSTOM">("S1");
+  const [batchMonth, setBatchMonth] = useState<number>(new Date().getMonth() + 1);
+  const [batchYear, setBatchYear] = useState<number>(selectedYear || 2026);
+  const [batchStartDate, setBatchStartDate] = useState("");
+  const [batchEndDate, setBatchEndDate] = useState("");
+  const [batchPaymentMethod, setBatchPaymentMethod] = useState<"PIX" | "DEBITO">("PIX");
+  const [batchAmount, setBatchAmount] = useState<number | "">("");
+  const [batchCategory, setBatchCategory] = useState("Gastos Formiga / Pix & Débito Semanal");
+  const [batchDescription, setBatchDescription] = useState("");
+  const [batchNotes, setBatchNotes] = useState("");
 
   // Modal: Editar Compromisso
   const [editItem, setEditItem] = useState<any | null>(null);
@@ -411,6 +428,130 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
+  // Helper: Cálculo de período e datas das semanas
+  const computePeriodDates = (periodType: "S1" | "S2" | "S3" | "S4" | "CUSTOM", m: number, y: number) => {
+    const lastDay = new Date(y, m, 0).getDate();
+    const mm = String(m).padStart(2, "0");
+    if (periodType === "S1") {
+      return {
+        start: `${y}-${mm}-01`,
+        end: `${y}-${mm}-07`,
+        label: `Semana 1 (01 a 07/${mm})`,
+        desc: `Fechamento Semanal Débito/Pix (01/${mm} a 07/${mm})`,
+      };
+    }
+    if (periodType === "S2") {
+      return {
+        start: `${y}-${mm}-08`,
+        end: `${y}-${mm}-14`,
+        label: `Semana 2 (08 a 14/${mm})`,
+        desc: `Fechamento Semanal Débito/Pix (08/${mm} a 14/${mm})`,
+      };
+    }
+    if (periodType === "S3") {
+      return {
+        start: `${y}-${mm}-15`,
+        end: `${y}-${mm}-21`,
+        label: `Semana 3 (15 a 21/${mm})`,
+        desc: `Fechamento Semanal Débito/Pix (15/${mm} a 21/${mm})`,
+      };
+    }
+    if (periodType === "S4") {
+      const endDayStr = String(lastDay).padStart(2, "0");
+      return {
+        start: `${y}-${mm}-22`,
+        end: `${y}-${mm}-${endDayStr}`,
+        label: `Semana 4 (22 a ${endDayStr}/${mm})`,
+        desc: `Fechamento Semanal Débito/Pix (22/${mm} a ${endDayStr}/${mm})`,
+      };
+    }
+    return null;
+  };
+
+  const handleOpenBatchWeeklyModal = () => {
+    const curM = new Date().getMonth() + 1;
+    const curY = selectedYear || new Date().getFullYear();
+    setBatchMonth(curM);
+    setBatchYear(curY);
+    if (accounts.length > 0 && !batchWalletId) {
+      setBatchWalletId(accounts[0].id);
+    }
+    const day = new Date().getDate();
+    let pType: "S1" | "S2" | "S3" | "S4" = "S1";
+    if (day <= 7) pType = "S1";
+    else if (day <= 14) pType = "S2";
+    else if (day <= 21) pType = "S3";
+    else pType = "S4";
+
+    setBatchPeriodType(pType);
+    const computed = computePeriodDates(pType, curM, curY);
+    if (computed) {
+      setBatchStartDate(computed.start);
+      setBatchEndDate(computed.end);
+      setBatchDescription(`[Semanal] ${computed.desc}`);
+    }
+    setBatchAmount("");
+    setBatchPaymentMethod("PIX");
+    setBatchCategory("Gastos Formiga / Pix & Débito Semanal");
+    setBatchNotes("");
+    setBatchWeeklyModalOpen(true);
+  };
+
+  const handleSelectPeriodType = (pType: "S1" | "S2" | "S3" | "S4" | "CUSTOM") => {
+    setBatchPeriodType(pType);
+    if (pType !== "CUSTOM") {
+      const computed = computePeriodDates(pType, batchMonth, batchYear);
+      if (computed) {
+        setBatchStartDate(computed.start);
+        setBatchEndDate(computed.end);
+        setBatchDescription(`[Semanal] ${computed.desc}`);
+      }
+    }
+  };
+
+  const handleSaveBatchWeekly = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchWalletId) {
+      showAlert("Selecione a conta bancária de saída.", { variant: "warning" });
+      return;
+    }
+    if (!batchAmount || Number(batchAmount) <= 0) {
+      showAlert("Informe o valor total do período.", { variant: "warning" });
+      return;
+    }
+    if (!batchStartDate || !batchEndDate) {
+      showAlert("Defina as datas de início e fim do período.", { variant: "warning" });
+      return;
+    }
+    setBatchSaving(true);
+    try {
+      const periodLabel =
+        batchPeriodType === "CUSTOM"
+          ? `${batchStartDate.split("-").reverse().slice(0, 2).join("/")} a ${batchEndDate.split("-").reverse().slice(0, 2).join("/")}`
+          : computePeriodDates(batchPeriodType, batchMonth, batchYear)?.label;
+
+      await createBatchWeeklyDebitAction({
+        walletId: batchWalletId,
+        amount: Number(batchAmount),
+        startDate: batchStartDate,
+        endDate: batchEndDate,
+        periodLabel,
+        paymentMethod: batchPaymentMethod,
+        categoryName: batchCategory.trim() || "Gastos Formiga / Pix & Débito Semanal",
+        description: batchDescription.trim(),
+        notes: batchNotes.trim(),
+      });
+
+      setBatchWeeklyModalOpen(false);
+      await loadData();
+      showAlert("Fechamento semanal registrado com sucesso no extrato!", { variant: "success" });
+    } catch (err: any) {
+      showAlert(err?.message || "Erro ao registrar fechamento semanal.", { variant: "error" });
+    } finally {
+      setBatchSaving(false);
+    }
+  };
+
   // Handler: Nova Conta Bancária
   const handleSaveNewAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -558,6 +699,14 @@ export default function GestaoCaixaContasPage() {
             >
               <Plus className="w-4 h-4" />
               Movimentação Avulsa (Pix/Depósito)
+            </button>
+            <button
+              onClick={handleOpenBatchWeeklyModal}
+              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-slate-950 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all shadow-xs hover:scale-[1.01] cursor-pointer"
+              title="Registrar fechamento semanal de pequenos gastos (Débito e Pix)"
+            >
+              <CalendarRange className="w-4 h-4" />
+              + Fechamento em Lote / Semanal
             </button>
           </div>
         </div>
@@ -1170,9 +1319,24 @@ export default function GestaoCaixaContasPage() {
                             }`}>
                               {isIncome ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
                             </div>
-                            <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[260px]">
-                              {tx.description}
-                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                {Boolean(tx.isBatchWeekly || (tx.description || "").includes("[Semanal]") || (tx as any).tags?.includes("FECHAMENTO_SEMANAL")) && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                                    <CalendarRange className="w-2.5 h-2.5" />
+                                    Semanal
+                                  </span>
+                                )}
+                                <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[280px]">
+                                  {(tx.description || "").replace(/^\[Semanal\]\s*/, "")}
+                                </span>
+                              </div>
+                              {tx.notes && (
+                                <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-normal truncate max-w-[280px] mt-0.5">
+                                  {tx.notes}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
 
@@ -1494,6 +1658,307 @@ export default function GestaoCaixaContasPage() {
               >
                 {savingMovement ? "Registrando..." : "Registrar no Extrato"}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Fechamento de Débito em Lote / Semanal ─────────────── */}
+      {batchWeeklyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30">
+                  <CalendarRange className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Fechamento de Débito em Lote / Semanal
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Consolidação semanal de Pix & Débito (Gastos Formiga)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setBatchWeeklyModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3 mb-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-xs text-amber-800 dark:text-amber-300">
+              <p className="leading-relaxed">
+                Elimine o microgerenciamento de cafezinhos e pequenos gastos diários. Registre o valor acumulado da semana para conciliar o saldo da conta corrente de uma só vez.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveBatchWeekly} className="space-y-4">
+              {/* Seletor de Competência (Mês / Ano) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Mês de Referência
+                  </label>
+                  <select
+                    value={batchMonth}
+                    onChange={(e) => {
+                      const m = Number(e.target.value);
+                      setBatchMonth(m);
+                      if (batchPeriodType !== "CUSTOM") {
+                        const computed = computePeriodDates(batchPeriodType, m, batchYear);
+                        if (computed) {
+                          setBatchStartDate(computed.start);
+                          setBatchEndDate(computed.end);
+                          setBatchDescription(`[Semanal] ${computed.desc}`);
+                        }
+                      }
+                    }}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                  >
+                    {MONTH_NAMES_LIST.map((name, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Ano
+                  </label>
+                  <select
+                    value={batchYear}
+                    onChange={(e) => {
+                      const y = Number(e.target.value);
+                      setBatchYear(y);
+                      if (batchPeriodType !== "CUSTOM") {
+                        const computed = computePeriodDates(batchPeriodType, batchMonth, y);
+                        if (computed) {
+                          setBatchStartDate(computed.start);
+                          setBatchEndDate(computed.end);
+                          setBatchDescription(`[Semanal] ${computed.desc}`);
+                        }
+                      }
+                    }}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                  >
+                    {[selectedYear - 1, selectedYear, selectedYear + 1].map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Tipo de Período (Seleção Rápida) */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1.5">
+                  Tipo de Período
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl">
+                  {(["S1", "S2", "S3", "S4", "CUSTOM"] as const).map((pType) => {
+                    const isSelected = batchPeriodType === pType;
+                    const labels: Record<string, string> = {
+                      S1: "Semana 1 (01 a 07)",
+                      S2: "Semana 2 (08 a 14)",
+                      S3: "Semana 3 (15 a 21)",
+                      S4: `Semana 4 (22 a ${new Date(batchYear, batchMonth, 0).getDate()})`,
+                      CUSTOM: "Personalizado",
+                    };
+                    return (
+                      <button
+                        key={pType}
+                        type="button"
+                        onClick={() => handleSelectPeriodType(pType)}
+                        className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-amber-500 text-slate-950 shadow-xs"
+                            : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                        }`}
+                      >
+                        {labels[pType]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Se for Personalizado ou para conferência de datas */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Data Início *
+                  </label>
+                  <input
+                    type="date"
+                    value={batchStartDate}
+                    onChange={(e) => {
+                      setBatchStartDate(e.target.value);
+                      if (batchPeriodType === "CUSTOM" && e.target.value && batchEndDate) {
+                        const startFmt = e.target.value.split("-").reverse().slice(0, 2).join("/");
+                        const endFmt = batchEndDate.split("-").reverse().slice(0, 2).join("/");
+                        setBatchDescription(`[Semanal] Fechamento Débito/Pix (${startFmt} a ${endFmt})`);
+                      }
+                    }}
+                    disabled={batchPeriodType !== "CUSTOM"}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Data Fim *
+                  </label>
+                  <input
+                    type="date"
+                    value={batchEndDate}
+                    onChange={(e) => {
+                      setBatchEndDate(e.target.value);
+                      if (batchPeriodType === "CUSTOM" && batchStartDate && e.target.value) {
+                        const startFmt = batchStartDate.split("-").reverse().slice(0, 2).join("/");
+                        const endFmt = e.target.value.split("-").reverse().slice(0, 2).join("/");
+                        setBatchDescription(`[Semanal] Fechamento Débito/Pix (${startFmt} a ${endFmt})`);
+                      }
+                    }}
+                    disabled={batchPeriodType !== "CUSTOM"}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Conta de Saída */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Conta Bancária de Saída *
+                </label>
+                <select
+                  value={batchWalletId}
+                  onChange={(e) => setBatchWalletId(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                  required
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.bankName} (Saldo: R$ {a.saldoAtual.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Método Principal (Pix / Débito em Conta) */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1.5">
+                  Método Principal
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-950 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setBatchPaymentMethod("PIX")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      batchPaymentMethod === "PIX"
+                        ? "bg-slate-900 dark:bg-slate-800 text-white shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    Pix
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBatchPaymentMethod("DEBITO")}
+                    className={`py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      batchPaymentMethod === "DEBITO"
+                        ? "bg-slate-900 dark:bg-slate-800 text-white shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                  >
+                    Débito em Conta
+                  </button>
+                </div>
+              </div>
+
+              {/* Valor Total do Período */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Valor Total do Período (R$) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0,00"
+                  value={batchAmount}
+                  onChange={(e) => setBatchAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-base font-bold tabular-nums focus:outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              {/* Categoria Padrão */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Categoria Padrão (Vínculo c/ Microdespesas)
+                </label>
+                <input
+                  type="text"
+                  value={batchCategory}
+                  onChange={(e) => setBatchCategory(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              {/* Descrição Automática / Sugerida */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Descrição do Lançamento no Extrato
+                </label>
+                <input
+                  type="text"
+                  value={batchDescription}
+                  onChange={(e) => setBatchDescription(e.target.value)}
+                  placeholder="Ex: [Semanal] Fechamento Débito/Pix (01/10 a 07/10)"
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+
+              {/* Observações / Detalhes (Opcional) */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Observações / Detalhes (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={batchNotes}
+                  onChange={(e) => setBatchNotes(e.target.value)}
+                  placeholder="Ex: Padaria, cafés da manhã, estacionamentos e pequenos lanches"
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-amber-500 resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setBatchWeeklyModalOpen(false)}
+                  disabled={batchSaving}
+                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={batchSaving}
+                  className="w-1/2 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-xs"
+                >
+                  {batchSaving ? "Registrando..." : "Confirmar Fechamento"}
+                </button>
+              </div>
             </form>
           </div>
         </div>

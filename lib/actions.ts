@@ -3923,6 +3923,105 @@ export async function createBankAccountMovementAction(input: {
   return tx;
 }
 
+export async function createBatchWeeklyDebitAction(input: {
+  walletId: string;
+  amount: number;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  periodLabel?: string;
+  paymentMethod?: "PIX" | "DEBITO";
+  categoryName?: string;
+  description?: string;
+  notes?: string;
+}) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.walletId, ...(userId ? { userId } : {}) },
+  });
+  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+
+  const amount = Math.abs(Number(input.amount));
+  if (!amount || isNaN(amount) || amount <= 0) {
+    throw new Error("Informe um valor válido maior que zero.");
+  }
+
+  // Data de conciliação: se a data final do período for <= hoje, usa ela; caso contrário, usa hoje para exibição imediata no extrato
+  const today = new Date();
+  const todayStr = safeIsoDate(today);
+  const targetDateStr = input.endDate <= todayStr ? input.endDate : todayStr;
+
+  const dateParts = targetDateStr.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  const chosenCategoryName = (input.categoryName || "").trim() || "Gastos Formiga / Pix & Débito Semanal";
+  let category = await prisma.category.findFirst({
+    where: { name: { equals: chosenCategoryName, mode: "insensitive" } },
+  });
+  if (!category) {
+    category = await prisma.category.create({
+      data: {
+        name: chosenCategoryName,
+        color: "#F59E0B",
+      },
+    });
+  }
+
+  // Descrição automática / formatada
+  const formattedDesc =
+    (input.description || "").trim() ||
+    `[Semanal] Fechamento Débito/Pix (${input.periodLabel || `${input.startDate} a ${input.endDate}`})`;
+
+  const tagsList = ["#FECHAMENTO_SEMANAL", "#LOTE"];
+  if (input.periodLabel) tagsList.push(`#${input.periodLabel.replace(/\s+/g, "_")}`);
+  if (input.notes?.trim()) tagsList.push(`#OBS: ${input.notes.trim()}`);
+  const tags = tagsList.join(" ");
+
+  const pm = input.paymentMethod === "DEBITO" ? PaymentMethod.DEBITO : PaymentMethod.PIX;
+
+  const tx = await prisma.transaction.create({
+    data: {
+      walletId: wallet.id,
+      categoryId: category.id,
+      description: formattedDesc,
+      type: "EXPENSE",
+      amount,
+      status: "COMPLETED",
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      dueDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+      paymentMethod: pm,
+      tags,
+      source: "BATCH_WEEKLY",
+    },
+  });
+
+  // Debita o saldo real da conta selecionada
+  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
+  const updatedBalance = currentVal - amount;
+  await prisma.wallet.update({
+    where: { id: wallet.id },
+    data: { currentBalance: updatedBalance },
+  });
+
+  revalidatePath("/contas");
+  revalidatePath("/radar-de-gastos");
+  revalidatePath("/gestao-financeira/radar-gastos");
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${wallet.id}`);
+
+  return { success: true, transaction: tx };
+}
+
+
 export async function recordBankAccountMovementAction(input: {
   contaId: string;
   valor: number | string;
@@ -11722,6 +11821,15 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       walletName: t.wallet?.title || t.wallet?.bankName || "Conta",
       paymentMethod: (t as any).paymentMethod || (t.type === "INCOME" ? "PIX" : "DEBITO"),
       tags: (t as any).tags || undefined,
+      notes: (t as any).tags?.includes("#OBS:")
+        ? (t as any).tags.split("#OBS:")[1]?.trim()
+        : undefined,
+      source: (t as any).source,
+      isBatchWeekly: Boolean(
+        (t as any).source === "BATCH_WEEKLY" ||
+        (t as any).tags?.includes("FECHAMENTO_SEMANAL") ||
+        (t.description || "").includes("[Semanal]")
+      ),
     }));
 
     // 3. Receitas do Ano / Receitas Previstas no período

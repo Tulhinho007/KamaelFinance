@@ -501,6 +501,12 @@ export default function RadarGastosPage() {
                                   {tx.categoryName}
                                 </span>
 
+                                {tx.isBatchWeekly && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                    Semanal / Lote
+                                  </span>
+                                )}
+
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500">
                                   {getWalletBadgeIcon(tx.walletType)}
                                   {tx.bankName || tx.walletTitle}

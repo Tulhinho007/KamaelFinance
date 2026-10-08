@@ -14,6 +14,7 @@ export type RadarTransactionItem = {
   walletType: string;
   bankName: string | null;
   status: string;
+  isBatchWeekly?: boolean;
 };
 
 export type RadarDateGroup = {
@@ -172,9 +173,14 @@ export async function getRadarExpensesAction({
     );
 
     // Filtra transações abaixo ou iguais ao limite parametrizado (ex: R$ 50,00)
-    const radarExpenses = validExpenses.filter(
-      (t) => Number(t.amount) <= maxAmount
-    );
+    // OU lançamentos em lote de fechamento semanal / microdespesas
+    const radarExpenses = validExpenses.filter((t) => {
+      const isBatch =
+        (t as any).source === "BATCH_WEEKLY" ||
+        (t.tags || "").includes("FECHAMENTO_SEMANAL") ||
+        (t.category?.name || "").includes("Gastos Formiga");
+      return Number(t.amount) <= maxAmount || isBatch;
+    });
 
     const totalRadarAmount = radarExpenses.reduce(
       (acc, t) => acc + Number(t.amount),
@@ -244,6 +250,9 @@ export async function getRadarExpensesAction({
         walletType: t.wallet.walletType,
         bankName: t.wallet.bankName || null,
         status: t.status,
+        isBatchWeekly:
+          (t as any).source === "BATCH_WEEKLY" ||
+          (t.tags || "").includes("FECHAMENTO_SEMANAL"),
       };
 
       if (!groupsMap.has(dateKey)) {
