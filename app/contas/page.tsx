@@ -550,14 +550,14 @@ export default function GestaoCaixaContasPage() {
               className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-sm shadow-indigo-600/25 transition-all hover:scale-[1.01] cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              + Novo Boleto / Despesa a Pagar
+              Novo Boleto / Despesa a Pagar
             </button>
             <button
               onClick={() => setNewMovementModalOpen(true)}
               className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all shadow-xs cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              + Movimentação Avulsa (Pix/Depósito)
+              Movimentação Avulsa (Pix/Depósito)
             </button>
           </div>
         </div>

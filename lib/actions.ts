@@ -10004,7 +10004,6 @@ export async function getMonthlyCommitmentsAction(
               year,
               ...(!isAnnualView && numMonth ? { month: numMonth } : {}),
             },
-            include: { paymentWallet: true },
           })
         : [];
 
@@ -10140,7 +10139,6 @@ export async function getMonthlyCommitmentsAction(
             year,
             ...(!isAnnualView && numMonth ? { month: numMonth } : {}),
           },
-          include: { paymentWallet: true },
         })
       : [];
 
@@ -10336,7 +10334,7 @@ export async function getMonthlyCommitmentsAction(
       competenceMonth: cMonth,
       competenceYear: cYear,
       dueDateFormatted: dueFormatted,
-      dueDateRaw: d.toISOString(),
+      dueDateRaw: safeIsoDate(d),
       dueDateInput: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`,
       dueBadge,
       tipo,
@@ -10348,7 +10346,7 @@ export async function getMonthlyCommitmentsAction(
       formaPagamentoLabel,
       walletId: t.walletId,
       walletTitle: t.wallet?.title || "Conta",
-      paidAt: t.paymentDate ? t.paymentDate.toISOString() : null,
+      paidAt: t.paymentDate ? safeIsoDate(t.paymentDate) : null,
     };
   });
 
@@ -10459,7 +10457,7 @@ export async function getMonthlyCommitmentsAction(
         competenceMonth: m,
         competenceYear: year,
         dueDateFormatted: dueFormatted,
-        dueDateRaw: dueDate.toISOString(),
+        dueDateRaw: safeIsoDate(dueDate),
         dueDateInput: `${year}-${String(m).padStart(2, "0")}-${String(dueDay).padStart(2, "0")}`,
         dueBadge,
         tipo: "FATURA_CARTAO" as const,
@@ -10469,11 +10467,11 @@ export async function getMonthlyCommitmentsAction(
         status: isPaid ? ("COMPLETED" as const) : ("PENDING" as const),
         statusLabel: isPaid ? "Pago" : "Pendente",
         formaPagamentoLabel: isPaid
-          ? `Saldo Conta • ${paidRecord.paymentWallet?.title || paidRecord.paymentWallet?.bankName || "Conta"}`
+          ? `Saldo Conta • ${userWallets?.find((w: any) => w.id === paidRecord.paymentWalletId)?.title || userWallets?.find((w: any) => w.id === paidRecord.paymentWalletId)?.bankName || "Conta"}`
           : "-",
         walletId: card.id,
         walletTitle: cardName,
-        paidAt: paidRecord?.paidAt ? new Date(paidRecord.paidAt).toISOString() : null,
+        paidAt: paidRecord?.paidAt ? safeIsoDate(paidRecord.paidAt) : null,
       });
     }
   }
@@ -11612,174 +11610,195 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
 }
 
 export async function getGestaoCaixaPageDataAction(year: number = 2026) {
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  const wallets = await prisma.wallet.findMany({
-    where: {
-      userId,
-      walletType: { in: ["CONTA_CORRENTE", "DEBITO", "CONTA"] },
-    },
-    orderBy: { title: "asc" },
-  });
-
-  const now = new Date();
-  const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
-  const to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
-  const walletIds = wallets.map((w) => w.id);
-
-  // 1. Transações do ano nas contas correntes/débito para apuração dos subtotais da conta
-  const allYearAccountTxs = walletIds.length > 0
-    ? await prisma.transaction.findMany({
-        where: {
-          walletId: { in: walletIds },
-          deletedAt: null,
-          source: { not: "RECURRING_PROJECTION" },
-          OR: [
-            { competenceYear: year },
-            { date: { gte: from, lte: to } },
-            { paymentDate: { gte: from, lte: to } },
-            { competenceDate: { gte: from, lte: to } },
-          ],
-        },
-        include: {
-          category: { select: { id: true, name: true, color: true } },
-          wallet: { select: { id: true, title: true, bankName: true } },
-        },
-        orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
-      })
-    : [];
-
-  // Contas Bancárias & Saldos Reais com subtotais anuais da conta específica
-  const accounts = await Promise.all(
-    wallets.map(async (w) => {
-      const bInfo = await calculateAccountBalance(w.id, now.getUTCMonth() + 1, now.getUTCFullYear());
-      const accountTxs = allYearAccountTxs.filter((t) => t.walletId === w.id);
-      const entradasAno = accountTxs
-        .filter((t) => t.type === "INCOME")
-        .reduce((s, t) => s + Number(t.amount || 0), 0);
-      const saidasAno = accountTxs
-        .filter((t) => t.type === "EXPENSE")
-        .reduce((s, t) => s + Number(t.amount || 0), 0);
-      const balancoAno = entradasAno - saidasAno;
-
-      return {
-        id: w.id,
-        title: w.title,
-        bankName: w.bankName || w.title,
-        walletType: w.walletType,
-        saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
-        entradasAno,
-        saidasAno,
-        balancoAno,
-        movimentacoesCount: accountTxs.length,
-      };
-    })
-  );
-
-  const totalRealBalance = accounts.reduce((s, a) => s + (a.saldoAtual || 0), 0);
-
-  // 2. Extrato da Conta: Estritamente movimentações que já aconteceram (status != PENDING, data <= hoje)
-  const realizedTxs = walletIds.length > 0
-    ? await prisma.transaction.findMany({
-        where: {
-          walletId: { in: walletIds },
-          deletedAt: null,
-          source: { not: "RECURRING_PROJECTION" },
-          status: { not: "PENDING" },
-          date: { lte: now, gte: from },
-        },
-        include: {
-          category: { select: { id: true, name: true, color: true } },
-          wallet: { select: { id: true, title: true, bankName: true } },
-        },
-        orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
-      })
-    : [];
-
-  const realizedTransactions = realizedTxs.map((t) => ({
-    id: t.id,
-    description: t.description || "Movimentação Bancária",
-    amount: Number(t.amount || 0),
-    type: t.type as "INCOME" | "EXPENSE",
-    date: safeIsoDate(t.date),
-    paymentDate: safeIsoDate(t.paymentDate || t.date),
-    status: t.status || "COMPLETED",
-    category: t.category?.name || (t.type === "INCOME" ? "Entrada" : "Saída"),
-    categoryColor: t.category?.color || (t.type === "INCOME" ? "#10B981" : "#EF4444"),
-    walletId: t.walletId,
-    walletName: t.wallet?.title || t.wallet?.bankName || "Conta",
-    paymentMethod: (t as any).paymentMethod || (t.type === "INCOME" ? "PIX" : "DEBITO"),
-    tags: (t as any).tags || undefined,
-  }));
-
-  // 3. Receitas do Ano / Receitas Previstas no período
-  const allYearIncomes = await prisma.transaction.findMany({
-    where: {
-      wallet: {
+    const wallets = await prisma.wallet.findMany({
+      where: {
         userId,
-        walletType: { notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "CREDIT_CARD"] },
+        walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA"] },
       },
-      type: "INCOME",
-      deletedAt: null,
-      source: { not: "RECURRING_PROJECTION" },
-      OR: [
-        { competenceYear: year },
-        { date: { gte: from, lte: to } },
-        { paymentDate: { gte: from, lte: to } },
-        { competenceDate: { gte: from, lte: to } },
-      ],
-    },
-    include: {
-      category: { select: { id: true, name: true, color: true } },
-      wallet: { select: { id: true, title: true, bankName: true } },
-    },
-  });
+      orderBy: { title: "asc" },
+    });
 
-  const totalRealizedIncome = allYearIncomes
-    .filter((t) => t.status === "COMPLETED" || t.status === "PAID")
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const now = new Date();
+    const from = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+    const to = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const walletIds = wallets.map((w) => w.id);
 
-  const totalPendingIncome = allYearIncomes
-    .filter((t) => t.status !== "COMPLETED" && t.status !== "PAID")
-    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    // 1. Transações do ano nas contas correntes/débito para apuração dos subtotais da conta
+    const allYearAccountTxs = walletIds.length > 0
+      ? await prisma.transaction.findMany({
+          where: {
+            walletId: { in: walletIds },
+            deletedAt: null,
+            source: { not: "RECURRING_PROJECTION" },
+            OR: [
+              { competenceYear: year },
+              { date: { gte: from, lte: to } },
+              { paymentDate: { gte: from, lte: to } },
+              { competenceDate: { gte: from, lte: to } },
+            ],
+          },
+          include: {
+            category: { select: { id: true, name: true, color: true } },
+            wallet: { select: { id: true, title: true, bankName: true } },
+          },
+          orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
+        })
+      : [];
 
-  const totalReceitasAno = totalRealizedIncome + totalPendingIncome;
+    // Contas Bancárias & Saldos Reais com subtotais anuais da conta específica
+    const accounts = await Promise.all(
+      wallets.map(async (w) => {
+        const bInfo = await calculateAccountBalance(w.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+        const accountTxs = allYearAccountTxs.filter((t) => t.walletId === w.id);
+        const entradasAno = accountTxs
+          .filter((t) => t.type === "INCOME")
+          .reduce((s, t) => s + Number(t.amount || 0), 0);
+        const saidasAno = accountTxs
+          .filter((t) => t.type === "EXPENSE")
+          .reduce((s, t) => s + Number(t.amount || 0), 0);
+        const balancoAno = entradasAno - saidasAno;
 
-  // 4. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
-  const commitmentsResult = await getMonthlyCommitmentsAction("ALL", year);
-  const pendingCommitments = (commitmentsResult.items || []).filter(
-    (item: any) => item.status === "PENDING"
-  );
+        return {
+          id: w.id,
+          title: w.title,
+          bankName: w.bankName || w.title,
+          walletType: w.walletType,
+          saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+          entradasAno,
+          saidasAno,
+          balancoAno,
+          movimentacoesCount: accountTxs.length,
+        };
+      })
+    );
 
-  const totalPendentesAno = pendingCommitments.reduce(
-    (sum: number, it: any) => sum + Number(it.amount || 0),
-    0
-  );
+    const totalRealBalance = accounts.reduce((s, a) => s + (a.saldoAtual || 0), 0);
 
-  // 5. Ajuste no Saldo Projetado:
-  // Saldo Projetado = Saldo Real + Receitas Previstas (a receber / ano) - Despesas Pendentes (a pagar)
-  // Caso a aplicação registre o fluxo acumulado anual, soma as entradas totais do período
-  const receitasParaProjecao = totalPendingIncome > 0 ? totalPendingIncome : totalReceitasAno;
-  const saldoProjetado = totalRealBalance + receitasParaProjecao - totalPendentesAno;
+    // 2. Extrato da Conta: Estritamente movimentações que já aconteceram (status != PENDING, data <= hoje)
+    const realizedTxs = walletIds.length > 0
+      ? await prisma.transaction.findMany({
+          where: {
+            walletId: { in: walletIds },
+            deletedAt: null,
+            source: { not: "RECURRING_PROJECTION" },
+            status: { not: "PENDING" },
+            date: { lte: now, gte: from },
+          },
+          include: {
+            category: { select: { id: true, name: true, color: true } },
+            wallet: { select: { id: true, title: true, bankName: true } },
+          },
+          orderBy: [{ date: "desc" }, { paymentDate: "desc" }],
+        })
+      : [];
 
-  return {
-    accounts,
-    realizedTransactions,
-    pendingCommitments,
-    contasBancarias: commitmentsResult.contasBancarias || [],
-    cartoesCredito: commitmentsResult.cartoesCredito || [],
-    totals: {
-      totalRealBalance,
-      totalReceitasAno,
-      totalRealizedIncome,
-      totalPendingIncome,
-      receitasParaProjecao,
-      totalPendentesAno,
-      saldoProjetado,
-      pendingCount: pendingCommitments.length,
-      realizedCount: realizedTransactions.length,
-    },
-  };
+    const realizedTransactions = realizedTxs.map((t) => ({
+      id: t.id,
+      description: t.description || "Movimentação Bancária",
+      amount: Number(t.amount || 0),
+      type: t.type as "INCOME" | "EXPENSE",
+      date: safeIsoDate(t.date),
+      paymentDate: safeIsoDate(t.paymentDate || t.date),
+      status: t.status || "COMPLETED",
+      category: t.category?.name || (t.type === "INCOME" ? "Entrada" : "Saída"),
+      categoryColor: t.category?.color || (t.type === "INCOME" ? "#10B981" : "#EF4444"),
+      walletId: t.walletId,
+      walletName: t.wallet?.title || t.wallet?.bankName || "Conta",
+      paymentMethod: (t as any).paymentMethod || (t.type === "INCOME" ? "PIX" : "DEBITO"),
+      tags: (t as any).tags || undefined,
+    }));
+
+    // 3. Receitas do Ano / Receitas Previstas no período
+    const allYearIncomes = await prisma.transaction.findMany({
+      where: {
+        wallet: {
+          userId,
+          walletType: { notIn: ["TICKET", "BENEFICIO", "BENEFÍCIO", "CREDIT_CARD"] },
+        },
+        type: "INCOME",
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" },
+        OR: [
+          { competenceYear: year },
+          { date: { gte: from, lte: to } },
+          { paymentDate: { gte: from, lte: to } },
+          { competenceDate: { gte: from, lte: to } },
+        ],
+      },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+        wallet: { select: { id: true, title: true, bankName: true } },
+      },
+    });
+
+    const totalRealizedIncome = allYearIncomes
+      .filter((t) => t.status === "COMPLETED" || t.status === "PAID")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const totalPendingIncome = allYearIncomes
+      .filter((t) => t.status !== "COMPLETED" && t.status !== "PAID")
+      .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+    const totalReceitasAno = totalRealizedIncome + totalPendingIncome;
+
+    // 4. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
+    const commitmentsResult = await getMonthlyCommitmentsAction("ALL", year);
+    const pendingCommitments = (commitmentsResult.items || []).filter(
+      (item: any) => item.status === "PENDING"
+    );
+
+    const totalPendentesAno = pendingCommitments.reduce(
+      (sum: number, it: any) => sum + Number(it.amount || 0),
+      0
+    );
+
+    // 5. Ajuste no Saldo Projetado:
+    // Saldo Projetado = Saldo Real + Receitas Previstas (a receber / ano) - Despesas Pendentes (a pagar)
+    const receitasParaProjecao = totalPendingIncome > 0 ? totalPendingIncome : totalReceitasAno;
+    const saldoProjetado = totalRealBalance + receitasParaProjecao - totalPendentesAno;
+
+    return {
+      accounts,
+      realizedTransactions,
+      pendingCommitments,
+      contasBancarias: commitmentsResult.contasBancarias || [],
+      cartoesCredito: commitmentsResult.cartoesCredito || [],
+      totals: {
+        totalRealBalance,
+        totalReceitasAno,
+        totalRealizedIncome,
+        totalPendingIncome,
+        receitasParaProjecao,
+        totalPendentesAno,
+        saldoProjetado,
+        pendingCount: pendingCommitments.length,
+        realizedCount: realizedTransactions.length,
+      },
+    };
+  } catch (err) {
+    console.error("Erro crítico em getGestaoCaixaPageDataAction:", err);
+    return {
+      accounts: [],
+      realizedTransactions: [],
+      pendingCommitments: [],
+      contasBancarias: [],
+      cartoesCredito: [],
+      totals: {
+        totalRealBalance: 0,
+        totalReceitasAno: 0,
+        totalRealizedIncome: 0,
+        totalPendingIncome: 0,
+        receitasParaProjecao: 0,
+        totalPendentesAno: 0,
+        saldoProjetado: 0,
+        pendingCount: 0,
+        realizedCount: 0,
+      },
+    };
+  }
 }
 
 export async function duplicateCommitmentToNextMonthAction(commitmentId: string) {
