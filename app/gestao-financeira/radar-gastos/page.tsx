@@ -223,7 +223,7 @@ export default function RadarGastosPage() {
       {/* Cabeçalho Executivo de Período */}
       <PeriodHeader
         title="Radar de Gastos & Fechamento Mensal"
-        tagline="Acompanhe o fechamento consolidado mensal, histórico de competências e o impacto de compras no orçamento."
+        tagline="Consulta consolidada de competências, gastos por modalidade e microdespesas."
         badge="GESTÃO"
       />
 

@@ -279,10 +279,10 @@ export function BudgetCalculator() {
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            Calculadora &amp; Guia Orçamentário
+            Guia Orçamentário
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Descubra a proporção ideal para alocar sua renda mensal entre <strong>Necessidades</strong>, <strong>Desejos</strong> e <strong>Investimentos/Dívidas</strong> de acordo com seu momento de vida.
+            Definição de tetos de gastos, limites por categoria e projeções de orçamento.
           </p>
         </div>
 

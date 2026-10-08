@@ -644,7 +644,7 @@ export default function ReceitasPage() {
 
       {/* ── 1. HEADER GLOBAL ─────────────────────────────────────────────────── */}
       <PeriodHeader 
-        title="Receitas & Entradas" 
+        title="Entradas & Receitas" 
         tagline="Controle e otimize as fontes de liquidez do Kamael Finance." 
         badge="Gestão" 
       />

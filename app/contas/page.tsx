@@ -722,10 +722,10 @@ export default function GestaoCaixaContasPage() {
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
               <Building2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              Gestão de Caixa & Contas
+              Conta Corrente & Extrato
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Controle unificado de saldo bancário real, agenda de obrigações a pagar e extrato de liquidação de {selectedYear}.
+              Controle unificado de saldo bancário real, despesas avulsas e obrigações a pagar.
             </p>
           </div>
 

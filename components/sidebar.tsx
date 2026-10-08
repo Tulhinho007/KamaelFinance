@@ -48,25 +48,25 @@ export const sidebarNavigation: SidebarNavGroup[] = [
     group: "VISÃO GERAL",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "Cartões", href: "/cartoes", icon: CreditCard },
-      { name: "Gestão de Caixa & Contas", href: "/contas", icon: Building2 },
-      { name: "Receitas", href: "/receitas", icon: TrendingUp },
+      { name: "Cartões de Crédito", href: "/cartoes", icon: CreditCard },
+      { name: "Conta Corrente", href: "/contas", icon: Building2 },
+      { name: "Entradas & Receitas", href: "/receitas", icon: TrendingUp },
     ],
   },
   {
     group: "GESTÃO DE LIQUIDEZ & CRÉDITO",
     items: [
-      { name: "PIX no Crédito", href: "/pix-credito", icon: Zap },
-      { name: "Radar de Gastos", href: "/gestao-financeira/radar-gastos", icon: Radar },
+      { name: "Pix Crédito", href: "/pix-credito", icon: Zap },
+      { name: "Radar & Fechamento", href: "/gestao-financeira/radar-gastos", icon: Radar },
     ],
   },
   {
     group: "PLANEJAMENTO & METAS",
     items: [
-      { name: "Objetivos & Reservas", href: "/metas", icon: Target },
+      { name: "Reservas & Metas", href: "/metas", icon: Target },
       { name: "Planejamento de Viagens", href: "/planejamento", icon: Plane },
       { name: "Investimentos", href: "/investimentos", icon: PieChart },
-      { name: "Orçamentos", href: "/gestao-financeira/orcamentos", icon: BarChart3 },
+      { name: "Guia Orçamentário", href: "/gestao-financeira/orcamentos", icon: BarChart3 },
     ],
   },
   {

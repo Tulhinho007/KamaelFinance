@@ -243,7 +243,7 @@ export default function MetasPage() {
 
   useEffect(() => {
     let active = true;
-    document.title = "Objetivos & Reservas | Kamael Finance";
+    document.title = "Reservas & Metas Financeiras | Kamael Finance";
 
     try {
       const cachedStr = sessionStorage.getItem("kamael_metas_cache");
@@ -543,9 +543,9 @@ export default function MetasPage() {
       
       {/* ── 1. HEADER GLOBAL ─────────────────────────────────────────────────── */}
       <PeriodHeader 
-        title="Objetivos & Reservas" 
-        tagline="Sonhe alto e acompanhe o progresso de cada conquista financeira e cofrinho." 
-        badge="Objetivos & Reservas" 
+        title="Reservas & Metas Financeiras" 
+        tagline="Acompanhamento de reserva de emergência, metas de poupança e conquistas patrimoniais." 
+        badge="Reservas & Metas" 
       />
 
       {/* ── 2. BUSCA LOCAL E BOTÃO NOVA META ─────────────────────────────────── */}

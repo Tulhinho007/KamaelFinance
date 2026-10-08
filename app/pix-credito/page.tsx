@@ -101,7 +101,7 @@ export default function CreditPixPage() {
               <div className="p-2 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-600 dark:text-purple-400">
                 <Zap className="w-6 h-6" />
               </div>
-              PIX no Crédito
+              Pix Crédito
             </h1>
             <span className="bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/60 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               GESTÃO DE LIQUIDEZ & ALAVANCAGEM
