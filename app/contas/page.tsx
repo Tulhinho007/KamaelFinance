@@ -42,6 +42,8 @@ import {
   createNewCard,
   createBankAccountMovementAction,
   createBatchWeeklyDebitAction,
+  updateRealizedBankMovementAction,
+  deleteCardPurchase,
   createCommitmentAction,
   payCommitmentAction,
   payBatchCommitmentsAction,
@@ -154,6 +156,21 @@ export default function GestaoCaixaContasPage() {
   const [batchCategory, setBatchCategory] = useState("Gastos Formiga / Pix & Débito Semanal");
   const [batchDescription, setBatchDescription] = useState("");
   const [batchNotes, setBatchNotes] = useState("");
+
+  // Modal: Editar Movimentação Realizada (Extrato)
+  const [editMovementItem, setEditMovementItem] = useState<any | null>(null);
+  const [savingEditMovement, setSavingEditMovement] = useState(false);
+  const [editMovDesc, setEditMovDesc] = useState("");
+  const [editMovAmount, setEditMovAmount] = useState<number | "">("");
+  const [editMovDate, setEditMovDate] = useState("");
+  const [editMovWalletId, setEditMovWalletId] = useState("");
+  const [editMovCategory, setEditMovCategory] = useState("");
+  const [editMovMetodo, setEditMovMetodo] = useState("DEBITO");
+  const [editMovNotes, setEditMovNotes] = useState("");
+
+  // Modal: Excluir Movimentação Realizada (Extrato)
+  const [movementToDelete, setMovementToDelete] = useState<any | null>(null);
+  const [deletingMovement, setDeletingMovement] = useState(false);
 
   // Modal: Editar Compromisso
   const [editItem, setEditItem] = useState<any | null>(null);
@@ -625,6 +642,66 @@ export default function GestaoCaixaContasPage() {
       showAlert(err?.message || "Erro ao excluir compromisso.", { variant: "error" });
     } finally {
       setDeletingCommitment(false);
+    }
+  };
+
+  // Handlers: Editar Movimentação Realizada (Extrato)
+  const handleOpenEditMovement = (tx: any) => {
+    setEditMovementItem(tx);
+    setEditMovDesc(tx.description || "");
+    setEditMovAmount(tx.amount || "");
+    setEditMovDate(tx.date ? tx.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+    setEditMovWalletId(tx.walletId || (accounts[0]?.id ?? ""));
+    setEditMovCategory(tx.category || "Saída da Conta");
+    setEditMovMetodo(tx.paymentMethod || "DEBITO");
+    setEditMovNotes(tx.notes || "");
+  };
+
+  const handleSaveEditMovement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editMovementItem) return;
+    if (!editMovDesc.trim() || !editMovAmount || Number(editMovAmount) <= 0 || !editMovDate) {
+      showAlert("Preencha todos os campos obrigatórios.", { variant: "warning" });
+      return;
+    }
+    setSavingEditMovement(true);
+    try {
+      await updateRealizedBankMovementAction({
+        id: editMovementItem.id,
+        description: editMovDesc.trim(),
+        amount: Number(editMovAmount),
+        dateStr: editMovDate,
+        walletId: editMovWalletId,
+        categoryName: editMovCategory.trim(),
+        paymentMethod: editMovMetodo,
+        notes: editMovNotes.trim(),
+      });
+      setEditMovementItem(null);
+      await loadData();
+      showAlert("Movimentação atualizada com sucesso!", { variant: "success" });
+    } catch (err: any) {
+      showAlert(err?.message || "Erro ao atualizar movimentação.", { variant: "error" });
+    } finally {
+      setSavingEditMovement(false);
+    }
+  };
+
+  // Handler: Excluir Movimentação Realizada (Extrato)
+  const handleConfirmDeleteMovement = async () => {
+    if (!movementToDelete) return;
+    setDeletingMovement(true);
+    try {
+      const res = await deleteCardPurchase(movementToDelete.id);
+      if (res && res.success === false) {
+        throw new Error(res.error || "Erro ao excluir movimentação.");
+      }
+      setMovementToDelete(null);
+      await loadData();
+      showAlert("Movimentação excluída com sucesso! O saldo da conta foi recalculado.", { variant: "success" });
+    } catch (err: any) {
+      showAlert(err?.message || "Erro ao excluir movimentação.", { variant: "error" });
+    } finally {
+      setDeletingMovement(false);
     }
   };
 
@@ -1291,12 +1368,13 @@ export default function GestaoCaixaContasPage() {
                   <th className="py-2.5 px-3">Conta / Banco</th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Categoria / Método</th>
                   <th className="py-2.5 px-4 text-right whitespace-nowrap">Valor</th>
+                  <th className="py-2.5 px-4 text-right whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                 {displayedRealizedMovements.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-slate-400">
+                    <td colSpan={6} className="py-10 text-center text-slate-400">
                       Nenhuma movimentação realizada encontrada para os filtros selecionados.
                     </td>
                   </tr>
@@ -1359,6 +1437,27 @@ export default function GestaoCaixaContasPage() {
                           <span className={isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
                             {isIncome ? "+" : "-"}{brl(tx.amount)}
                           </span>
+                        </td>
+
+                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditMovement(tx)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Editar movimentação"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setMovementToDelete(tx)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              title="Excluir movimentação"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2346,6 +2445,194 @@ export default function GestaoCaixaContasPage() {
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
               >
                 {deletingCommitment ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 8: Editar Movimentação Realizada (Extrato) ─────────────── */}
+      {editMovementItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Editar Movimentação</h3>
+                  <p className="text-[11px] text-slate-500">Alterar dados do lançamento no extrato</p>
+                </div>
+              </div>
+              <button onClick={() => setEditMovementItem(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditMovement} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Descrição *</label>
+                <input
+                  type="text"
+                  value={editMovDesc}
+                  onChange={(e) => setEditMovDesc(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Qual Conta? *</label>
+                <select
+                  value={editMovWalletId}
+                  onChange={(e) => setEditMovWalletId(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                  required
+                >
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.bankName} (Saldo: R$ {a.saldoAtual.toFixed(2)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editMovAmount}
+                    onChange={(e) => setEditMovAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm font-bold tabular-nums"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Data da Operação *</label>
+                  <input
+                    type="date"
+                    value={editMovDate}
+                    onChange={(e) => setEditMovDate(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Categoria</label>
+                  <input
+                    type="text"
+                    value={editMovCategory}
+                    onChange={(e) => setEditMovCategory(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Método</label>
+                  <select
+                    value={editMovMetodo}
+                    onChange={(e) => setEditMovMetodo(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                  >
+                    <option value="PIX">Pix</option>
+                    <option value="DEBITO">Cartão de Débito</option>
+                    <option value="BOLETO">Boleto Pago</option>
+                    <option value="TED_DOC">TED / Transferência</option>
+                    <option value="DINHEIRO">Dinheiro em Espécie</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Observações (Opcional)</label>
+                <input
+                  type="text"
+                  value={editMovNotes}
+                  onChange={(e) => setEditMovNotes(e.target.value)}
+                  placeholder="Anotações sobre a movimentação..."
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditMovementItem(null)}
+                  disabled={savingEditMovement}
+                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditMovement}
+                  className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {savingEditMovement ? "Salvando..." : "Salvar Alterações"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal 9: Excluir Movimentação Realizada (Extrato) ─────────────── */}
+      {movementToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200/50">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Excluir Movimentação</h3>
+                <p className="text-xs text-slate-500">O saldo da conta será recalculado automaticamente.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-xs space-y-1">
+              <p className="font-bold text-slate-900 dark:text-white text-sm">
+                {movementToDelete.description}
+              </p>
+              <p className="text-slate-600 dark:text-slate-300">
+                Valor: <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{brl(movementToDelete.amount)}</span>
+              </p>
+              <p className="text-slate-500 dark:text-slate-400">
+                Conta: <span className="font-semibold text-slate-700 dark:text-slate-300">{movementToDelete.walletName}</span>
+              </p>
+              {movementToDelete.date && (
+                <p className="text-slate-500 dark:text-slate-400">
+                  Data: {movementToDelete.date.split("T")[0].split("-").reverse().join("/")}
+                </p>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Tem certeza que deseja remover este lançamento do extrato? Ao confirmar, o valor será estornado do saldo da conta bancária.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMovementToDelete(null)}
+                disabled={deletingMovement}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteMovement}
+                disabled={deletingMovement}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 shadow-xs"
+              >
+                {deletingMovement ? "Excluindo..." : "Sim, Excluir"}
               </button>
             </div>
           </div>

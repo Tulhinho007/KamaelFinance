@@ -3164,6 +3164,8 @@ export async function deleteCardPurchase(
     revalidatePath("/dashboard");
     revalidatePath("/receitas");
     revalidatePath("/contas");
+    revalidatePath("/radar-de-gastos");
+    revalidatePath("/gestao-financeira/radar-gastos");
 
     return { success: true, deletedCount: targetIds.length, isInstallmentGroup };
   } catch (error: any) {
@@ -4020,6 +4022,215 @@ export async function createBatchWeeklyDebitAction(input: {
 
   return { success: true, transaction: tx };
 }
+
+export async function updateRealizedBankMovementAction(input: {
+  id: string;
+  description: string;
+  amount: number;
+  dateStr: string;
+  walletId?: string;
+  categoryName?: string;
+  paymentMethod?: string;
+  notes?: string;
+}) {
+  const userId = await getActiveUserId();
+  const tx = await prisma.transaction.findFirst({
+    where: { id: input.id, ...(userId ? { wallet: { userId } } : {}) },
+    include: { wallet: true, category: true },
+  });
+  if (!tx) throw new Error("Lançamento não encontrado.");
+
+  const newAmount = Math.abs(Number(input.amount));
+  if (!newAmount || isNaN(newAmount) || newAmount <= 0) {
+    throw new Error("Valor deve ser maior que zero.");
+  }
+
+  const newWalletId = input.walletId || tx.walletId;
+  const targetWallet = await prisma.wallet.findFirst({
+    where: { id: newWalletId, ...(userId ? { userId } : {}) },
+  });
+  if (!targetWallet) throw new Error("Conta Bancária não encontrada.");
+
+  const dateParts = input.dateStr.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  // Categoria
+  let categoryId = tx.categoryId;
+  if (input.categoryName?.trim()) {
+    let cat = await prisma.category.findFirst({
+      where: { name: { equals: input.categoryName.trim(), mode: "insensitive" } },
+    });
+    if (!cat) {
+      cat = await prisma.category.create({
+        data: { name: input.categoryName.trim(), color: tx.category?.color || "#F59E0B" },
+      });
+    }
+    categoryId = cat.id;
+  }
+
+  // Tags e Observações
+  let updatedTags = tx.tags || "";
+  if (input.notes !== undefined) {
+    const baseTags = (tx.tags || "").replace(/#OBS:.*$/, "").trim();
+    updatedTags = input.notes.trim() ? `${baseTags} #OBS: ${input.notes.trim()}`.trim() : baseTags;
+  }
+
+  const oldAmount = Number(tx.amount);
+  const oldWalletId = tx.walletId;
+  const isCompleted = tx.status === "COMPLETED";
+
+  // Mapear paymentMethod
+  let finalPm = tx.paymentMethod;
+  if (input.paymentMethod) {
+    if (input.paymentMethod === "PIX") finalPm = PaymentMethod.PIX;
+    else if (input.paymentMethod === "DEBITO") finalPm = PaymentMethod.DEBITO;
+    else if (input.paymentMethod === "BOLETO") finalPm = PaymentMethod.BOLETO;
+    else if (input.paymentMethod === "DINHEIRO") finalPm = PaymentMethod.DINHEIRO;
+  }
+
+  const updatedTx = await prisma.transaction.update({
+    where: { id: tx.id },
+    data: {
+      description: input.description.trim() || tx.description,
+      amount: newAmount,
+      walletId: newWalletId,
+      categoryId,
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      dueDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+      paymentMethod: finalPm,
+      tags: updatedTags,
+    },
+  });
+
+  // Ajustar saldos reais se pertencer a conta bancária
+  if (isCompleted && targetWallet.walletType !== "CREDIT_CARD") {
+    if (oldWalletId === newWalletId) {
+      // Mesma conta
+      const diff = tx.type === "INCOME" ? (newAmount - oldAmount) : (oldAmount - newAmount);
+      if (diff !== 0) {
+        const curBal = Number(targetWallet.currentBalance ?? targetWallet.initialBalance ?? 0);
+        await prisma.wallet.update({
+          where: { id: newWalletId },
+          data: { currentBalance: curBal + diff },
+        });
+      }
+    } else {
+      // Trocou de conta
+      const oldWallet = await prisma.wallet.findUnique({ where: { id: oldWalletId } });
+      if (oldWallet && oldWallet.walletType !== "CREDIT_CARD") {
+        const oldCurBal = Number(oldWallet.currentBalance ?? oldWallet.initialBalance ?? 0);
+        const oldDiff = tx.type === "INCOME" ? -oldAmount : oldAmount;
+        await prisma.wallet.update({
+          where: { id: oldWalletId },
+          data: { currentBalance: oldCurBal + oldDiff },
+        });
+      }
+      const newCurBal = Number(targetWallet.currentBalance ?? targetWallet.initialBalance ?? 0);
+      const newDiff = tx.type === "INCOME" ? newAmount : -newAmount;
+      await prisma.wallet.update({
+        where: { id: newWalletId },
+        data: { currentBalance: newCurBal + newDiff },
+      });
+    }
+  }
+
+  revalidatePath("/contas");
+  revalidatePath("/radar-de-gastos");
+  revalidatePath("/gestao-financeira/radar-gastos");
+  revalidatePath("/dashboard");
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${newWalletId}`);
+
+  return { success: true, transaction: updatedTx };
+}
+
+export async function updateMicroexpenseAction(input: {
+  id: string;
+  description: string;
+  amount: number;
+  dateStr: string;
+  categoryName?: string;
+}) {
+  const userId = await getActiveUserId();
+  const tx = await prisma.transaction.findFirst({
+    where: { id: input.id, ...(userId ? { wallet: { userId } } : {}) },
+    include: { wallet: true, category: true },
+  });
+  if (!tx) throw new Error("Despesa não encontrada.");
+
+  const newAmount = Math.abs(Number(input.amount));
+  if (!newAmount || isNaN(newAmount) || newAmount <= 0) {
+    throw new Error("Valor deve ser maior que zero.");
+  }
+
+  const dateParts = input.dateStr.split("-");
+  const year = Number(dateParts[0]);
+  const month = Number(dateParts[1]);
+  const day = Number(dateParts[2] || 1);
+  const txDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  let categoryId = tx.categoryId;
+  if (input.categoryName?.trim()) {
+    let cat = await prisma.category.findFirst({
+      where: { name: { equals: input.categoryName.trim(), mode: "insensitive" } },
+    });
+    if (!cat) {
+      cat = await prisma.category.create({
+        data: { name: input.categoryName.trim(), color: tx.category?.color || "#6366F1" },
+      });
+    }
+    categoryId = cat.id;
+  }
+
+  const oldAmount = Number(tx.amount);
+  const updatedTx = await prisma.transaction.update({
+    where: { id: tx.id },
+    data: {
+      description: input.description.trim() || tx.description,
+      amount: newAmount,
+      categoryId,
+      date: txDate,
+      paymentDate: txDate,
+      purchaseDate: txDate,
+      competenceDate: txDate,
+      dueDate: txDate,
+      competenceMonth: month,
+      competenceYear: year,
+    },
+  });
+
+  // Se pertencia a uma conta corrente/débito, ajusta o currentBalance
+  if (tx.status === "COMPLETED" && tx.wallet.walletType !== "CREDIT_CARD") {
+    const diff = oldAmount - newAmount;
+    if (diff !== 0) {
+      const curBal = Number(tx.wallet.currentBalance ?? tx.wallet.initialBalance ?? 0);
+      await prisma.wallet.update({
+        where: { id: tx.walletId },
+        data: { currentBalance: curBal + diff },
+      });
+    }
+  }
+
+  revalidatePath("/gestao-financeira/radar-gastos");
+  revalidatePath("/radar-de-gastos");
+  revalidatePath("/contas");
+  revalidatePath("/dashboard");
+  revalidatePath("/despesas");
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${tx.walletId}`);
+
+  return { success: true, transaction: updatedTx };
+}
+
 
 
 export async function recordBankAccountMovementAction(input: {
