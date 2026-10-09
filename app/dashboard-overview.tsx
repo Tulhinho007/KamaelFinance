@@ -21,6 +21,7 @@ import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
@@ -488,77 +489,76 @@ export function DashboardOverview() {
 
         const totalReceitasAno = Number(data?.totalReceitas ?? data?.totalIncomes ?? 0);
         const totalGastosAno = Number(data?.totalGastos ?? data?.totalExpenses ?? 0);
+        const resultadoLiquidoAno = totalReceitasAno - totalGastosAno;
 
         return (
-          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md p-6 sm:p-7 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-              <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 border border-slate-200/60 dark:bg-zinc-800/70 dark:text-indigo-400 dark:border-white/[0.08] flex items-center justify-center shadow-2xs shrink-0 p-2.5">
-                <Wallet className="w-6 h-6" strokeWidth={1.5} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Saldo Consolidado
-                  </span>
-                  <span className="px-2.5 py-0.5 text-[10px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 whitespace-nowrap">
-                    Tempo Real (Hoje)
-                  </span>
-                  <span className="text-slate-400 dark:text-zinc-500 font-normal text-xs">
-                    • {contasBancarias.length > 0 ? `${contasBancarias.length} contas bancárias` : "Todas as contas"}
-                  </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+            {/* Card 1: Saldo Consolidado */}
+            <MetricKpiCard
+              label="Saldo Consolidado"
+              value={`R$ ${saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              subtext={`Tempo Real · ${contasBancarias.length > 0 ? `${contasBancarias.length} contas bancárias` : "Todas as contas"}`}
+              variant="neutral"
+              icon={Wallet}
+              badge={{ text: "Tempo Real", variant: "success" }}
+              footer={
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.06] mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInjectTipoOperacao("ENTRADA");
+                      setInjectModalOpen(true);
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100/70 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    ↗ + Adicionar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInjectTipoOperacao("SAIDA");
+                      setInjectModalOpen(true);
+                    }}
+                    className="flex-1 text-center py-1.5 px-2 bg-rose-50 hover:bg-rose-100/70 text-rose-700 border border-rose-200/60 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    ↘ - Abater
+                  </button>
                 </div>
-                <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums tracking-tight mt-1">
-                  R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </h2>
-                <p className="text-xs text-slate-400 dark:text-zinc-400 font-normal mt-1">
-                  Disponibilidade líquida consolidada em conta corrente e débito
-                </p>
-              </div>
-            </div>
+              }
+            />
 
-            {/* Subtotais Consolidados do Ano & Ações Rápidas */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 lg:gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-white/[0.06]">
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-6 px-4 py-3 rounded-2xl bg-slate-50/70 dark:bg-zinc-900/80 border border-slate-200/60 dark:border-white/[0.08]">
-                <div>
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
-                    Receitas ({selectedDashboardYear})
-                  </span>
-                  <span className="text-sm sm:text-base font-semibold text-emerald-700 dark:text-emerald-400 font-tnum tabular-nums">
-                    +{brl(totalReceitasAno)}
-                  </span>
-                </div>
-                <div className="sm:border-l border-slate-200/70 dark:border-white/[0.08] sm:pl-6">
-                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
-                    Despesas ({selectedDashboardYear})
-                  </span>
-                  <span className="text-sm sm:text-base font-semibold text-rose-700 dark:text-rose-400 font-tnum tabular-nums">
-                    -{brl(totalGastosAno)}
-                  </span>
-                </div>
-              </div>
+            {/* Card 2: Receitas do Ano */}
+            <MetricKpiCard
+              label={`Receitas (${selectedDashboardYear})`}
+              value={`+${brl(totalReceitasAno)}`}
+              subtext="Entradas consolidadas no ano"
+              variant="success"
+              icon={TrendingUp}
+              badge={{ text: "Entradas", variant: "success" }}
+            />
 
-              {/* Botões Rápidos de Ajuste de Saldo */}
-              <div className="flex sm:flex-col gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    setInjectTipoOperacao("ENTRADA");
-                    setInjectModalOpen(true);
-                  }}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-emerald-50 hover:bg-emerald-100/70 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20 text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  ↗ + Adicionar Saldo
-                </button>
-                <button
-                  onClick={() => {
-                    setInjectTipoOperacao("SAIDA");
-                    setInjectModalOpen(true);
-                  }}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-rose-50 hover:bg-rose-100/70 text-rose-700 border border-rose-200/60 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 text-xs font-semibold rounded-xl shadow-2xs transition-colors cursor-pointer whitespace-nowrap"
-                >
-                  ↘ - Retirar / Abater
-                </button>
-              </div>
-            </div>
+            {/* Card 3: Despesas do Ano */}
+            <MetricKpiCard
+              label={`Despesas (${selectedDashboardYear})`}
+              value={`-${brl(totalGastosAno)}`}
+              subtext="Saídas consolidadas no ano"
+              variant="danger"
+              icon={TrendingDown}
+              badge={{ text: "Despesas", variant: "danger" }}
+            />
+
+            {/* Card 4: Resultado Líquido */}
+            <MetricKpiCard
+              label={`Resultado Líquido (${selectedDashboardYear})`}
+              value={`${resultadoLiquidoAno >= 0 ? "+" : ""}${brl(resultadoLiquidoAno)}`}
+              subtext={resultadoLiquidoAno >= 0 ? "Superávit anual acumulado" : "Déficit anual acumulado"}
+              variant={resultadoLiquidoAno >= 0 ? "success" : "danger"}
+              icon={Sparkles}
+              badge={{
+                text: resultadoLiquidoAno >= 0 ? "Superávit" : "Déficit",
+                variant: resultadoLiquidoAno >= 0 ? "success" : "danger"
+              }}
+            />
           </div>
         );
       })()}

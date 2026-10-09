@@ -9,6 +9,7 @@ import {
 import { usePeriod } from "@/components/period-context";
 import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
   getRevenues, getReceitasBundleAction, createRevenueAction, updateRevenueAction, deleteRevenueAction, toggleTransactionStatusAction, getWalletsAction,
   duplicateRevenueToNextMonthAction, markBatchRevenuesAsReceivedAction
@@ -649,40 +650,34 @@ export default function ReceitasPage() {
         badge="Gestão" 
       />
 
-      {/* ── 2. CARDS KPI NO TOPO (RESUMO FINANCEIRO) EM .CARD-GLOW ──────────── */}
+      {/* ── 2. CARDS KPI NO TOPO (RESUMO FINANCEIRO) ───────────────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Card 1 — Receita Total Prevista */}
-        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <Coins className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">Receita Total Prevista</span>
-          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Mês Atual · Entradas Consolidadas</span>
-          <p className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-zinc-100 tracking-tight font-tnum tabular-nums">{brl(totalPrevisto)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 w-fit">
-            <TrendingUp className="w-3 h-3 text-emerald-500 dark:text-emerald-400" /> +5.2% vs mês anterior
-          </span>
-        </div>
+        <MetricKpiCard
+          label="Receita Total Prevista"
+          value={brl(totalPrevisto)}
+          subtext="Mês Atual · Entradas Consolidadas"
+          variant="neutral"
+          icon={Coins}
+          badge={{ text: "+5.2% vs mês anterior", variant: "success" }}
+        />
 
-        {/* Card 2 — Total Recebido */}
-        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <CheckCircle2 className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">Total Recebido</span>
-          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Liquidado em Conta</span>
-          <p className="text-xl sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum tabular-nums">{brl(totalReceived)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 w-fit">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" /> Entradas Confirmadas
-          </span>
-        </div>
+        <MetricKpiCard
+          label="Total Recebido"
+          value={brl(totalReceived)}
+          subtext="Liquidado em Conta"
+          variant="success"
+          icon={CheckCircle2}
+          badge={{ text: "Entradas Confirmadas", variant: "success" }}
+        />
 
-        {/* Card 3 — A Receber / Pendente */}
-        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
-          <Clock className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">A Receber / Pendente</span>
-          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Aguardando Liquidação</span>
-          <p className="text-xl sm:text-2xl font-semibold text-amber-600 dark:text-amber-400 tracking-tight font-tnum tabular-nums">{brl(totalPending)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 w-fit">
-            <Clock className="w-3 h-3 text-amber-500 dark:text-amber-400" /> A Receber no Prazo
-          </span>
-        </div>
+        <MetricKpiCard
+          label="A Receber / Pendente"
+          value={brl(totalPending)}
+          subtext="Aguardando Liquidação"
+          variant="warning"
+          icon={Clock}
+          badge={{ text: "A Receber no Prazo", variant: "warning" }}
+        />
       </section>
 
       {/* ── 3. SEÇÃO ANALYTICS & FONTES DE RENDA ─────────────────────────────── */}

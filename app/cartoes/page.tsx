@@ -37,6 +37,7 @@ import {
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { EditCardTransactionModal } from "@/components/edit-card-transaction-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 import { MONTH_NAMES } from "@/lib/constants";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -448,41 +449,44 @@ export default function CartoesPage() {
 
       {/* KPI Cards Superiores Exclusivos de Cartões de Crédito */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
-        <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs relative overflow-hidden">
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
-            Limite Total Contratado
-          </span>
-          <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tight mt-1 tabular-nums">
-            {brl(totals.totalLimit)}
-          </p>
-          <span className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2.5 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
-            <ShieldCheck className="w-3 h-3 text-indigo-500" /> {cards.length} {cards.length === 1 ? "cartão cadastrado" : "cartões cadastrados"}
-          </span>
-        </div>
+        <MetricKpiCard
+          label="Limite Total Contratado"
+          value={brl(totals.totalLimit)}
+          variant="neutral"
+          icon={ShieldCheck}
+          badge={
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
+              {cards.length} {cards.length === 1 ? "cartão cadastrado" : "cartões cadastrados"}
+            </span>
+          }
+          subtext="Limite consolidado em todos os cartões ativos"
+        />
 
-        <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs relative overflow-hidden">
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
-            Limite Disponível Real
-          </span>
-          <p className={`text-2xl font-black tracking-tight mt-1 tabular-nums ${totals.totalAvailable < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}>
-            {brl(totals.totalAvailable)}
-          </p>
-          <span className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/40">
-            <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Livre para novas compras
-          </span>
-        </div>
+        <MetricKpiCard
+          label="Limite Disponível Real"
+          value={brl(totals.totalAvailable)}
+          variant={totals.totalAvailable < 0 ? "danger" : "success"}
+          icon={CheckCircle2}
+          badge={
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/40">
+              Livre para novas compras
+            </span>
+          }
+          subtext="Capacidade de crédito disponível no momento"
+        />
 
-        <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs relative overflow-hidden">
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest block">
-            Total de Faturas Abertas
-          </span>
-          <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight mt-1 tabular-nums">
-            {brl(totals.totalInvoices)}
-          </p>
-          <span className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200/50 dark:border-rose-800/40">
-            <Clock className="w-3 h-3 text-rose-500" /> Comprometido no período
-          </span>
-        </div>
+        <MetricKpiCard
+          label="Total de Faturas Abertas"
+          value={brl(totals.totalInvoices)}
+          variant="danger"
+          icon={Clock}
+          badge={
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full border border-rose-200/50 dark:border-rose-800/40">
+              Comprometido no período
+            </span>
+          }
+          subtext="Valor consolidado das faturas atuais"
+        />
       </section>
 
       {/* Grid de Cartões de Crédito */}

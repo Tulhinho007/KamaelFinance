@@ -32,6 +32,7 @@ import {
 } from "@/lib/radar-actions";
 import { deleteCardPurchase, updateMicroexpenseAction } from "@/lib/actions";
 import { MonthlyClosingView } from "@/components/monthly-closing-view";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 
 const brl = (v: number) =>
   (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -389,62 +390,39 @@ export default function RadarGastosPage() {
           {/* Cards de Métricas Rápidas (3 Cards Pequenos) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* 1. Qtd de Compras */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 hover:border-indigo-500/30 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200/60 dark:border-blue-800/60 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
-                <ShoppingBag className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Qtd. de Compras Feitas
-                </p>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                  {data?.countRadar || 0}
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  {data?.countRadar === 1
-                    ? "1 transação encontrada"
-                    : `${data?.countRadar || 0} transações abaixo de ${brl(maxLimit)}`}
-                </p>
-              </div>
-            </div>
+            <MetricKpiCard
+              label="Qtd. de Compras Feitas"
+              value={data?.countRadar || 0}
+              variant="neutral"
+              icon={ShoppingBag}
+              subtext={
+                data?.countRadar === 1
+                  ? "1 transação encontrada"
+                  : `${data?.countRadar || 0} transações abaixo de ${brl(maxLimit)}`
+              }
+            />
 
             {/* 2. Impacto Projetado no Ano (Gatilho Psicológico do Radar) */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 hover:border-amber-500/30 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/60 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                <TrendingDown className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Impacto Projetado no Ano
-                </p>
-                <h3 className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-0.5 font-tnum tabular-nums">
-                  {brl(data?.projectedYearlyAmount || (data?.totalRadarAmount || 0) * 12)}
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  {(data?.totalRadarAmount || 0) > 0
-                    ? `Se mantiver esse ritmo, serão ${brl(data?.projectedYearlyAmount || (data?.totalRadarAmount || 0) * 12)}/ano em gastos invisíveis.`
-                    : "Sem projeção acumulada no período."}
-                </p>
-              </div>
-            </div>
+            <MetricKpiCard
+              label="Impacto Projetado no Ano"
+              value={brl(data?.projectedYearlyAmount || (data?.totalRadarAmount || 0) * 12)}
+              variant="warning"
+              icon={TrendingDown}
+              subtext={
+                (data?.totalRadarAmount || 0) > 0
+                  ? `Se mantiver esse ritmo, serão ${brl(data?.projectedYearlyAmount || (data?.totalRadarAmount || 0) * 12)}/ano em gastos invisíveis.`
+                  : "Sem projeção acumulada no período."
+              }
+            />
 
             {/* 3. % do Total do Orçamento */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex items-center gap-4 hover:border-indigo-500/30 transition-all">
-              <div className="w-12 h-12 rounded-xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200/60 dark:border-purple-800/60 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
-                <PieChart className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  % do Total do Orçamento
-                </p>
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 mt-0.5">
-                  {data?.percentOfTotalBudget || 0}%
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  Do total de saídas no mês
-                </p>
-              </div>
-            </div>
+            <MetricKpiCard
+              label="% do Total do Orçamento"
+              value={`${data?.percentOfTotalBudget || 0}%`}
+              variant="neutral"
+              icon={PieChart}
+              subtext="Do total de saídas no mês"
+            />
           </div>
 
           {/* Gráfico por Categoria dos Gastos Invisíveis */}

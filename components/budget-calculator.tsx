@@ -19,6 +19,7 @@ import {
   Target,
   Zap
 } from "lucide-react";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 
 // ── TIPAGENS ESTRITAS ────────────────────────────────────────────────────────
 export type PresetId = "50_30_20" | "70_20_10" | "80_10_10" | "50_10_40" | "custom";
@@ -298,6 +299,48 @@ export function BudgetCalculator() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* ── CARDS KPI NO TOPO (RESUMO DO MODELO DE ORÇAMENTO) ──────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricKpiCard
+          label="Renda Mensal Base"
+          value={formatBRL(income)}
+          subtext="Base total para cálculo das fatias"
+          variant="neutral"
+          icon={Wallet}
+          badge={{ text: "100%", variant: "neutral" }}
+        />
+
+        <MetricKpiCard
+          label="Teto de Necessidades"
+          value={formatBRL(targetNecessidades)}
+          subtext={`${pcts.necessidades}% · Moradia, contas e fixos`}
+          variant="warning"
+          icon={Building2}
+          badge={{ text: `${pcts.necessidades}%`, variant: "warning" }}
+        />
+
+        <MetricKpiCard
+          label="Teto de Desejos"
+          value={formatBRL(targetDesejos)}
+          subtext={`${pcts.desejos}% · Lazer e estilo de vida`}
+          variant="neutral"
+          icon={Flame}
+          badge={{ text: `${pcts.desejos}%`, variant: "neutral" }}
+        />
+
+        <MetricKpiCard
+          label={thirdPillarLabel}
+          value={formatBRL(targetReserva)}
+          subtext={`${pcts.reserva}% · ${currentPreset.reservaLabel}`}
+          variant={selectedPresetId === "50_10_40" ? "danger" : "success"}
+          icon={thirdPillarIcon}
+          badge={{
+            text: `${pcts.reserva}%`,
+            variant: selectedPresetId === "50_10_40" ? "danger" : "success"
+          }}
+        />
       </div>
 
       {/* ── 2. SELETOR DE PRESETS (MODELOS DE ORÇAMENTO) ───────────────────── */}
