@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   PieChart,
   Home,
@@ -17,9 +17,11 @@ import {
   Coffee,
   PiggyBank,
   Target,
-  Zap
+  Zap,
+  RefreshCw
 } from "lucide-react";
 import { MetricKpiCard } from "@/components/metric-kpi-card";
+import { getRealBudgetPillarsDataAction } from "@/lib/budget-actions";
 
 // ── TIPAGENS ESTRITAS ────────────────────────────────────────────────────────
 export type PresetId = "50_30_20" | "70_20_10" | "80_10_10" | "50_10_40" | "custom";
@@ -145,19 +147,60 @@ export const formatBRL = (value: number) => currencyFormatter.format(isNaN(value
 // ── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export function BudgetCalculator() {
   const [selectedPresetId, setSelectedPresetId] = useState<PresetId>("50_30_20");
-  const [income, setIncome] = useState<number>(5000);
-  const [incomeInput, setIncomeInput] = useState<string>("5000");
+  const [income, setIncome] = useState<number>(0);
+  const [incomeInput, setIncomeInput] = useState<string>("");
+  const [suggestedIncome, setSuggestedIncome] = useState<number>(0);
   const [isSimulatingReal, setIsSimulatingReal] = useState<boolean>(true);
+  const [isLoadingRealData, setIsLoadingRealData] = useState<boolean>(true);
 
   // Sliders customizados
   const [customNecessidades, setCustomNecessidades] = useState<number>(50);
   const [customDesejos, setCustomDesejos] = useState<number>(30);
   const [customReserva, setCustomReserva] = useState<number>(20);
 
-  // Gastos Reais Atuais
-  const [actualNecessidades, setActualNecessidades] = useState<number>(2800);
-  const [actualDesejos, setActualDesejos] = useState<number>(1600);
-  const [actualReserva, setActualReserva] = useState<number>(600);
+  // Gastos Reais Atuais (iniciam em branco "" para edição livre, sem mocks)
+  const [actualNecessidadesInput, setActualNecessidadesInput] = useState<string>("");
+  const [actualDesejosInput, setActualDesejosInput] = useState<string>("");
+  const [actualReservaInput, setActualReservaInput] = useState<string>("");
+
+  // Carrega dados reais do banco de dados (mês corrente) ao montar
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRealData() {
+      try {
+        setIsLoadingRealData(true);
+        const res = await getRealBudgetPillarsDataAction();
+        if (!isMounted) return;
+        if (res && res.success) {
+          if (res.realIncome > 0) {
+            setSuggestedIncome(res.realIncome);
+          }
+          if (res.actualNecessidades > 0) {
+            setActualNecessidadesInput(res.actualNecessidades.toString());
+          }
+          if (res.actualDesejos > 0) {
+            setActualDesejosInput(res.actualDesejos.toString());
+          }
+          if (res.actualReserva > 0) {
+            setActualReservaInput(res.actualReserva.toString());
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar dados orçamentários reais:", err);
+      } finally {
+        if (isMounted) setIsLoadingRealData(false);
+      }
+    }
+    loadRealData();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Valores numéricos derivados dos inputs reais
+  const actualNecessidades = parseFloat(actualNecessidadesInput.replace(",", ".")) || 0;
+  const actualDesejos = parseFloat(actualDesejosInput.replace(",", ".")) || 0;
+  const actualReserva = parseFloat(actualReservaInput.replace(",", ".")) || 0;
 
   const currentPreset = BUDGET_PRESETS.find((p) => p.id === selectedPresetId) || BUDGET_PRESETS[0];
 
@@ -178,10 +221,11 @@ export function BudgetCalculator() {
   const customSum = customNecessidades + customDesejos + customReserva;
   const isCustomValid = customSum === 100;
 
-  // Metas em Reais
-  const targetNecessidades = (income * pcts.necessidades) / 100;
-  const targetDesejos = (income * pcts.desejos) / 100;
-  const targetReserva = (income * pcts.reserva) / 100;
+  // Metas em Reais (estritamente reativas à renda digitada)
+  const hasIncome = income > 0;
+  const targetNecessidades = hasIncome ? (income * pcts.necessidades) / 100 : 0;
+  const targetDesejos = hasIncome ? (income * pcts.desejos) / 100 : 0;
+  const targetReserva = hasIncome ? (income * pcts.reserva) / 100 : 0;
 
   const handleIncomeQuickSelect = (val: number) => {
     setIncome(val);
@@ -305,17 +349,17 @@ export function BudgetCalculator() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricKpiCard
           label="Renda Mensal Base"
-          value={formatBRL(income)}
-          subtext="Base total para cálculo das fatias"
+          value={hasIncome ? formatBRL(income) : "R$ 0,00"}
+          subtext={hasIncome ? "Base total para cálculo das fatias" : "Informe sua renda líquida mensal"}
           variant="neutral"
           icon={Wallet}
-          badge={{ text: "100%", variant: "neutral" }}
+          badge={{ text: hasIncome ? "100%" : "0%", variant: "neutral" }}
         />
 
         <MetricKpiCard
           label="Teto de Necessidades"
-          value={formatBRL(targetNecessidades)}
-          subtext={`${pcts.necessidades}% · Moradia, contas e fixos`}
+          value={hasIncome ? formatBRL(targetNecessidades) : "R$ 0,00"}
+          subtext={hasIncome ? `${pcts.necessidades}% · Moradia, contas e fixos` : "Informe sua renda líquida para calcular os tetos"}
           variant="warning"
           icon={Building2}
           badge={{ text: `${pcts.necessidades}%`, variant: "warning" }}
@@ -323,8 +367,8 @@ export function BudgetCalculator() {
 
         <MetricKpiCard
           label="Teto de Desejos"
-          value={formatBRL(targetDesejos)}
-          subtext={`${pcts.desejos}% · Lazer e estilo de vida`}
+          value={hasIncome ? formatBRL(targetDesejos) : "R$ 0,00"}
+          subtext={hasIncome ? `${pcts.desejos}% · Lazer e estilo de vida` : "Informe sua renda líquida para calcular os tetos"}
           variant="neutral"
           icon={Flame}
           badge={{ text: `${pcts.desejos}%`, variant: "neutral" }}
@@ -332,8 +376,8 @@ export function BudgetCalculator() {
 
         <MetricKpiCard
           label={thirdPillarLabel}
-          value={formatBRL(targetReserva)}
-          subtext={`${pcts.reserva}% · ${currentPreset.reservaLabel}`}
+          value={hasIncome ? formatBRL(targetReserva) : "R$ 0,00"}
+          subtext={hasIncome ? `${pcts.reserva}% · ${currentPreset.reservaLabel}` : "Informe sua renda líquida para calcular os tetos"}
           variant={selectedPresetId === "50_10_40" ? "danger" : "success"}
           icon={thirdPillarIcon}
           badge={{
@@ -561,13 +605,29 @@ export function BudgetCalculator() {
               step="50"
               value={incomeInput}
               onChange={(e) => {
-                setIncomeInput(e.target.value);
-                setIncome(Number(e.target.value) || 0);
+                const val = e.target.value;
+                setIncomeInput(val);
+                const num = parseFloat(val.replace(",", "."));
+                setIncome(isNaN(num) || num < 0 ? 0 : num);
               }}
-              placeholder="0,00"
+              placeholder="Ex: 3.500,00"
               className="w-full bg-slate-50 dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 focus:border-indigo-600 dark:focus:border-indigo-500 rounded-2xl pl-12 pr-4 py-3.5 text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-tnum tracking-tight transition-all outline-none"
             />
           </div>
+
+          {/* Sugestão de renda real cadastrada no sistema (se detectada e campo vazio) */}
+          {suggestedIncome > 0 && !hasIncome && (
+            <div className="pt-0.5 animate-in fade-in">
+              <button
+                type="button"
+                onClick={() => handleIncomeQuickSelect(suggestedIncome)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/80 px-3 py-1.5 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all cursor-pointer shadow-2xs"
+              >
+                <Zap className="w-3.5 h-3.5 shrink-0" />
+                <span>Usar renda líquida real cadastrada no mês: <strong>{formatBRL(suggestedIncome)}</strong></span>
+              </button>
+            </div>
+          )}
 
           {/* Botões Rápidos de Seleção de Renda */}
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -598,17 +658,22 @@ export function BudgetCalculator() {
                 Distribuição Recomendada
               </span>
               <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-tnum">
-                100% da Renda
+                {hasIncome ? "100% da Renda" : "Renda Não Informada"}
               </span>
             </div>
             <div className="text-2xl font-black text-slate-900 dark:text-white mt-1 font-tnum">
-              {formatBRL(income)}
+              {hasIncome ? formatBRL(income) : "R$ 0,00"}
             </div>
+            {!hasIncome && (
+              <span className="text-[11px] text-slate-400 font-medium block mt-1">
+                Informe sua renda líquida para calcular os tetos
+              </span>
+            )}
           </div>
 
           {/* Barra Empilhada Multicor */}
           <div className="space-y-1.5">
-            <div className="w-full h-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex shadow-inner">
+            <div className={`w-full h-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex shadow-inner transition-opacity ${!hasIncome ? "opacity-40" : ""}`}>
               <div
                 style={{ width: `${pcts.necessidades}%` }}
                 className="h-full bg-blue-500 transition-all duration-300"
@@ -649,22 +714,34 @@ export function BudgetCalculator() {
                 </span>
                 <span
                   className={`text-sm font-black font-tnum ${
-                    remainingIncome >= 0
+                    !hasIncome
+                      ? "text-slate-400"
+                      : remainingIncome >= 0
                       ? "text-emerald-600 dark:text-emerald-400"
                       : "text-rose-600 dark:text-rose-400"
                   }`}
                 >
-                  {remainingIncome >= 0 ? `+ ${formatBRL(remainingIncome)}` : `- ${formatBRL(Math.abs(remainingIncome))}`}
+                  {!hasIncome
+                    ? "R$ 0,00"
+                    : remainingIncome >= 0
+                    ? `+ ${formatBRL(remainingIncome)}`
+                    : `- ${formatBRL(Math.abs(remainingIncome))}`}
                 </span>
               </div>
               <span
                 className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                  remainingIncome >= 0
+                  !hasIncome
+                    ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                    : remainingIncome >= 0
                     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                     : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
                 }`}
               >
-                {remainingIncome >= 0 ? "Orçamento com Folga" : "Déficit Orçamentário"}
+                {!hasIncome
+                  ? "Aguardando Renda"
+                  : remainingIncome >= 0
+                  ? "Orçamento com Folga"
+                  : "Déficit Orçamentário"}
               </span>
             </div>
           )}
@@ -697,7 +774,13 @@ export function BudgetCalculator() {
               icon: CheckCircle2
             };
 
-            if (pillar.key === "necessidades" || pillar.key === "desejos") {
+            if (!hasIncome) {
+              statusBadge = {
+                text: "Aguardando Renda",
+                className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700",
+                icon: Info
+              };
+            } else if (pillar.key === "necessidades" || pillar.key === "desejos") {
               if (diff > 0) {
                 statusBadge = {
                   text: `Estourou +${formatBRL(diff)}`,
@@ -771,8 +854,13 @@ export function BudgetCalculator() {
                       </span>
                     </div>
                     <div className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-tnum tracking-tight">
-                      {formatBRL(pillar.targetValue)}
+                      {hasIncome ? formatBRL(pillar.targetValue) : "R$ 0,00"}
                     </div>
+                    {!hasIncome && (
+                      <span className="text-[10px] text-slate-400 font-medium block">
+                        Informe sua renda líquida para calcular os tetos
+                      </span>
+                    )}
                   </div>
 
                   {/* Entrada de Gastos Reais (Modo Diagnóstico) */}
@@ -793,12 +881,19 @@ export function BudgetCalculator() {
                           type="number"
                           min={0}
                           step={50}
-                          value={pillar.actualSpent}
+                          placeholder="0,00"
+                          value={
+                            pillar.key === "necessidades"
+                              ? actualNecessidadesInput
+                              : pillar.key === "desejos"
+                              ? actualDesejosInput
+                              : actualReservaInput
+                          }
                           onChange={(e) => {
-                            const val = Number(e.target.value) || 0;
-                            if (pillar.key === "necessidades") setActualNecessidades(val);
-                            if (pillar.key === "desejos") setActualDesejos(val);
-                            if (pillar.key === "reserva") setActualReserva(val);
+                            const val = e.target.value;
+                            if (pillar.key === "necessidades") setActualNecessidadesInput(val);
+                            if (pillar.key === "desejos") setActualDesejosInput(val);
+                            if (pillar.key === "reserva") setActualReservaInput(val);
                           }}
                           className="w-full bg-slate-50/50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 focus:border-indigo-500 rounded-xl pl-9 pr-3 py-2 text-xs font-bold text-slate-900 dark:text-white font-tnum outline-none transition-all"
                         />
@@ -807,12 +902,16 @@ export function BudgetCalculator() {
                       {/* Barra de Progresso Real vs Teto */}
                       <div className="space-y-1 pt-1">
                         <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                          <span>Uso do teto: {Math.round(pctUsed)}%</span>
-                          <span>Teto: {formatBRL(pillar.targetValue)}</span>
+                          <span>
+                            {hasIncome
+                              ? `Uso do teto: ${Math.round(pctUsed)}%`
+                              : "Aguardando renda líquida"}
+                          </span>
+                          <span>Teto: {hasIncome ? formatBRL(pillar.targetValue) : "R$ 0,00"}</span>
                         </div>
                         <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                           <div
-                            style={{ width: `${Math.min(pctUsed, 100)}%` }}
+                            style={{ width: `${hasIncome ? Math.min(pctUsed, 100) : 0}%` }}
                             className={`h-full rounded-full transition-all duration-300 ${
                               isOverBudget && pillar.key !== "reserva"
                                 ? "bg-rose-500"
@@ -833,7 +932,7 @@ export function BudgetCalculator() {
                       </div>
 
                       {/* Alertas Contextuais Específicos */}
-                      {pillar.key === "necessidades" && isOverBudget && (
+                      {hasIncome && pillar.key === "necessidades" && isOverBudget && (
                         <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-[11px] text-rose-700 dark:text-rose-300 flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
                           <span>
@@ -842,7 +941,7 @@ export function BudgetCalculator() {
                         </div>
                       )}
 
-                      {pillar.key === "desejos" && isOverBudget && (
+                      {hasIncome && pillar.key === "desejos" && isOverBudget && (
                         <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
                           <span>
@@ -851,7 +950,7 @@ export function BudgetCalculator() {
                         </div>
                       )}
 
-                      {pillar.key === "reserva" && !isOverBudget && diff < 0 && (
+                      {hasIncome && pillar.key === "reserva" && !isOverBudget && diff < 0 && (
                         <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 text-[11px] text-blue-700 dark:text-blue-300 flex items-start gap-2">
                           <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
                           <span>
