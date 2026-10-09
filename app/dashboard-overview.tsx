@@ -532,7 +532,7 @@ export function DashboardOverview() {
             <MetricKpiCard
               label={`Receitas (${selectedDashboardYear})`}
               value={`+${brl(totalReceitasAno)}`}
-              subtext="Entradas consolidadas no ano"
+              subtext="Receitas realizadas (efetivadas) no ano"
               variant="success"
               icon={TrendingUp}
               badge={{ text: "Entradas", variant: "success" }}
@@ -542,7 +542,7 @@ export function DashboardOverview() {
             <MetricKpiCard
               label={`Despesas (${selectedDashboardYear})`}
               value={`-${brl(totalGastosAno)}`}
-              subtext="Saídas consolidadas no ano"
+              subtext="Despesas efetivadas (conta + cartão) no ano"
               variant="danger"
               icon={TrendingDown}
               badge={{ text: "Despesas", variant: "danger" }}
@@ -552,7 +552,7 @@ export function DashboardOverview() {
             <MetricKpiCard
               label="Resultado Líquido"
               value={`${resultadoLiquidoAno >= 0 ? "+" : ""}${brl(resultadoLiquidoAno)}`}
-              subtext={resultadoLiquidoAno >= 0 ? "Superávit anual acumulado" : "Déficit anual acumulado"}
+              subtext={resultadoLiquidoAno >= 0 ? "Receitas realizadas − despesas efetivadas (superávit)" : "Receitas realizadas − despesas efetivadas (déficit)"}
               variant={resultadoLiquidoAno >= 0 ? "success" : "danger"}
               icon={Sparkles}
               badge={{

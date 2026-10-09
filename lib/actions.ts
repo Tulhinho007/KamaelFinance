@@ -253,6 +253,36 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
   return wallet;
 }
 
+// ---------- Helper: critério único de período (Dashboard, Receitas, Conta Corrente) ----------
+// Uma transação pertence ao período se sua COMPETÊNCIA ou sua DATA (fuso Brasília e UTC)
+// cair no mês/ano. Evita sumir lançamentos de 01/mês ou 31/mês por fuso e competências divergentes.
+function isTxInPeriod(t: any, year: number, month?: number | null): boolean {
+  const hasMonth = !!month && month >= 1 && month <= 12;
+
+  if (t.competenceYear != null) {
+    if (hasMonth) {
+      if (t.competenceYear === year && t.competenceMonth === month) return true;
+    } else if (t.competenceYear === year) {
+      return true;
+    }
+  }
+
+  const dates = [t.competenceDate, t.date, t.paymentDate].filter(Boolean);
+  for (const raw of dates) {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) continue;
+    const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+    const candidates = [
+      [d.getUTCFullYear(), d.getUTCMonth() + 1],
+      [brt.getUTCFullYear(), brt.getUTCMonth() + 1],
+    ];
+    for (const [y, m] of candidates) {
+      if (y === year && (!hasMonth || m === month)) return true;
+    }
+  }
+  return false;
+}
+
 // ---------- Actions de Receitas ----------
 
 export async function getRevenues(
@@ -295,19 +325,15 @@ export async function getRevenues(
         },
         type: "INCOME",
         deletedAt: null,
-        ...(!isAnnualView ? {
-          OR: [
-            { competenceMonth: Number(month), competenceYear: year },
-            { competenceDate: { gte: from, lte: to } },
-            { competenceMonth: null, competenceDate: null, date: { gte: from, lte: to } }
-          ]
-        } : {
-          OR: [
-            { competenceYear: year },
-            { competenceDate: { gte: from, lte: to } },
-            { competenceYear: null, competenceDate: null, date: { gte: from, lte: to } }
-          ]
-        })
+        OR: !isAnnualView ? [
+          { competenceMonth: Number(month), competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { date: { gte: new Date(from.getTime() - 24 * 3600 * 1000), lte: new Date(to.getTime() + 24 * 3600 * 1000) } }
+        ] : [
+          { competenceYear: year },
+          { competenceDate: { gte: from, lte: to } },
+          { date: { gte: from, lte: to } }
+        ]
       } as any,
       include: { wallet: true },
       orderBy: { date: "asc" }
@@ -320,20 +346,7 @@ export async function getRevenues(
       const wType = (t.wallet?.walletType || "").toUpperCase();
       if (["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
 
-      if (!isAnnualView) {
-        const numMonth = Number(month);
-        if (t.competenceMonth != null && t.competenceYear != null) {
-          return t.competenceMonth === numMonth && t.competenceYear === year;
-        }
-        const d = new Date(t.competenceDate || t.date);
-        return d.getUTCFullYear() === year && (d.getUTCMonth() + 1) === numMonth;
-      } else {
-        if (t.competenceYear != null) {
-          return t.competenceYear === year;
-        }
-        const d = new Date(t.competenceDate || t.date);
-        return d.getUTCFullYear() === year;
-      }
+      return isTxInPeriod(t, year, isAnnualView ? null : Number(month));
     })
     .map((t: any) => ({
       id: t.id,
@@ -6983,26 +6996,10 @@ export async function getDashboardOverviewData(
     ]);
   }
 
-  // Filtra com precisão garantindo que transações pertençam ao ano/mês sob regime de competência
-  const rangeTransactions = (rawRangeTransactions as any[]).filter((t) => {
-    if (t.competenceMonth != null && t.competenceYear != null) {
-      if (month && month >= 1 && month <= 12) {
-        return t.competenceMonth === month && t.competenceYear === year;
-      }
-      return t.competenceYear === year;
-    }
-    const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-    const utcYear = d.getUTCFullYear();
-    const utcMonth = d.getUTCMonth() + 1;
-    const brt = new Date(d.getTime() - 3 * 3600 * 1000);
-    const brtYear = brt.getUTCFullYear();
-    const brtMonth = brt.getUTCMonth() + 1;
-
-    if (month && month >= 1 && month <= 12) {
-      return (utcYear === year && utcMonth === month) || (brtYear === year && brtMonth === month);
-    }
-    return utcYear === year || brtYear === year;
-  });
+  // Critério único de período (competência OU data), idêntico ao de Receitas e Conta Corrente
+  const rangeTransactions = (rawRangeTransactions as any[]).filter((t) =>
+    isTxInPeriod(t, year, month)
+  );
 
   console.log(`[getDashboardOverviewData] Transações brutas: ${rawRangeTransactions.length}, filtradas no período: ${rangeTransactions.length}`);
 
