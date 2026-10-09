@@ -1114,38 +1114,38 @@ export default function CartaoDetailPage() {
 
           <section className="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-stretch w-full">
             {/* Card 1 — LIMITE TOTAL */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-tight">
                   Limite Total
                 </span>
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap" title={brl(cardData.creditLimit)}>
+                <p className="text-xl md:text-2xl font-semibold text-slate-900 dark:text-zinc-100 tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap" title={brl(cardData.creditLimit)}>
                   <CurrencyValue value={cardData.creditLimit} />
                 </p>
               </div>
               <div className="h-7 flex items-center w-full">
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-800 px-2.5 py-1 rounded-full truncate">
+                <span className="inline-flex items-center gap-1 text-[9px] font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full truncate">
                   Definido no sistema
                 </span>
               </div>
             </div>
 
             {/* Card 2 — LIMITE DISPONÍVEL REAL */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-tight">
                   Limite Disponível
                 </span>
               </div>
               <div className="flex-1 flex items-center my-2 overflow-hidden">
-                <p className={`text-xl md:text-2xl font-black tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${limitAvailable < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`} title={brl(limitAvailable)}>
+                <p className={`text-xl md:text-2xl font-semibold tracking-tight leading-none font-tnum tabular-nums whitespace-nowrap ${limitAvailable < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`} title={brl(limitAvailable)}>
                   <CurrencyValue value={limitAvailable} />
                 </p>
               </div>
               <div className="h-7 flex items-center w-full">
-                <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                <div className="w-full bg-slate-100 dark:bg-zinc-950 h-2 rounded-full overflow-hidden border border-slate-200/80 dark:border-white/[0.06]">
                   <div
                     className={`h-full transition-all duration-500 ${usagePct >= 90 ? "bg-rose-500" : usagePct >= 70 ? "bg-amber-500" : "bg-emerald-500"}`}
                     style={{ width: `${usagePct}%` }}
@@ -1155,9 +1155,9 @@ export default function CartaoDetailPage() {
             </div>
 
             {/* Card 3 — FATURA DO MÊS */}
-            <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 flex flex-col justify-between h-full min-h-[140px] w-full shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
               <div className="min-h-[36px] h-[36px] flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-tight">
+                <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-tight">
                   Fatura do Mês
                 </span>
               </div>
@@ -2114,8 +2114,8 @@ export default function CartaoDetailPage() {
 
       {/* Modal Pagar Fatura */}
       {payInvoiceModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white dark:bg-zinc-950/95 border border-slate-200/80 dark:border-white/[0.08] rounded-2xl w-[95%] sm:w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">

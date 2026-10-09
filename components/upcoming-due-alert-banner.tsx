@@ -52,39 +52,39 @@ export function UpcomingDueAlertBanner({
 
   return (
     <div
-      className={`rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs transition-all animate-in fade-in duration-200 ${
+      className={`rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm dark:shadow-lg dark:shadow-black/20 backdrop-blur-md transition-all animate-in fade-in duration-200 ${
         hasOverdue
-          ? "bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-950 dark:text-rose-200"
-          : "bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200"
+          ? "bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-500/20 text-rose-900 dark:text-rose-200"
+          : "bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-500/20 text-amber-900 dark:text-amber-200"
       } ${className}`}
     >
       <div className="flex items-center gap-3">
         <div
           className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
             hasOverdue
-              ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30"
-              : "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+              ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
           }`}
         >
-          {hasOverdue ? <AlertTriangle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          {hasOverdue ? <AlertTriangle className="w-5 h-5" strokeWidth={1.75} /> : <AlertCircle className="w-5 h-5" strokeWidth={1.75} />}
         </div>
 
         <div>
-          <p className="text-xs sm:text-sm font-black leading-snug">
+          <p className="text-xs sm:text-sm font-semibold leading-snug">
             {hasOverdue ? (
               <>
                 Atenção: Você tem{" "}
-                <strong className="underline decoration-rose-500 decoration-2">
+                <strong className="underline decoration-rose-500 decoration-2 font-bold">
                   {overdueBills.length} {overdueBills.length === 1 ? "fatura atrasada" : "faturas atrasadas"}
                 </strong>{" "}
-                (<CurrencyValue value={overdueValor} className="font-extrabold" />)
+                (<CurrencyValue value={overdueValor} className="font-semibold tabular-nums" />)
                 {totalAlertaCount > 0 && (
                   <>
                     {" "}e{" "}
-                    <strong>
+                    <strong className="font-bold">
                       {totalAlertaCount} {totalAlertaCount === 1 ? "conta vencendo" : "contas vencendo"}
                     </strong>{" "}
-                    em até 72h (<CurrencyValue value={totalAlertaValor} className="font-extrabold" />)
+                    em até 72h (<CurrencyValue value={totalAlertaValor} className="font-semibold tabular-nums" />)
                   </>
                 )}
                 .
@@ -92,15 +92,15 @@ export function UpcomingDueAlertBanner({
             ) : (
               <>
                 Atenção: Você tem{" "}
-                <strong className="underline decoration-amber-500 decoration-2">
+                <strong className="underline decoration-amber-500 decoration-2 font-bold">
                   {totalAlertaCount} {totalAlertaCount === 1 ? "conta vencendo" : "contas vencendo"}
                 </strong>{" "}
                 nos próximos dias totalizando{" "}
-                <CurrencyValue value={totalAlertaValor} className="font-black text-amber-950 dark:text-amber-100" />.
+                <CurrencyValue value={totalAlertaValor} className="font-semibold tabular-nums text-amber-900 dark:text-amber-100" />.
               </>
             )}
           </p>
-          <p className="text-[11px] opacity-80 mt-0.5 font-medium">
+          <p className="text-[11px] opacity-75 mt-0.5 font-normal">
             {hasOverdue
               ? "Evite juros e encargos liquidando os compromissos vencidos."
               : "Compromissos pendentes entre hoje e os próximos 3 dias (D-3 a D-1)."}
@@ -112,14 +112,14 @@ export function UpcomingDueAlertBanner({
         <Link
           href="/contas"
           onClick={onViewInvoices}
-          className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap ${
             hasOverdue
               ? "bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/20"
               : "bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/20"
           }`}
         >
           Ver Faturas & Contas
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.75} />
         </Link>
 
         <button
@@ -127,7 +127,7 @@ export function UpcomingDueAlertBanner({
           title="Fechar aviso"
           className="p-1.5 rounded-lg opacity-60 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" strokeWidth={1.75} />
         </button>
       </div>
     </div>

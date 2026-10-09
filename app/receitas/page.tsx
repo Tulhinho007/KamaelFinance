@@ -158,7 +158,7 @@ function RevenueAnalytics({ list }: { list: Revenue[] }) {
 
   if (categoriesData.length === 0 || total === 0) {
     return (
-      <div className="card-glow flex flex-col items-center justify-center py-8 text-center bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl">
+      <div className="card-glow flex flex-col items-center justify-center py-8 text-center bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl">
         <PieChart className="w-8 h-8 text-slate-500 mb-2" />
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
           Nenhuma receita registrada neste mês para exibir no gráfico.
@@ -187,7 +187,7 @@ function RevenueAnalytics({ list }: { list: Revenue[] }) {
   const hasMultipleCategories = categoriesData.length >= 2;
 
   return (
-    <div className="card-glow p-5 sm:p-6 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm space-y-4">
+    <div className="card-glow p-5 sm:p-6 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl shadow-sm dark:shadow-lg dark:shadow-black/20 space-y-4">
       {/* 1. Barra Comparativa Linear Horizontal (Recebido vs Pendente) */}
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-100 dark:border-slate-800/80 pb-2">
@@ -652,35 +652,35 @@ export default function ReceitasPage() {
       {/* ── 2. CARDS KPI NO TOPO (RESUMO FINANCEIRO) EM .CARD-GLOW ──────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Card 1 — Receita Total Prevista */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <Coins className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-indigo-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">Receita Total Prevista</span>
-          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Mês Atual · Entradas Consolidadas</span>
-          <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight font-tnum">{brl(totalPrevisto)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
-            <TrendingUp className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> +5.2% vs mês anterior
+          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">Receita Total Prevista</span>
+          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Mês Atual · Entradas Consolidadas</span>
+          <p className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-zinc-100 tracking-tight font-tnum tabular-nums">{brl(totalPrevisto)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 w-fit">
+            <TrendingUp className="w-3 h-3 text-emerald-500 dark:text-emerald-400" /> +5.2% vs mês anterior
           </span>
         </div>
 
         {/* Card 2 — Total Recebido */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <CheckCircle2 className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-emerald-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">Total Recebido</span>
-          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Liquidado em Conta</span>
-          <p className="text-xl sm:text-2xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight font-tnum">{brl(totalReceived)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-400/30 shadow-2xs w-fit">
-            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Entradas Confirmadas
+          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">Total Recebido</span>
+          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Liquidado em Conta</span>
+          <p className="text-xl sm:text-2xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum tabular-nums">{brl(totalReceived)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20 w-fit">
+            <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400" /> Entradas Confirmadas
           </span>
         </div>
 
         {/* Card 3 — A Receber / Pendente */}
-        <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group flex flex-col justify-between rounded-2xl">
+        <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden group flex flex-col justify-between rounded-2xl">
           <Clock className="absolute -right-3 -bottom-3 w-20 h-20 text-slate-200 dark:text-amber-500/10 pointer-events-none group-hover:scale-110 transition-transform duration-300" />
-          <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-widest block">A Receber / Pendente</span>
-          <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 block mb-2">Aguardando Liquidação</span>
-          <p className="text-xl sm:text-2xl font-bold text-amber-700 dark:text-amber-400 tracking-tight font-tnum">{brl(totalPending)}</p>
-          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/20 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-400/30 shadow-2xs w-fit">
-            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" /> A Receber no Prazo
+          <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider block">A Receber / Pendente</span>
+          <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500 block mb-2">Aguardando Liquidação</span>
+          <p className="text-xl sm:text-2xl font-semibold text-amber-600 dark:text-amber-400 tracking-tight font-tnum tabular-nums">{brl(totalPending)}</p>
+          <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 w-fit">
+            <Clock className="w-3 h-3 text-amber-500 dark:text-amber-400" /> A Receber no Prazo
           </span>
         </div>
       </section>
@@ -795,7 +795,7 @@ export default function ReceitasPage() {
       )}
 
       {/* ── 6. TABELA DE RECEITAS (DESKTOP) & LISTA DE CARDS (MOBILE) ────────── */}
-      <section className="card-glow p-4 sm:p-6 flex flex-col gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl">
+      <section className="card-glow p-4 sm:p-6 flex flex-col gap-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl">
         {/* 1. Visão Desktop/Tablet Médio: Tabela Tradicional */}
         <div className="hidden md:block overflow-x-auto w-full max-w-full">
           <table className="w-full text-xs">

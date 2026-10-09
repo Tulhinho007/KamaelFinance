@@ -32,7 +32,7 @@ export function CreditCardLimitBreakdown({
 
   return (
     <div
-      className={`bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm dark:shadow-xl flex flex-col gap-5 ${className}`}
+      className={`bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-5 ${className}`}
     >
       {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-4">

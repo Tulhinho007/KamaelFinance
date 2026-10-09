@@ -971,77 +971,75 @@ export default function GestaoCaixaContasPage() {
       {/* ── 1. Visão Geral Superior: 4 Cards Consolidados (Grid de 4 colunas desktop) ────────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
         {/* Card 1: Saldo Real em Conta */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 shadow-xs relative overflow-hidden flex flex-col justify-between">
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
+              <span className="text-xs font-medium uppercase text-slate-500 dark:text-zinc-400 tracking-wider">
                 Saldo Real em Conta
               </span>
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
-                <Wallet className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+                <Wallet className="w-3.5 h-3.5" strokeWidth={1.75} />
               </div>
             </div>
-            <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${totals.totalRealBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
+            <div className={`text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums ${totals.totalRealBalance >= 0 ? "text-slate-900 dark:text-zinc-100" : "text-rose-500"}`}>
               {brl(totals.totalRealBalance)}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
             <span>Saldo líquido atualizado</span>
-            <span className="font-bold text-slate-700 dark:text-slate-300">{accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}</span>
+            <span className="font-semibold text-slate-700 dark:text-zinc-300">{accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}</span>
           </div>
         </div>
 
         {/* Card 2: Receitas do Período (Ano) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-emerald-200/70 dark:border-emerald-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
+              <span className="text-xs font-medium uppercase text-emerald-600 dark:text-emerald-400 tracking-wider">
                 Receitas do Período ({selectedYear})
               </span>
-              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 dark:border-emerald-800/50">
-                <TrendingUp className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                <TrendingUp className="w-3.5 h-3.5" strokeWidth={1.75} />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums">
+            <div className="text-2xl sm:text-3xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight tabular-nums">
               {brl(totals.totalReceitasAno)}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Realizadas: <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{brl(totals.totalRealizedIncome)}</strong></span>
-            <span>A receber: <strong className="text-slate-700 dark:text-slate-300 font-bold">{brl(totals.totalPendingIncome)}</strong></span>
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
+            <span>Realizadas: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{brl(totals.totalRealizedIncome)}</strong></span>
+            <span>A receber: <strong className="text-slate-700 dark:text-zinc-300 font-semibold">{brl(totals.totalPendingIncome)}</strong></span>
           </div>
         </div>
 
         {/* Card 3: Despesas / Compromissos Pendentes (Ano ou Período Filtrado) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-amber-200/70 dark:border-amber-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                <span className="text-xs font-medium uppercase text-amber-600 dark:text-amber-400 tracking-wider">
                   {agendaPeriodFilter === "ALL" ? `Despesas Pendentes (${selectedYear})` : "Despesas Pendentes"}
                 </span>
                 {agendaPeriodFilter !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-amber-300/60 dark:border-amber-700/60 truncate">
+                  <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-300 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-amber-500/20 truncate">
                     Filtrado: {activePeriodBadgeLabel}
                   </span>
                 )}
               </div>
-              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50 shrink-0">
-                <Clock className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/20 shrink-0">
+                <Clock className="w-3.5 h-3.5" strokeWidth={1.75} />
               </div>
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight tabular-nums">
+            <div className="text-2xl sm:text-3xl font-semibold text-amber-600 dark:text-amber-400 tracking-tight tabular-nums">
               {brl(agendaPeriodFilter === "ALL" ? totals.totalPendentesAno : periodPendingTotal)}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
             <span>
               {agendaPeriodFilter === "ALL" ? "Boletos & contas no ano" : "Boletos & contas no período"}
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-amber-600 dark:text-amber-400">
+              <span className="font-semibold text-amber-600 dark:text-amber-400">
                 {agendaPeriodFilter === "ALL"
                   ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
                   : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
@@ -1050,7 +1048,7 @@ export default function GestaoCaixaContasPage() {
                 <button
                   type="button"
                   onClick={() => setAgendaPeriodFilter("ALL")}
-                  className="text-[9px] text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 font-bold underline cursor-pointer"
+                  className="text-[9px] text-zinc-400 hover:text-amber-400 font-medium underline cursor-pointer"
                   title="Ver todo o ano"
                 >
                   (Ver ano)
@@ -1061,18 +1059,11 @@ export default function GestaoCaixaContasPage() {
         </div>
 
         {/* Card 4: Saldo Projetado (Ano ou Período Filtrado) */}
-        <div className={`p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border shadow-xs relative overflow-hidden flex flex-col justify-between ${
-          (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
-            ? "border-emerald-200/70 dark:border-emerald-900/50"
-            : "border-rose-200/70 dark:border-rose-900/50"
-        }`}>
-          <div className={`absolute top-0 left-0 right-0 h-1 ${
-            (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0 ? "bg-emerald-500" : "bg-rose-500"
-          }`} />
+        <div className={`p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 relative overflow-hidden flex flex-col justify-between`}>
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${
+                <span className={`text-xs font-medium uppercase tracking-wider ${
                   (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
                     ? "text-emerald-600 dark:text-emerald-400"
                     : "text-rose-600 dark:text-rose-400"
@@ -1080,36 +1071,36 @@ export default function GestaoCaixaContasPage() {
                   Saldo Projetado
                 </span>
                 {agendaPeriodFilter !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-indigo-300/60 dark:border-indigo-700/60 truncate">
+                  <span className="inline-flex items-center gap-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-indigo-500/20 truncate">
                     Filtrado: {activePeriodBadgeLabel}
                   </span>
                 )}
               </div>
               <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
                 (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
-                  ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50"
-                  : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200/50 dark:border-rose-800/50"
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
               }`}>
                 {(agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0 ? (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.75} />
                 ) : (
-                  <AlertCircle className="w-3.5 h-3.5" />
+                  <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.75} />
                 )}
               </div>
             </div>
-            <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
+            <div className={`text-2xl sm:text-3xl font-semibold tracking-tight tabular-nums ${
               (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
                 ? "text-emerald-600 dark:text-emerald-400"
-                : "text-rose-500 dark:text-rose-400"
+                : "text-rose-600 dark:text-rose-400"
             }`}>
               {brl(agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado)}
             </div>
           </div>
-          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
+          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
             <span title={agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas - Compromissos Pendentes" : "Saldo Real em conta − Compromissos Pendentes do Período"}>
               {agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas − Compromissos" : "Saldo Real − Pendências do Período"}
             </span>
-            <span className={`font-bold ${
+            <span className={`font-semibold ${
               (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
                 ? "text-emerald-600 dark:text-emerald-400"
                 : "text-rose-600 dark:text-rose-400"

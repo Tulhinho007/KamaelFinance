@@ -824,7 +824,7 @@ export default function PlanningPage() {
 
       {/* ── ESTADO VAZIO (NENHUM PROJETO SELECIONADO) ────────────────────── */}
       {!activeProject && (
-        <div className="card-glow p-12 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm my-6">
+        <div className="card-glow p-12 text-center flex flex-col items-center justify-center gap-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl shadow-sm dark:shadow-lg dark:shadow-black/20 my-6">
           <div className="p-4 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 rounded-2xl border border-indigo-200 dark:border-indigo-400/30">
             <Plane className="w-8 h-8" />
           </div>
@@ -938,7 +938,7 @@ export default function PlanningPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
               {/* Card 1: Cenário Otimista (Total Mínimo) */}
-              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
+              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Cenário Otimista
@@ -956,7 +956,7 @@ export default function PlanningPage() {
               </div>
 
               {/* Card 2: Custo Total Previsto Atualizado (Custo Projetado) */}
-              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
+              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1">
                     <Sparkles className="w-3 h-3 text-amber-500" />
@@ -984,7 +984,7 @@ export default function PlanningPage() {
               </div>
 
               {/* Card 3: TOTAL JÁ PAGO (Azul/Índigo - Card-glow) */}
-              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
+              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Total Já Pago (Real)
@@ -1004,7 +1004,7 @@ export default function PlanningPage() {
               </div>
 
               {/* Card 4: RESTANTE A PAGAR (Rosa/Vermelho - Card-glow) */}
-              <div className="card-glow p-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between space-y-2 rounded-2xl">
+              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Restante a Pagar

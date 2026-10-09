@@ -26,7 +26,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
-    { media: "(prefers-color-scheme: dark)", color: "#090D16" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
   ],
 };
 
@@ -55,7 +55,7 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${jakarta.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex bg-slate-100 text-slate-900 dark:bg-[#090D16] dark:text-slate-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200">
+      <body className="min-h-full flex bg-slate-100 text-slate-900 dark:bg-[#09090b] dark:text-zinc-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-200">
         <ThemeProvider>
           <PrivacyProvider>
             <PeriodProvider>

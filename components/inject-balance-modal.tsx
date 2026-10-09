@@ -159,7 +159,7 @@ export function InjectBalanceModal({
 
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#131B2E] rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-800 max-w-md w-full animate-in zoom-in-95 duration-200">
+      <div className="bg-white dark:bg-zinc-950/95 backdrop-blur-md rounded-2xl p-6 shadow-2xl border border-slate-200/80 dark:border-white/[0.08] max-w-md w-full animate-in zoom-in-95 duration-200">
         
         {/* Cabeçalho */}
         <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">

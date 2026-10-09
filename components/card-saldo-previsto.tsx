@@ -58,7 +58,7 @@ export function CardSaldoPrevisto({
   const isPositive = saldoPrevisto >= 0;
 
   return (
-    <div className={`relative bg-white dark:bg-[#131B2E] p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between ${className}`}>
+    <div className={`relative bg-white dark:bg-zinc-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between ${className}`}>
       {/* Cabeçalho do Card */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -86,10 +86,10 @@ export function CardSaldoPrevisto({
                 <div
                   ref={popoverRef}
                   onMouseLeave={() => setMostrarCalculo(false)}
-                  className="absolute left-0 top-6 z-50 w-72 sm:w-80 bg-slate-900 text-white text-xs p-4 rounded-2xl shadow-2xl border border-slate-800 animate-in fade-in zoom-in-95 duration-150"
+                  className="absolute left-0 top-6 z-50 w-72 sm:w-80 bg-zinc-950/95 text-zinc-100 text-xs p-4 rounded-xl shadow-2xl border border-white/[0.08] backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
                   style={{ minWidth: "280px" }}
                 >
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+                  <div className="flex items-center justify-between border-b border-white/[0.06] pb-2 mb-2.5">
                     <div>
                       <span className="font-bold text-[10px] text-indigo-400 uppercase tracking-wider block">
                         Memória de Cálculo

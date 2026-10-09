@@ -916,41 +916,41 @@ export default function InvestimentosPage() {
           
           {/* KPIs Consolidados */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Bruto</span>
-              <h3 className="text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white mt-2 font-tnum tabular-nums">
+            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Patrimônio Bruto</span>
+              <h3 className="text-2xl lg:text-3xl font-semibold text-slate-900 dark:text-zinc-100 mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioBruto || 0)}
               </h3>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">Total acumulado na carteira</span>
+              <span className="text-xs font-normal text-slate-400 dark:text-zinc-500 mt-3 block">Total acumulado na carteira</span>
             </div>
 
-            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Patrimônio Líquido</span>
-              <h3 className="text-2xl lg:text-3xl font-bold text-emerald-700 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
+            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Patrimônio Líquido</span>
+              <h3 className="text-2xl lg:text-3xl font-semibold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
                 {brl(overview?.patrimonioLiquido || 0)}
               </h3>
-              <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300 mt-3 block">Após impostos e taxas estimadas</span>
+              <span className="text-xs font-normal text-emerald-500/80 dark:text-emerald-400/80 mt-3 block">Após impostos e taxas estimadas</span>
             </div>
 
-            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Lucro Total Acumulado</span>
-              <h3 className={`text-2xl lg:text-3xl font-bold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-rose-700 dark:text-rose-400"}`}>
+            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
+              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Lucro Total Acumulado</span>
+              <h3 className={`text-2xl lg:text-3xl font-semibold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                 {(overview?.lucroTotal || 0) >= 0 ? "+" : ""}{brl(overview?.lucroTotal || 0)}
               </h3>
-              <span className={`text-xs font-bold mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-800 dark:text-emerald-400" : "text-rose-800 dark:text-rose-400"}`}>
+              <span className={`text-xs font-medium mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
                 Rentabilidade: {(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}{(overview?.rentabilidadeGeral || 0).toFixed(2)}%
               </span>
             </div>
 
             {/* 4. Métrica: Proventos / Dividendos Recebidos no Mês */}
-            <div className="card-glow p-5 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm rounded-2xl flex flex-col justify-between relative overflow-hidden">
+            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-xs uppercase font-bold tracking-wider text-slate-700 dark:text-slate-200">Proventos do Mês</span>
-                <span className="text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-500/30">
+                <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Proventos do Mês</span>
+                <span className="text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
                   Renda Passiva
                 </span>
               </div>
-              <h3 className="text-2xl lg:text-3xl font-bold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
+              <h3 className="text-2xl lg:text-3xl font-semibold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
                 +{brl(overview?.proventosMes || 0)}
               </h3>
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">

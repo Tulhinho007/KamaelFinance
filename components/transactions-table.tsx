@@ -389,7 +389,7 @@ export function TransactionsTable({
   }, [filtered]);
 
   return (
-    <div className="bg-white dark:bg-[#131B2E] rounded-2xl border border-slate-100 dark:border-slate-800/80 shadow-sm p-6 transition-all">
+    <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 p-6 transition-all">
       {/* ── Top Header com Título, Busca e Filtros ─────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>

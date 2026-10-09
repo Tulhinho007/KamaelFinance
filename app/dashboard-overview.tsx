@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -9,7 +9,8 @@ import {
 import {
   Plus, TrendingUp, TrendingDown, DollarSign, Target, CreditCard,
   Building2, Zap, ChevronRight, ChevronLeft, CheckCircle2, Clock, AlertCircle,
-  Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Filter, HelpCircle
+  Sparkles, ArrowUpRight, ArrowDownRight, X, History, Calendar, FileText, Filter, HelpCircle,
+  Wallet, ChevronDown
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
@@ -34,19 +35,19 @@ function walletIcon(type: string) {
   return Building2;
 }
 
-// Tooltip customizado com fundo escuro executivo para Recharts
+// Tooltip customizado com fundo escuro executivo para Recharts (estilo Linear / Raycast)
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-800 p-3 shadow-md dark:shadow-xl text-xs space-y-1">
-        {label && <p className="font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 pb-1 mb-1">{label}</p>}
+      <div className="bg-zinc-950/95 text-white rounded-xl border border-white/[0.08] backdrop-blur-md p-3 shadow-2xl text-xs space-y-1.5">
+        {label && <p className="font-semibold text-zinc-400 border-b border-white/[0.06] pb-1 mb-1">{label}</p>}
         {payload.map((p: any, idx: number) => (
           <div key={idx} className="flex items-center justify-between gap-4 font-tnum tabular-nums">
-            <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1.5 text-zinc-300">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color || p.fill }} />
               {p.name}:
             </span>
-            <span className="font-semibold text-slate-900 dark:text-white">{brl(Number(p.value))}</span>
+            <span className="font-semibold text-white tracking-tight">{brl(Number(p.value))}</span>
           </div>
         ))}
       </div>
@@ -76,6 +77,20 @@ export function DashboardOverview() {
   const [aporteModalOpen, setAporteModalOpen]     = useState(false);
   const [historyModalOpen, setHistoryModalOpen]   = useState(false);
   const [selectedGoalId, setSelectedGoalId]       = useState("");
+
+  // Menu suspenso de Novo Lançamento (ação primária unificada)
+  const [newEntryMenuOpen, setNewEntryMenuOpen] = useState(false);
+  const newEntryMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (newEntryMenuRef.current && !newEntryMenuRef.current.contains(e.target as Node)) {
+        setNewEntryMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Form states
   const [injectModalOpen, setInjectModalOpen]   = useState(false);
@@ -334,17 +349,17 @@ export function DashboardOverview() {
       <UpcomingDueAlertBanner bills={upcomingBills} />
 
       {/* ── 1. CABEÇALHO & SELETOR DE PERÍODO (EXCLUSIVO ANUAL) ── */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-4 sm:p-6 shadow-sm">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-5 shadow-sm dark:shadow-lg dark:shadow-black/20">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight">
               Dashboard Financeiro
             </h1>
-            <span className="bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               ANO {selectedDashboardYear}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1 font-normal">
             Detalhamento consolidado das movimentações do ano de {selectedDashboardYear}.
           </p>
         </div>
@@ -353,74 +368,103 @@ export function DashboardOverview() {
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 w-full lg:w-auto">
           <div className="flex items-center gap-2 flex-1 sm:flex-initial flex-wrap">
             {/* Navegador de Ano: < [Dropdown] > */}
-            <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 shadow-2xs">
+            <div className="flex items-center bg-slate-50 dark:bg-zinc-900/80 border border-slate-200/80 dark:border-white/[0.08] rounded-xl p-0.5">
               <button
                 type="button"
                 onClick={() => handleYearChange(selectedDashboardYear - 1)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
                 title="Ano anterior"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-4 h-4" strokeWidth={1.75} />
               </button>
 
               <select
                 value={selectedDashboardYear}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
-                className="bg-transparent text-slate-900 dark:text-white text-xs font-bold px-2 py-1.5 focus:outline-none cursor-pointer min-w-[96px] text-center"
+                className="bg-transparent text-slate-900 dark:text-zinc-100 text-xs font-semibold px-2 py-1.5 focus:outline-none cursor-pointer min-w-[96px] text-center"
               >
                 {[2022, 2023, 2024, 2025, 2026, 2027, 2028].map(y => (
-                  <option key={y} value={y} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Ano {y}</option>
+                  <option key={y} value={y} className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100">Ano {y}</option>
                 ))}
               </select>
 
               <button
                 type="button"
                 onClick={() => handleYearChange(selectedDashboardYear + 1)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-lg text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 transition-colors cursor-pointer"
                 title="Próximo ano"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-4 h-4" strokeWidth={1.75} />
               </button>
             </div>
 
-            {/* Botão Ano Atual */}
+            {/* Botão Ano Atual: Secundário Neutro */}
             <button
               type="button"
               onClick={handleGoToCurrentYear}
-              className={`px-3.5 py-2 text-xs font-black rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 shadow-2xs whitespace-nowrap ${
+              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 whitespace-nowrap border ${
                 selectedDashboardYear === new Date().getFullYear()
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/80 hover:bg-indigo-100 dark:hover:bg-indigo-900/60"
+                  ? "bg-zinc-800 text-zinc-100 border-zinc-700 dark:bg-zinc-800 dark:border-white/[0.12] dark:text-zinc-100 shadow-xs"
+                  : "bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/80 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200/80 dark:border-white/[0.08]"
               }`}
               title="Ir para o Ano Atual"
             >
-              <Calendar className="w-3.5 h-3.5" />
-              ANO ATUAL
+              <Calendar className="w-3.5 h-3.5 text-zinc-400" strokeWidth={1.75} />
+              Ano Atual
             </button>
           </div>
 
           {/* Botões de Ação Rápida */}
-          <div className="grid grid-cols-3 sm:flex items-center gap-2 w-full lg:w-auto mt-1 sm:mt-0">
+          <div className="flex items-center gap-2 w-full lg:w-auto mt-1 sm:mt-0 relative" ref={newEntryMenuRef}>
+            {/* Botão Secundário Neutro: Conciliação */}
             <button
               onClick={() => setOfxModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-zinc-900/80 dark:hover:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200/80 dark:border-white/[0.08] px-3.5 py-2 rounded-xl font-medium text-xs shadow-xs cursor-pointer transition-all"
             >
-              <FileText className="w-3.5 h-3.5" /> Conciliação
+              <FileText className="w-3.5 h-3.5 text-zinc-400" strokeWidth={1.75} />
+              Conciliação
             </button>
-            <button
-              onClick={() => setRevenueModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" /> Receita
-            </button>
-            <button
-              onClick={() => setPurchaseModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2.5 sm:py-2 rounded-xl font-bold text-xs shadow-md cursor-pointer transition-all"
-            >
-              <Plus className="w-3.5 h-3.5" /> Despesa
-            </button>
-          </div>
 
+            {/* Botão Primário em Destaque: + Novo Lançamento */}
+            <div className="relative flex-1 sm:flex-initial">
+              <button
+                type="button"
+                onClick={() => setNewEntryMenuOpen((prev) => !prev)}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-600 hover:to-violet-700 text-white px-4 py-2 rounded-xl font-semibold text-xs shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/30 cursor-pointer transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+                <span>Novo Lançamento</span>
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${newEntryMenuOpen ? "rotate-180" : ""}`} strokeWidth={2} />
+              </button>
+
+              {newEntryMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-zinc-950/95 border border-white/[0.1] rounded-xl shadow-2xl backdrop-blur-md py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewEntryMenuOpen(false);
+                      setPurchaseModalOpen(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-rose-400 shadow-sm" />
+                    <span>+ Nova Despesa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewEntryMenuOpen(false);
+                      setRevenueModalOpen(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-zinc-200 hover:text-white hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm" />
+                    <span>+ Nova Receita</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -446,48 +490,48 @@ export function DashboardOverview() {
         const totalGastosAno = Number(data?.totalGastos ?? data?.totalExpenses ?? 0);
 
         return (
-          <div className="bg-white dark:bg-[#131B2E] p-6 sm:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
+          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md p-6 sm:p-7 rounded-2xl border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-100 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-2xl shadow-xs shrink-0">
-                👛
+              <div className="w-14 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-800/70 border border-slate-200/80 dark:border-white/[0.08] text-indigo-500 dark:text-indigo-400 flex items-center justify-center shadow-xs shrink-0">
+                <Wallet className="w-6 h-6 text-indigo-500 dark:text-indigo-400" strokeWidth={1.5} />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  <span className="text-xs font-medium text-slate-500 dark:text-zinc-400 uppercase tracking-wider">
                     Saldo Consolidado
                   </span>
-                  <span className="px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                  <span className="px-2.5 py-0.5 text-[10px] font-medium rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
                     Tempo Real (Hoje)
                   </span>
-                  <span className="text-slate-400 dark:text-slate-500 font-bold text-[11px]">
+                  <span className="text-slate-400 dark:text-zinc-500 font-medium text-xs">
                     • {contasBancarias.length > 0 ? `${contasBancarias.length} contas bancárias` : "Todas as contas"}
                   </span>
                 </div>
-                <h2 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white font-tnum tabular-nums tracking-tight mt-1">
+                <h2 className="text-3xl sm:text-4xl font-semibold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums tracking-tight mt-1">
                   R$ {saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </h2>
-                <p className="text-xs text-slate-400 dark:text-slate-500 font-medium mt-1">
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal mt-1">
                   Disponibilidade líquida consolidada em conta corrente e débito
                 </p>
               </div>
             </div>
 
             {/* Subtotais Consolidados do Ano & Ações Rápidas */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 lg:gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-800/80">
-              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-6 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 lg:gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-white/[0.06]">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-3 sm:gap-6 px-4 py-3 rounded-2xl bg-slate-50/80 dark:bg-zinc-900/80 border border-slate-200/80 dark:border-white/[0.08]">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
                     Receitas ({selectedDashboardYear})
                   </span>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
+                  <span className="text-sm sm:text-base font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
                     +{brl(totalReceitasAno)}
                   </span>
                 </div>
-                <div className="sm:border-l border-slate-200 dark:border-slate-800 sm:pl-6">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                <div className="sm:border-l border-slate-200 dark:border-white/[0.08] sm:pl-6">
+                  <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
                     Despesas ({selectedDashboardYear})
                   </span>
-                  <span className="text-sm font-black text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+                  <span className="text-sm sm:text-base font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
                     -{brl(totalGastosAno)}
                   </span>
                 </div>
@@ -500,7 +544,7 @@ export function DashboardOverview() {
                     setInjectTipoOperacao("ENTRADA");
                     setInjectModalOpen(true);
                   }}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                 >
                   ↗ + Adicionar Saldo
                 </button>
@@ -509,7 +553,7 @@ export function DashboardOverview() {
                     setInjectTipoOperacao("SAIDA");
                     setInjectModalOpen(true);
                   }}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/70 dark:border-rose-800/60 text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 py-2 px-3.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 text-xs font-semibold rounded-xl shadow-xs transition-colors cursor-pointer whitespace-nowrap"
                 >
                   ↘ - Retirar / Abater
                 </button>
@@ -522,11 +566,11 @@ export function DashboardOverview() {
       {/* ── 2. MEUS CARTÕES & CONTAS ────────────────────────────────────────── */}
       <section className="flex flex-col gap-3">
         <div className="flex justify-between items-center px-0.5">
-          <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-zinc-100 tracking-tight">
             Cartões & Contas Ativas
           </h2>
-          <Link href="/contas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 transition-colors">
-            Ver todas <ChevronRight className="w-3.5 h-3.5" />
+          <Link href="/contas" className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 transition-colors">
+            Ver todas <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.75} />
           </Link>
         </div>
 
@@ -547,40 +591,40 @@ export function DashboardOverview() {
               <Link
                 key={card.id}
                 href={`/cartoes/${card.id}`}
-                className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-2xl p-5 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between min-h-[165px] group"
+                className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] text-slate-900 dark:text-zinc-100 rounded-2xl p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 hover:border-slate-300 dark:hover:border-white/[0.16] transition-all flex flex-col justify-between min-h-[165px] group"
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-xs font-black tracking-tight text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[140px]">
+                    <p className="text-xs font-semibold tracking-tight text-slate-900 dark:text-zinc-100 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors truncate max-w-[140px]">
                       {card.title}
                     </p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-normal mt-0.5">
                       {isCredit ? "Cartão de Crédito" : isTicket ? "VA / VR Benefícios" : "Conta Corrente"}
                     </p>
                   </div>
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                    <Icon className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-zinc-800/60 border border-slate-200/80 dark:border-white/[0.08] flex items-center justify-center text-indigo-500 dark:text-indigo-400">
+                    <Icon className="w-4 h-4" strokeWidth={1.75} />
                   </div>
                 </div>
 
                 <div className="mt-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                    <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
                       {isCredit ? "Limite Disponível" : "Saldo Atual (Hoje)"}
                     </span>
                     {!isCredit && (
-                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/60 dark:border-emerald-800/60 px-1.5 py-0.5 rounded-md">
+                      <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
                         Tempo Real
                       </span>
                     )}
                   </div>
-                  <p className="text-xl font-black tracking-tight text-slate-900 dark:text-white font-tnum tabular-nums mt-0.5">
+                  <p className="text-xl font-semibold tracking-tight text-slate-900 dark:text-zinc-100 font-tnum tabular-nums mt-0.5">
                     <CurrencyValue value={saldoDisp} />
                   </p>
-                  {/* Badge de Pendente: Apenas para Cartões de Benefício (Conta Corrente NÃO possui pendente) */}
+                  {/* Badge de Pendente: Apenas para Cartões de Benefício */}
                   {isTicket && Number(card.totalPendenteProximoMes || 0) > 0 && (
                     <div className="mt-1.5">
-                      <span className="bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80 text-[10px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <span className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 text-[10px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                         Pendente ({(() => {
                           const curM = new Date().getMonth() + 1;
                           const curY = selectedDashboardYear || new Date().getFullYear();
@@ -592,33 +636,33 @@ export function DashboardOverview() {
                   )}
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-xs font-bold">
+                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-xs font-semibold">
                   {isCredit ? (
                     <>
-                      <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                      <span className="text-slate-500 dark:text-zinc-400 text-[10px] uppercase tracking-wider font-medium">
                         Fatura:
                       </span>
-                      <span className="text-xs font-black font-tnum tabular-nums text-rose-600 dark:text-rose-400">
+                      <span className="text-xs font-semibold font-tnum tabular-nums text-rose-600 dark:text-rose-400">
                         <CurrencyValue value={card.faturaAtual} />
                       </span>
                     </>
                   ) : isTicket ? (
                     <>
-                      <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider">
+                      <span className="text-slate-500 dark:text-zinc-400 text-[10px] uppercase tracking-wider font-medium">
                         Gasto no Ano:
                       </span>
-                      <span className="text-xs font-black font-tnum tabular-nums text-slate-800 dark:text-slate-200">
+                      <span className="text-xs font-semibold font-tnum tabular-nums text-slate-800 dark:text-zinc-200">
                         <CurrencyValue value={accountSpentInPeriod} />
                       </span>
                     </>
                   ) : (
                     /* Conta Corrente: Apenas o que de fato transitou por ela no ano */
                     <>
-                      <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Entradas (Ano): <b className="text-emerald-600 dark:text-emerald-400 font-bold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
+                      <span className="text-slate-500 dark:text-zinc-400 text-[10px] font-medium">
+                        Entradas (Ano): <b className="text-emerald-600 dark:text-emerald-400 font-semibold font-tnum tabular-nums">+<CurrencyValue value={entradasNoMes} /></b>
                       </span>
-                      <span className="text-slate-500 dark:text-slate-400 text-[10px]">
-                        Saídas (Ano): <b className="text-rose-600 dark:text-rose-400 font-bold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
+                      <span className="text-slate-500 dark:text-zinc-400 text-[10px] font-medium">
+                        Saídas (Ano): <b className="text-rose-600 dark:text-rose-400 font-semibold font-tnum tabular-nums">-<CurrencyValue value={saidasNoMes} /></b>
                       </span>
                     </>
                   )}
@@ -629,8 +673,6 @@ export function DashboardOverview() {
         </div>
       </section>
 
-
-
       {/* ── 4. GRÁFICOS & TABELAS SECUNDÁRIAS ────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
@@ -638,11 +680,11 @@ export function DashboardOverview() {
         <div className="lg:col-span-7 flex flex-col gap-6">
           
           {/* BLOCO 1: Linha de Tendência (Evolução Financeira) */}
-          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Evolução Financeira</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight">Evolução Financeira</h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal">
                   Comparativo anual de receitas vs. gastos consolidados em {selectedDashboardYear}
                 </p>
               </div>
@@ -653,24 +695,24 @@ export function DashboardOverview() {
                 <AreaChart data={data?.monthlyHistory || []} margin={{ top: 15, right: 25, left: 15, bottom: 15 }}>
                   <defs>
                     <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10B981" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#10B981" stopOpacity={0.0}/>
+                      <stop offset="0%" stopColor="#34D399" stopOpacity={0.20}/>
+                      <stop offset="100%" stopColor="#34D399" stopOpacity={0.0}/>
                     </linearGradient>
                     <linearGradient id="colorGastos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366F1" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0}/>
+                      <stop offset="0%" stopColor="#818CF8" stopOpacity={0.20}/>
+                      <stop offset="100%" stopColor="#818CF8" stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" className="dark:stroke-[#334155]" strokeOpacity={0.4} vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
+                    tick={{ fontSize: 11, fill: "#A1A1AA", fontWeight: 500 }}
                     axisLine={false}
                     tickLine={false}
                     dy={6}
                   />
                   <YAxis
-                    tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
+                    tick={{ fontSize: 11, fill: "#A1A1AA", fontWeight: 500 }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => v >= 1000 ? `R$ ${(v / 1000).toFixed(1)}k` : `R$ ${v}`}
@@ -678,14 +720,14 @@ export function DashboardOverview() {
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend
-                    wrapperStyle={{ fontSize: 12, paddingTop: 15, fontWeight: 700 }}
+                    wrapperStyle={{ fontSize: 12, paddingTop: 15, fontWeight: 500 }}
                     iconType="circle"
                   />
 
                   <Area
                     type="monotone"
                     dataKey="receitas"
-                    stroke="#10B981"
+                    stroke="#34D399"
                     strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorReceitas)"
@@ -694,7 +736,7 @@ export function DashboardOverview() {
                   <Area
                     type="monotone"
                     dataKey="gastos"
-                    stroke="#6366F1"
+                    stroke="#818CF8"
                     strokeWidth={2.5}
                     fillOpacity={1}
                     fill="url(#colorGastos)"
@@ -706,11 +748,11 @@ export function DashboardOverview() {
           </div>
 
           {/* BLOCO 2: DNA de Gastos por Categoria */}
-          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Distribuição por Categoria</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight">Distribuição por Categoria</h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal">
                   Divisão dos gastos consolidados do ano de {selectedDashboardYear}
                 </p>
               </div>
@@ -744,19 +786,19 @@ export function DashboardOverview() {
                     </ResponsiveContainer>
 
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                      <span className="text-base font-black text-slate-900 dark:text-white leading-none font-tnum tabular-nums">
+                      <span className="text-base font-semibold text-slate-900 dark:text-zinc-100 leading-none font-tnum tabular-nums">
                         {brl(totalCatSum)}
                       </span>
-                      <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest mt-1">
+                      <span className="text-[10px] font-medium text-slate-400 dark:text-zinc-500 uppercase tracking-widest mt-1">
                         Total Anual
                       </span>
                     </div>
                   </div>
 
-                  {/* Legenda distribuída com porcentagens 100% exatas */}
+                  {/* Legenda distribuída com porcentagens */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                     {activeCategories.length === 0 ? (
-                      <div className="col-span-1 sm:col-span-2 text-center py-4 text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                      <div className="col-span-1 sm:col-span-2 text-center py-4 text-xs font-medium text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950/40 rounded-xl border border-dashed border-slate-200 dark:border-white/[0.06]">
                         Nenhum gasto registrado para o período selecionado.
                       </div>
                     ) : (
@@ -765,15 +807,15 @@ export function DashboardOverview() {
                         return (
                           <div
                             key={c.name}
-                            className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-950/60 px-3.5 py-2 rounded-2xl border border-slate-200 dark:border-slate-800"
+                            className="flex items-center justify-between gap-2 text-xs font-medium text-slate-800 dark:text-zinc-200 bg-slate-50/80 dark:bg-zinc-950/60 px-3.5 py-2 rounded-xl border border-slate-200/80 dark:border-white/[0.06]"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
                               <span className="truncate">{c.name}</span>
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0 font-tnum tabular-nums">
-                              <span>{brl(Number(c.total))}</span>
-                              <span className="text-[10px] font-black text-slate-500 dark:text-slate-500">({pct}%)</span>
+                              <span className="font-semibold">{brl(Number(c.total))}</span>
+                              <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400">({pct}%)</span>
                             </div>
                           </div>
                         );
@@ -791,31 +833,31 @@ export function DashboardOverview() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           
           {/* BLOCO 1: Próximos Vencimentos */}
-          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
                   Faturas a Vencer
                   {upcomingBills.length > 0 && (
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
                       {upcomingBills.length}
                     </span>
                   )}
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Compromissos pendentes nos próximos dias</p>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal">Compromissos pendentes nos próximos dias</p>
               </div>
               <Link
                 href="/contas"
-                className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
+                className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
               >
-                Ver todas <ChevronRight className="w-3.5 h-3.5" />
+                Ver todas <ChevronRight className="w-3.5 h-3.5" strokeWidth={1.75} />
               </Link>
             </div>
 
             {upcomingBills.length === 0 ? (
               <div className="py-8 flex flex-col items-center justify-center gap-2 text-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500 dark:text-emerald-400/80" />
-                <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Nenhuma fatura pendente para os próximos dias.</p>
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 dark:text-emerald-400/80" strokeWidth={1.75} />
+                <p className="text-xs font-medium text-slate-500 dark:text-zinc-400">Nenhuma fatura pendente para os próximos dias.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-2.5">
@@ -823,43 +865,43 @@ export function DashboardOverview() {
                   const isOverdue = !!bill.isPast || bill.statusBadgeVariant === "overdue";
                   const isUrgent = bill.statusBadgeVariant === "urgent" || (!isOverdue && bill.daysDiff !== undefined && bill.daysDiff <= 7);
 
-                  let badgeStyle = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
-                  let iconBgStyle = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300";
-                  let cardBorder = "bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800";
+                  let badgeStyle = "bg-slate-100 dark:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-white/[0.08]";
+                  let iconBgStyle = "bg-slate-100 dark:bg-zinc-800/60 text-slate-700 dark:text-zinc-400";
+                  let cardBorder = "bg-slate-50/80 dark:bg-zinc-950/50 border-slate-200/80 dark:border-white/[0.06]";
 
                   if (isOverdue) {
-                    badgeStyle = "bg-rose-50 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-500/40";
-                    iconBgStyle = "bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30";
-                    cardBorder = "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40";
+                    badgeStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
+                    iconBgStyle = "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20";
+                    cardBorder = "bg-rose-500/[0.03] dark:bg-rose-950/20 border-rose-500/20";
                   } else if (isUrgent) {
-                    badgeStyle = "bg-amber-50 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/40";
-                    iconBgStyle = "bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30";
-                    cardBorder = "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40";
+                    badgeStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+                    iconBgStyle = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20";
+                    cardBorder = "bg-amber-500/[0.03] dark:bg-amber-950/20 border-amber-500/20";
                   }
 
                   return (
-                    <div key={bill.id} className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${cardBorder}`}>
+                    <div key={bill.id} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${cardBorder}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBgStyle}`}>
-                          {isOverdue ? <AlertCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                          {isOverdue ? <AlertCircle className="w-4 h-4" strokeWidth={1.75} /> : <Clock className="w-4 h-4" strokeWidth={1.75} />}
                         </div>
                         <div>
-                          <p className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
                             {bill.title}
                           </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                            Vencimento: <strong className="font-extrabold text-slate-700 dark:text-slate-300">{bill.vencimento}</strong>
+                          <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-normal">
+                            Vencimento: <strong className="font-semibold text-slate-700 dark:text-zinc-300">{bill.vencimento}</strong>
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <p className={`text-xs font-black font-tnum tabular-nums ${
-                          isOverdue ? "text-rose-600 dark:text-rose-400" : isUrgent ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"
+                        <p className={`text-xs font-semibold font-tnum tabular-nums ${
+                          isOverdue ? "text-rose-600 dark:text-rose-400" : isUrgent ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-zinc-100"
                         }`}>
                           <CurrencyValue value={bill.valor} />
                         </p>
-                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 border ${badgeStyle}`}>
+                        <span className={`text-[9px] font-semibold uppercase px-2 py-0.5 rounded-md inline-block mt-0.5 border ${badgeStyle}`}>
                           {bill.statusLabel || (isOverdue ? "VENCIDA" : "PENDENTE")}
                         </span>
                       </div>
@@ -877,40 +919,40 @@ export function DashboardOverview() {
           />
 
           {/* BLOCO 3: Resumo de Metas */}
-          <div className="bg-white dark:bg-slate-900/70 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm dark:shadow-xl flex flex-col gap-4">
-            <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+          <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
+            <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
-                <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">Reservas & Metas</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Acompanhamento das reservas e metas financeiras</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight">Reservas & Metas</h3>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal">Acompanhamento das reservas e metas financeiras</p>
               </div>
-              <Link href="/metas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300">
+              <Link href="/metas" className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300">
                 Ver todas
               </Link>
             </div>
 
             {(data?.goals || []).length === 0 ? (
-              <p className="py-6 text-xs font-medium text-slate-500 dark:text-slate-400 text-center">Nenhuma meta cadastrada.</p>
+              <p className="py-6 text-xs font-normal text-slate-500 dark:text-zinc-400 text-center">Nenhuma meta cadastrada.</p>
             ) : (
               <div className="flex flex-col gap-3">
                 {(data?.goals || []).slice(0, 3).map((goal: any) => (
-                  <div key={goal.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex flex-col gap-2">
+                  <div key={goal.id} className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-zinc-950/50 border border-slate-200/80 dark:border-white/[0.06] flex flex-col gap-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-black text-slate-900 dark:text-white">{goal.title}</span>
-                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 font-tnum tabular-nums">{goal.pct}%</span>
+                      <span className="text-xs font-semibold text-slate-900 dark:text-zinc-100">{goal.title}</span>
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-tnum tabular-nums">{goal.pct}%</span>
                     </div>
 
-                    <div className="w-full bg-slate-100 dark:bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                    <div className="w-full bg-slate-100 dark:bg-zinc-900 h-1.5 rounded-full overflow-hidden border border-slate-200/80 dark:border-white/[0.06]">
                       <div 
-                        className="h-full bg-indigo-500 rounded-full transition-all duration-500" 
+                        className="h-full bg-gradient-to-r from-indigo-500 to-violet-600 rounded-full transition-all duration-500" 
                         style={{ width: `${Math.min(100, goal.pct)}%` }} 
                       />
                     </div>
 
-                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400 pt-0.5">
+                    <div className="flex justify-between items-center text-[10px] font-medium text-slate-500 dark:text-zinc-400 pt-0.5">
                       <span className="font-tnum tabular-nums">{brl(goal.acumulado)} acumulados</span>
                       <button
                         onClick={() => { setSelectedGoalId(goal.id); setAporteModalOpen(true); }}
-                        className="text-[10px] font-black text-[#00a854] dark:text-[#00e676] bg-emerald-50 dark:bg-[#00e676]/10 hover:bg-emerald-100 dark:hover:bg-[#00e676]/20 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-[#00e676]/30 transition-colors cursor-pointer"
+                        className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2.5 py-0.5 rounded-lg border border-emerald-500/20 transition-colors cursor-pointer"
                       >
                         + Aporte
                       </button>

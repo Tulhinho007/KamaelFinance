@@ -94,7 +94,7 @@ export default function CreditPixPage() {
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">
       {/* ── 1. CABEÇALHO DA PÁGINA ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-lg dark:shadow-black/20">
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
@@ -127,16 +127,16 @@ export default function CreditPixPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-36 bg-white dark:bg-[#131B2E] rounded-3xl border border-slate-200 dark:border-slate-800 animate-pulse p-6"
+              className="h-36 bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] animate-pulse p-6"
             />
           ))}
         </div>
       ) : (
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
           {/* Card 1: Total Líquido Captado */}
-          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
             <div className="flex items-start justify-between min-h-[44px] gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-snug">
                 Total Líquido Captado
               </span>
               <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
@@ -158,10 +158,10 @@ export default function CreditPixPage() {
             </div>
           </div>
 
-          {/* Card 2: Custo Total de Juros/Taxas (VERMELHO COM CET PONDERADO) */}
-          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          {/* Card 2: Custo Total de Juros/Taxas */}
+          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
             <div className="flex items-start justify-between min-h-[44px] gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-snug">
                 Custo de Juros / Encargos
               </span>
               <div className="p-2 rounded-xl bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0">
@@ -186,9 +186,9 @@ export default function CreditPixPage() {
           </div>
 
           {/* Card 3: Total a Pagar em Faturas */}
-          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
             <div className="flex items-start justify-between min-h-[44px] gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-snug">
                 Total a Pagar em Faturas
               </span>
               <div className="p-2 rounded-xl bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/20 shrink-0">
@@ -211,9 +211,9 @@ export default function CreditPixPage() {
           </div>
 
           {/* Card 4: Progresso de Amortização */}
-          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-3xl bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="flex flex-col justify-between h-full p-5 sm:p-6 rounded-2xl bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 overflow-hidden">
             <div className="flex items-start justify-between min-h-[44px] gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-snug">
+              <span className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-zinc-400 leading-snug">
                 Amortização de Parcelas
               </span>
               <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0">
@@ -243,8 +243,8 @@ export default function CreditPixPage() {
       )}
 
       {/* ── 3. TABELA DE OPERAÇÕES REFORMULADA (9 COLUNAS CLARAS) ─────────── */}
-      <div className="bg-white dark:bg-[#131B2E] border border-slate-200 dark:border-slate-800 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
+        <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-4">
           <div>
             <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
               <FileText className="w-4 h-4 text-purple-500" />

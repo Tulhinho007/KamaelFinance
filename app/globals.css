@@ -14,13 +14,13 @@
 }
 
 html.dark {
-  --background: #090D16;
+  --background: #09090b;
   --foreground: #F8FAFC;
-  --surface: rgba(18, 24, 38, 0.6);
-  --surface-raised: rgba(26, 34, 52, 0.8);
-  --border: rgba(255, 255, 255, 0.07);
+  --surface: rgba(24, 24, 27, 0.65);
+  --surface-raised: rgba(39, 39, 42, 0.8);
+  --border: rgba(255, 255, 255, 0.08);
   --border-subtle: rgba(255, 255, 255, 0.05);
-  --muted: #94A3B8;
+  --muted: #A1A1AA;
   --accent: #10B981;
   color-scheme: dark;
 }
@@ -54,11 +54,11 @@ body {
 }
 
 html.dark .card-glow, html.dark .glass-card {
-  background: rgba(18, 24, 38, 0.6) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+  background: rgba(24, 24, 27, 0.6) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.4) !important;
 }
 
 .card-glow:hover, .glass-card:hover {
@@ -67,8 +67,8 @@ html.dark .card-glow, html.dark .glass-card {
 }
 
 html.dark .card-glow:hover, html.dark .glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.3) !important;
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45), 0 0 20px rgba(99, 102, 241, 0.15) !important;
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.55), 0 0 20px rgba(99, 102, 241, 0.1) !important;
 }
 
 /* Cartão de Crédito — fundo sempre colorido (roxo/vermelho), texto branco */
