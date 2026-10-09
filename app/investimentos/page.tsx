@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
   PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Line
@@ -915,70 +916,75 @@ export default function InvestimentosPage() {
         <section className="space-y-6 animate-in fade-in">
           
           {/* KPIs Consolidados */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Patrimônio Bruto</span>
-              <h3 className="text-2xl lg:text-3xl font-semibold text-slate-900 dark:text-zinc-100 mt-2 font-tnum tabular-nums">
-                {brl(overview?.patrimonioBruto || 0)}
-              </h3>
-              <span className="text-xs font-normal text-slate-400 dark:text-zinc-500 mt-3 block">Total acumulado na carteira</span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+            <MetricKpiCard
+              label="Patrimônio Bruto"
+              value={brl(overview?.patrimonioBruto || 0)}
+              subtext="Total acumulado na carteira"
+              variant="neutral"
+              icon={Wallet}
+            />
 
-            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Patrimônio Líquido</span>
-              <h3 className="text-2xl lg:text-3xl font-semibold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
-                {brl(overview?.patrimonioLiquido || 0)}
-              </h3>
-              <span className="text-xs font-normal text-emerald-500/80 dark:text-emerald-400/80 mt-3 block">Após impostos e taxas estimadas</span>
-            </div>
+            <MetricKpiCard
+              label="Patrimônio Líquido"
+              value={brl(overview?.patrimonioLiquido || 0)}
+              subtext="Após impostos e taxas estimadas"
+              variant="success"
+              icon={Landmark}
+            />
 
-            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Lucro Total Acumulado</span>
-              <h3 className={`text-2xl lg:text-3xl font-semibold mt-2 font-tnum tabular-nums ${(overview?.lucroTotal || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                {(overview?.lucroTotal || 0) >= 0 ? "+" : ""}{brl(overview?.lucroTotal || 0)}
-              </h3>
-              <span className={`text-xs font-medium mt-3 block ${(overview?.rentabilidadeGeral || 0) >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"}`}>
-                Rentabilidade: {(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}{(overview?.rentabilidadeGeral || 0).toFixed(2)}%
-              </span>
-            </div>
+            <MetricKpiCard
+              label="Lucro Total Acumulado"
+              value={`${(overview?.lucroTotal || 0) >= 0 ? "+" : ""}${brl(overview?.lucroTotal || 0)}`}
+              subtext={`Rentabilidade: ${(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}${(overview?.rentabilidadeGeral || 0).toFixed(2)}%`}
+              variant={(overview?.lucroTotal || 0) >= 0 ? "success" : "danger"}
+              icon={Sparkles}
+              badge={{
+                text: `${(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}${(overview?.rentabilidadeGeral || 0).toFixed(1)}%`,
+                variant: (overview?.lucroTotal || 0) >= 0 ? "success" : "danger",
+              }}
+            />
 
             {/* 4. Métrica: Proventos / Dividendos Recebidos no Mês */}
-            <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 rounded-2xl flex flex-col justify-between relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs uppercase font-medium tracking-wider text-slate-500 dark:text-zinc-400">Proventos do Mês</span>
-                <span className="text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  Renda Passiva
-                </span>
-              </div>
-              <h3 className="text-2xl lg:text-3xl font-semibold text-emerald-600 dark:text-emerald-400 mt-2 font-tnum tabular-nums">
-                +{brl(overview?.proventosMes || 0)}
-              </h3>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-3 block">
-                Fluxo de caixa livre sem venda de ativos
-              </span>
-            </div>
+            <MetricKpiCard
+              label="Proventos do Mês"
+              value={`+${brl(overview?.proventosMes || 0)}`}
+              subtext="Fluxo de caixa livre sem venda de ativos"
+              variant="success"
+              icon={Coins}
+              badge={{
+                text: "Renda Passiva",
+                variant: "success",
+              }}
+            />
           </div>
 
           {/* Cards de Resumo por Categoria */}
           {overview?.categorias && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 items-stretch">
               
               {/* Renda Fixa */}
               <div 
                 onClick={() => setCurrentTab("renda-fixa")}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group"
+                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
-                    <Landmark className="w-5 h-5" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-200/50 dark:border-blue-500/20 shrink-0">
+                    <Landmark className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                   </div>
-                  <span className="text-[10px] font-extrabold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
                     {overview.categorias.rendaFixa.qtd} ativo(s)
                   </span>
                 </div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Renda Fixa</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{brl(overview.categorias.rendaFixa.bruto)}</p>
-                <p className="text-xs font-semibold text-emerald-600 mt-2">
+                <div className="h-5 flex items-center">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Renda Fixa">
+                    Renda Fixa
+                  </p>
+                </div>
+                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
+                  {brl(overview.categorias.rendaFixa.bruto)}
+                </p>
+                <p className="text-xs font-medium mt-1 truncate text-emerald-600 dark:text-emerald-400">
                   Lucro: +{brl(overview.categorias.rendaFixa.lucro)}
                 </p>
               </div>
@@ -986,19 +992,25 @@ export default function InvestimentosPage() {
               {/* Ações & FIIs */}
               <div 
                 onClick={() => setCurrentTab("renda-variavel")}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer group"
+                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
-                    <TrendingUp className="w-5 h-5" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-500/20 shrink-0">
+                    <TrendingUp className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                   </div>
-                  <span className="text-[10px] font-extrabold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
                     {overview.categorias.rendaVariavel.qtd} ciclo(s)
                   </span>
                 </div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Ações & FIIs</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{brl(overview.categorias.rendaVariavel.bruto)}</p>
-                <p className="text-xs font-semibold text-emerald-600 mt-2">
+                <div className="h-5 flex items-center">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Ações & FIIs">
+                    Ações & FIIs
+                  </p>
+                </div>
+                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
+                  {brl(overview.categorias.rendaVariavel.bruto)}
+                </p>
+                <p className="text-xs font-medium mt-1 truncate text-emerald-600 dark:text-emerald-400">
                   Lucro Total: +{brl(overview.categorias.rendaVariavel.lucro)}
                 </p>
               </div>
@@ -1006,19 +1018,25 @@ export default function InvestimentosPage() {
               {/* Cripto */}
               <div 
                 onClick={() => setCurrentTab("cripto")}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:border-amber-300 transition-all cursor-pointer group"
+                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
-                    <Coins className="w-5 h-5" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/50 dark:border-amber-500/20 shrink-0">
+                    <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                   </div>
-                  <span className="text-[10px] font-extrabold bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
                     {overview.categorias.cripto.qtd} ciclo(s)
                   </span>
                 </div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Criptomoedas</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{brl(overview.categorias.cripto.bruto)}</p>
-                <p className={`text-xs font-semibold mt-2 ${overview.categorias.cripto.lucro >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                <div className="h-5 flex items-center">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Criptomoedas">
+                    Criptomoedas
+                  </p>
+                </div>
+                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
+                  {brl(overview.categorias.cripto.bruto)}
+                </p>
+                <p className={`text-xs font-medium mt-1 truncate ${overview.categorias.cripto.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   Lucro: {overview.categorias.cripto.lucro >= 0 ? "+" : ""}{brl(overview.categorias.cripto.lucro)}
                 </p>
               </div>
@@ -1026,19 +1044,25 @@ export default function InvestimentosPage() {
               {/* Apostas / Bancas */}
               <div 
                 onClick={() => setCurrentTab("apostas")}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group"
+                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="p-2 bg-purple-50 text-purple-600 rounded-xl">
-                    <Dice5 className="w-5 h-5" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="p-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/50 dark:border-purple-500/20 shrink-0">
+                    <Dice5 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                   </div>
-                  <span className="text-[10px] font-extrabold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200/50 dark:border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
                     {overview.categorias.apostas.qtd} banca(s)
                   </span>
                 </div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Bancas & Apostas</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{brl(overview.categorias.apostas.saldoBruto)}</p>
-                <p className={`text-xs font-semibold mt-2 ${overview.categorias.apostas.lucro >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                <div className="h-5 flex items-center">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Bancas & Apostas">
+                    Bancas & Apostas
+                  </p>
+                </div>
+                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
+                  {brl(overview.categorias.apostas.saldoBruto)}
+                </p>
+                <p className={`text-xs font-medium mt-1 truncate ${overview.categorias.apostas.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   Lucro Real: {overview.categorias.apostas.lucro >= 0 ? "+" : ""}{brl(overview.categorias.apostas.lucro)}
                 </p>
               </div>
@@ -1046,19 +1070,25 @@ export default function InvestimentosPage() {
               {/* Outros Investimentos */}
               <div 
                 onClick={() => setCurrentTab("outros")}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm hover:shadow-md hover:border-teal-300 transition-all cursor-pointer group"
+                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
               >
-                <div className="flex justify-between items-center mb-3">
-                  <div className="p-2 bg-teal-50 text-teal-600 rounded-xl">
-                    <Briefcase className="w-5 h-5" />
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="p-2 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-xl border border-teal-200/50 dark:border-teal-500/20 shrink-0">
+                    <Briefcase className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                   </div>
-                  <span className="text-[10px] font-extrabold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full uppercase">
+                  <span className="text-[10px] font-bold bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
                     {overview.categorias.outros?.qtd || 0} ativo(s)
                   </span>
                 </div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Outros Investimentos</p>
-                <p className="text-xl font-black text-slate-900 mt-1">{brl(overview.categorias.outros?.investido || 0)}</p>
-                <p className={`text-xs font-semibold mt-2 ${(overview.categorias.outros?.lucro || 0) >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                <div className="h-5 flex items-center">
+                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Outros Investimentos">
+                    Outros Investimentos
+                  </p>
+                </div>
+                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
+                  {brl(overview.categorias.outros?.investido || 0)}
+                </p>
+                <p className={`text-xs font-medium mt-1 truncate ${(overview.categorias.outros?.lucro || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   Lucro Real: {(overview.categorias.outros?.lucro || 0) >= 0 ? "+" : ""}{brl(overview.categorias.outros?.lucro || 0)}
                 </p>
               </div>
