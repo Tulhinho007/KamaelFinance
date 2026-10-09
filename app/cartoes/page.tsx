@@ -79,77 +79,81 @@ function getCategoryColor(name: string, index: number): string {
 // Helper: Diagnóstico inteligente do ciclo da fatura do cartão
 function getInvoiceCycleStatus(card: any, selectedMonth: number, selectedYear: number) {
   const now = new Date();
-  const currentDay = now.getDate();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
+  now.setHours(12, 0, 0, 0);
 
-  const isCurrentMonthView = selectedMonth === currentMonth && selectedYear === currentYear;
-  const isPastMonthView = selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth);
-
-  const fechamento = card.diaFechamento || 1;
-  const melhorDia = card.melhorDiaCompra || (fechamento % 31) + 1;
-  const vencimento = card.vencimento || 10;
-
+  // 1. Fatura Paga
   if (card.isPaid) {
     return {
       status: "PAGA",
       badgeLabel: "✓ Fatura Paga",
-      badgeClass: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800",
-      description: "Fatura liquidada e debitada da conta.",
+      badgeSub: card.paidAt ? `Pago em ${formatDateBR(card.paidAt)}` : undefined,
+      badgeClass: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800",
+      description: "Esta fatura já foi liquidada.",
     };
   }
 
-  if (card.isPast) {
+  // Mês e ano reais de vencimento da fatura (M+1 da competência de compras)
+  const billingMonth = card.billingMonth || (selectedMonth === 12 ? 1 : selectedMonth + 1);
+  const billingYear = card.billingYear || (selectedMonth === 12 ? selectedYear + 1 : selectedYear);
+
+  const fechamento = card.diaFechamento || 1;
+  const vencimento = card.vencimento || 10;
+
+  // Determinar quando ocorre o fechamento desta fatura:
+  // Se fechamento <= vencimento (ex: fecha dia 07 e vence dia 10): fecha no mesmo mês do vencimento (ex: 07/11)
+  // Se fechamento > vencimento (ex: fecha dia 25 e vence dia 05): fecha no mês anterior ao vencimento (ex: 25/10)
+  let closingMonth = billingMonth;
+  let closingYear = billingYear;
+  if (fechamento > vencimento) {
+    closingMonth = billingMonth === 1 ? 12 : billingMonth - 1;
+    closingYear = billingMonth === 1 ? billingYear - 1 : billingYear;
+  }
+
+  const maxClosingDays = new Date(closingYear, closingMonth, 0).getDate();
+  const safeClosingDay = Math.min(fechamento, maxClosingDays);
+  const closingDate = new Date(closingYear, closingMonth - 1, safeClosingDay, 23, 59, 59);
+
+  const maxDueDays = new Date(billingYear, billingMonth, 0).getDate();
+  const safeDueDay = Math.min(vencimento, maxDueDays);
+  const dueDate = new Date(billingYear, billingMonth - 1, safeDueDay, 23, 59, 59);
+
+  // 2. Fatura Vencida (data de vencimento já passou e não foi paga)
+  if (now > dueDate) {
     return {
       status: "VENCIDA",
       badgeLabel: "🚨 Fatura Vencida",
-      badgeClass: "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800",
-      description: `Venceu no dia ${String(vencimento).padStart(2, "0")}.`,
+      badgeSub: `Venceu dia ${String(safeDueDay).padStart(2, "0")}/${String(billingMonth).padStart(2, "0")}`,
+      badgeClass: "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800",
+      description: `Venceu no dia ${String(safeDueDay).padStart(2, "0")}/${String(billingMonth).padStart(2, "0")}/${billingYear}.`,
     };
   }
 
-  if (isPastMonthView) {
+  // 3. Fatura Fechada (data de fechamento já passou, mas ainda não venceu)
+  if (now >= closingDate && now <= dueDate) {
+    const diffMs = dueDate.getTime() - now.getTime();
+    const daysToDue = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    const dueText = daysToDue === 0 ? "Vence hoje!" : `Vence em ${daysToDue} ${daysToDue === 1 ? "dia" : "dias"}`;
+
     return {
-      status: "FECHADA_PASSADO",
+      status: "FECHADA",
       badgeLabel: "Fatura Fechada (Aguardando Pagamento)",
-      badgeClass: "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800",
-      description: "Ciclo encerrado neste mês anterior.",
+      badgeSub: dueText,
+      badgeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30",
+      description: `Fechou dia ${String(safeClosingDay).padStart(2, "0")}/${String(closingMonth).padStart(2, "0")}. Vence dia ${String(safeDueDay).padStart(2, "0")}/${String(billingMonth).padStart(2, "0")}.`,
     };
   }
 
-  if (isCurrentMonthView) {
-    if (currentDay >= fechamento) {
-      return {
-        status: "FECHADA",
-        badgeLabel: "Fatura Fechada (Aguardando Pagamento)",
-        badgeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30",
-        description: `Fechou no dia ${String(fechamento).padStart(2, "0")}. Vence dia ${String(vencimento).padStart(2, "0")}.`,
-      };
-    } else {
-      const daysToFechamento = fechamento - currentDay;
-      const daysToMelhorDia = melhorDia >= currentDay
-        ? melhorDia - currentDay
-        : (new Date(selectedYear, selectedMonth, 0).getDate() - currentDay) + melhorDia;
-
-      const subText = daysToMelhorDia === 0
-        ? "Melhor dia hoje!"
-        : `Melhor dia em ${daysToMelhorDia} ${daysToMelhorDia === 1 ? "dia" : "dias"}`;
-
-      return {
-        status: "ABERTA",
-        badgeLabel: "Fatura Aberta (Em compras)",
-        badgeSub: subText,
-        badgeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30",
-        description: `Compras entram nesta fatura até dia ${String(fechamento).padStart(2, "0")}. ${subText}`,
-      };
-    }
-  }
+  // 4. Fatura Aberta (em compras, data atual antes do fechamento)
+  const diffMs = closingDate.getTime() - now.getTime();
+  const daysToClosing = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const subText = daysToClosing <= 1 ? "Fecha em breve" : `Fecha dia ${String(safeClosingDay).padStart(2, "0")}/${String(closingMonth).padStart(2, "0")}`;
 
   return {
-    status: "FUTURA",
-    badgeLabel: "Fatura Aberta (Futura)",
-    badgeClass: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30",
-    description: "Projeção de compras e parcelas futuras.",
+    status: "ABERTA",
+    badgeLabel: "Fatura Aberta (Em compras)",
+    badgeSub: subText,
+    badgeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30",
+    description: `Compras entram nesta fatura até dia ${String(safeClosingDay).padStart(2, "0")}/${String(closingMonth).padStart(2, "0")}. Vencimento em ${String(safeDueDay).padStart(2, "0")}/${String(billingMonth).padStart(2, "0")}.`,
   };
 }
 
@@ -542,8 +546,9 @@ export default function CartoesPage() {
                         <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                           {card.bankName}
                         </span>
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cycle.badgeClass}`}>
-                          {cycle.badgeLabel}
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cycle.badgeClass}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${cycle.status === "ABERTA" ? "animate-pulse bg-blue-500" : cycle.status === "FECHADA" ? "bg-amber-500" : cycle.status === "PAGA" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                          {cycle.status === "ABERTA" ? "Fatura Aberta" : cycle.status === "FECHADA" ? "Fatura Fechada" : cycle.status === "PAGA" ? "Fatura Paga" : "Fatura Vencida"}
                         </span>
                       </div>
                       {card.holder && (
@@ -621,15 +626,18 @@ export default function CartoesPage() {
                   </div>
 
                   {/* Alerta Visual do Ciclo da Fatura */}
-                  <div className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs border ${
-                    cycle.status === "PAGA"
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50"
-                      : cycle.status === "VENCIDA"
-                      ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50"
-                      : cycle.status.includes("FECHADA")
-                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50"
-                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50"
-                  }`}>
+                  <div
+                    title={cycle.description}
+                    className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs border ${
+                      cycle.status === "PAGA"
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50"
+                        : cycle.status === "VENCIDA"
+                        ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50"
+                        : cycle.status === "FECHADA"
+                        ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50"
+                        : "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50"
+                    }`}
+                  >
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className={`w-2 h-2 rounded-full shrink-0 ${cycle.status === "ABERTA" ? "animate-pulse bg-blue-500" : cycle.status === "FECHADA" ? "bg-amber-500" : cycle.status === "PAGA" ? "bg-emerald-500" : "bg-rose-500"}`} />
                       <span className="font-bold text-[11px] truncate">{cycle.badgeLabel}</span>
