@@ -439,7 +439,7 @@ export function DashboardOverview() {
               </button>
 
               {newEntryMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-zinc-950/95 border border-slate-200/80 dark:border-white/[0.1] rounded-xl shadow-xl dark:shadow-2xl backdrop-blur-md py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-zinc-950/95 border border-slate-200/80 dark:border-white/[0.1] rounded-xl shadow-xl dark:shadow-2xl backdrop-blur-md py-1.5 z-40 animate-in fade-in zoom-in-95 duration-150">
                   <button
                     type="button"
                     onClick={() => {
@@ -461,6 +461,31 @@ export function DashboardOverview() {
                   >
                     <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm" />
                     <span>+ Nova Receita</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100 dark:border-white/[0.08]" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewEntryMenuOpen(false);
+                      setInjectTipoOperacao("ENTRADA");
+                      setInjectModalOpen(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm" />
+                    <span>↗ + Adicionar Saldo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewEntryMenuOpen(false);
+                      setInjectTipoOperacao("SAIDA");
+                      setInjectModalOpen(true);
+                    }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
+                  >
+                    <div className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" />
+                    <span>↘ - Retirar / Abater Saldo</span>
                   </button>
                 </div>
               )}
@@ -492,39 +517,15 @@ export function DashboardOverview() {
         const resultadoLiquidoAno = totalReceitasAno - totalGastosAno;
 
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch mb-2">
             {/* Card 1: Saldo Consolidado */}
             <MetricKpiCard
               label="Saldo Consolidado"
               value={`R$ ${saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              subtext={`Tempo Real · ${contasBancarias.length > 0 ? `${contasBancarias.length} contas bancárias` : "Todas as contas"}`}
+              subtext="Disponibilidade consolidada em conta"
               variant="neutral"
               icon={Wallet}
-              badge={{ text: "Tempo Real", variant: "success" }}
-              footer={
-                <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/[0.06] mt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInjectTipoOperacao("ENTRADA");
-                      setInjectModalOpen(true);
-                    }}
-                    className="flex-1 text-center py-1.5 px-2 bg-emerald-50 hover:bg-emerald-100/70 text-emerald-700 border border-emerald-200/60 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                  >
-                    ↗ + Adicionar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInjectTipoOperacao("SAIDA");
-                      setInjectModalOpen(true);
-                    }}
-                    className="flex-1 text-center py-1.5 px-2 bg-rose-50 hover:bg-rose-100/70 text-rose-700 border border-rose-200/60 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer"
-                  >
-                    ↘ - Abater
-                  </button>
-                </div>
-              }
+              badge={{ text: "Tempo Real", variant: "neutral" }}
             />
 
             {/* Card 2: Receitas do Ano */}
@@ -549,7 +550,7 @@ export function DashboardOverview() {
 
             {/* Card 4: Resultado Líquido */}
             <MetricKpiCard
-              label={`Resultado Líquido (${selectedDashboardYear})`}
+              label="Resultado Líquido"
               value={`${resultadoLiquidoAno >= 0 ? "+" : ""}${brl(resultadoLiquidoAno)}`}
               subtext={resultadoLiquidoAno >= 0 ? "Superávit anual acumulado" : "Déficit anual acumulado"}
               variant={resultadoLiquidoAno >= 0 ? "success" : "danger"}

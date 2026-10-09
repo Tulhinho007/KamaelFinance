@@ -104,7 +104,7 @@ export function MetricKpiCard({
   return (
     <div
       onClick={onClick}
-      className={`relative overflow-hidden rounded-2xl p-4 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 bg-white dark:bg-zinc-900/90 border border-slate-200/70 dark:border-white/[0.08] shadow-xs hover:shadow-md dark:shadow-black/40 flex flex-col justify-between ${
+      className={`relative overflow-hidden rounded-2xl p-4 transition-all duration-200 hover:-translate-y-0.5 bg-white dark:bg-zinc-900/90 border border-slate-200/70 dark:border-white/[0.08] shadow-xs hover:shadow-md dark:shadow-black/40 flex flex-col justify-between ${
         onClick ? "cursor-pointer" : ""
       } ${className}`}
     >
@@ -114,10 +114,10 @@ export function MetricKpiCard({
       />
 
       <div className="relative z-10">
-        {/* Top bar: Label e Ícone / Badge */}
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 truncate">
+        {/* Linha 1 (Cabeçalho do Card): Label + Badge à esquerda, Ícone à direita */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 whitespace-nowrap">
               {label}
             </span>
             {renderBadge()}
@@ -132,20 +132,20 @@ export function MetricKpiCard({
           )}
         </div>
 
-        {/* Valor Principal */}
+        {/* Linha 2 (Valor Numérico Principal) */}
         {isLoading ? (
           <div className="h-8 w-32 bg-slate-200 dark:bg-zinc-800 rounded-lg animate-pulse mt-1.5" />
         ) : (
           <div
-            className={`text-xl sm:text-2xl font-bold tracking-tight tabular-nums font-tnum mt-1.5 ${styles.value}`}
+            className={`text-2xl font-bold tracking-tight tabular-nums font-tnum mt-1.5 ${styles.value}`}
           >
             {value}
           </div>
         )}
 
-        {/* Subtexto */}
+        {/* Linha 3 (Subtítulo / Descrição Curta) */}
         {subtext && !isLoading && (
-          <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1">
+          <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1 truncate">
             {subtext}
           </div>
         )}
