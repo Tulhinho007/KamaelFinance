@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -20,6 +20,12 @@ import {
   Repeat,
   DollarSign,
   Tag,
+  Search,
+  Filter,
+  BarChart3,
+  CalendarDays,
+  Sparkles,
+  Check,
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
@@ -31,6 +37,7 @@ import {
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { EditCardTransactionModal } from "@/components/edit-card-transaction-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
+import { MONTH_NAMES } from "@/lib/constants";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -43,6 +50,157 @@ const formatDateBR = (dateStr?: string | null) => {
   }
   return dateStr;
 };
+
+// Cores para as categorias na visualização segmentada
+const CATEGORY_COLORS: Record<string, string> = {
+  "Lazer": "#8b5cf6",
+  "Alimentação": "#f59e0b",
+  "Vestuário": "#ec4899",
+  "Transporte": "#06b6d4",
+  "Saúde": "#10b981",
+  "Educação": "#3b82f6",
+  "Moradia": "#6366f1",
+  "Assinaturas": "#a855f7",
+  "Supermercado": "#84cc16",
+  "Viagem": "#f97316",
+  "Outros": "#64748b",
+};
+
+const PALETTE = [
+  "#6366f1", "#f59e0b", "#ec4899", "#10b981", "#8b5cf6",
+  "#06b6d4", "#f97316", "#84cc16", "#14b8a6", "#64748b"
+];
+
+function getCategoryColor(name: string, index: number): string {
+  if (CATEGORY_COLORS[name]) return CATEGORY_COLORS[name];
+  return PALETTE[index % PALETTE.length];
+}
+
+// Helper: Diagnóstico inteligente do ciclo da fatura do cartão
+function getInvoiceCycleStatus(card: any, selectedMonth: number, selectedYear: number) {
+  const now = new Date();
+  const currentDay = now.getDate();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+
+  const isCurrentMonthView = selectedMonth === currentMonth && selectedYear === currentYear;
+  const isPastMonthView = selectedYear < currentYear || (selectedYear === currentYear && selectedMonth < currentMonth);
+
+  const fechamento = card.diaFechamento || 1;
+  const melhorDia = card.melhorDiaCompra || (fechamento % 31) + 1;
+  const vencimento = card.vencimento || 10;
+
+  if (card.isPaid) {
+    return {
+      status: "PAGA",
+      badgeLabel: "✓ Fatura Paga",
+      badgeClass: "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800",
+      description: "Fatura liquidada e debitada da conta.",
+    };
+  }
+
+  if (card.isPast) {
+    return {
+      status: "VENCIDA",
+      badgeLabel: "🚨 Fatura Vencida",
+      badgeClass: "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-300 dark:border-rose-800",
+      description: `Venceu no dia ${String(vencimento).padStart(2, "0")}.`,
+    };
+  }
+
+  if (isPastMonthView) {
+    return {
+      status: "FECHADA_PASSADO",
+      badgeLabel: "Fatura Fechada (Aguardando Pagamento)",
+      badgeClass: "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800",
+      description: "Ciclo encerrado neste mês anterior.",
+    };
+  }
+
+  if (isCurrentMonthView) {
+    if (currentDay >= fechamento) {
+      return {
+        status: "FECHADA",
+        badgeLabel: "Fatura Fechada (Aguardando Pagamento)",
+        badgeClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30",
+        description: `Fechou no dia ${String(fechamento).padStart(2, "0")}. Vence dia ${String(vencimento).padStart(2, "0")}.`,
+      };
+    } else {
+      const daysToFechamento = fechamento - currentDay;
+      const daysToMelhorDia = melhorDia >= currentDay
+        ? melhorDia - currentDay
+        : (new Date(selectedYear, selectedMonth, 0).getDate() - currentDay) + melhorDia;
+
+      const subText = daysToMelhorDia === 0
+        ? "Melhor dia hoje!"
+        : `Melhor dia em ${daysToMelhorDia} ${daysToMelhorDia === 1 ? "dia" : "dias"}`;
+
+      return {
+        status: "ABERTA",
+        badgeLabel: "Fatura Aberta (Em compras)",
+        badgeSub: subText,
+        badgeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30",
+        description: `Compras entram nesta fatura até dia ${String(fechamento).padStart(2, "0")}. ${subText}`,
+      };
+    }
+  }
+
+  return {
+    status: "FUTURA",
+    badgeLabel: "Fatura Aberta (Futura)",
+    badgeClass: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30",
+    description: "Projeção de compras e parcelas futuras.",
+  };
+}
+
+// Helper: Cronograma completo de parcelas
+function getInstallmentSchedule(tx: any, baseMonth: number, baseYear: number) {
+  const current = tx.currentInstallment || 1;
+  const total = tx.installmentsCount || 1;
+  const amount = Number(tx.amount || 0);
+
+  const schedule = [];
+  for (let i = 1; i <= total; i++) {
+    const monthOffset = i - current;
+    let m = baseMonth + monthOffset;
+    let y = baseYear;
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+
+    schedule.push({
+      num: i,
+      month: m,
+      year: y,
+      monthName: MONTH_NAMES[m - 1] || `Mês ${m}`,
+      label: `${MONTH_NAMES[m - 1] || m}/${y}`,
+      amount,
+      isPast: i < current,
+      isCurrent: i === current,
+      isFuture: i > current,
+    });
+  }
+
+  const remainingCount = Math.max(0, total - current);
+  const remainingAmount = remainingCount * amount;
+  const lastItem = schedule[schedule.length - 1];
+
+  return {
+    total,
+    current,
+    installmentAmount: amount,
+    totalAmount: total * amount,
+    remainingCount,
+    remainingAmount,
+    endsAtLabel: lastItem?.label || "-",
+    schedule,
+  };
+}
 
 export default function CartoesPage() {
   const router = useRouter();
@@ -74,6 +232,84 @@ export default function CartoesPage() {
   const [cardFormDiaFech, setCardFormDiaFech] = useState(1);
   const [cardFormDiaVenc, setCardFormDiaVenc] = useState(10);
   const [cardFormSaving, setCardFormSaving] = useState(false);
+
+  // Estados de Filtro e Busca da Tabela
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [cardFilter, setCardFilter] = useState("ALL");
+
+  // Estado do Modal de Cronograma de Parcelas
+  const [viewingInstallmentTx, setViewingInstallmentTx] = useState<any | null>(null);
+
+  // Categorias disponíveis nas compras carregadas
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of transactions) {
+      if (t.category) set.add(t.category);
+    }
+    return Array.from(set).sort();
+  }, [transactions]);
+
+  // Totalizadores e Agrupamento por Categoria para barra segmentada e badges
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, { total: number; count: number; color?: string }>();
+    for (const tx of transactions) {
+      const cat = tx.category || "Outros";
+      const current = map.get(cat) || { total: 0, count: 0, color: tx.categoryColor };
+      current.total += Number(tx.amount || 0);
+      current.count += 1;
+      if (tx.categoryColor && !current.color) current.color = tx.categoryColor;
+      map.set(cat, current);
+    }
+
+    const totalInvoice = transactions.reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const list = Array.from(map.entries()).map(([name, data]) => ({
+      name,
+      total: data.total,
+      count: data.count,
+      color: data.color || "#6366f1",
+      percentage: totalInvoice > 0 ? (data.total / totalInvoice) * 100 : 0,
+    }));
+
+    return list.sort((a, b) => b.total - a.total);
+  }, [transactions]);
+
+  // Transações filtradas por Busca, Categoria, Tipo e Cartão
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => {
+      // 1. Busca textual
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchDesc = (tx.description || "").toLowerCase().includes(q);
+        const matchCat = (tx.category || "").toLowerCase().includes(q);
+        const matchCard = (tx.walletName || "").toLowerCase().includes(q);
+        if (!matchDesc && !matchCat && !matchCard) return false;
+      }
+
+      // 2. Filtro de Categoria
+      if (categoryFilter !== "ALL" && tx.category !== categoryFilter) {
+        return false;
+      }
+
+      // 3. Filtro de Tipo
+      if (typeFilter === "VISTA") {
+        if ((tx.installmentsCount && tx.installmentsCount > 1) || tx.isRecurring) return false;
+      } else if (typeFilter === "PARCELADO") {
+        if (!tx.installmentsCount || tx.installmentsCount <= 1) return false;
+      } else if (typeFilter === "RECORRENTE") {
+        if (!tx.isRecurring) return false;
+      }
+
+      // 4. Filtro de Cartão
+      if (cardFilter !== "ALL" && tx.walletId !== cardFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [transactions, searchQuery, categoryFilter, typeFilter, cardFilter]);
 
   const loadData = async (active = true) => {
     try {
@@ -180,22 +416,24 @@ export default function CartoesPage() {
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Voltar para o Dashboard
         </Link>
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <PeriodHeader
-            title="Cartões de Crédito"
-            tagline="Gestão dedicada de limites, faturas e compras parceladas no crédito."
-          />
-          <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <PeriodHeader
+              title="Cartões de Crédito"
+              tagline="Gestão dedicada de limites, faturas e compras parceladas no crédito."
+            />
+          </div>
+          <div className="flex items-center gap-2.5 self-start 2xl:self-center shrink-0">
             <button
               onClick={() => setNewCardModalOpen(true)}
-              className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all shadow-xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 px-3.5 py-2.5 rounded-xl font-bold text-xs tracking-wide shadow-xs transition-colors cursor-pointer whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
-              + Novo Cartão
+              <Plus className="w-3.5 h-3.5 text-slate-500" />
+              Novo Cartão
             </button>
             <button
               onClick={() => setPurchaseModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-sm shadow-indigo-600/25 transition-all hover:scale-[1.01] cursor-pointer"
+              className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-sm shadow-indigo-600/25 transition-all hover:scale-[1.01] cursor-pointer whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               + Lançar Compra no Cartão
@@ -250,6 +488,13 @@ export default function CartoesPage() {
             <CreditCard className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             Meus Cartões de Crédito ({cards.length})
           </h2>
+          <button
+            onClick={() => setNewCardModalOpen(true)}
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Adicionar Novo Cartão
+          </button>
         </div>
 
         {loading ? (
@@ -280,11 +525,12 @@ export default function CartoesPage() {
               const usagePct = card.limitTotal > 0 ? Math.min(100, Math.round((card.limitUsed / card.limitTotal) * 100)) : 0;
               const fechamento = card.diaFechamento || 1;
               const melhorDia = card.melhorDiaCompra || (fechamento % 31) + 1;
+              const cycle = getInvoiceCycleStatus(card, selectedMonth || new Date().getMonth() + 1, selectedYear);
 
               return (
                 <div
                   key={card.id}
-                  className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between gap-5 relative overflow-hidden group hover:border-indigo-500/40 transition-all"
+                  className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-indigo-500/40 transition-all"
                 >
                   {/* Top Bar do Card */}
                   <div className="flex justify-between items-start gap-2">
@@ -296,23 +542,9 @@ export default function CartoesPage() {
                         <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
                           {card.bankName}
                         </span>
-                        {card.faturaAtual <= 0 ? (
-                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Sem Fatura
-                          </span>
-                        ) : card.isPaid ? (
-                          <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            ✓ Paga
-                          </span>
-                        ) : card.isPast ? (
-                          <span className="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/50 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            🚨 Vencida
-                          </span>
-                        ) : (
-                          <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            {card.vencimentoStr ? `Vence em ${card.vencimentoStr}` : "Aberta"}
-                          </span>
-                        )}
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${cycle.badgeClass}`}>
+                          {cycle.badgeLabel}
+                        </span>
                       </div>
                       {card.holder && (
                         <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 mt-1">
@@ -388,6 +620,27 @@ export default function CartoesPage() {
                     </div>
                   </div>
 
+                  {/* Alerta Visual do Ciclo da Fatura */}
+                  <div className={`flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs border ${
+                    cycle.status === "PAGA"
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/50"
+                      : cycle.status === "VENCIDA"
+                      ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/50"
+                      : cycle.status.includes("FECHADA")
+                      ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/50"
+                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/50"
+                  }`}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${cycle.status === "ABERTA" ? "animate-pulse bg-blue-500" : cycle.status === "FECHADA" ? "bg-amber-500" : cycle.status === "PAGA" ? "bg-emerald-500" : "bg-rose-500"}`} />
+                      <span className="font-bold text-[11px] truncate">{cycle.badgeLabel}</span>
+                    </div>
+                    {cycle.badgeSub && (
+                      <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-900/70 shrink-0">
+                        {cycle.badgeSub}
+                      </span>
+                    )}
+                  </div>
+
                   {/* Barra de progresso do limite */}
                   <div className="flex flex-col gap-1">
                     <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
@@ -412,18 +665,181 @@ export default function CartoesPage() {
 
       {/* Seção "Faturas a Vencer / Extrato do Cartão" */}
       <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
+        {/* Item 3: Totalizadores e Agrupamento por Categoria */}
+        {categoryBreakdown.length > 0 && (
+          <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-xs font-black text-slate-800 dark:text-slate-200 tracking-wide">
+                  Distribuição de Gastos por Categoria
+                </span>
+                <span className="text-[11px] font-semibold text-slate-400">
+                  ({categoryBreakdown.length} {categoryBreakdown.length === 1 ? "categoria" : "categorias"})
+                </span>
+              </div>
+              {categoryFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setCategoryFilter("ALL")}
+                  className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  Limpar filtro de categoria (mostrar todas)
+                </button>
+              )}
+            </div>
+
+            {/* Barra Horizontal Segmentada Proporcional */}
+            <div className="w-full h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 flex overflow-hidden gap-0.5 p-0.5">
+              {categoryBreakdown.map((item, idx) => (
+                <div
+                  key={item.name}
+                  className="h-full rounded-xs transition-all duration-300 hover:opacity-80 cursor-pointer"
+                  style={{
+                    width: `${Math.max(item.percentage, 2)}%`,
+                    backgroundColor: getCategoryColor(item.name, idx),
+                  }}
+                  title={`${item.name}: ${brl(item.total)} (${item.percentage.toFixed(1)}%) • Clique para filtrar`}
+                  onClick={() => setCategoryFilter(categoryFilter === item.name ? "ALL" : item.name)}
+                />
+              ))}
+            </div>
+
+            {/* Badges / Pílulas de Resumo com Valor e Percentual */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 no-scrollbar flex-wrap">
+              {categoryBreakdown.map((item, idx) => {
+                const isSelected = categoryFilter === item.name;
+                const color = getCategoryColor(item.name, idx);
+                return (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setCategoryFilter(isSelected ? "ALL" : item.name)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                      isSelected
+                        ? "bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-950 dark:border-white shadow-xs"
+                        : "bg-slate-50 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700/70 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                    title={`Clique para filtrar compras de ${item.name}`}
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span>{item.name}:</span>
+                    <span className="font-extrabold">{brl(item.total)}</span>
+                    <span className={`text-[10px] ${isSelected ? "text-slate-300 dark:text-slate-600" : "text-slate-400"}`}>
+                      ({item.percentage.toFixed(0)}%)
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Item 1: Cabeçalho com Busca Rápida e Filtros */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
             <h2 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              Faturas a Vencer / Extrato do Cartão ({transactions.length})
+              Faturas a Vencer / Extrato do Cartão ({filteredTransactions.length}
+              {filteredTransactions.length !== transactions.length ? ` de ${transactions.length}` : ""})
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Compras e parcelas ativas no período selecionado.
             </p>
           </div>
+
+          {/* Controles de Busca e Filtros */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Campo de Pesquisa Rápida */}
+            <div className="relative min-w-[190px] sm:w-60">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar compra..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded cursor-pointer"
+                  title="Limpar busca"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            {/* Filtro por Categoria */}
+            <div className="relative">
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="py-1.5 pl-2.5 pr-7 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-colors"
+              >
+                <option value="ALL">Todas as categorias</option>
+                {availableCategories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro por Tipo */}
+            <div className="relative">
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="py-1.5 pl-2.5 pr-7 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-colors"
+              >
+                <option value="ALL">Todos os tipos</option>
+                <option value="VISTA">À vista</option>
+                <option value="PARCELADO">Parcelado</option>
+                <option value="RECORRENTE">Recorrente</option>
+              </select>
+            </div>
+
+            {/* Filtro por Cartão (quando mais de 1) */}
+            {cards.length > 1 && (
+              <div className="relative">
+                <select
+                  value={cardFilter}
+                  onChange={(e) => setCardFilter(e.target.value)}
+                  className="py-1.5 pl-2.5 pr-7 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer transition-colors"
+                >
+                  <option value="ALL">Todos os cartões</option>
+                  {cards.map((c) => (
+                    <option key={c.id} value={c.id}>{c.bankName || c.alias}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Botão Limpar Filtros quando algum estiver ativo */}
+            {(searchQuery || categoryFilter !== "ALL" || typeFilter !== "ALL" || cardFilter !== "ALL") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setCategoryFilter("ALL");
+                  setTypeFilter("ALL");
+                  setCardFilter("ALL");
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 px-2 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                title="Limpar todos os filtros"
+              >
+                <X className="w-3 h-3" />
+                Limpar
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* Tabela do Extrato */}
         <div className="bg-white dark:bg-slate-900/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -439,81 +855,123 @@ export default function CartoesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {transactions.length === 0 ? (
+                {filteredTransactions.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                      Nenhuma compra no cartão registrada para o período selecionado.
+                      {transactions.length === 0 ? (
+                        "Nenhuma compra no cartão registrada para o período selecionado."
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <span>Nenhuma compra encontrada com os filtros aplicados.</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery("");
+                              setCategoryFilter("ALL");
+                              setTypeFilter("ALL");
+                              setCardFilter("ALL");
+                            }}
+                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                          >
+                            Limpar filtros de pesquisa
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((tx) => (
-                    <tr
-                      key={tx.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group"
-                    >
-                      <td className="py-3 px-4 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
-                        {formatDateBR(tx.purchaseDate || tx.date)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="font-bold text-slate-900 dark:text-white block">
-                          {tx.description}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-                          <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
-                          {tx.walletName}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {tx.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {tx.installmentsCount && tx.installmentsCount > 1 ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
-                            {tx.currentInstallment || 1}/{tx.installmentsCount}
+                  filteredTransactions.map((tx) => {
+                    const isInstallment = tx.installmentsCount && tx.installmentsCount > 1;
+                    const isLastInstallment = isInstallment && (tx.currentInstallment || 1) === tx.installmentsCount;
+
+                    return (
+                      <tr
+                        key={tx.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors group"
+                      >
+                        <td className="py-3 px-4 font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                          {formatDateBR(tx.purchaseDate || tx.date)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="font-bold text-slate-900 dark:text-white block">
+                            {tx.description}
                           </span>
-                        ) : tx.isRecurring ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400">
-                            <Repeat className="w-3 h-3" /> Recorrente
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+                            <CreditCard className="w-3.5 h-3.5 text-indigo-500" />
+                            {tx.walletName}
                           </span>
-                        ) : (
-                          <span className="text-slate-400 text-[11px]">À vista</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right font-black tabular-nums text-slate-900 dark:text-white whitespace-nowrap">
-                        {brl(tx.amount)}
-                      </td>
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTxToEdit(tx);
-                              setEditModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
-                            title="Editar lançamento"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setTxToDelete(tx);
-                              setDeleteModalOpen(true);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                            title="Excluir lançamento"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {tx.category}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {isInstallment ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewingInstallmentTx(tx)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold transition-all cursor-pointer border group/badge ${
+                                isLastInstallment
+                                  ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 shadow-xs"
+                                  : "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 shadow-xs"
+                              }`}
+                              title="Clique para ver o cronograma completo das parcelas"
+                            >
+                              {isLastInstallment ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                  <span>{tx.currentInstallment || 1}/{tx.installmentsCount} • Última parcela</span>
+                                </>
+                              ) : (
+                                <>
+                                  <CalendarDays className="w-3 h-3 text-indigo-500" />
+                                  <span>{tx.currentInstallment || 1}/{tx.installmentsCount}</span>
+                                </>
+                              )}
+                            </button>
+                          ) : tx.isRecurring ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:purple-400">
+                              <Repeat className="w-3 h-3" /> Recorrente
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[11px]">À vista</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-black tabular-nums text-slate-900 dark:text-white whitespace-nowrap">
+                          {brl(tx.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTxToEdit(tx);
+                                setEditModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                              title="Editar lançamento"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTxToDelete(tx);
+                                setDeleteModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                              title="Excluir lançamento"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -714,6 +1172,185 @@ export default function CartoesPage() {
           router.refresh();
         }}
       />
+
+      {/* Modal: Cronograma Completo de Parcelas */}
+      {viewingInstallmentTx && (() => {
+        const scheduleData = getInstallmentSchedule(viewingInstallmentTx, selectedMonth, selectedYear);
+        const progressPct = Math.round((scheduleData.current / scheduleData.total) * 100);
+
+        return (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-lg p-6 flex flex-col gap-5 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-hidden">
+              {/* Header do Modal */}
+              <div className="flex items-start justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 shrink-0">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white truncate">
+                        {viewingInstallmentTx.description}
+                      </h3>
+                      {scheduleData.current === scheduleData.total && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shrink-0">
+                          Última parcela
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      <span>{viewingInstallmentTx.walletName}</span>
+                      <span>•</span>
+                      <span>{viewingInstallmentTx.category}</span>
+                      {viewingInstallmentTx.purchaseDate && (
+                        <>
+                          <span>•</span>
+                          <span>Comprado em {formatDateBR(viewingInstallmentTx.purchaseDate)}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingInstallmentTx(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Mini Cards de Resumo */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Valor da Parcela
+                  </span>
+                  <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5 block">
+                    {brl(scheduleData.installmentAmount)}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    Total: {brl(scheduleData.totalAmount)}
+                  </span>
+                </div>
+                <div className="bg-indigo-50/50 dark:bg-indigo-950/20 p-3 rounded-2xl border border-indigo-100/60 dark:border-indigo-900/30">
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">
+                    Restante a Pagar
+                  </span>
+                  <span className="text-xs font-black text-indigo-700 dark:text-indigo-300 mt-0.5 block">
+                    {brl(scheduleData.remainingAmount)}
+                  </span>
+                  <span className="text-[10px] text-indigo-600/70 dark:text-indigo-400/70">
+                    {scheduleData.remainingCount} {scheduleData.remainingCount === 1 ? "parcela" : "parcelas"}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-800">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Término Previsto
+                  </span>
+                  <span className="text-xs font-black text-slate-900 dark:text-white mt-0.5 block">
+                    {scheduleData.endsAtLabel}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {progressPct}% concluído
+                  </span>
+                </div>
+              </div>
+
+              {/* Barra de Progresso do Parcelamento */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
+                  <span>Progresso do Parcelamento</span>
+                  <span>Parcela {scheduleData.current} de {scheduleData.total} ({progressPct}%)</span>
+                </div>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      progressPct === 100 ? "bg-emerald-500" : "bg-indigo-600"
+                    }`}
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Lista Cronológica das Parcelas */}
+              <div className="flex flex-col gap-2 flex-1 overflow-hidden">
+                <span className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Cronograma Mês a Mês
+                </span>
+                <div className="overflow-y-auto max-h-56 pr-1 divide-y divide-slate-100 dark:divide-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  {scheduleData.schedule.map((item) => (
+                    <div
+                      key={item.num}
+                      className={`flex items-center justify-between p-3 text-xs transition-colors ${
+                        item.isCurrent
+                          ? "bg-indigo-50/70 dark:bg-indigo-950/40 font-bold"
+                          : item.isPast
+                          ? "bg-slate-50/40 dark:bg-slate-900/40 opacity-75"
+                          : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${
+                            item.isCurrent
+                              ? "bg-indigo-600 text-white"
+                              : item.isPast
+                              ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
+                              : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {item.isPast ? <Check className="w-3.5 h-3.5" /> : item.num}
+                        </span>
+                        <div>
+                          <span className="text-slate-800 dark:text-slate-200 block">
+                            Parcela {item.num} de {scheduleData.total}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            Competência: {item.monthName} / {item.year}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold tabular-nums text-slate-900 dark:text-white">
+                          {brl(item.amount)}
+                        </span>
+                        {item.isCurrent && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white">
+                            Fatura Atual
+                          </span>
+                        )}
+                        {item.isPast && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
+                            Faturada
+                          </span>
+                        )}
+                        {item.isFuture && (
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500">
+                            Futura
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Footer do Modal */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingInstallmentTx(null)}
+                  className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
