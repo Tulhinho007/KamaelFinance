@@ -86,14 +86,14 @@ export function MetricKpiCard({
   const renderBadge = () => {
     if (!badge) return null;
     if (React.isValidElement(badge) || typeof badge === "string" || typeof badge === "number") {
-      return <div className="shrink-0">{badge}</div>;
+      return <div className="shrink-0 whitespace-nowrap inline-flex items-center">{badge}</div>;
     }
     if (typeof badge === "object" && "text" in badge) {
       const bObj = badge as MetricKpiBadgeObject;
       const bVariant = (bObj.variant || "neutral") as MetricKpiVariant;
       const bClass = badgeStyles[bVariant] || badgeStyles.neutral;
       return (
-        <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shrink-0 ${bClass}`}>
+        <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shrink-0 whitespace-nowrap inline-flex items-center ${bClass}`}>
           {bObj.text}
         </span>
       );
@@ -116,7 +116,7 @@ export function MetricKpiCard({
       <div className="relative z-10">
         {/* Linha 1 (Cabeçalho do Card): Label + Badge à esquerda, Ícone à direita */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2 min-w-0">
             <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 whitespace-nowrap shrink-0">
               {label}
             </span>
