@@ -448,17 +448,16 @@ export default function CartoesPage() {
       </div>
 
       {/* KPI Cards Superiores Exclusivos de Cartões de Crédito */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
         <MetricKpiCard
           label="Limite Total Contratado"
           value={brl(totals.totalLimit)}
           variant="neutral"
           icon={ShieldCheck}
-          badge={
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
-              {cards.length} {cards.length === 1 ? "cartão cadastrado" : "cartões cadastrados"}
-            </span>
-          }
+          badge={{
+            text: `${cards.length} ${cards.length === 1 ? "cartão cadastrado" : "cartões cadastrados"}`,
+            variant: "neutral",
+          }}
           subtext="Limite consolidado em todos os cartões ativos"
         />
 
@@ -467,11 +466,10 @@ export default function CartoesPage() {
           value={brl(totals.totalAvailable)}
           variant={totals.totalAvailable < 0 ? "danger" : "success"}
           icon={CheckCircle2}
-          badge={
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200/50 dark:border-emerald-800/40">
-              Livre para novas compras
-            </span>
-          }
+          badge={{
+            text: "Livre para novas compras",
+            variant: "success",
+          }}
           subtext="Capacidade de crédito disponível no momento"
         />
 
@@ -480,11 +478,10 @@ export default function CartoesPage() {
           value={brl(totals.totalInvoices)}
           variant="danger"
           icon={Clock}
-          badge={
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full border border-rose-200/50 dark:border-rose-800/40">
-              Comprometido no período
-            </span>
-          }
+          badge={{
+            text: "Comprometido no período",
+            variant: "danger",
+          }}
           subtext="Valor consolidado das faturas atuais"
         />
       </section>

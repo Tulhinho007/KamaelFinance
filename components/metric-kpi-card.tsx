@@ -116,8 +116,8 @@ export function MetricKpiCard({
       <div className="relative z-10">
         {/* Linha 1 (Cabeçalho do Card): Label + Badge à esquerda, Ícone à direita */}
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0 flex-wrap">
-            <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 whitespace-nowrap">
+          <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+            <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 whitespace-nowrap shrink-0">
               {label}
             </span>
             {renderBadge()}
@@ -125,19 +125,19 @@ export function MetricKpiCard({
 
           {Icon && (
             <div
-              className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${styles.iconBg} ${styles.iconText} ${styles.iconBorder}`}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center border shrink-0 ${styles.iconBg} ${styles.iconText} ${styles.iconBorder}`}
             >
-              <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+              <Icon className="w-4 h-4" strokeWidth={1.75} />
             </div>
           )}
         </div>
 
         {/* Linha 2 (Valor Numérico Principal) */}
         {isLoading ? (
-          <div className="h-8 w-32 bg-slate-200 dark:bg-zinc-800 rounded-lg animate-pulse mt-1.5" />
+          <div className="h-8 w-32 bg-slate-200 dark:bg-zinc-800 rounded-lg animate-pulse mt-2" />
         ) : (
           <div
-            className={`text-2xl font-bold tracking-tight tabular-nums font-tnum mt-1.5 ${styles.value}`}
+            className={`text-2xl font-bold tracking-tight tabular-nums font-tnum mt-2 ${styles.value}`}
           >
             {value}
           </div>
@@ -145,7 +145,7 @@ export function MetricKpiCard({
 
         {/* Linha 3 (Subtítulo / Descrição Curta) */}
         {subtext && !isLoading && (
-          <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1 truncate">
+          <div className="text-xs text-slate-400 dark:text-zinc-500 mt-1 line-clamp-1">
             {subtext}
           </div>
         )}

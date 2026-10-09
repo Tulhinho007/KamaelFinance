@@ -365,23 +365,20 @@ export function CreditCardInvoiceTable({
                 />
               </th>
             )}
-            <th className="w-24 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider py-2.5 px-3 text-left whitespace-nowrap bg-white dark:bg-slate-900">
+            <th className="w-28 text-slate-500 dark:text-slate-400 text-xs font-bold uppercase tracking-wider py-2.5 px-3 text-left whitespace-nowrap bg-white dark:bg-slate-900">
               {dateColumnHeader}
             </th>
-            <th className="w-[32%] max-w-0 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
+            <th className="w-[38%] max-w-0 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
               Descrição
             </th>
-            <th className="w-28 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
+            <th className="w-32 truncate text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 text-left bg-white dark:bg-slate-900">
               Categoria
             </th>
             <th className="w-28 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 py-2.5 px-3 bg-white dark:bg-slate-900 whitespace-nowrap">
               Método
             </th>
-            <th className="w-28 text-right font-semibold whitespace-nowrap text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
+            <th className="w-32 text-right font-semibold whitespace-nowrap text-xs uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Valor
-            </th>
-            <th className="w-28 text-center whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
-              Status
             </th>
             <th className="w-24 text-right whitespace-nowrap text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 py-2.5 px-3 bg-white dark:bg-slate-900">
               Ações
@@ -394,7 +391,7 @@ export function CreditCardInvoiceTable({
           {isLoading ? (
             <tr>
               <td
-                colSpan={hasSelection ? 8 : 7}
+                colSpan={hasSelection ? 7 : 6}
                 className="py-12 px-4 text-center text-sm text-slate-400 dark:text-slate-500"
               >
                 <div className="flex flex-col items-center justify-center gap-2">
@@ -406,7 +403,7 @@ export function CreditCardInvoiceTable({
           ) : transactions.length === 0 ? (
             <tr>
               <td
-                colSpan={hasSelection ? 8 : 7}
+                colSpan={hasSelection ? 7 : 6}
                 className="py-14 px-4 text-center text-sm text-slate-400 dark:text-slate-500"
               >
                 <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
@@ -436,7 +433,7 @@ export function CreditCardInvoiceTable({
                     className="bg-slate-50/90 dark:bg-slate-900/80 border-y border-slate-200/80 dark:border-slate-800 cursor-pointer hover:bg-slate-100/90 dark:hover:bg-slate-800/90 transition-colors select-none group"
                     title={`Clique para ${isExpanded ? "recolher" : "expandir"} os lançamentos deste dia`}
                   >
-                    <td colSpan={hasSelection ? 8 : 7} className="px-3 py-2">
+                    <td colSpan={hasSelection ? 7 : 6} className="px-3 py-2">
                       <div className="flex items-center justify-between">
                         {/* Lado Esquerdo: Ícone Chevron + Data Formatada + Contador */}
                         <div className="flex items-center gap-2">
@@ -531,12 +528,12 @@ export function CreditCardInvoiceTable({
                       )}
 
                       {/* 1. DATA (exibição discreta) */}
-                      <td className="w-24 py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-left whitespace-nowrap tabular-nums">
+                      <td className="w-28 py-2 px-3 text-xs text-slate-500 dark:text-slate-400 text-left whitespace-nowrap tabular-nums">
                         {dateFormatted}
                       </td>
 
                       {/* 2. DESCRIÇÃO + BADGES (limitado para não estourar layout) */}
-                      <td className="w-[32%] max-w-0 py-2 px-3 text-left">
+                      <td className="w-[38%] max-w-0 py-2 px-3 text-left">
                         <div className="max-w-full min-w-0">
                           <span
                             className="block truncate text-xs font-medium text-slate-900 dark:text-white"
@@ -581,7 +578,7 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 3. CATEGORIA */}
-                      <td className="w-28 py-2 px-3 text-left truncate">
+                      <td className="w-32 py-2 px-3 text-left truncate">
                         <span
                           className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 truncate max-w-full"
                           title={categoryName}
@@ -596,7 +593,7 @@ export function CreditCardInvoiceTable({
                       </td>
 
                       {/* 5. VALOR */}
-                      <td className="w-28 py-2 px-3 text-right font-semibold whitespace-nowrap">
+                      <td className="w-32 py-2 px-3 text-right font-semibold whitespace-nowrap">
                         <span
                           className={`text-xs font-semibold tabular-nums ${
                             tx.type === "INCOME"
@@ -606,50 +603,6 @@ export function CreditCardInvoiceTable({
                         >
                           {tx.type === "INCOME" ? `+ ${formatBRL(tx.amount)}` : `- ${formatBRL(tx.amount)}`}
                         </span>
-                      </td>
-
-                      {/* 5. STATUS */}
-                      <td className="w-28 py-2 px-3 text-center whitespace-nowrap">
-                        {onToggleStatus ? (
-                          <button
-                            type="button"
-                            disabled={togglingId === tx.id}
-                            onClick={() => onToggleStatus(tx.id)}
-                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1 transition-all cursor-pointer select-none hover:opacity-80 active:scale-95 ${
-                              isPaid
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20"
-                                : isOpen
-                                ? "bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20"
-                                : "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20"
-                            } ${togglingId === tx.id ? "opacity-60 cursor-wait" : ""}`}
-                            title={isPaid ? (tx.type === "INCOME" ? "Clique para alterar status para Pendente" : "Clique para alterar status para Pendente") : "Clique para alterar status para Pago/Recebido"}
-                          >
-                            {isPaid ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                            ) : isOpen ? (
-                              <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
-                            ) : (
-                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                            )}
-                            <span className="truncate">{isPaid ? (tx.type === "INCOME" ? "Recebido" : "Pago") : (isOpen ? "Aberta" : "Pendente")}</span>
-                            <ChevronDown className="w-2.5 h-2.5 opacity-60 shrink-0" />
-                          </button>
-                        ) : isPaid ? (
-                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                            <span>{tx.type === "INCOME" ? "Recebido" : "Pago"}</span>
-                          </span>
-                        ) : isOpen ? (
-                          <span className="bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                            <span>Aberta</span>
-                          </span>
-                        ) : (
-                          <span className="bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 rounded-full px-2 py-0.5 text-[11px] font-medium inline-flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                            <span>Pendente</span>
-                          </span>
-                        )}
                       </td>
 
                       {/* 6. AÇÕES */}
