@@ -93,8 +93,8 @@ export default function GestaoCaixaContasPage() {
   const [extratoSearch, setExtratoSearch] = useState("");
   const [showAllMovements, setShowAllMovements] = useState(false);
 
-  // Filtros de Agenda a Pagar
-  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("ALL");
+  // Filtros de Agenda a Pagar (Padrão: Mês Atual)
+  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("CURRENT_MONTH");
   const [customFilterMonth, setCustomFilterMonth] = useState<number>(new Date().getMonth() + 1);
   const [customFilterYear, setCustomFilterYear] = useState<number>(selectedYear || new Date().getFullYear());
   const [agendaSearch, setAgendaSearch] = useState("");
@@ -337,7 +337,7 @@ export default function GestaoCaixaContasPage() {
 
   // Filtros da Agenda de Contas a Pagar (Apenas itens PENDENTES que batem com período e busca)
   const filteredPendingCommitments = useMemo(() => {
-    return pendingCommitments.filter((item) => {
+    const list = pendingCommitments.filter((item) => {
       // 1. Filtro de competência / vencimento
       if (!matchesAgendaPeriod(item)) return false;
 
@@ -348,6 +348,18 @@ export default function GestaoCaixaContasPage() {
       const matchType = (item.tipoLabel || "").toLowerCase().includes(q);
       const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
       return matchDesc || matchType || matchRef;
+    });
+
+    return list.slice().sort((a, b) => {
+      const partsA = getItemDueDateParts(a);
+      const partsB = getItemDueDateParts(b);
+      if (partsA && partsB) {
+        if (partsA.year !== partsB.year) return partsA.year - partsB.year;
+        if (partsA.month !== partsB.month) return partsA.month - partsB.month;
+      }
+      const tA = a.dueDateRaw ? new Date(a.dueDateRaw).getTime() : 0;
+      const tB = b.dueDateRaw ? new Date(b.dueDateRaw).getTime() : 0;
+      return tA - tB;
     });
   }, [
     pendingCommitments,
@@ -360,6 +372,41 @@ export default function GestaoCaixaContasPage() {
     nextMonthNum,
     nextYearNum,
   ]);
+
+  // Helper para verificar se a conta tem vencimento crítico (atrasada, hoje, amanhã ou em até 3 dias)
+  const checkIsVencimentoCritico = (item: any): boolean => {
+    if (item.dueBadge?.type === "atrasado" || item.dueBadge?.type === "hoje") return true;
+    if (item.dueDateInput && typeof item.dueDateInput === "string") {
+      const parts = item.dueDateInput.split("-");
+      if (parts.length === 3) {
+        const due = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffTime = due.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays <= 3;
+      }
+    }
+    return false;
+  };
+
+  // Mapa de subtotais e contagem por mês para agrupamento visual na visualização anual
+  const monthlyTotalsMap = useMemo(() => {
+    const map = new Map<string, { total: number; count: number; label: string }>();
+    for (const item of filteredPendingCommitments) {
+      const parts = getItemDueDateParts(item);
+      const key = parts ? `${parts.year}-${String(parts.month).padStart(2, "0")}` : "sem-data";
+      const current = map.get(key) || {
+        total: 0,
+        count: 0,
+        label: parts ? `${MONTH_NAMES_LIST[parts.month - 1]}/${parts.year}` : "Outras Datas",
+      };
+      current.total += Number(item.amount || 0);
+      current.count += 1;
+      map.set(key, current);
+    }
+    return map;
+  }, [filteredPendingCommitments]);
 
   // Controle do checkbox 'Selecionar todas visíveis'
   const isAllVisibleSelected =
@@ -850,7 +897,7 @@ export default function GestaoCaixaContasPage() {
           <ArrowLeft className="w-3.5 h-3.5" /> Voltar para o Dashboard
         </Link>
 
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3.5">
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
               <Building2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -861,61 +908,61 @@ export default function GestaoCaixaContasPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-2.5 overflow-x-auto pb-1 lg:pb-0">
             {/* Seletor Anual */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-2xl shadow-xs">
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-xs shrink-0">
               <button
                 type="button"
                 onClick={prevYear}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Ano Anterior"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
-              <span className="px-3 py-1 text-xs font-black text-indigo-600 dark:text-indigo-400 tracking-wider tabular-nums">
+              <span className="px-2 py-0.5 text-xs font-black text-indigo-600 dark:text-indigo-400 tracking-wider tabular-nums">
                 ANO {selectedYear}
               </span>
               <button
                 type="button"
                 onClick={nextYear}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Próximo Ano"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
               {selectedYear !== new Date().getFullYear() && (
                 <button
                   type="button"
                   onClick={goToCurrentYear}
-                  className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer"
+                  className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer"
                 >
                   Ano Atual
                 </button>
               )}
             </div>
 
-            {/* Botões Rápidos */}
+            {/* Botões Rápidos Compactos na Mesma Linha */}
             <button
               onClick={() => setNewCommitmentModalOpen(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider shadow-sm shadow-indigo-600/25 transition-all hover:scale-[1.01] cursor-pointer"
+              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-bold text-xs tracking-wide shadow-xs shadow-indigo-600/20 transition-all hover:scale-[1.01] cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Plus className="w-4 h-4" />
-              Novo Boleto / Despesa a Pagar
+              <Plus className="w-3.5 h-3.5" />
+              <span>Novo Boleto</span>
             </button>
             <button
               onClick={() => setNewMovementModalOpen(true)}
-              className="flex items-center gap-2 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-bold text-xs tracking-wide transition-all shadow-xs cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Plus className="w-4 h-4" />
-              Movimentação Avulsa (Pix/Depósito)
+              <Plus className="w-3.5 h-3.5" />
+              <span>Movimentação Avulsa</span>
             </button>
             <button
               onClick={handleOpenBatchWeeklyModal}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-slate-950 dark:text-white px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider transition-all shadow-xs hover:scale-[1.01] cursor-pointer"
+              className="flex items-center gap-1.5 border border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 px-3 py-2 rounded-xl font-bold text-xs tracking-wide transition-all shadow-xs hover:scale-[1.01] cursor-pointer whitespace-nowrap shrink-0"
               title="Registrar fechamento semanal de pequenos gastos (Débito e Pix)"
             >
-              <CalendarRange className="w-4 h-4" />
-              + Fechamento em Lote / Semanal
+              <CalendarRange className="w-3.5 h-3.5 text-amber-500" />
+              <span>Fechamento Semanal</span>
             </button>
           </div>
         </div>
@@ -1089,78 +1136,78 @@ export default function GestaoCaixaContasPage() {
               + Adicionar Conta
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+          <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-2xl" : accounts.length === 2 ? "lg:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
             {accounts.map((acc) => {
               const entradas = Number(acc.entradasAno || 0);
               const saidas = Number(acc.saidasAno || 0);
               const balanco = Number(acc.balancoAno ?? (entradas - saidas));
               const isSelected = extratoAccountFilter === acc.id;
+              const walletTypeLabel = acc.walletType === "CONTA_CORRENTE" ? "Conta Corrente" : (acc.walletType === "DEBITO" ? "Débito" : "Conta");
 
               return (
                 <div
                   key={acc.id}
                   onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : acc.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col sm:flex-row items-stretch justify-between gap-4 ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-3.5 ${
                     isSelected
                       ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
-                      : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                      : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
                   }`}
                 >
-                  {/* Lado Esquerdo: Identificação e Saldo Atual */}
-                  <div className="flex-1 flex flex-col justify-between min-w-0">
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
-                            <Building2 className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
-                            {acc.bankName}
-                          </span>
-                        </div>
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 uppercase shrink-0">
-                          {acc.walletType === "CONTA_CORRENTE" ? "CC" : "Conta"}
-                        </span>
+                  {/* Topo do Card: Identificação completa sem truncamento prematuro */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
+                        <Building2 className="w-4 h-4" />
                       </div>
-                      <div className="mt-2.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                          Saldo Real em Conta
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                          {acc.bankName}
                         </span>
-                        <p className={`text-lg sm:text-xl font-black tabular-nums ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
-                          {brl(acc.saldoAtual)}
-                        </p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase shrink-0">
+                          {walletTypeLabel}
+                        </span>
                       </div>
                     </div>
-                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium mt-2 block">
-                      {isSelected ? "✓ Filtrando extrato" : "Clique p/ filtrar extrato"}
+                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
+                      {isSelected ? "✓ Filtrando extrato" : "Clique p/ filtrar"}
                     </span>
                   </div>
 
-                  {/* Lado Direito: Subtotais Anuais da Conta Específica */}
-                  <div className="sm:w-60 shrink-0 pt-3 sm:pt-0 sm:pl-4 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800 flex flex-col justify-center gap-1.5 text-xs">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <TrendingUp className="w-3 h-3 text-emerald-500" /> Entradas acumuladas:
+                  {/* Conteúdo: Saldo Real e Métricas da Conta */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                        Saldo Real Disponível
                       </span>
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                        +{brl(entradas)}
-                      </span>
+                      <p className={`text-xl sm:text-2xl font-black tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
+                        {brl(acc.saldoAtual)}
+                      </p>
                     </div>
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <TrendingDown className="w-3 h-3 text-rose-500" /> Saídas acumuladas:
-                      </span>
-                      <span className="font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-                        -{brl(saidas)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-800/60 font-semibold">
-                      <span className="text-slate-600 dark:text-slate-300">
-                        Balanço da conta:
-                      </span>
-                      <span className={`font-black tabular-nums ${balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                        {balanco >= 0 ? `+${brl(balanco)}` : `-${brl(Math.abs(balanco))}`}
-                      </span>
+
+                    <div className="flex flex-col gap-1 text-xs sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800/50">
+                      <div className="flex items-center sm:justify-end gap-2 text-[11px]">
+                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <TrendingUp className="w-3 h-3 text-emerald-500" /> Entradas:
+                        </span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                          +{brl(entradas)}
+                        </span>
+                      </div>
+                      <div className="flex items-center sm:justify-end gap-2 text-[11px]">
+                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <TrendingDown className="w-3 h-3 text-rose-500" /> Saídas:
+                        </span>
+                        <span className="font-bold text-rose-600 dark:text-rose-400 tabular-nums">
+                          -{brl(saidas)}
+                        </span>
+                      </div>
+                      <div className="flex items-center sm:justify-end gap-2 text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800/60 font-semibold">
+                        <span className="text-slate-600 dark:text-slate-300">Balanço:</span>
+                        <span className={`font-black tabular-nums ${balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {balanco >= 0 ? `+${brl(balanco)}` : `-${brl(Math.abs(balanco))}`}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1242,20 +1289,61 @@ export default function GestaoCaixaContasPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full xl:w-auto">
-              {/* ── 1. Seletor de Competência / Período ── */}
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                <div className="relative flex-1 sm:flex-initial">
+            <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 w-full xl:w-auto">
+              {/* ── 1. Atalhos Rápidos & Seletor de Competência / Período ── */}
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 w-full sm:w-auto">
+                {/* Botões Rápidos em Pílula */}
+                <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setAgendaPeriodFilter("CURRENT_MONTH")}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                      agendaPeriodFilter === "CURRENT_MONTH"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title={`Ver pendências do mês atual (${currentPeriodLabel})`}
+                  >
+                    Mês Atual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgendaPeriodFilter("NEXT_MONTH")}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                      agendaPeriodFilter === "NEXT_MONTH"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title={`Ver pendências do próximo mês (${nextPeriodLabel})`}
+                  >
+                    Próximo Mês
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAgendaPeriodFilter("ALL")}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                      agendaPeriodFilter === "ALL"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title={`Ver todas as pendências de ${selectedYear}`}
+                  >
+                    Todas ({selectedYear})
+                  </button>
+                </div>
+
+                {/* Dropdown Seletor Avançado / Personalizado */}
+                <div className="relative">
                   <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
                   <select
                     value={agendaPeriodFilter}
                     onChange={(e) => setAgendaPeriodFilter(e.target.value as AgendaPeriodFilter)}
                     className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
                   >
-                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
                     <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
                     <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
-                    <option value="CUSTOM">Outros meses / Filtro personalizado</option>
+                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
+                    <option value="CUSTOM">Outro mês personalizado...</option>
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
@@ -1359,177 +1447,229 @@ export default function GestaoCaixaContasPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredPendingCommitments.map((item) => {
+                  filteredPendingCommitments.map((item, index) => {
                     const isSelected = selectedCommitmentIds.includes(item.id);
+                    const isCritico = checkIsVencimentoCritico(item);
+
+                    // Agrupamento visual por mês quando visualizando todas as pendências
+                    const parts = getItemDueDateParts(item);
+                    const currentMonthKey = parts ? `${parts.year}-${String(parts.month).padStart(2, "0")}` : "sem-data";
+                    const prevParts = index > 0 ? getItemDueDateParts(filteredPendingCommitments[index - 1]) : null;
+                    const prevMonthKey = prevParts ? `${prevParts.year}-${String(prevParts.month).padStart(2, "0")}` : null;
+                    const isNewMonth = agendaPeriodFilter === "ALL" && (index === 0 || currentMonthKey !== prevMonthKey);
+                    const monthInfo = isNewMonth ? monthlyTotalsMap.get(currentMonthKey) : null;
+
                     return (
-                      <tr
-                        key={item.id}
-                        className={`transition-colors group ${
-                          isSelected
-                            ? "bg-amber-50/60 dark:bg-amber-950/30"
-                            : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-                        }`}
-                      >
-                        <td className="py-2.5 px-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedCommitmentIds((prev) => [...prev, item.id]);
-                              } else {
-                                setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
-                              }
-                            }}
-                            className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                          />
-                        </td>
-
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                              {item.dueDateFormatted}
-                            </span>
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold border ${item.dueBadge?.color || "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                                {item.dueBadge?.label || "A Vencer"}
-                              </span>
-                              {(item.competenciaLabel || item.competenciaShort) && (
-                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70">
-                                  Ref: {item.competenciaLabel || item.competenciaShort}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-2.5 px-3 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              item.tipo === "FATURA_CARTAO"
-                                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                                : item.tipo === "ASSINATURA"
-                                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                                : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                            }`}>
-                              {item.tipo === "FATURA_CARTAO" ? (
-                                <CreditCard className="w-3 h-3" />
-                              ) : item.tipo === "ASSINATURA" ? (
-                                <Zap className="w-3 h-3" />
-                              ) : (
-                                <Receipt className="w-3 h-3" />
-                              )}
-                            </div>
-                            <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[220px]">
-                              {item.description}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="py-2.5 px-2 whitespace-nowrap">
-                          {item.tipo === "FATURA_CARTAO" ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
-                              Fatura de Cartão
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                              {item.tipoLabel || "Boleto"}
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
-                          {brl(item.amount)}
-                        </td>
-
-                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                            Pendente
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleOpenBaixaModal(item)}
-                              className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer"
-                              title="Pagar conta e lançar no extrato"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Pagar / Baixar</span>
-                            </button>
-
-                            {/* Menu 3 Pontos */}
-                            <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                              <button
-                                type="button"
-                                onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
-                                className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                              >
-                                <MoreVertical className="w-3.5 h-3.5" />
-                              </button>
-                              {activeActionMenuId === item.id && (
-                                <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                                  {item.isCardInvoice ? (
-                                    <Link
-                                      href={`/cartoes/${item.cardWalletId || item.walletId}`}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <CreditCard className="w-3.5 h-3.5" />
-                                      <span>Ver Fatura no Cartão</span>
-                                    </Link>
-                                  ) : (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveActionMenuId(null);
-                                          setEditItem(item);
-                                          setEditDesc(item.description);
-                                          setEditAmount(String(item.amount));
-                                          setEditDueDate(item.dueDate ? item.dueDate.split("T")[0] : "");
-                                          setEditTipo(item.tipo || "BOLETO");
-                                          setEditRecorrencia(item.recorrencia || "MENSAL");
-                                          setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
-                                          setEditCompYear(item.competenceYear || selectedYear);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                      >
-                                        <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                                        <span>Editar</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={duplicatingId === item.id}
-                                        onClick={() => {
-                                          setActiveActionMenuId(null);
-                                          handleDuplicateToNextMonth(item);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                      >
-                                        <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
-                                        <span>Repetir no próximo mês</span>
-                                      </button>
-                                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveActionMenuId(null);
-                                          setItemToDelete(item);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                        <span>Excluir</span>
-                                      </button>
-                                    </>
-                                  )}
+                      <React.Fragment key={item.id}>
+                        {isNewMonth && (
+                          <tr className="bg-slate-100/90 dark:bg-slate-800/80 border-y border-slate-200/80 dark:border-slate-700/80">
+                            <td colSpan={7} className="py-2.5 px-3">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm">📅</span>
+                                  <span className="font-extrabold uppercase tracking-wide text-[11px] text-slate-800 dark:text-slate-100">
+                                    {monthInfo?.label || "Compromissos"}
+                                  </span>
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200/90 dark:bg-slate-700/90 font-bold text-slate-600 dark:text-slate-300">
+                                    {monthInfo?.count || 1} {monthInfo?.count === 1 ? "conta pendente" : "contas pendentes"}
+                                  </span>
                                 </div>
-                              )}
+                                <div className="font-mono text-xs font-black text-amber-700 dark:text-amber-400">
+                                  Subtotal do Mês: {brl(monthInfo?.total || 0)}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        <tr
+                          className={`transition-colors group ${
+                            isSelected
+                              ? "bg-amber-50/60 dark:bg-amber-950/30"
+                              : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                          }`}
+                        >
+                          <td className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedCommitmentIds((prev) => [...prev, item.id]);
+                                } else {
+                                  setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                            />
+                          </td>
+
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                {item.dueDateFormatted}
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {isCritico ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${item.dueBadge?.color || "bg-amber-500/15 text-amber-700 border-amber-500/30"}`}>
+                                    {item.dueBadge?.label || "Urgente"}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                    {item.dueBadge?.label || "A Vencer"}
+                                  </span>
+                                )}
+                                {(item.competenciaLabel || item.competenciaShort) && (
+                                  <span
+                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70"
+                                    title="Mês de Competência / Consumo de referência"
+                                  >
+                                    Ref: {item.competenciaLabel || item.competenciaShort}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+
+                          <td className="py-2.5 px-3 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                                item.tipo === "FATURA_CARTAO"
+                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                                  : item.tipo === "ASSINATURA"
+                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                              }`}>
+                                {item.tipo === "FATURA_CARTAO" ? (
+                                  <CreditCard className="w-3 h-3" />
+                                ) : item.tipo === "ASSINATURA" ? (
+                                  <Zap className="w-3 h-3" />
+                                ) : (
+                                  <Receipt className="w-3 h-3" />
+                                )}
+                              </div>
+                              <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[220px]">
+                                {item.description}
+                              </span>
+                            </div>
+                          </td>
+
+                          <td className="py-2.5 px-2 whitespace-nowrap">
+                            {item.tipo === "FATURA_CARTAO" ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
+                                Fatura de Cartão
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                {item.tipoLabel || "Boleto"}
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
+                            {brl(item.amount)}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
+                              Pendente
+                            </span>
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isCritico ? (
+                                <button
+                                  onClick={() => handleOpenBaixaModal(item)}
+                                  className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer"
+                                  title="Pagar conta e lançar no extrato"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                  <span>Pagar / Baixar</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleOpenBaixaModal(item)}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                                  title="Liquidar antecipadamente ou dar baixa"
+                                >
+                                  <Check className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                                  <span>Baixar</span>
+                                </button>
+                              )}
+
+                              {/* Menu 3 Pontos */}
+                              <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
+                                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
+                                >
+                                  <MoreVertical className="w-3.5 h-3.5" />
+                                </button>
+                                {activeActionMenuId === item.id && (
+                                  <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                                    {item.isCardInvoice ? (
+                                      <Link
+                                        href={`/cartoes/${item.cardWalletId || item.walletId}`}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
+                                      >
+                                        <CreditCard className="w-3.5 h-3.5" />
+                                        <span>Ver Fatura no Cartão</span>
+                                      </Link>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveActionMenuId(null);
+                                            setEditItem(item);
+                                            setEditDesc(item.description);
+                                            setEditAmount(String(item.amount));
+                                            setEditDueDate(item.dueDate ? item.dueDate.split("T")[0] : "");
+                                            setEditTipo(item.tipo || "BOLETO");
+                                            setEditRecorrencia(item.recorrencia || "MENSAL");
+                                            setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
+                                            setEditCompYear(item.competenceYear || selectedYear);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                          <span>Editar</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={duplicatingId === item.id}
+                                          onClick={() => {
+                                            setActiveActionMenuId(null);
+                                            handleDuplicateToNextMonth(item);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                        >
+                                          <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                                          <span>Repetir no próximo mês</span>
+                                        </button>
+                                        <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActiveActionMenuId(null);
+                                            setItemToDelete(item);
+                                          }}
+                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                          <span>Excluir</span>
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -2576,7 +2716,7 @@ export default function GestaoCaixaContasPage() {
                         <span className={`font-black tabular-nums ${hasSaldo ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                           {brl(saldoPosDebito)}
                         </span>
-                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded ${hasSaldo ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400" : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400"}`}>
+                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${hasSaldo ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400" : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400"}`}>
                           {hasSaldo ? "✓ Cobre" : "⚠ Negativo"}
                         </span>
                       </div>
