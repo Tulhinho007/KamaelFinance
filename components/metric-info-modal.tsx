@@ -85,18 +85,17 @@ export function MetricInfoModal({
 
       case "TOTAL_GASTO":
         return {
-          title: "Total Gasto Consolidado",
-          badge: "Saídas do Mês",
+          title: "Total de Despesas Efetivadas",
+          badge: "Saídas do Período",
           badgeColor: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
           icon: ArrowDownRight,
           iconBg: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
-          description: "Visão consolidada de todas as saídas do período: faturas de cartão de crédito somadas aos débitos e PIX em conta corrente.",
+          description: "Saídas efetivamente debitadas da conta bancária (incluindo pagamentos de faturas de cartão já liquidados na conta).",
           equationSteps: [
-            { label: "Cartão de Crédito (Fatura)", value: brl(dashboardData?.totalCreditExpenses || 0), isNegative: true },
-            { label: "Débito / PIX (Conta Corrente)", value: brl(dashboardData?.totalDebitExpenses || 0), isNegative: true },
-            { label: "(=) Total Gasto Consolidado", value: brl(totGasto), isBold: true, highlight: "rose" },
+            { label: "Saídas liquidadas (conta + faturas pagas)", value: brl(totGasto), isNegative: true },
+            { label: "(=) Total de Despesas Efetivadas", value: brl(totGasto), isBold: true, highlight: "rose" },
           ],
-          auditNote: "Combina as compras de cartão e pagamentos em conta corrente para uma visão fiel do seu consumo total."
+          auditNote: "Compras de cartão de crédito pendentes/em aberto só contam como despesa quando a fatura é liquidada/paga na conta corrente."
         };
 
       case "BALANCO_GERAL":

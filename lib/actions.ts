@@ -7025,22 +7025,15 @@ export async function getDashboardOverviewData(
         // Despesas lançadas em cartão de crédito no período
         totalCreditExpenses += amt;
       } else if (!isBenefit) {
-        // Despesas em conta corrente / débito / PIX
-        const isInvoicePayment = isInvoicePaymentTransaction(t);
-        if (isInvoicePayment) {
+        // Regime de Caixa Efetivado: saídas efetivamente debitadas da conta bancária
+        // (inclui pagamentos de fatura de cartão liquidados na conta)
+        totalDebitExpenses += amt;
+        if (isInvoicePaymentTransaction(t)) {
           totalInvoicePayments += amt;
-        } else {
-          totalDebitExpenses += amt;
         }
       }
     }
   });
-
-  // Se houver despesas registradas diretamente no cartão de crédito, o pagamento da fatura na conta é ignorado para não duplicar.
-  // Caso contrário (ex: usuário lança apenas o pagamento consolidado da fatura na conta), computa como despesa de débito.
-  if (totalCreditExpenses === 0 && totalInvoicePayments > 0) {
-    totalDebitExpenses += totalInvoicePayments;
-  }
 
   // Se estiver em modo mensal e os cartões tiverem cálculo consolidado de fatura via cards overview
   if (month) {
@@ -7055,7 +7048,11 @@ export async function getDashboardOverviewData(
   totalReceitas = Math.max(0, Math.round(totalReceitas * 100) / 100);
   totalCreditExpenses = Math.max(0, Math.round(totalCreditExpenses * 100) / 100);
   totalDebitExpenses = Math.max(0, Math.round(totalDebitExpenses * 100) / 100);
-  const totalGastos = Math.round((totalCreditExpenses + totalDebitExpenses) * 100) / 100;
+
+  // REGIME DE CAIXA EFETIVADO:
+  // Considera APENAS saídas efetivamente debitadas da conta bancária (incluindo faturas pagas).
+  // Compras/faturas de cartão pendentes não entram no total consolidado para garantir consistência com o saldo em conta.
+  const totalGastos = totalDebitExpenses;
   const balanco = Math.round((totalReceitas - totalGastos) * 100) / 100;
 
   // Metas Globais (Média ponderada ou percentual acumulado sobre objetivos ativos)
@@ -7065,12 +7062,13 @@ export async function getDashboardOverviewData(
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
   // 2. Breakdown de Gastos por Categoria no Período Filtrado
-  // Inclui despesas em cartão de crédito e contas/débito já realizadas, excluindo pagamentos duplicados de fatura
+  // Alinhado ao Regime de Caixa Efetivado: saídas liquidadas na conta bancária
   const monthExpenses = rangeTransactions.filter((e) => {
     if (e.type !== "EXPENSE") return false;
     const isRealized = e.status === "COMPLETED" || e.status === "PAID";
     if (!isRealized) return false;
-    if (isInvoicePaymentTransaction(e) && totalCreditExpenses > 0) return false;
+    const wType = (e.wallet?.walletType || "").toUpperCase();
+    if (wType === "CREDIT_CARD" || ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
     return true;
   });
 
@@ -7152,7 +7150,14 @@ export async function getDashboardOverviewData(
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const mExp = mTx
-        .filter((t) => t.type === "EXPENSE" && !isInvoicePaymentTransaction(t))
+        .filter((t) => {
+          if (t.type !== "EXPENSE") return false;
+          const isRealized = t.status === "COMPLETED" || t.status === "PAID";
+          if (!isRealized) return false;
+          const wType = (t.wallet?.walletType || "").toUpperCase();
+          if (wType === "CREDIT_CARD" || ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+          return true;
+        })
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       historyMonths.push({
@@ -7186,7 +7191,14 @@ export async function getDashboardOverviewData(
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const mExp = mTx
-        .filter((t) => t.type === "EXPENSE" && (t.status === "COMPLETED" || t.status === "PAID") && !isInvoicePaymentTransaction(t))
+        .filter((t) => {
+          if (t.type !== "EXPENSE") return false;
+          const isRealized = t.status === "COMPLETED" || t.status === "PAID";
+          if (!isRealized) return false;
+          const wType = (t.wallet?.walletType || "").toUpperCase();
+          if (wType === "CREDIT_CARD" || ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+          return true;
+        })
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       historyMonths.push({

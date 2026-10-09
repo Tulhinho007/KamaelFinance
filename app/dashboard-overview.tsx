@@ -542,7 +542,7 @@ export function DashboardOverview() {
             <MetricKpiCard
               label={`Despesas (${selectedDashboardYear})`}
               value={`-${brl(totalGastosAno)}`}
-              subtext="Despesas efetivadas (conta + cartão) no ano"
+              subtext="Saídas liquidadas (conta + faturas pagas)"
               variant="danger"
               icon={TrendingDown}
               badge={{ text: "Despesas", variant: "danger" }}
