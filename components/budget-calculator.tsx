@@ -150,7 +150,12 @@ export function BudgetCalculator() {
   const [income, setIncome] = useState<number>(0);
   const [incomeInput, setIncomeInput] = useState<string>("");
   const [suggestedIncome, setSuggestedIncome] = useState<number>(0);
-  const [isSimulatingReal, setIsSimulatingReal] = useState<boolean>(true);
+  const [systemTotalExpenses, setSystemTotalExpenses] = useState<number>(0);
+  const [systemBalance, setSystemBalance] = useState<number>(0);
+  const [realNecessidades, setRealNecessidades] = useState<number>(0);
+  const [realDesejos, setRealDesejos] = useState<number>(0);
+  const [realReserva, setRealReserva] = useState<number>(0);
+  const [isSimulatingReal, setIsSimulatingReal] = useState<boolean>(false);
   const [isLoadingRealData, setIsLoadingRealData] = useState<boolean>(true);
 
   // Sliders customizados
@@ -158,32 +163,26 @@ export function BudgetCalculator() {
   const [customDesejos, setCustomDesejos] = useState<number>(30);
   const [customReserva, setCustomReserva] = useState<number>(20);
 
-  // Gastos Reais Atuais (iniciam em branco "" para edição livre, sem mocks)
+  // Gastos Reais Atuais nos Pilares (iniciam vazios para preenchimento manual ou via botão do sistema)
   const [actualNecessidadesInput, setActualNecessidadesInput] = useState<string>("");
   const [actualDesejosInput, setActualDesejosInput] = useState<string>("");
   const [actualReservaInput, setActualReservaInput] = useState<string>("");
 
-  // Carrega dados reais do banco de dados (mês corrente) ao montar
+  // Carrega dados consolidados do banco de dados (Dashboard 2026) ao montar
   useEffect(() => {
     let isMounted = true;
     async function loadRealData() {
       try {
         setIsLoadingRealData(true);
-        const res = await getRealBudgetPillarsDataAction();
+        const res = await getRealBudgetPillarsDataAction({ year: 2026, month: null });
         if (!isMounted) return;
         if (res && res.success) {
-          if (res.realIncome > 0) {
-            setSuggestedIncome(res.realIncome);
-          }
-          if (res.actualNecessidades > 0) {
-            setActualNecessidadesInput(res.actualNecessidades.toString());
-          }
-          if (res.actualDesejos > 0) {
-            setActualDesejosInput(res.actualDesejos.toString());
-          }
-          if (res.actualReserva > 0) {
-            setActualReservaInput(res.actualReserva.toString());
-          }
+          setSuggestedIncome(res.realIncome);
+          setSystemTotalExpenses(res.totalExpenses);
+          setSystemBalance(res.realIncome - res.totalExpenses);
+          setRealNecessidades(res.actualNecessidades);
+          setRealDesejos(res.actualDesejos);
+          setRealReserva(res.actualReserva);
         }
       } catch (err) {
         console.error("Erro ao carregar dados orçamentários reais:", err);
@@ -196,6 +195,29 @@ export function BudgetCalculator() {
       isMounted = false;
     };
   }, []);
+
+  // Funções de ação rápida para alternar entre dados do sistema e simulação livre
+  const handleApplySystemData = () => {
+    if (suggestedIncome > 0) {
+      setIncome(suggestedIncome);
+      setIncomeInput(suggestedIncome.toString());
+    }
+    if (realNecessidades > 0 || realDesejos > 0 || realReserva > 0) {
+      setActualNecessidadesInput(realNecessidades > 0 ? realNecessidades.toFixed(2) : "");
+      setActualDesejosInput(realDesejos > 0 ? realDesejos.toFixed(2) : "");
+      setActualReservaInput(realReserva > 0 ? realReserva.toFixed(2) : "");
+    }
+    setIsSimulatingReal(true);
+  };
+
+  const handleClearFields = () => {
+    setIncome(0);
+    setIncomeInput("");
+    setActualNecessidadesInput("");
+    setActualDesejosInput("");
+    setActualReservaInput("");
+    setIsSimulatingReal(false);
+  };
 
   // Valores numéricos derivados dos inputs reais
   const actualNecessidades = parseFloat(actualNecessidadesInput.replace(",", ".")) || 0;
@@ -327,7 +349,7 @@ export function BudgetCalculator() {
             Guia Orçamentário
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
-            Definição de tetos de gastos, limites por categoria e projeções de orçamento.
+            Definição de tetos de gastos, limites por categoria e projeções de orçamento integradas ao Dashboard.
           </p>
         </div>
 
@@ -342,6 +364,47 @@ export function BudgetCalculator() {
               {pcts.necessidades}% / {pcts.desejos}% / {pcts.reserva}%
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── BANNER DE SINCRONIZAÇÃO EM TEMPO REAL COM O DASHBOARD (2026) ──── */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950 text-white rounded-3xl p-5 border border-indigo-500/20 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+            <RefreshCw className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-black tracking-widest text-indigo-400">
+                Sincronizado com o Dashboard (Exercício 2026)
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-300 mt-1 font-tnum">
+              <span>Receitas Anuais: <strong className="text-emerald-400">{formatBRL(suggestedIncome)}</strong></span>
+              <span className="text-slate-600 hidden sm:inline">|</span>
+              <span>Saídas Consolidadas: <strong className="text-rose-400">- {formatBRL(systemTotalExpenses)}</strong></span>
+              <span className="text-slate-600 hidden sm:inline">|</span>
+              <span>Resultado Líquido: <strong className="text-rose-400">{formatBRL(systemBalance)}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+          <button
+            type="button"
+            onClick={handleApplySystemData}
+            className="text-xs font-bold px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-colors cursor-pointer shadow-xs"
+          >
+            Aplicar Dados Reais
+          </button>
+          <button
+            type="button"
+            onClick={handleClearFields}
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-slate-300 transition-colors cursor-pointer"
+          >
+            Limpar / Manual
+          </button>
         </div>
       </div>
 

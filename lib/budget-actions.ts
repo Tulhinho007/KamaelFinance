@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "./prisma";
-import { getActiveUserId } from "./actions";
+import { getActiveUserId, getDashboardOverviewData } from "./actions";
 import { CATEGORIES, getCategoryColor } from "@/constants/categories";
 import { revalidatePath } from "next/cache";
 
@@ -352,7 +352,10 @@ export async function batchUpdateCategoryBudgetsAction({
 
 export type RealBudgetPillarsData = {
   success: boolean;
+  year: number;
+  month: number | null;
   realIncome: number;
+  totalExpenses: number;
   actualNecessidades: number;
   actualDesejos: number;
   actualReserva: number;
@@ -360,52 +363,34 @@ export type RealBudgetPillarsData = {
 };
 
 export async function getRealBudgetPillarsDataAction(params?: {
-  month?: number;
+  month?: number | null;
   year?: number;
 }): Promise<RealBudgetPillarsData> {
   try {
-    const userId = await getActiveUserId();
-    const now = new Date();
-    const month = params?.month || (now.getMonth() + 1);
-    const year = params?.year || now.getFullYear();
+    const targetYear = params?.year || 2026;
+    const targetMonth = params?.month !== undefined ? params?.month : null;
 
-    const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-    const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+    // Busca o overview consolidado diretamente da engine oficial do Dashboard
+    const overview = await getDashboardOverviewData(targetYear, targetMonth);
 
-    // 1. Buscar transações do usuário no mês
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        deletedAt: null,
-        date: { gte: startDate, lte: endDate },
-        wallet: { userId },
-      },
-      include: {
-        category: true,
-        wallet: true,
-      },
-    });
+    let realIncome = Number(overview.totalReceitas || 0);
+    let totalExpenses = Number(overview.totalGastos || 0);
+    let creditExpenses = Number(overview.totalCreditExpenses || 0);
+    let debitExpenses = Number(overview.totalDebitExpenses || 0);
 
-    // 2. Renda real (INCOME) do mês
-    const incomeTransactions = transactions.filter((t) => t.type === "INCOME");
-    const realIncome = incomeTransactions.reduce((acc, t) => acc + Number(t.amount || 0), 0);
-
-    // 3. Despesas (EXPENSE), excluindo pagamento de fatura
-    const expenseTransactions = transactions.filter((t) => {
-      if (t.type !== "EXPENSE") return false;
-      const catName = (t.category?.name || "").toLowerCase();
-      const desc = t.description.toLowerCase();
-      const tags = (t.tags || "").toLowerCase();
-      if (
-        catName.includes("pagamento de fatura") ||
-        tags.includes("pagamentodefatura") ||
-        desc.includes("pagamento fatura")
-      ) {
-        return false;
+    // Se o mês selecionado não tiver lançamentos, mas o ano 2026 tiver, recorre aos dados consolidados anuais
+    if (realIncome === 0 && totalExpenses === 0 && targetMonth !== null) {
+      const yearOverview = await getDashboardOverviewData(targetYear, null);
+      if (Number(yearOverview.totalReceitas || 0) > 0 || Number(yearOverview.totalGastos || 0) > 0) {
+        realIncome = Number(yearOverview.totalReceitas || 0);
+        totalExpenses = Number(yearOverview.totalGastos || 0);
+        creditExpenses = Number(yearOverview.totalCreditExpenses || 0);
+        debitExpenses = Number(yearOverview.totalDebitExpenses || 0);
+        overview.categoryBreakdown = yearOverview.categoryBreakdown;
+        overview.goals = yearOverview.goals;
       }
-      return true;
-    });
+    }
 
-    // Categorias Essenciais / Necessidades
     const essentialCategories = new Set([
       "casa",
       "serviços & contas fixas",
@@ -425,7 +410,6 @@ export async function getRealBudgetPillarsDataAction(params?: {
       "farmácia"
     ]);
 
-    // Categorias de Investimento
     const investmentCategories = new Set([
       "investimentos & aportes",
       "investimentos",
@@ -438,67 +422,61 @@ export async function getRealBudgetPillarsDataAction(params?: {
     let actualDesejos = 0;
     let actualReserva = 0;
 
-    for (const t of expenseTransactions) {
-      const catName = (t.category?.name || "").toLowerCase().trim();
-      const isCredit = t.paymentMethod === "CREDITO" || t.wallet?.walletType === "CREDITO";
-      const amount = Number(t.amount || 0);
+    if (overview.categoryBreakdown && overview.categoryBreakdown.length > 0) {
+      for (const cat of overview.categoryBreakdown) {
+        if (!cat.name || cat.name === "Sem gastos") continue;
+        const nameLower = cat.name.toLowerCase().trim();
+        const amt = Number(cat.total || 0);
+        if (amt <= 0) continue;
 
-      if (investmentCategories.has(catName)) {
-        actualReserva += amount;
-      } else if (essentialCategories.has(catName) && !isCredit) {
-        // Despesa essencial fixa de conta/boleto
-        actualNecessidades += amount;
-      } else if (isCredit) {
-        // Despesas de cartão de crédito vão para desejos & estilo de vida
-        actualDesejos += amount;
-      } else if (essentialCategories.has(catName)) {
-        actualNecessidades += amount;
-      } else {
-        // Qualquer outra despesa variável (lazer, delivery, compras)
-        actualDesejos += amount;
+        if (investmentCategories.has(nameLower)) {
+          actualReserva += amt;
+        } else if (essentialCategories.has(nameLower)) {
+          actualNecessidades += amt;
+        } else {
+          actualDesejos += amt;
+        }
       }
     }
 
-    // 4. Buscar aportes no Módulo de Investimentos (transações de compra no mês)
-    try {
-      const varTx = await prisma.variableTransaction.findMany({
-        where: {
-          tipo: "COMPRA",
-          data: { gte: startDate, lte: endDate },
-        },
-      });
-      for (const vt of varTx) {
-        actualReserva += (Number(vt.quantidade) * Number(vt.precoUnitario)) + Number(vt.taxas || 0);
+    // Se a soma não bater com totalExpenses, equilibra pelos meios de pagamento (débito=essenciais, crédito=desejos)
+    const currentSum = actualNecessidades + actualDesejos;
+    if (totalExpenses > 0 && Math.abs(currentSum - totalExpenses) > 0.05) {
+      if (actualNecessidades === 0 && actualDesejos === 0) {
+        actualNecessidades = debitExpenses;
+        actualDesejos = creditExpenses;
+      } else if (currentSum < totalExpenses) {
+        actualDesejos += (totalExpenses - currentSum);
       }
-
-      const cryptoTx = await prisma.cryptoTransaction.findMany({
-        where: {
-          tipo: "COMPRA",
-          data: { gte: startDate, lte: endDate },
-        },
-      });
-      for (const ct of cryptoTx) {
-        actualReserva += (Number(ct.quantidade) * Number(ct.precoUnitario)) + Number(ct.taxas || 0);
-      }
-    } catch {
-      // Ignora se não houver dados de variáveis/cripto
     }
 
-    const hasRealExpenses = (actualNecessidades + actualDesejos + actualReserva) > 0;
+    // Aportes de metas ou investimentos
+    if (overview.goals && overview.goals.length > 0) {
+      const goalsAccum = overview.goals.reduce((s: number, g: any) => s + Number(g.acumulado || 0), 0);
+      if (goalsAccum > 0 && actualReserva === 0) {
+        actualReserva = goalsAccum;
+      }
+    }
 
     return {
       success: true,
+      year: targetYear,
+      month: targetMonth,
       realIncome: Math.round(realIncome * 100) / 100,
+      totalExpenses: Math.round(totalExpenses * 100) / 100,
       actualNecessidades: Math.round(actualNecessidades * 100) / 100,
       actualDesejos: Math.round(actualDesejos * 100) / 100,
       actualReserva: Math.round(actualReserva * 100) / 100,
-      hasRealExpenses,
+      hasRealExpenses: totalExpenses > 0,
     };
   } catch (error) {
     console.error("Erro ao carregar dados reais dos pilares do orçamento:", error);
     return {
       success: false,
+      year: 2026,
+      month: null,
       realIncome: 0,
+      totalExpenses: 0,
       actualNecessidades: 0,
       actualDesejos: 0,
       actualReserva: 0,

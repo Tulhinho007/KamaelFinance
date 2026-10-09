@@ -36,24 +36,75 @@ function isInvoicePaymentTransaction(t: {
   category?: { name?: string | null } | null;
   description?: string | null;
   tags?: string | null;
+  source?: string | null;
 }): boolean {
-  if (t.category?.name && t.category.name.toLowerCase().includes("pagamento de fatura")) {
+  if (t.source === "INVOICE_PAYMENT") return true;
+
+  const catName = (t.category?.name || "").toLowerCase().trim();
+  if (
+    catName.includes("pagamento de fatura") ||
+    catName.includes("pagamento fatura") ||
+    catName.includes("fatura de cartão") ||
+    catName.includes("fatura do cartão") ||
+    catName.includes("fatura de cartao") ||
+    catName.includes("fatura do cartao") ||
+    catName.includes("fatura cartão") ||
+    catName.includes("fatura cartao") ||
+    catName === "fatura" ||
+    catName === "faturas" ||
+    catName === "cartão de crédito" ||
+    catName === "cartao de credito"
+  ) {
     return true;
   }
-  if (t.tags && t.tags.toLowerCase().includes("pagamentodefatura")) {
+
+  const tags = (t.tags || "").toLowerCase();
+  if (
+    tags.includes("pagamentodefatura") ||
+    tags.includes("pagamento_fatura") ||
+    tags.includes("fatura_cartao") ||
+    tags.includes("#fatura") ||
+    tags.includes("fatura")
+  ) {
     return true;
   }
+
   if (t.description) {
-    const descLower = t.description.toLowerCase();
+    const desc = t.description.toLowerCase().trim();
     if (
-      descLower.includes("pagamento fatura") ||
-      descLower.includes("pagamento de fatura") ||
-      descLower.includes("quitação fatura") ||
-      descLower.includes("quitacao fatura")
+      desc.includes("pagamento fatura") ||
+      desc.includes("pagamento de fatura") ||
+      desc.includes("pgto fatura") ||
+      desc.includes("pgto de fatura") ||
+      desc.includes("pgt fatura") ||
+      desc.includes("quitação fatura") ||
+      desc.includes("quitacao fatura") ||
+      desc.includes("quitação de fatura") ||
+      desc.includes("quitacao de fatura") ||
+      desc.includes("liquidação fatura") ||
+      desc.includes("liquidacao fatura") ||
+      desc.includes("fatura cartão") ||
+      desc.includes("fatura cartao") ||
+      desc.includes("fatura de cartão") ||
+      desc.includes("fatura do cartão") ||
+      desc.includes("pagamento cartão") ||
+      desc.includes("pagamento cartao") ||
+      desc.includes("pagamento do cartão") ||
+      desc.includes("pagamento do cartao") ||
+      desc.includes("pgto cartão") ||
+      desc.includes("pgto cartao")
     ) {
       return true;
     }
+
+    if (/^fatura\s+(nubank|ita[uú]|inter|c6|bradesco|santander|xp|btg|neon|digio|next|will|ourocard|credicard|caixa|brasil|pan)/i.test(desc)) {
+      return true;
+    }
+    if (/^(pagamento|pgto|quitação|quitacao)\s+(fatura\s+)?(nubank|ita[uú]|inter|c6|bradesco|santander|xp|btg|neon|digio|next|will|ourocard|credicard|caixa|brasil|pan)/i.test(desc)) {
+      return true;
+    }
   }
+
   return false;
 }
 
@@ -6958,6 +7009,7 @@ export async function getDashboardOverviewData(
   let totalReceitas = 0;
   let totalCreditExpenses = 0;
   let totalDebitExpenses = 0;
+  let totalInvoicePayments = 0;
 
   rangeTransactions.forEach((t) => {
     const amt = Number(t.amount || 0);
@@ -6973,17 +7025,30 @@ export async function getDashboardOverviewData(
         totalReceitas += amt;
       }
     } else if (t.type === "EXPENSE") {
+      // APENAS despesas efetivadas (consolidadas) são consideradas no ano/período
+      // Despesas com status PENDING / futuras não devem inflar as saídas consolidadas
+      if (!isRealized) return;
+
       if (isCredit) {
         // Despesas lançadas em cartão de crédito no período
         totalCreditExpenses += amt;
       } else if (!isBenefit) {
-        // Despesas em conta corrente / débito / PIX (exclui pagamento de fatura para não duplicar com despesas de crédito)
-        if (!isInvoicePaymentTransaction(t)) {
+        // Despesas em conta corrente / débito / PIX
+        const isInvoicePayment = isInvoicePaymentTransaction(t);
+        if (isInvoicePayment) {
+          totalInvoicePayments += amt;
+        } else {
           totalDebitExpenses += amt;
         }
       }
     }
   });
+
+  // Se houver despesas registradas diretamente no cartão de crédito, o pagamento da fatura na conta é ignorado para não duplicar.
+  // Caso contrário (ex: usuário lança apenas o pagamento consolidado da fatura na conta), computa como despesa de débito.
+  if (totalCreditExpenses === 0 && totalInvoicePayments > 0) {
+    totalDebitExpenses += totalInvoicePayments;
+  }
 
   // Se estiver em modo mensal e os cartões tiverem cálculo consolidado de fatura via cards overview
   if (month) {
@@ -7008,12 +7073,14 @@ export async function getDashboardOverviewData(
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
   // 2. Breakdown de Gastos por Categoria no Período Filtrado
-  // Inclui despesas em cartão de crédito e contas/débito, excluindo apenas pagamentos de fatura
-  const monthExpenses = rangeTransactions.filter(
-    (e) =>
-      e.type === "EXPENSE" &&
-      !isInvoicePaymentTransaction(e)
-  );
+  // Inclui despesas em cartão de crédito e contas/débito já realizadas, excluindo pagamentos duplicados de fatura
+  const monthExpenses = rangeTransactions.filter((e) => {
+    if (e.type !== "EXPENSE") return false;
+    const isRealized = e.status === "COMPLETED" || e.status === "PAID";
+    if (!isRealized) return false;
+    if (isInvoicePaymentTransaction(e) && totalCreditExpenses > 0) return false;
+    return true;
+  });
 
   console.log(`[getDashboardOverviewData] Despesas para Distribuição por Categoria: ${monthExpenses.length}`);
 
@@ -7127,7 +7194,7 @@ export async function getDashboardOverviewData(
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       const mExp = mTx
-        .filter((t) => t.type === "EXPENSE" && !isInvoicePaymentTransaction(t))
+        .filter((t) => t.type === "EXPENSE" && (t.status === "COMPLETED" || t.status === "PAID") && !isInvoicePaymentTransaction(t))
         .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
       historyMonths.push({
