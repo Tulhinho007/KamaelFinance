@@ -54,17 +54,17 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const item = payload[0];
     return (
-      <div className="bg-zinc-950/95 text-zinc-100 rounded-xl border border-white/[0.08] p-3 shadow-2xl backdrop-blur-md text-xs space-y-1 select-none">
-        <div className="flex items-center gap-2 border-b border-white/[0.06] pb-1.5 mb-1 font-semibold">
+      <div className="bg-white/95 dark:bg-zinc-950/95 text-slate-900 dark:text-zinc-100 rounded-xl border border-slate-200/80 dark:border-white/[0.08] p-3 shadow-xl dark:shadow-2xl backdrop-blur-md text-xs space-y-1 select-none">
+        <div className="flex items-center gap-2 border-b border-slate-100 dark:border-white/[0.06] pb-1.5 mb-1 font-semibold">
           <span
             className="w-2.5 h-2.5 rounded-full shrink-0"
             style={{ backgroundColor: item.payload?.color || item.fill }}
           />
-          <span className="text-zinc-200">{item.name}</span>
+          <span className="text-slate-700 dark:text-zinc-200">{item.name}</span>
         </div>
         <div className="flex items-center justify-between gap-4 font-tnum tabular-nums font-semibold">
-          <span className="text-zinc-400 font-normal">Total:</span>
-          <span className="text-zinc-100">{brl(Number(item.value))}</span>
+          <span className="text-slate-500 dark:text-zinc-400 font-normal">Total:</span>
+          <span className="text-slate-900 dark:text-zinc-100">{brl(Number(item.value))}</span>
         </div>
       </div>
     );
@@ -90,13 +90,13 @@ export function PaymentMethodChart({
 
   return (
     <div
-      className={`bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/80 dark:border-white/[0.08] p-6 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4 ${className}`}
+      className={`bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4 ${className}`}
     >
       {/* Cabeçalho */}
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
         <div>
           <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
-            <WalletCards className="w-5 h-5 text-indigo-400" strokeWidth={1.75} />
+            <WalletCards className="w-5 h-5 text-indigo-600 dark:text-indigo-400" strokeWidth={1.75} />
             Gastos por Meio de Pagamento
           </h3>
           <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal mt-0.5">
@@ -104,7 +104,7 @@ export function PaymentMethodChart({
           </p>
         </div>
         {totalSum > 0 && (
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 tabular-nums">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20 tabular-nums">
             {brl(totalSum)}
           </span>
         )}
@@ -160,7 +160,7 @@ export function PaymentMethodChart({
               return (
                 <div
                   key={m.method}
-                  className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-zinc-950/50 border border-slate-200/80 dark:border-white/[0.06] flex flex-col gap-1.5"
+                  className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-zinc-950/50 border border-slate-200/60 dark:border-white/[0.06] flex flex-col gap-1.5"
                 >
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">
@@ -183,14 +183,14 @@ export function PaymentMethodChart({
                       <span className="font-semibold text-slate-900 dark:text-zinc-100">
                         {brl(Number(m.total))}
                       </span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-slate-200/80 dark:border-white/[0.08] text-slate-600 dark:text-zinc-400">
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-slate-200/60 dark:border-white/[0.08] text-slate-600 dark:text-zinc-400">
                         {pct}%
                       </span>
                     </div>
                   </div>
 
                   {/* Barra de Progresso Horizontal */}
-                  <div className="w-full bg-slate-200/70 dark:bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-100 dark:bg-zinc-900 h-1.5 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{

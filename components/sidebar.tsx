@@ -152,16 +152,16 @@ export function Sidebar() {
         onClick={() => setIsMobileOpen(false)}
         className={`relative flex items-center gap-3 px-3.5 py-2.5 text-xs rounded-xl transition-all duration-150 ${
           active
-            ? "bg-indigo-600/15 text-indigo-400 font-semibold border border-indigo-500/20 shadow-xs"
-            : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-900/60 hover:text-slate-900 dark:hover:text-zinc-100 font-medium border border-transparent"
+            ? "bg-indigo-50 text-indigo-700 font-semibold border border-indigo-100/80 shadow-2xs dark:bg-indigo-600/15 dark:text-indigo-400 dark:border-indigo-500/20"
+            : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium border border-transparent dark:text-zinc-400 dark:hover:text-zinc-100 dark:hover:bg-zinc-900/60"
         }`}
       >
         {active && (
-          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-indigo-500 rounded-full" />
+          <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1 h-4 bg-indigo-600 dark:bg-indigo-500 rounded-full" />
         )}
         <Icon
           className={`w-4 h-4 flex-shrink-0 transition-colors ${
-            active ? "text-indigo-400" : "text-slate-400 dark:text-zinc-500"
+            active ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400 dark:text-zinc-500"
           }`}
           strokeWidth={1.75}
         />

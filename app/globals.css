@@ -2,14 +2,14 @@
 
 /* ─── Design Tokens ─── */
 :root {
-  --background: #F9FAFB;
-  --foreground: #1F2937;
-  --surface: #FFFFFF;
-  --surface-raised: #FFFFFF;
-  --border: #E5E7EB;
-  --border-subtle: #F3F4F6;
-  --muted: #6B7280;
-  --accent: #10B981;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: rgba(226, 232, 240, 0.7);
+  --border-subtle: #f1f5f9;
+  --muted: #64748b;
+  --accent: #10b981;
   color-scheme: light;
 }
 
@@ -46,11 +46,11 @@ body {
 
 /* .card-glow & .glass-card — Superfície com sombra suave e borda sutil */
 .card-glow, .glass-card {
-  background: #FFFFFF !important;
-  border: 1px solid #E5E7EB !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(226, 232, 240, 0.6) !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
   border-radius: 16px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html.dark .card-glow, html.dark .glass-card {
@@ -62,7 +62,8 @@ html.dark .card-glow, html.dark .glass-card {
 }
 
 .card-glow:hover, .glass-card:hover {
-  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.08), 0 2px 4px 0 rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(203, 213, 225, 0.8) !important;
   transform: translateY(-1px);
 }
 
@@ -107,23 +108,23 @@ html.dark .card-glow:hover, html.dark .glass-card:hover {
 
 /* .text-secondary-light — Texto de suporte */
 .text-secondary-light {
-  color: #6B7280 !important;
-  font-weight: 600;
+  color: #64748b !important;
+  font-weight: 500;
 }
 
 html.dark .text-secondary-light {
   color: #94a3b8 !important;
 }
 
-/* .btn-primary-glow — Botão CTA principal com gradiente roxo/indigo */
+/* .btn-primary-glow — Botão CTA principal refinado em Indigo */
 .btn-primary-glow {
-  background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  background: #4f46e5 !important;
   color: #ffffff !important;
-  font-weight: 800;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 4px 12px -2px rgba(99, 102, 241, 0.35);
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(79, 70, 229, 0.3);
   border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -132,17 +133,17 @@ html.dark .text-secondary-light {
 }
 
 .btn-primary-glow:hover {
-  background-image: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
-  box-shadow: 0 8px 20px -2px rgba(99, 102, 241, 0.45) !important;
-  transform: translateY(-1px) scale(1.01);
+  background: #4338ca !important;
+  box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.4) !important;
+  transform: translateY(-1px);
 }
 
-/* ─── Badges Light Mode (contraste otimizado) ─── */
-.badge-emerald { background-color: rgba(16, 185, 129, 0.10) !important; color: #065F46 !important; border: 1px solid rgba(16, 185, 129, 0.20) !important; }
-.badge-indigo  { background-color: rgba(99, 102, 241, 0.10) !important; color: #3730A3 !important; border: 1px solid rgba(99, 102, 241, 0.20) !important; }
-.badge-rose    { background-color: rgba(244, 63, 94, 0.10)  !important; color: #9F1239 !important; border: 1px solid rgba(244, 63, 94, 0.20) !important; }
-.badge-amber   { background-color: rgba(245, 158, 11, 0.10) !important; color: #92400E !important; border: 1px solid rgba(245, 158, 11, 0.20) !important; }
-.badge-purple  { background-color: rgba(139, 92, 246, 0.10) !important; color: #4C1D95 !important; border: 1px solid rgba(139, 92, 246, 0.20) !important; }
+/* ─── Badges Light Mode (contraste otimizado, sem cores neon saturadas) ─── */
+.badge-emerald { background-color: #ecfdf5 !important; color: #047857 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
+.badge-indigo  { background-color: #eef2ff !important; color: #4338ca !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
+.badge-rose    { background-color: #fff1f2 !important; color: #be123c !important; border: 1px solid rgba(244, 63, 94, 0.25) !important; }
+.badge-amber   { background-color: #fffbeb !important; color: #b45309 !important; border: 1px solid rgba(245, 158, 11, 0.25) !important; }
+.badge-purple  { background-color: #f5f3ff !important; color: #6d28d9 !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
 
 html.dark .badge-emerald { background-color: rgba(16, 185, 129, 0.15) !important; color: #34D399 !important; border: 1px solid rgba(16, 185, 129, 0.25) !important; }
 html.dark .badge-indigo  { background-color: rgba(99, 102, 241, 0.15) !important; color: #818CF8 !important; border: 1px solid rgba(99, 102, 241, 0.25) !important; }
@@ -173,7 +174,7 @@ input[type=number] {
 
 aside {
   background-color: #FFFFFF !important;
-  border-color: #E5E7EB !important;
+  border-color: rgba(226, 232, 240, 0.7) !important;
 }
 
 html.dark aside {
