@@ -61,6 +61,8 @@ const MONTH_NAMES_LIST = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
+export type AgendaPeriodFilter = "ALL" | "CURRENT_MONTH" | "NEXT_MONTH" | "CUSTOM";
+
 export default function GestaoCaixaContasPage() {
   const { selectedYear, prevYear, nextYear, goToCurrentYear } = usePeriod();
   const { showAlert } = useModal();
@@ -92,6 +94,9 @@ export default function GestaoCaixaContasPage() {
   const [showAllMovements, setShowAllMovements] = useState(false);
 
   // Filtros de Agenda a Pagar
+  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("ALL");
+  const [customFilterMonth, setCustomFilterMonth] = useState<number>(new Date().getMonth() + 1);
+  const [customFilterYear, setCustomFilterYear] = useState<number>(selectedYear || new Date().getFullYear());
   const [agendaSearch, setAgendaSearch] = useState("");
   const [selectedCommitmentIds, setSelectedCommitmentIds] = useState<string[]>([]);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
@@ -233,9 +238,110 @@ export default function GestaoCaixaContasPage() {
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // Filtros da Agenda de Contas a Pagar (Apenas itens PENDENTES)
+  // ── Filtro de Competência / Período da Agenda de Contas ─────────────────
+  const now = new Date();
+  const currentMonthNum = now.getMonth() + 1;
+  const currentYearNum = now.getFullYear();
+  const currentMonthName = MONTH_NAMES_LIST[currentMonthNum - 1] || "Outubro";
+  const currentPeriodLabel = `${currentMonthName}/${currentYearNum}`;
+
+  const nextMonthDate = new Date(currentYearNum, currentMonthNum, 1);
+  const nextMonthNum = nextMonthDate.getMonth() + 1;
+  const nextYearNum = nextMonthDate.getFullYear();
+  const nextMonthName = MONTH_NAMES_LIST[nextMonthNum - 1] || "Novembro";
+  const nextPeriodLabel = `${nextMonthName}/${nextYearNum}`;
+
+  // Helper para extrair mês e ano do vencimento da conta
+  const getItemDueDateParts = (item: any): { month: number; year: number } | null => {
+    if (item.dueDateInput && typeof item.dueDateInput === "string") {
+      const parts = item.dueDateInput.split("-");
+      if (parts.length >= 2) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (!isNaN(y) && !isNaN(m)) return { year: y, month: m };
+      }
+    }
+    if (item.dueDateFormatted && typeof item.dueDateFormatted === "string") {
+      const parts = item.dueDateFormatted.split("/");
+      if (parts.length === 3) {
+        const m = parseInt(parts[1], 10);
+        const y = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m)) return { year: y, month: m };
+      }
+    }
+    if (item.dueDateRaw) {
+      const d = new Date(item.dueDateRaw);
+      if (!isNaN(d.getTime())) {
+        return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
+      }
+    }
+    if (item.competenceYear && item.competenceMonth) {
+      return { year: Number(item.competenceYear), month: Number(item.competenceMonth) };
+    }
+    return null;
+  };
+
+  const matchesAgendaPeriod = (item: any): boolean => {
+    if (agendaPeriodFilter === "ALL") return true;
+    const due = getItemDueDateParts(item);
+    if (!due) return false;
+    if (agendaPeriodFilter === "CURRENT_MONTH") {
+      return due.month === currentMonthNum && due.year === currentYearNum;
+    }
+    if (agendaPeriodFilter === "NEXT_MONTH") {
+      return due.month === nextMonthNum && due.year === nextYearNum;
+    }
+    if (agendaPeriodFilter === "CUSTOM") {
+      return due.month === customFilterMonth && due.year === customFilterYear;
+    }
+    return true;
+  };
+
+  const activePeriodBadgeLabel = useMemo(() => {
+    if (agendaPeriodFilter === "CURRENT_MONTH") return `Mês Atual (${currentPeriodLabel})`;
+    if (agendaPeriodFilter === "NEXT_MONTH") return `Próximo Mês (${nextPeriodLabel})`;
+    if (agendaPeriodFilter === "CUSTOM") {
+      const mName = MONTH_NAMES_LIST[customFilterMonth - 1] || "";
+      return `${mName}/${customFilterYear}`;
+    }
+    return `Todas as Pendências (${selectedYear})`;
+  }, [agendaPeriodFilter, currentPeriodLabel, nextPeriodLabel, customFilterMonth, customFilterYear, selectedYear]);
+
+  // Contas pendentes que atendem ao período selecionado (sem o filtro textual de busca, para alimentar as métricas)
+  const periodFilteredPendingCommitments = useMemo(() => {
+    return pendingCommitments.filter((item) => matchesAgendaPeriod(item));
+  }, [
+    pendingCommitments,
+    agendaPeriodFilter,
+    customFilterMonth,
+    customFilterYear,
+    currentMonthNum,
+    currentYearNum,
+    nextMonthNum,
+    nextYearNum,
+  ]);
+
+  // Total das pendências no período filtrado
+  const periodPendingTotal = useMemo(() => {
+    return periodFilteredPendingCommitments.reduce((sum, it) => sum + Number(it.amount || 0), 0);
+  }, [periodFilteredPendingCommitments]);
+
+  // Saldo projetado adaptado ao período filtrado
+  const periodSaldoProjetado = useMemo(() => {
+    if (agendaPeriodFilter === "ALL") {
+      return totals.saldoProjetado;
+    }
+    // Saldo Real em conta menos as obrigações a pagar do período filtrado
+    return totals.totalRealBalance - periodPendingTotal;
+  }, [agendaPeriodFilter, totals.saldoProjetado, totals.totalRealBalance, periodPendingTotal]);
+
+  // Filtros da Agenda de Contas a Pagar (Apenas itens PENDENTES que batem com período e busca)
   const filteredPendingCommitments = useMemo(() => {
     return pendingCommitments.filter((item) => {
+      // 1. Filtro de competência / vencimento
+      if (!matchesAgendaPeriod(item)) return false;
+
+      // 2. Filtro de busca textual
       if (!agendaSearch.trim()) return true;
       const q = agendaSearch.toLowerCase().trim();
       const matchDesc = (item.description || "").toLowerCase().includes(q);
@@ -243,7 +349,32 @@ export default function GestaoCaixaContasPage() {
       const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
       return matchDesc || matchType || matchRef;
     });
-  }, [pendingCommitments, agendaSearch]);
+  }, [
+    pendingCommitments,
+    agendaSearch,
+    agendaPeriodFilter,
+    customFilterMonth,
+    customFilterYear,
+    currentMonthNum,
+    currentYearNum,
+    nextMonthNum,
+    nextYearNum,
+  ]);
+
+  // Controle do checkbox 'Selecionar todas visíveis'
+  const isAllVisibleSelected =
+    filteredPendingCommitments.length > 0 &&
+    filteredPendingCommitments.every((c) => selectedCommitmentIds.includes(c.id));
+
+  const handleToggleSelectAllVisible = (checked: boolean) => {
+    if (checked) {
+      const visibleIds = filteredPendingCommitments.map((c) => c.id);
+      setSelectedCommitmentIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    } else {
+      const visibleSet = new Set(filteredPendingCommitments.map((c) => c.id));
+      setSelectedCommitmentIds((prev) => prev.filter((id) => !visibleSet.has(id)));
+    }
+  };
 
   // Filtros do Extrato Realizado (Movimentações que já aconteceram)
   const filteredRealizedMovements = useMemo(() => {
@@ -364,6 +495,7 @@ export default function GestaoCaixaContasPage() {
       showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
       return;
     }
+    const count = selectedCommitmentIds.length;
     setPayingBatch(true);
     try {
       await payBatchCommitmentsAction({
@@ -376,7 +508,7 @@ export default function GestaoCaixaContasPage() {
       setBatchModalOpen(false);
       setSelectedCommitmentIds([]);
       await loadData();
-      showAlert(`${selectedCommitmentIds.length} contas liquidadas com sucesso!`, { variant: "success" });
+      showAlert(`${count} ${count === 1 ? "conta liquidada" : "contas liquidadas"} com sucesso!`, { variant: "success" });
     } catch (err: any) {
       console.error(err);
       showAlert(err?.message || "Erro ao liquidar contas em lote.", { variant: "error" });
@@ -834,50 +966,84 @@ export default function GestaoCaixaContasPage() {
           </div>
         </div>
 
-        {/* Card 3: Despesas / Compromissos Pendentes (Ano) */}
+        {/* Card 3: Despesas / Compromissos Pendentes (Ano ou Período Filtrado) */}
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border border-amber-200/70 dark:border-amber-900/50 shadow-xs relative overflow-hidden flex flex-col justify-between">
           <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
-                Despesas Pendentes (Ano)
-              </span>
-              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider">
+                  {agendaPeriodFilter === "ALL" ? `Despesas Pendentes (${selectedYear})` : "Despesas Pendentes"}
+                </span>
+                {agendaPeriodFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-amber-300/60 dark:border-amber-700/60 truncate">
+                    Filtrado: {activePeriodBadgeLabel}
+                  </span>
+                )}
+              </div>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50 shrink-0">
                 <Clock className="w-3.5 h-3.5" />
               </div>
             </div>
             <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight tabular-nums">
-              {brl(totals.totalPendentesAno)}
+              {brl(agendaPeriodFilter === "ALL" ? totals.totalPendentesAno : periodPendingTotal)}
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Boletos & contas a pagar</span>
-            <span className="font-bold text-amber-600 dark:text-amber-400">
-              {totals.pendingCount} {totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}
+            <span>
+              {agendaPeriodFilter === "ALL" ? "Boletos & contas no ano" : "Boletos & contas no período"}
             </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-amber-600 dark:text-amber-400">
+                {agendaPeriodFilter === "ALL"
+                  ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
+                  : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
+              </span>
+              {agendaPeriodFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setAgendaPeriodFilter("ALL")}
+                  className="text-[9px] text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 font-bold underline cursor-pointer"
+                  title="Ver todo o ano"
+                >
+                  (Ver ano)
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Card 4: Saldo Projetado */}
+        {/* Card 4: Saldo Projetado (Ano ou Período Filtrado) */}
         <div className={`p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900/80 border shadow-xs relative overflow-hidden flex flex-col justify-between ${
-          totals.saldoProjetado >= 0
+          (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
             ? "border-emerald-200/70 dark:border-emerald-900/50"
             : "border-rose-200/70 dark:border-rose-900/50"
         }`}>
-          <div className={`absolute top-0 left-0 right-0 h-1 ${totals.saldoProjetado >= 0 ? "bg-emerald-500" : "bg-rose-500"}`} />
+          <div className={`absolute top-0 left-0 right-0 h-1 ${
+            (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0 ? "bg-emerald-500" : "bg-rose-500"
+          }`} />
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[10px] font-black uppercase tracking-wider ${
-                totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
-              }`}>
-                Saldo Projetado
-              </span>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center border ${
-                totals.saldoProjetado >= 0
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <span className={`text-[10px] font-black uppercase tracking-wider ${
+                  (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-rose-600 dark:text-rose-400"
+                }`}>
+                  Saldo Projetado
+                </span>
+                {agendaPeriodFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 text-[9px] font-black px-1.5 py-0.5 rounded-full border border-indigo-300/60 dark:border-indigo-700/60 truncate">
+                    Filtrado: {activePeriodBadgeLabel}
+                  </span>
+                )}
+              </div>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${
+                (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
                   ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-800/50"
                   : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 border-rose-200/50 dark:border-rose-800/50"
               }`}>
-                {totals.saldoProjetado >= 0 ? (
+                {(agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0 ? (
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 ) : (
                   <AlertCircle className="w-3.5 h-3.5" />
@@ -885,17 +1051,25 @@ export default function GestaoCaixaContasPage() {
               </div>
             </div>
             <div className={`text-2xl sm:text-3xl font-black tracking-tight tabular-nums ${
-              totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500 dark:text-rose-400"
+              (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-500 dark:text-rose-400"
             }`}>
-              {brl(totals.saldoProjetado)}
+              {brl(agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado)}
             </div>
           </div>
           <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400">
-            <span title="Saldo Real + Receitas Previstas - Compromissos Pendentes">
-              Saldo Real + Receitas Previstas − Compromissos Pendentes
+            <span title={agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas - Compromissos Pendentes" : "Saldo Real em conta − Compromissos Pendentes do Período"}>
+              {agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas − Compromissos" : "Saldo Real − Pendências do Período"}
             </span>
-            <span className={`font-bold ${totals.saldoProjetado >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-              {totals.saldoProjetado >= 0 ? "Livre pós-obrigações" : "Déficit previsto"}
+            <span className={`font-bold ${
+              (agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-rose-600 dark:text-rose-400"
+            }`}>
+              {(agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado) >= 0
+                ? (agendaPeriodFilter === "ALL" ? "Livre pós-obrigações" : "Saldo cobre período")
+                : "Déficit previsto"}
             </span>
           </div>
         </div>
@@ -1037,17 +1211,30 @@ export default function GestaoCaixaContasPage() {
       {/* ── SEÇÃO A: AGENDA DE CONTAS A PAGAR (Apenas itens PENDENTES) ───── */}
       {(activeTab === "TODOS" || activeTab === "AGENDA") && (
         <section className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/40 dark:bg-slate-950/20">
+          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 bg-slate-50/40 dark:bg-slate-950/20">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
                 <Clock className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                   Agenda de Contas a Pagar
                   <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                     Apenas Pendentes ({filteredPendingCommitments.length})
                   </span>
+                  {agendaPeriodFilter !== "ALL" && (
+                    <span className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      Filtrado por: {activePeriodBadgeLabel}
+                      <button
+                        type="button"
+                        onClick={() => setAgendaPeriodFilter("ALL")}
+                        className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
+                        title="Limpar filtro de período"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
                 </h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   Boletos, assinaturas e despesas a quitar. Ao pagar, o débito entra automaticamente no extrato.
@@ -1055,8 +1242,50 @@ export default function GestaoCaixaContasPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 w-full md:w-auto">
-              <div className="relative flex-1 md:w-64">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full xl:w-auto">
+              {/* ── 1. Seletor de Competência / Período ── */}
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                <div className="relative flex-1 sm:flex-initial">
+                  <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
+                  <select
+                    value={agendaPeriodFilter}
+                    onChange={(e) => setAgendaPeriodFilter(e.target.value as AgendaPeriodFilter)}
+                    className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
+                  >
+                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
+                    <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
+                    <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
+                    <option value="CUSTOM">Outros meses / Filtro personalizado</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                </div>
+
+                {agendaPeriodFilter === "CUSTOM" && (
+                  <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150">
+                    <select
+                      value={customFilterMonth}
+                      onChange={(e) => setCustomFilterMonth(Number(e.target.value))}
+                      className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      {MONTH_NAMES_LIST.map((m, idx) => (
+                        <option key={idx + 1} value={idx + 1}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={customFilterYear}
+                      onChange={(e) => setCustomFilterYear(Number(e.target.value))}
+                      className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      {[selectedYear - 1, selectedYear, selectedYear + 1, selectedYear + 2].map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Campo de Busca ── */}
+              <div className="relative flex-1 sm:w-60">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -1067,6 +1296,7 @@ export default function GestaoCaixaContasPage() {
                 />
                 {agendaSearch && (
                   <button
+                    type="button"
                     onClick={() => setAgendaSearch("")}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
                   >
@@ -1085,16 +1315,11 @@ export default function GestaoCaixaContasPage() {
                   <th className="py-2.5 px-3 w-8 text-center">
                     <input
                       type="checkbox"
-                      checked={filteredPendingCommitments.length > 0 && filteredPendingCommitments.every((c) => selectedCommitmentIds.includes(c.id))}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCommitmentIds(filteredPendingCommitments.map((c) => c.id));
-                        } else {
-                          setSelectedCommitmentIds([]);
-                        }
-                      }}
+                      checked={isAllVisibleSelected}
+                      onChange={(e) => handleToggleSelectAllVisible(e.target.checked)}
                       disabled={filteredPendingCommitments.length === 0}
                       className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-amber-600 focus:ring-amber-500 cursor-pointer disabled:opacity-40"
+                      title={isAllVisibleSelected ? "Desmarcar todas visíveis" : "Marcar todas visíveis"}
                     />
                   </th>
                   <th className="py-2.5 px-3 whitespace-nowrap">Vencimento</th>
@@ -1112,11 +1337,24 @@ export default function GestaoCaixaContasPage() {
                       <div className="flex flex-col items-center justify-center gap-2">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500/80 dark:text-emerald-400/80" />
                         <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
-                          Nenhum compromisso pendente no ano de {selectedYear}.
+                          {agendaPeriodFilter !== "ALL"
+                            ? `Nenhum compromisso pendente encontrado para ${activePeriodBadgeLabel}.`
+                            : `Nenhum compromisso pendente no ano de ${selectedYear}.`}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          Todas as obrigações cadastradas já foram quitadas ou não há lançamentos futuros.
+                          {agendaPeriodFilter !== "ALL"
+                            ? "Não há boletos ou despesas a quitar com vencimento neste período selecionado."
+                            : "Todas as obrigações cadastradas já foram quitadas ou não há lançamentos futuros."}
                         </p>
+                        {agendaPeriodFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setAgendaPeriodFilter("ALL")}
+                            className="mt-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                          >
+                            Ver todas as pendências do ano ({totals.pendingCount})
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -1492,32 +1730,90 @@ export default function GestaoCaixaContasPage() {
         </section>
       )}
 
-      {/* ── Barra Flutuante de Baixa em Lote ────────────────────────────── */}
+      {/* ── Barra Flutuante de Seleção Dinâmica & Calculadora (Floating Action Bar) ────────────────────────────── */}
       {selectedCommitmentIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/95 dark:bg-[#131B2E]/95 border border-indigo-500/30 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-4 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-xs">
-              {selectedCommitmentIds.length} {selectedCommitmentIds.length === 1 ? "conta selecionada" : "contas selecionadas"}
-            </span>
-            <span className="text-emerald-400 font-black text-xs font-tnum tabular-nums">
-              ({brl(selectedBatchTotal)})
-            </span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-4xl bg-slate-900/95 dark:bg-[#0B132B]/95 border border-slate-700/80 dark:border-indigo-500/40 text-white px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+            {/* Bloco 1: Contador & Valores Calculados */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3.5 w-full md:w-auto">
+              {/* Contador */}
+              <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-black shadow-2xs shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>
+                  {selectedCommitmentIds.length} {selectedCommitmentIds.length === 1 ? "conta selecionada" : "contas selecionadas"}
+                </span>
+              </div>
+
+              {/* Somatório Total Calculado */}
+              <div className="flex items-baseline gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 dark:bg-slate-900/80 border border-slate-700/60 shrink-0">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  Total a pagar:
+                </span>
+                <span className="text-sm sm:text-base font-black font-mono tabular-nums text-amber-400">
+                  {brl(selectedBatchTotal)}
+                </span>
+              </div>
+
+              {/* Impacto no Saldo Real */}
+              {(() => {
+                const saldoRestante = totals.totalRealBalance - selectedBatchTotal;
+                const cobreSaldo = saldoRestante >= 0;
+
+                return (
+                  <div
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors shrink-0 ${
+                      cobreSaldo
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                        : "bg-rose-500/10 border-rose-500/30 text-rose-300"
+                    }`}
+                    title="Impacto no Saldo Real consolidado de todas as contas após quitar os itens selecionados"
+                  >
+                    <span className="text-[11px] font-bold text-slate-300">
+                      Saldo Restante:
+                    </span>
+                    <span
+                      className={`text-xs sm:text-sm font-black font-mono tabular-nums ${
+                        cobreSaldo ? "text-emerald-400" : "text-rose-400"
+                      }`}
+                    >
+                      {brl(saldoRestante)}
+                    </span>
+                    <span
+                      className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        cobreSaldo
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                      }`}
+                    >
+                      {cobreSaldo ? "✓ Cobre" : "⚠ Negativo"}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Bloco 2: Ações */}
+            <div className="flex items-center justify-center md:justify-end gap-2 w-full md:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleOpenBatchModal}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs sm:text-sm px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
+              >
+                <Check className="w-4 h-4" />
+                <span>Pagar / Baixar Selecionadas em Lote</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedCommitmentIds([])}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800/80 px-3 py-2 sm:py-2.5 rounded-xl transition-colors cursor-pointer"
+                title="Limpar seleção"
+              >
+                <X className="w-4 h-4" />
+                <span>Limpar Seleção</span>
+              </button>
+            </div>
           </div>
-          <div className="h-4 w-px bg-slate-700" />
-          <button
-            onClick={handleOpenBatchModal}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Pagar Selecionadas Juntas</span>
-          </button>
-          <button
-            onClick={() => setSelectedCommitmentIds([])}
-            className="text-slate-400 hover:text-white p-1 ml-1 cursor-pointer"
-            title="Cancelar seleção"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
@@ -2230,7 +2526,7 @@ export default function GestaoCaixaContasPage() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">Qual Conta Corrente Debitar?</label>
                 <select
@@ -2240,7 +2536,7 @@ export default function GestaoCaixaContasPage() {
                 >
                   {contasBancarias.map((conta: any) => (
                     <option key={conta.id} value={conta.id}>
-                      {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                      {conta.banco} - Saldo Atual: {brl(Number(conta.saldoAtual || 0))}
                     </option>
                   ))}
                 </select>
@@ -2255,10 +2551,44 @@ export default function GestaoCaixaContasPage() {
                   className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
                 />
               </div>
+
+              {/* Prévia do impacto financeiro na conta escolhida */}
+              {(() => {
+                const selectedConta = contasBancarias.find((c: any) => c.id === batchBaixaContaId) || contasBancarias[0];
+                if (!selectedConta) return null;
+                const saldoAtualNum = Number(selectedConta.saldoAtual || 0);
+                const saldoPosDebito = saldoAtualNum - selectedBatchTotal;
+                const hasSaldo = saldoPosDebito >= 0;
+
+                return (
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Saldo Atual ({selectedConta.banco}):</span>
+                      <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{brl(saldoAtualNum)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 dark:text-slate-400">Total das {selectedCommitmentIds.length} Contas:</span>
+                      <span className="font-bold tabular-nums text-amber-600 dark:text-amber-400">-{brl(selectedBatchTotal)}</span>
+                    </div>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                      <span className="font-bold text-slate-700 dark:text-slate-300">Saldo Previsto Após Baixa:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`font-black tabular-nums ${hasSaldo ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                          {brl(saldoPosDebito)}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase px-1.5 py-0.2 rounded ${hasSaldo ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-400" : "bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-400"}`}>
+                          {hasSaldo ? "✓ Cobre" : "⚠ Negativo"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="flex gap-2 mt-6">
               <button
+                type="button"
                 onClick={() => setBatchModalOpen(false)}
                 disabled={payingBatch}
                 className="w-1/2 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
@@ -2266,11 +2596,12 @@ export default function GestaoCaixaContasPage() {
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleConfirmBatchBaixa}
                 disabled={payingBatch}
                 className="w-1/2 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors cursor-pointer disabled:opacity-50"
               >
-                {payingBatch ? "Processando..." : "Confirmar Baixa em Lote"}
+                {payingBatch ? "Processando..." : `Confirmar Baixa (${selectedCommitmentIds.length} contas)`}
               </button>
             </div>
           </div>
