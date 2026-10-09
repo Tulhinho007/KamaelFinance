@@ -259,28 +259,23 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 function isTxInPeriod(t: any, year: number, month?: number | null): boolean {
   const hasMonth = !!month && month >= 1 && month <= 12;
 
+  // Competência definida = única fonte de verdade (cada lançamento pertence a UM só mês)
   if (t.competenceYear != null) {
-    if (hasMonth) {
-      if (t.competenceYear === year && t.competenceMonth === month) return true;
-    } else if (t.competenceYear === year) {
-      return true;
-    }
+    if (hasMonth) return t.competenceYear === year && t.competenceMonth === month;
+    return t.competenceYear === year;
   }
 
-  const dates = [t.competenceDate, t.date, t.paymentDate].filter(Boolean);
-  for (const raw of dates) {
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) continue;
-    const brt = new Date(d.getTime() - 3 * 3600 * 1000);
-    const candidates = [
-      [d.getUTCFullYear(), d.getUTCMonth() + 1],
-      [brt.getUTCFullYear(), brt.getUTCMonth() + 1],
-    ];
-    for (const [y, m] of candidates) {
-      if (y === year && (!hasMonth || m === month)) return true;
-    }
-  }
-  return false;
+  // Sem competência: usa a data (UTC ou Brasília) para não perder 01/mês e 31/mês por fuso
+  const raw = t.competenceDate || t.date || t.paymentDate;
+  if (!raw) return false;
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return false;
+  const brt = new Date(d.getTime() - 3 * 3600 * 1000);
+  const candidates = [
+    [d.getUTCFullYear(), d.getUTCMonth() + 1],
+    [brt.getUTCFullYear(), brt.getUTCMonth() + 1],
+  ];
+  return candidates.some(([y, m]) => y === year && (!hasMonth || m === month));
 }
 
 // ---------- Actions de Receitas ----------
