@@ -9812,7 +9812,7 @@ export async function getPaymentHistoryData(month: number, year: number) {
         pendingAmount: isPaid ? 0 : billAmount,
         status: isPaid ? "PAGO" : "PENDENTE",
         statusColor: isPaid ? "emerald" : "amber",
-        detailsUrl: "/despesas",
+        detailsUrl: "/contas",
         holder: (bill.wallet as any)?.holder || undefined,
         dueDateFormatted,
         formaPagamento,

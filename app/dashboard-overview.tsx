@@ -525,7 +525,7 @@ export function DashboardOverview() {
           <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
             Cartões & Contas Ativas
           </h2>
-          <Link href="/despesas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 transition-colors">
+          <Link href="/contas" className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 flex items-center gap-1 transition-colors">
             Ver todas <ChevronRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -805,7 +805,7 @@ export function DashboardOverview() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Compromissos pendentes nos próximos dias</p>
               </div>
               <Link
-                href="/despesas"
+                href="/contas"
                 className="text-xs font-black text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors flex items-center gap-1"
               >
                 Ver todas <ChevronRight className="w-3.5 h-3.5" />

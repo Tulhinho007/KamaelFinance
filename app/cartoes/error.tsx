@@ -44,11 +44,11 @@ export default function CartoesErrorPage({
         </button>
 
         <Link
-          href="/despesas"
+          href="/cartoes"
           className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          Voltar para Despesas
+          Voltar para Cartões de Crédito
         </Link>
       </div>
     </div>

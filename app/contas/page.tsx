@@ -93,8 +93,8 @@ export default function GestaoCaixaContasPage() {
   const [extratoSearch, setExtratoSearch] = useState("");
   const [showAllMovements, setShowAllMovements] = useState(false);
 
-  // Filtros de Agenda a Pagar (Padrão: Mês Atual)
-  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("CURRENT_MONTH");
+  // Filtros de Agenda a Pagar (Padrão: Todas as Pendências do Ano)
+  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("ALL");
   const [customFilterMonth, setCustomFilterMonth] = useState<number>(new Date().getMonth() + 1);
   const [customFilterYear, setCustomFilterYear] = useState<number>(selectedYear || new Date().getFullYear());
   const [agendaSearch, setAgendaSearch] = useState("");
@@ -1296,6 +1296,18 @@ export default function GestaoCaixaContasPage() {
                 <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
                   <button
                     type="button"
+                    onClick={() => setAgendaPeriodFilter("ALL")}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                      agendaPeriodFilter === "ALL"
+                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    }`}
+                    title={`Ver todas as pendências de ${selectedYear}`}
+                  >
+                    Todas ({selectedYear})
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setAgendaPeriodFilter("CURRENT_MONTH")}
                     className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
                       agendaPeriodFilter === "CURRENT_MONTH"
@@ -1318,18 +1330,6 @@ export default function GestaoCaixaContasPage() {
                   >
                     Próximo Mês
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setAgendaPeriodFilter("ALL")}
-                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "ALL"
-                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title={`Ver todas as pendências de ${selectedYear}`}
-                  >
-                    Todas ({selectedYear})
-                  </button>
                 </div>
 
                 {/* Dropdown Seletor Avançado / Personalizado */}
@@ -1340,9 +1340,9 @@ export default function GestaoCaixaContasPage() {
                     onChange={(e) => setAgendaPeriodFilter(e.target.value as AgendaPeriodFilter)}
                     className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
                   >
+                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
                     <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
                     <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
-                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
                     <option value="CUSTOM">Outro mês personalizado...</option>
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />

@@ -916,10 +916,10 @@ export default function CartaoDetailPage() {
       {/* ── Voltar & Header ─────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-2">
         <Link
-          href="/despesas"
+          href={isBank ? "/contas" : "/cartoes"}
           className="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-400 hover:text-indigo-300 w-fit transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Voltar para Despesas & Contas
+          <ArrowLeft className="w-4 h-4" /> {isBank ? "Voltar para Conta Corrente" : "Voltar para Cartões de Crédito"}
         </Link>
         <PeriodHeader
           mode={isBank ? "annual" : "monthly"}

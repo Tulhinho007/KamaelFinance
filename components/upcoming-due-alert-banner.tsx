@@ -110,7 +110,7 @@ export function UpcomingDueAlertBanner({
 
       <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
         <Link
-          href="/despesas"
+          href="/contas"
           onClick={onViewInvoices}
           className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap ${
             hasOverdue
