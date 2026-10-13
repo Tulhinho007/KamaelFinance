@@ -10,8 +10,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   Clock,
-  TrendingUp,
-  TrendingDown,
   ArrowUpRight,
   ArrowDownLeft,
   ChevronRight,
@@ -327,14 +325,13 @@ export default function GestaoCaixaContasPage() {
     return periodFilteredPendingCommitments.reduce((sum, it) => sum + Number(it.amount || 0), 0);
   }, [periodFilteredPendingCommitments]);
 
-  // Saldo projetado adaptado ao período filtrado
-  const periodSaldoProjetado = useMemo(() => {
-    if (agendaPeriodFilter === "ALL") {
-      return totals.saldoProjetado;
+  // Saldo Geral consolidado (soma do saldo atual de todas as contas correntes cadastradas)
+  const totalSaldoGeral = useMemo(() => {
+    if (accounts.length > 0) {
+      return accounts.reduce((sum, a) => sum + Number(a.saldoAtual || 0), 0);
     }
-    // Saldo Real em conta menos as obrigações a pagar do período filtrado
-    return totals.totalRealBalance - periodPendingTotal;
-  }, [agendaPeriodFilter, totals.saldoProjetado, totals.totalRealBalance, periodPendingTotal]);
+    return totals.totalRealBalance || 0;
+  }, [accounts, totals.totalRealBalance]);
 
   // Filtros da Agenda de Contas a Pagar (Apenas itens PENDENTES que batem com período e busca)
   const filteredPendingCommitments = useMemo(() => {
@@ -969,17 +966,17 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* ── 1. Visão Geral Superior: 4 Cards Consolidados (Grid de 4 colunas desktop) ────────────────── */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Card 1: Saldo Real em Conta */}
+      {/* ── 1. Visão Geral Superior: 2 Cards Consolidados (Saldo Geral e Despesas Pendentes) ─────────── */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+        {/* Card 1: Saldo Geral Consolidado */}
         <MetricKpiCard
-          label="Saldo Real em Conta"
-          value={brl(totals.totalRealBalance)}
-          variant={totals.totalRealBalance >= 0 ? "neutral" : "danger"}
+          label="Saldo Geral"
+          value={brl(totalSaldoGeral)}
+          variant={totalSaldoGeral >= 0 ? "neutral" : "danger"}
           icon={Wallet}
           footer={
             <>
-              <span>Saldo líquido atualizado</span>
+              <span>Saldo líquido consolidado</span>
               <span className="font-semibold text-slate-700 dark:text-zinc-300">
                 {accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}
               </span>
@@ -987,21 +984,7 @@ export default function GestaoCaixaContasPage() {
           }
         />
 
-        {/* Card 2: Receitas do Período (Ano) */}
-        <MetricKpiCard
-          label={`Receitas do Período (${selectedYear})`}
-          value={brl(totals.totalReceitasAno)}
-          variant="success"
-          icon={TrendingUp}
-          footer={
-            <>
-              <span>Realizadas: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{brl(totals.totalRealizedIncome)}</strong></span>
-              <span>A receber: <strong className="text-slate-700 dark:text-zinc-300 font-semibold">{brl(totals.totalPendingIncome)}</strong></span>
-            </>
-          }
-        />
-
-        {/* Card 3: Despesas / Compromissos Pendentes (Ano ou Período Filtrado) */}
+        {/* Card 2: Despesas / Compromissos Pendentes */}
         <MetricKpiCard
           label={agendaPeriodFilter === "ALL" ? `Despesas Pendentes (${selectedYear})` : "Despesas Pendentes"}
           value={brl(agendaPeriodFilter === "ALL" ? totals.totalPendentesAno : periodPendingTotal)}
@@ -1039,39 +1022,6 @@ export default function GestaoCaixaContasPage() {
             </>
           }
         />
-
-        {/* Card 4: Saldo Projetado (Ano ou Período Filtrado) */}
-        {(() => {
-          const val = agendaPeriodFilter === "ALL" ? totals.saldoProjetado : periodSaldoProjetado;
-          const isPos = val >= 0;
-          return (
-            <MetricKpiCard
-              label="Saldo Projetado"
-              value={brl(val)}
-              variant={isPos ? "success" : "danger"}
-              icon={isPos ? CheckCircle2 : AlertCircle}
-              badge={
-                agendaPeriodFilter !== "ALL" ? (
-                  <span className="inline-flex items-center gap-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-indigo-500/20 truncate">
-                    Filtrado: {activePeriodBadgeLabel}
-                  </span>
-                ) : undefined
-              }
-              footer={
-                <>
-                  <span title={agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas - Compromissos Pendentes" : "Saldo Real em conta − Compromissos Pendentes do Período"}>
-                    {agendaPeriodFilter === "ALL" ? "Saldo Real + Receitas Previstas − Compromissos" : "Saldo Real − Pendências do Período"}
-                  </span>
-                  <span className={`font-semibold ${isPos ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                    {isPos
-                      ? (agendaPeriodFilter === "ALL" ? "Livre pós-obrigações" : "Saldo cobre período")
-                      : "Déficit previsto"}
-                  </span>
-                </>
-              }
-            />
-          );
-        })()}
       </section>
 
       {/* ── Mini-Cards de Contas Bancárias Cadastradas ───────────────────── */}
@@ -1090,9 +1040,6 @@ export default function GestaoCaixaContasPage() {
           </div>
           <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-2xl" : accounts.length === 2 ? "lg:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
             {accounts.map((acc) => {
-              const entradas = Number(acc.entradasAno || 0);
-              const saidas = Number(acc.saidasAno || 0);
-              const balanco = Number(acc.balancoAno ?? (entradas - saidas));
               const isSelected = extratoAccountFilter === acc.id;
               const walletTypeLabel = acc.walletType === "CONTA_CORRENTE" ? "Conta Corrente" : (acc.walletType === "DEBITO" ? "Débito" : "Conta");
 
@@ -1126,41 +1073,14 @@ export default function GestaoCaixaContasPage() {
                     </span>
                   </div>
 
-                  {/* Conteúdo: Saldo Real e Métricas da Conta */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                        Saldo Real Disponível
-                      </span>
-                      <p className={`text-xl sm:text-2xl font-black tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
-                        {brl(acc.saldoAtual)}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-1 text-xs sm:text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800/50">
-                      <div className="flex items-center sm:justify-end gap-2 text-[11px]">
-                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3 text-emerald-500" /> Entradas:
-                        </span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                          +{brl(entradas)}
-                        </span>
-                      </div>
-                      <div className="flex items-center sm:justify-end gap-2 text-[11px]">
-                        <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                          <TrendingDown className="w-3 h-3 text-rose-500" /> Saídas:
-                        </span>
-                        <span className="font-bold text-rose-600 dark:text-rose-400 tabular-nums">
-                          -{brl(saidas)}
-                        </span>
-                      </div>
-                      <div className="flex items-center sm:justify-end gap-2 text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800/60 font-semibold">
-                        <span className="text-slate-600 dark:text-slate-300">Balanço:</span>
-                        <span className={`font-black tabular-nums ${balanco >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                          {balanco >= 0 ? `+${brl(balanco)}` : `-${brl(Math.abs(balanco))}`}
-                        </span>
-                      </div>
-                    </div>
+                  {/* Conteúdo: Saldo Real Disponível */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                      Saldo Real Disponível
+                    </span>
+                    <p className={`text-xl sm:text-2xl font-black tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
+                      {brl(acc.saldoAtual)}
+                    </p>
                   </div>
                 </div>
               );
