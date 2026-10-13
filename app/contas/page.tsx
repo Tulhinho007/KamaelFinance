@@ -207,9 +207,10 @@ export default function GestaoCaixaContasPage() {
       if (data.accounts?.length > 0 && !movWalletId) {
         setMovWalletId(data.accounts[0].id);
       }
-      if (data.contasBancarias?.length > 0) {
-        setBaixaContaId((prev) => prev || data.contasBancarias[0].id);
-        setBatchBaixaContaId((prev) => prev || data.contasBancarias[0].id);
+      const initialBankAccounts = (data.accounts?.length > 0 ? data.accounts : data.contasBancarias) || [];
+      if (initialBankAccounts.length > 0) {
+        setBaixaContaId((prev) => prev || initialBankAccounts[0].id);
+        setBatchBaixaContaId((prev) => prev || initialBankAccounts[0].id);
       }
       if (data.cartoesCredito?.length > 0) {
         setBaixaCartaoId((prev) => prev || data.cartoesCredito[0].id);
@@ -495,8 +496,9 @@ export default function GestaoCaixaContasPage() {
   const handleOpenBaixaModal = (item: any) => {
     setPayCommitmentItem(item);
     setBaixaForma("SALDO_CONTA");
-    if (contasBancarias.length > 0) {
-      setBaixaContaId(contasBancarias[0].id);
+    const listContas = accounts.length > 0 ? accounts : contasBancarias;
+    if (listContas.length > 0) {
+      setBaixaContaId((prev) => prev || listContas[0].id);
     }
     setBaixaData(new Date().toISOString().split("T")[0]);
   };
@@ -550,8 +552,9 @@ export default function GestaoCaixaContasPage() {
   // Handlers: Baixa em Lote
   const handleOpenBatchModal = () => {
     setBatchBaixaForma("SALDO_CONTA");
-    if (contasBancarias.length > 0) {
-      setBatchBaixaContaId(contasBancarias[0].id);
+    const listContas = accounts.length > 0 ? accounts : contasBancarias;
+    if (listContas.length > 0) {
+      setBatchBaixaContaId((prev) => prev || listContas[0].id);
     }
     setBatchBaixaData(new Date().toISOString().split("T")[0]);
     setBatchModalOpen(true);
@@ -2037,7 +2040,7 @@ export default function GestaoCaixaContasPage() {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.bankName} (Saldo: R$ {a.saldoAtual.toFixed(2)})
+                      {a.bankName || a.title} (Saldo: {brl(Number(a.saldoAtual || 0))})
                     </option>
                   ))}
                 </select>
@@ -2449,9 +2452,9 @@ export default function GestaoCaixaContasPage() {
                       value={baixaContaId}
                       onChange={(e) => setBaixaContaId(e.target.value)}
                     >
-                      {contasBancarias.map((conta) => (
+                      {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
                         <option key={conta.id} value={conta.id}>
-                          {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                          {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
                         </option>
                       ))}
                     </select>
@@ -2492,9 +2495,9 @@ export default function GestaoCaixaContasPage() {
                         value={baixaContaId}
                         onChange={(e) => setBaixaContaId(e.target.value)}
                       >
-                        {contasBancarias.map((conta) => (
+                        {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
                           <option key={conta.id} value={conta.id}>
-                            {conta.banco} - Saldo: R$ {conta.saldoAtual.toFixed(2)}
+                            {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
                           </option>
                         ))}
                       </select>
@@ -2583,9 +2586,9 @@ export default function GestaoCaixaContasPage() {
                   value={batchBaixaContaId}
                   onChange={(e) => setBatchBaixaContaId(e.target.value)}
                 >
-                  {contasBancarias.map((conta: any) => (
+                  {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
                     <option key={conta.id} value={conta.id}>
-                      {conta.banco} - Saldo Atual: {brl(Number(conta.saldoAtual || 0))}
+                      {conta.bankName || conta.banco || conta.title} - Saldo Atual: {brl(Number(conta.saldoAtual || 0))}
                     </option>
                   ))}
                 </select>
@@ -2603,7 +2606,8 @@ export default function GestaoCaixaContasPage() {
 
               {/* Prévia do impacto financeiro na conta escolhida */}
               {(() => {
-                const selectedConta = contasBancarias.find((c: any) => c.id === batchBaixaContaId) || contasBancarias[0];
+                const listContas = accounts.length > 0 ? accounts : contasBancarias;
+                const selectedConta = listContas.find((c: any) => c.id === batchBaixaContaId) || listContas[0];
                 if (!selectedConta) return null;
                 const saldoAtualNum = Number(selectedConta.saldoAtual || 0);
                 const saldoPosDebito = saldoAtualNum - selectedBatchTotal;
@@ -2612,7 +2616,7 @@ export default function GestaoCaixaContasPage() {
                 return (
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-500 dark:text-slate-400">Saldo Atual ({selectedConta.banco}):</span>
+                      <span className="text-slate-500 dark:text-slate-400">Saldo Atual ({selectedConta.bankName || selectedConta.banco || selectedConta.title}):</span>
                       <span className="font-bold tabular-nums text-slate-800 dark:text-slate-200">{brl(saldoAtualNum)}</span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -2872,7 +2876,7 @@ export default function GestaoCaixaContasPage() {
                 >
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
-                      {a.bankName} (Saldo: R$ {a.saldoAtual.toFixed(2)})
+                      {a.bankName || a.title} (Saldo: {brl(Number(a.saldoAtual || 0))})
                     </option>
                   ))}
                 </select>

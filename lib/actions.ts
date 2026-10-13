@@ -10414,13 +10414,22 @@ export async function getMonthlyCommitmentsAction(
       };
     });
 
-    contasBancarias = userWallets
-      .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
-      .map((w) => ({
-        id: w.id,
-        banco: w.bankName || w.title,
-        saldoAtual: Number(w.currentBalance || 0),
-      }));
+    const nowForContas = new Date();
+    const curMonthForContas = nowForContas.getUTCMonth() + 1;
+    const curYearForContas = nowForContas.getUTCFullYear();
+
+    contasBancarias = await Promise.all(
+      userWallets
+        .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
+        .map(async (w) => {
+          const bInfo = await calculateAccountBalance(w.id, curMonthForContas, curYearForContas, w, preloaded.transactions);
+          return {
+            id: w.id,
+            banco: w.bankName || w.title,
+            saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+          };
+        })
+    );
 
     txs = preloaded.transactions.filter((t: any) => {
       // Regra 3: Evitar duplicidade — compras individuais no cartão NÃO entram como compromissos avulsos
@@ -10463,13 +10472,22 @@ export async function getMonthlyCommitmentsAction(
       orderBy: { title: "asc" },
     });
 
-    contasBancarias = userWallets
-      .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
-      .map((w) => ({
-        id: w.id,
-        banco: w.bankName || w.title,
-        saldoAtual: Number(w.currentBalance || 0),
-      }));
+    const nowForContas2 = new Date();
+    const curMonthForContas2 = nowForContas2.getUTCMonth() + 1;
+    const curYearForContas2 = nowForContas2.getUTCFullYear();
+
+    contasBancarias = await Promise.all(
+      userWallets
+        .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
+        .map(async (w) => {
+          const bInfo = await calculateAccountBalance(w.id, curMonthForContas2, curYearForContas2, w);
+          return {
+            id: w.id,
+            banco: w.bankName || w.title,
+            saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+          };
+        })
+    );
 
     creditCardWallets = userWallets.filter((w) => w.walletType === "CREDIT_CARD");
     creditCardIds = creditCardWallets.map((w) => w.id);
@@ -12167,7 +12185,11 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       accounts,
       realizedTransactions,
       pendingCommitments,
-      contasBancarias: commitmentsResult.contasBancarias || [],
+      contasBancarias: accounts.map((a) => ({
+        id: a.id,
+        banco: a.bankName || a.title,
+        saldoAtual: a.saldoAtual,
+      })),
       cartoesCredito: commitmentsResult.cartoesCredito || [],
       totals: {
         totalRealBalance,
