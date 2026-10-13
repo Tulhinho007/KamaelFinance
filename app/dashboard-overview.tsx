@@ -298,9 +298,9 @@ export function DashboardOverview() {
           <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
         </div>
 
-        {/* 3 KPI cards skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
-          {[1, 2, 3].map((i) => (
+        {/* 2 KPI cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+          {[1, 2].map((i) => (
             <div key={i} className="h-36 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-5 space-y-3">
               <div className="h-4 bg-slate-200 dark:bg-zinc-800 rounded w-28" />
               <div className="h-8 bg-slate-200 dark:bg-zinc-800 rounded w-44" />
@@ -570,7 +570,7 @@ export function DashboardOverview() {
         const totalDestaque = totalMesAtual + totalMesProximo;
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
@@ -598,95 +598,54 @@ export function DashboardOverview() {
               </p>
             </div>
 
-            {/* CARD 2: CARTÕES DE CRÉDITO (MÊS ATUAL) */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                      Cartões de Crédito
-                    </span>
-                    <span className="rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 capitalize">
-                      {nomeMesAtual}
-                    </span>
-                  </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 text-base">
-                    💳
-                  </div>
-                </div>
-
-                {/* Total consolidado dos cartões no mês */}
-                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
-                </div>
-
-                {/* Listinha miúda com cada cartão */}
-                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
-                  {faturasCartoes.length > 0 ? (
-                    faturasCartoes.map((cartao: any) => (
-                      <div key={cartao.id} className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
-                        <span className="capitalize">{cartao.nome} {nomeMesAtual}:</span>
-                        <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
-                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cartao.valor)}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="py-1 text-slate-400 dark:text-zinc-500">Nenhum gasto em cartão no mês atual</p>
-                  )}
-                </div>
-              </div>
-
-              <p className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
-                Gastos e faturas computados no mês vigente
-              </p>
-            </div>
-
-            {/* CARD 3: DESPESAS PENDENTES (MÊS ATUAL E PRÓXIMO) */}
+            {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + BOLETOS/CONTAS) */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
                 {/* Cabeçalho */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                      Despesas Pendentes
+                      Total a Pagar
                     </span>
-                    <span className="rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20">
-                      Próximos 60 dias
+                    <span className="rounded-full bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">
+                      Faturas + Boletos
                     </span>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 text-base">
-                    ⏱
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 text-base">
+                    💸
                   </div>
                 </div>
 
-                {/* Valor Grande (Total Mês Atual + Próximo Mês) */}
-                <div className="mt-3 text-3xl font-extrabold text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalDestaque)}
+                {/* Valor Total Grande */}
+                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                    totalGeralCartoesMes + totalDestaque
+                  )}
                 </div>
 
-                {/* Linhas detalhando apenas os dois meses */}
+                {/* Detalhamento Miúdo */}
                 <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
                   <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
-                    <span className="capitalize">Mês {nomeMesAtual}:</span>
+                    <span className="capitalize">Cartões de Crédito ({nomeMesAtual}):</span>
                     <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMesAtual)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
-                    <span className="capitalize">Mês {nomeMesProximo}:</span>
+                    <span>Contas Pendentes (Próximos 60 dias):</span>
                     <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMesProximo)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalDestaque)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Rodapé com a contagem de pendências */}
+              {/* Rodapé */}
               <div className="mt-3 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-                <span>Boletos & contas a pagar</span>
-                <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  {despesasFiltradas.length} {despesasFiltradas.length === 1 ? "pendência" : "pendências"}
+                <span>Previsão de saída</span>
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
+                  {despesasFiltradas.length + faturasCartoes.length}{" "}
+                  {despesasFiltradas.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
                 </span>
               </div>
             </div>
