@@ -20,6 +20,7 @@ export interface MetricKpiCardProps {
   onClick?: () => void;
   className?: string;
   isLoading?: boolean;
+  children?: React.ReactNode;
 }
 
 const variantStyles: Record<
@@ -80,6 +81,7 @@ export function MetricKpiCard({
   onClick,
   className = "",
   isLoading = false,
+  children,
 }: MetricKpiCardProps) {
   const styles = variantStyles[variant] || variantStyles.neutral;
 
@@ -149,6 +151,9 @@ export function MetricKpiCard({
             {subtext}
           </div>
         )}
+
+        {/* Conteúdo adicional (ex.: listagem por mês) */}
+        {children && !isLoading && children}
       </div>
 
       {/* Rodapé customizado (ex.: Realizadas vs A receber, links ou detalhes) */}

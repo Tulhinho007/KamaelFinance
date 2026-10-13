@@ -333,6 +333,29 @@ export default function GestaoCaixaContasPage() {
     return totals.totalRealBalance || 0;
   }, [accounts, totals.totalRealBalance]);
 
+  // Agrupamento de despesas pendentes por mês para detalhamento no card
+  const pendenciasPorMes = useMemo(() => {
+    const list = agendaPeriodFilter === "ALL" ? pendingCommitments : periodFilteredPendingCommitments;
+    const map = new Map<number, { mes: string; valor: number; sortKey: number }>();
+
+    for (const item of list) {
+      const parts = getItemDueDateParts(item);
+      const mIdx = parts ? parts.month : 0;
+      const mName = mIdx >= 1 && mIdx <= 12 ? MONTH_NAMES_LIST[mIdx - 1] : "Sem data";
+      const sortKey = parts ? parts.year * 100 + mIdx : 999999;
+
+      const current = map.get(sortKey) || {
+        mes: mName,
+        valor: 0,
+        sortKey,
+      };
+      current.valor += Number(item.amount || 0);
+      map.set(sortKey, current);
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.sortKey - b.sortKey);
+  }, [agendaPeriodFilter, pendingCommitments, periodFilteredPendingCommitments]);
+
   // Filtros da Agenda de Contas a Pagar (Apenas itens PENDENTES que batem com período e busca)
   const filteredPendingCommitments = useMemo(() => {
     const list = pendingCommitments.filter((item) => {
@@ -1021,7 +1044,21 @@ export default function GestaoCaixaContasPage() {
               </div>
             </>
           }
-        />
+        >
+          {/* Lista com letras miúdas por mês */}
+          {pendenciasPorMes.length > 0 && (
+            <div className="mt-3 space-y-1 border-t border-slate-100 dark:border-white/[0.08] pt-2 text-xs text-slate-500 dark:text-zinc-400 max-h-44 overflow-y-auto pr-1">
+              {pendenciasPorMes.map((item) => (
+                <div key={item.mes} className="flex justify-between items-center text-[11px] sm:text-xs">
+                  <span>Mês {item.mes}:</span>
+                  <span className="font-medium text-slate-700 dark:text-zinc-200 tabular-nums">
+                    {brl(item.valor)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </MetricKpiCard>
       </section>
 
       {/* ── Mini-Cards de Contas Bancárias Cadastradas ───────────────────── */}
@@ -1454,16 +1491,16 @@ export default function GestaoCaixaContasPage() {
                                 <button
                                   onClick={() => handleOpenBaixaModal(item)}
                                   className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer"
-                                  title="Pagar conta e lançar no extrato"
+                                  title="Baixar conta e lançar no extrato"
                                 >
                                   <Check className="w-3.5 h-3.5" />
-                                  <span>Pagar / Baixar</span>
+                                  <span>Baixar</span>
                                 </button>
                               ) : (
                                 <button
                                   onClick={() => handleOpenBaixaModal(item)}
                                   className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                                  title="Liquidar antecipadamente ou dar baixa"
+                                  title="Baixar conta e lançar no extrato"
                                 >
                                   <Check className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                                   <span>Baixar</span>
@@ -1812,7 +1849,7 @@ export default function GestaoCaixaContasPage() {
                 className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs sm:text-sm px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
               >
                 <Check className="w-4 h-4" />
-                <span>Pagar / Baixar Selecionadas em Lote</span>
+                <span>Baixar Selecionadas em Lote</span>
               </button>
 
               <button
