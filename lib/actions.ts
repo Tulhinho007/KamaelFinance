@@ -4867,6 +4867,24 @@ export async function getAllCardsOverview(
 
     const allExpenses = allExpensesByWallet.get(w.id) || [];
 
+    const nowCur = new Date();
+    const curMonthNow = nowCur.getMonth() + 1;
+    const curYearNow = nowCur.getFullYear();
+    const curMonthCreditTxs = isCredit
+      ? allExpenses.filter((t: any) => {
+          if (t.competenceMonth != null && t.competenceYear != null) {
+            return t.competenceMonth === curMonthNow && t.competenceYear === curYearNow;
+          }
+          const d = new Date(t.competenceDate || t.purchaseDate || t.date);
+          const tm = d.getUTCMonth() + 1;
+          const ty = d.getUTCFullYear();
+          return tm === curMonthNow && ty === curYearNow;
+        })
+      : [];
+    const faturaMesAtual = isCredit
+      ? curMonthCreditTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
+      : 0;
+
     let limitUsed = 0;
     if (isCredit) {
       const allPaidInvoices = paidInvoicesByWallet.get(w.id) || [];
@@ -4984,6 +5002,7 @@ export async function getAllCardsOverview(
       limitTotal:       isCredit ? limitTotal : balanceInfo.currentRealBalance,
       limitUsed:        isCredit ? Math.min(limitUsed, limitTotal) : limitUsed,
       faturaAtual,
+      faturaMesAtual,
       faturaPaga,
       faturaPendente,
       accountExpenses,

@@ -21,7 +21,6 @@ import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
-import { MetricKpiCard } from "@/components/metric-kpi-card";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
@@ -299,13 +298,13 @@ export function DashboardOverview() {
           <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
         </div>
 
-        {/* 4 KPI cards skeleton */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
-              <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-24" />
-              <div className="h-8 bg-slate-200 dark:bg-slate-800 rounded w-36" />
-              <div className="h-3 bg-slate-100 dark:bg-slate-800/60 rounded w-28" />
+        {/* 2 KPI cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-36 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-5 space-y-3">
+              <div className="h-4 bg-slate-200 dark:bg-zinc-800 rounded w-28" />
+              <div className="h-8 bg-slate-200 dark:bg-zinc-800 rounded w-44" />
+              <div className="h-3 bg-slate-100 dark:bg-zinc-800/60 rounded w-36" />
             </div>
           ))}
         </div>
@@ -494,7 +493,7 @@ export function DashboardOverview() {
         </div>
       </div>
 
-      {/* ── 1.5. CARD DE DESTAQUE: SALDO CONSOLIDADO (Tempo Real) ──────────── */}
+      {/* ── 1.5. CARDS DE DESTAQUE: SALDO CONSOLIDADO & CARTÕES DE CRÉDITO ──────────── */}
       {(() => {
         const bankAccounts = (data?.cards || []).filter(
           (c: any) => c.walletType === "CONTA_CORRENTE" || c.walletType === "CONTA" || c.walletType === "DEBITO"
@@ -512,54 +511,91 @@ export function DashboardOverview() {
           ? Number(data.totalRealBalance)
           : totalRealBalanceCalculated;
 
-        const totalReceitasAno = Number(data?.totalReceitas ?? data?.totalIncomes ?? 0);
-        const totalGastosAno = Number(data?.totalGastos ?? data?.totalExpenses ?? 0);
-        const resultadoLiquidoAno = totalReceitasAno - totalGastosAno;
+        const nomeMesAtual = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(new Date());
+
+        const cartoesCredito = (data?.cards || []).filter((c: any) => c.walletType === "CREDIT_CARD");
+        const faturasCartoes = cartoesCredito
+          .map((cartao: any) => ({
+            id: cartao.id,
+            nome: cartao.bankName || cartao.title || "Cartão de Crédito",
+            valor: Number(cartao.faturaMesAtual ?? cartao.faturaAtual ?? 0),
+          }))
+          .filter((c: any) => c.valor > 0);
+
+        const totalGeralCartoesMes = faturasCartoes.reduce((acc: number, c: any) => acc + c.valor, 0);
 
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch mb-2">
-            {/* Card 1: Saldo Consolidado */}
-            <MetricKpiCard
-              label="Saldo Consolidado"
-              value={`R$ ${saldoConsolidado.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              subtext="Disponibilidade consolidada em conta"
-              variant="neutral"
-              icon={Wallet}
-              badge={{ text: "Tempo Real", variant: "neutral" }}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+            {/* CARD 1: SALDO CONSOLIDADO */}
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Saldo Consolidado
+                    </span>
+                    <span className="rounded-full bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 text-[10px] font-semibold text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20">
+                      Tempo Real
+                    </span>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 text-base">
+                    👛
+                  </div>
+                </div>
 
-            {/* Card 2: Receitas do Ano */}
-            <MetricKpiCard
-              label={`Receitas (${selectedDashboardYear})`}
-              value={`+${brl(totalReceitasAno)}`}
-              subtext="Receitas realizadas (efetivadas) no ano"
-              variant="success"
-              icon={TrendingUp}
-              badge={{ text: "Entradas", variant: "success" }}
-            />
+                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoConsolidado)}
+                </div>
+              </div>
 
-            {/* Card 3: Despesas do Ano */}
-            <MetricKpiCard
-              label={`Despesas (${selectedDashboardYear})`}
-              value={`-${brl(totalGastosAno)}`}
-              subtext="Saídas liquidadas (conta + faturas pagas)"
-              variant="danger"
-              icon={TrendingDown}
-              badge={{ text: "Despesas", variant: "danger" }}
-            />
+              <p className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
+                Disponibilidade consolidada em conta
+              </p>
+            </div>
 
-            {/* Card 4: Resultado Líquido */}
-            <MetricKpiCard
-              label="Resultado Líquido"
-              value={`${resultadoLiquidoAno >= 0 ? "+" : ""}${brl(resultadoLiquidoAno)}`}
-              subtext={resultadoLiquidoAno >= 0 ? "Receitas realizadas − despesas efetivadas (superávit)" : "Receitas realizadas − despesas efetivadas (déficit)"}
-              variant={resultadoLiquidoAno >= 0 ? "success" : "danger"}
-              icon={Sparkles}
-              badge={{
-                text: resultadoLiquidoAno >= 0 ? "Superávit" : "Déficit",
-                variant: resultadoLiquidoAno >= 0 ? "success" : "danger"
-              }}
-            />
+            {/* CARD 2: NOVO - CARTÕES DE CRÉDITO (MÊS ATUAL) */}
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Cartões de Crédito
+                    </span>
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 capitalize">
+                      {nomeMesAtual}
+                    </span>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 text-base">
+                    💳
+                  </div>
+                </div>
+
+                {/* Total consolidado dos cartões no mês */}
+                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
+                </div>
+
+                {/* Listinha miúda com cada cartão */}
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
+                  {faturasCartoes.length > 0 ? (
+                    faturasCartoes.map((cartao: any) => (
+                      <div key={cartao.id} className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                        <span className="capitalize">{cartao.nome} {nomeMesAtual}:</span>
+                        <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cartao.valor)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="py-1 text-slate-400 dark:text-zinc-500">Nenhum gasto em cartão no mês atual</p>
+                  )}
+                </div>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
+                Gastos e faturas computados no mês vigente
+              </p>
+            </div>
           </div>
         );
       })()}
