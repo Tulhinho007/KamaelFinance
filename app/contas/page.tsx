@@ -35,7 +35,6 @@ import {
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
-import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
   getGestaoCaixaPageDataAction,
   createNewCard,
@@ -1050,91 +1049,100 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* ── 1. Visão Geral Superior: 2 Cards Consolidados (Saldo Geral e Despesas Pendentes) ─────────── */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-        {/* Card 1: Saldo Geral Consolidado */}
-        <MetricKpiCard
-          label="Saldo Geral"
-          value={brl(totalSaldoGeral)}
-          variant={totalSaldoGeral >= 0 ? "neutral" : "danger"}
-          icon={Wallet}
-          footer={
-            <>
-              <span>Saldo líquido consolidado</span>
-              <span className="font-semibold text-slate-700 dark:text-zinc-300">
-                {accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}
+      {/* ── 1. Visão Geral Superior: 2 Cards Consolidados Compactos ─────────── */}
+      <div className="flex flex-wrap gap-4 my-4 max-w-4xl">
+        {/* Card 1: Saldo Geral (Compacto) */}
+        <div className="w-full sm:w-72 rounded-xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 p-3.5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                Saldo Geral
               </span>
-            </>
-          }
-        />
-
-        {/* Card 2: Despesas / Compromissos Pendentes */}
-        <MetricKpiCard
-          label={
-            agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-              ? `Despesas Pendentes (${selectedYear})`
-              : "Despesas Pendentes"
-          }
-          value={
-            agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-              ? brl(totals.totalPendentesAno)
-              : brl(periodPendingTotal)
-          }
-          variant="warning"
-          icon={Clock}
-          badge={
-            agendaPeriodFilter !== "ALL" || dataInicio || dataFim ? (
-              <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-300 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-amber-500/20 truncate">
-                Filtrado: {activePeriodBadgeLabel}
-              </span>
-            ) : undefined
-          }
-          footer={
-            <>
-              <span>
-                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                  ? "Boletos & contas no ano"
-                  : "Boletos & contas no período"}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                    ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
-                    : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
-                </span>
-                {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDataInicio("");
-                      setDataFim("");
-                      setAgendaPeriodFilter("ALL");
-                    }}
-                    className="text-[9px] text-zinc-400 hover:text-amber-400 font-medium underline cursor-pointer"
-                    title="Ver todo o ano"
-                  >
-                    (Ver ano)
-                  </button>
-                )}
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs">
+                👛
               </div>
-            </>
-          }
-        >
-          {/* Lista com letras miúdas por mês */}
-          {pendenciasPorMes.length > 0 && (
-            <div className="mt-3 space-y-1 border-t border-slate-100 dark:border-white/[0.08] pt-2 text-xs text-slate-500 dark:text-zinc-400 max-h-44 overflow-y-auto pr-1">
-              {pendenciasPorMes.map((item) => (
-                <div key={item.mes} className="flex justify-between items-center text-[11px] sm:text-xs">
-                  <span>Mês {item.mes}:</span>
-                  <span className="font-medium text-slate-700 dark:text-zinc-200 tabular-nums">
-                    {brl(item.valor)}
-                  </span>
-                </div>
-              ))}
             </div>
-          )}
-        </MetricKpiCard>
-      </section>
+
+            <div className={`mt-1.5 text-2xl font-bold font-tnum tabular-nums ${totalSaldoGeral >= 0 ? "text-slate-900 dark:text-zinc-100" : "text-rose-600 dark:text-rose-400"}`}>
+              {brl(totalSaldoGeral)}
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+            <span>Saldo líquido consolidado</span>
+            <span className="font-medium text-slate-500 dark:text-zinc-400">
+              {accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}
+            </span>
+          </div>
+        </div>
+
+        {/* Card 2: Despesas Pendentes (Compacto) */}
+        <div className="w-full sm:w-80 rounded-xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 p-3.5 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                  ? `Despesas Pendentes (${selectedYear})`
+                  : "Despesas Pendentes"}
+              </span>
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
+                ⏱
+              </div>
+            </div>
+
+            <div className="mt-1.5 text-2xl font-bold text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
+              {brl(
+                agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                  ? totals.totalPendentesAno
+                  : periodPendingTotal
+              )}
+            </div>
+
+            {/* Detalhamento compacto */}
+            {pendenciasPorMes.length > 0 && (
+              <div className="mt-2 space-y-0.5 border-t border-slate-100 dark:border-white/[0.06] pt-1.5 text-[11px] max-h-40 overflow-y-auto pr-1">
+                {pendenciasPorMes.map((item) => (
+                  <div key={item.mes} className="flex justify-between text-slate-500 dark:text-zinc-400">
+                    <span>Mês {item.mes}:</span>
+                    <span className="font-medium text-slate-700 dark:text-zinc-200 font-tnum tabular-nums">
+                      {brl(item.valor)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2.5 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+            <span>
+              {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                ? "Boletos & contas no ano"
+                : "Boletos & contas no período"}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium text-amber-600 dark:text-amber-400">
+                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                  ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
+                  : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
+              </span>
+              {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDataInicio("");
+                    setDataFim("");
+                    setAgendaPeriodFilter("ALL");
+                  }}
+                  className="text-[9px] text-zinc-400 hover:text-amber-400 font-medium underline cursor-pointer"
+                  title="Ver todo o ano"
+                >
+                  (Ver ano)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Mini-Cards de Contas Bancárias Cadastradas ───────────────────── */}
       {accounts.length > 0 && (
@@ -1150,7 +1158,7 @@ export default function GestaoCaixaContasPage() {
               + Adicionar Conta
             </button>
           </div>
-          <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-2xl" : accounts.length === 2 ? "lg:grid-cols-2" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
+          <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-xs sm:max-w-sm" : accounts.length === 2 ? "lg:grid-cols-2 max-w-2xl" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
             {accounts.map((acc) => {
               const isSelected = extratoAccountFilter === acc.id;
               const walletTypeLabel = acc.walletType === "CONTA_CORRENTE" ? "Conta Corrente" : (acc.walletType === "DEBITO" ? "Débito" : "Conta");
@@ -1159,38 +1167,38 @@ export default function GestaoCaixaContasPage() {
                 <div
                   key={acc.id}
                   onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : acc.id)}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-3.5 ${
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-2.5 ${
                     isSelected
                       ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
                       : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
                   }`}
                 >
                   {/* Topo do Card: Identificação completa sem truncamento prematuro */}
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
-                        <Building2 className="w-4 h-4" />
+                  <div className="flex items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
+                        <Building2 className="w-3.5 h-3.5" />
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap min-w-0">
-                        <span className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white">
                           {acc.bankName}
                         </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase shrink-0">
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase shrink-0">
                           {walletTypeLabel}
                         </span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 shrink-0">
-                      {isSelected ? "✓ Filtrando extrato" : "Clique p/ filtrar"}
+                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 shrink-0">
+                      {isSelected ? "✓ Filtrando" : "Filtrar"}
                     </span>
                   </div>
 
                   {/* Conteúdo: Saldo Real Disponível */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60">
+                  <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800/60">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
                       Saldo Real Disponível
                     </span>
-                    <p className={`text-xl sm:text-2xl font-black tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
+                    <p className={`text-xl sm:text-2xl font-bold font-tnum tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
                       {brl(acc.saldoAtual)}
                     </p>
                   </div>
