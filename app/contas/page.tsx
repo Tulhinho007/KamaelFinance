@@ -1098,10 +1098,10 @@ export default function GestaoCaixaContasPage() {
               )}
             </div>
 
-            {/* Detalhamento compacto */}
+            {/* Detalhamento compacto limitado aos 2 primeiros meses (mês atual e próximo) */}
             {pendenciasPorMes.length > 0 && (
-              <div className="mt-2 space-y-0.5 border-t border-slate-100 dark:border-white/[0.06] pt-1.5 text-[11px] max-h-40 overflow-y-auto pr-1">
-                {pendenciasPorMes.map((item) => (
+              <div className="mt-2 space-y-0.5 border-t border-slate-100 dark:border-white/[0.06] pt-1.5 text-[11px]">
+                {pendenciasPorMes.slice(0, 2).map((item) => (
                   <div key={item.mes} className="flex justify-between text-slate-500 dark:text-zinc-400">
                     <span>Mês {item.mes}:</span>
                     <span className="font-medium text-slate-700 dark:text-zinc-200 font-tnum tabular-nums">
