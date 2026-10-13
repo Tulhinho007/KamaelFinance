@@ -6935,6 +6935,7 @@ export async function getDashboardOverviewData(
   let goals: any[];
   let histTransactionsRaw: any[];
   let upcomingBills: any[];
+  let commitmentsResult: any;
 
   if (preloaded?.transactions && preloaded?.wallets) {
     // ⚡ Utiliza o cache unificado em memória (Zero I/O no banco)
@@ -6960,6 +6961,8 @@ export async function getDashboardOverviewData(
       preloaded.transactions,
       preloaded.paidInvoices
     );
+
+    commitmentsResult = await getMonthlyCommitmentsAction("ALL", year, preloaded);
   } else {
     // 1. Busca agregada de todos os blocos de dados do Dashboard em paralelo
     [
@@ -6967,7 +6970,8 @@ export async function getDashboardOverviewData(
       cards,
       goals,
       histTransactionsRaw,
-      upcomingBills
+      upcomingBills,
+      commitmentsResult
     ] = await Promise.all([
       // Lançamentos filtrados pelo período (Mês ou Ano) com inclusão de tags opcionais e respeito à competência
       prisma.transaction.findMany({
@@ -7006,7 +7010,9 @@ export async function getDashboardOverviewData(
         }
       }),
       // Alertas de contas e faturas próximas
-      getUpcomingCreditCardBills(userId)
+      getUpcomingCreditCardBills(userId),
+      // Compromissos e Despesas Pendentes (Agenda de Contas)
+      getMonthlyCommitmentsAction("ALL", year)
     ]);
   }
 
@@ -7240,6 +7246,15 @@ export async function getDashboardOverviewData(
     monthlyHistory: historyMonths
   });
 
+  const despesasPendentes = (commitmentsResult?.items || [])
+    .filter((item: any) => item.status === "PENDING")
+    .map((item: any) => ({
+      ...item,
+      id: item.id,
+      valor: Number(item.amount || item.valor || 0),
+      dataVencimento: item.dueDateInput ? `${item.dueDateInput}T12:00:00` : (item.dueDateRaw || item.date),
+    }));
+
   return {
     totalRealBalance,
     totalReceitas,
@@ -7255,6 +7270,8 @@ export async function getDashboardOverviewData(
     paymentMethodBreakdown,
     monthlyHistory: historyMonths,
     upcomingBills,
+    pendingCommitments: despesasPendentes,
+    despesasPendentes,
   };
 }
 
@@ -11558,6 +11575,8 @@ export async function getDashboardBundleAction(
         recentTransactions: [],
         activeGoals: [],
         upcomingInvoices: [],
+        pendingCommitments: [],
+        despesasPendentes: [],
         investmentsSummary: { totalPatrimony: 0, totalInvested: 0, totalProfit: 0, profitPercentage: 0, allocation: [] },
       } as any)),
       getWalletsAction(wallets, transactions).catch(() => []),

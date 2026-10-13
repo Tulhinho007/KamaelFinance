@@ -298,9 +298,9 @@ export function DashboardOverview() {
           <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
         </div>
 
-        {/* 2 KPI cards skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-          {[1, 2].map((i) => (
+        {/* 3 KPI cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-36 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-5 space-y-3">
               <div className="h-4 bg-slate-200 dark:bg-zinc-800 rounded w-28" />
               <div className="h-8 bg-slate-200 dark:bg-zinc-800 rounded w-44" />
@@ -511,7 +511,19 @@ export function DashboardOverview() {
           ? Number(data.totalRealBalance)
           : totalRealBalanceCalculated;
 
-        const nomeMesAtual = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(new Date());
+        const hoje = new Date();
+        const mesAtualIndex = hoje.getMonth(); // 0 a 11
+        const anoAtual = hoje.getFullYear();
+
+        // Define os dois meses de interesse
+        const dataAtual = new Date(anoAtual, mesAtualIndex, 1);
+        const dataProximo = new Date(anoAtual, mesAtualIndex + 1, 1);
+
+        const chaveMesAtual = `${dataAtual.getFullYear()}-${dataAtual.getMonth()}`;
+        const chaveMesProximo = `${dataProximo.getFullYear()}-${dataProximo.getMonth()}`;
+
+        const nomeMesAtual = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataAtual);
+        const nomeMesProximo = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataProximo);
 
         const cartoesCredito = (data?.cards || []).filter((c: any) => c.walletType === "CREDIT_CARD");
         const faturasCartoes = cartoesCredito
@@ -524,8 +536,41 @@ export function DashboardOverview() {
 
         const totalGeralCartoesMes = faturasCartoes.reduce((acc: number, c: any) => acc + c.valor, 0);
 
+        // ── Despesas Pendentes (Apenas Mês Atual e Mês + 1) ──────────────────────
+        const despesasPendentes: any[] = data?.despesasPendentes || data?.pendingCommitments || [];
+
+        const getVencKey = (d: any): string => {
+          if (d.dataVencimento) {
+            const dt = new Date(d.dataVencimento);
+            if (!isNaN(dt.getTime())) return `${dt.getFullYear()}-${dt.getMonth()}`;
+          }
+          if (d.dueDateInput && typeof d.dueDateInput === "string") {
+            const [y, m] = d.dueDateInput.split("-").map(Number);
+            if (!isNaN(y) && !isNaN(m)) return `${y}-${m - 1}`;
+          }
+          if (d.competenceYear && d.competenceMonth) {
+            return `${Number(d.competenceYear)}-${Number(d.competenceMonth) - 1}`;
+          }
+          return "";
+        };
+
+        const despesasFiltradas = despesasPendentes.filter((d: any) => {
+          const chave = getVencKey(d);
+          return chave === chaveMesAtual || chave === chaveMesProximo;
+        });
+
+        const totalMesAtual = despesasFiltradas
+          .filter((d: any) => getVencKey(d) === chaveMesAtual)
+          .reduce((acc: number, d: any) => acc + Number(d.valor || d.amount || 0), 0);
+
+        const totalMesProximo = despesasFiltradas
+          .filter((d: any) => getVencKey(d) === chaveMesProximo)
+          .reduce((acc: number, d: any) => acc + Number(d.valor || d.amount || 0), 0);
+
+        const totalDestaque = totalMesAtual + totalMesProximo;
+
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
@@ -553,7 +598,7 @@ export function DashboardOverview() {
               </p>
             </div>
 
-            {/* CARD 2: NOVO - CARTÕES DE CRÉDITO (MÊS ATUAL) */}
+            {/* CARD 2: CARTÕES DE CRÉDITO (MÊS ATUAL) */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
@@ -595,6 +640,55 @@ export function DashboardOverview() {
               <p className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
                 Gastos e faturas computados no mês vigente
               </p>
+            </div>
+
+            {/* CARD 3: DESPESAS PENDENTES (MÊS ATUAL E PRÓXIMO) */}
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+              <div>
+                {/* Cabeçalho */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Despesas Pendentes
+                    </span>
+                    <span className="rounded-full bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20">
+                      Próximos 60 dias
+                    </span>
+                  </div>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 text-base">
+                    ⏱
+                  </div>
+                </div>
+
+                {/* Valor Grande (Total Mês Atual + Próximo Mês) */}
+                <div className="mt-3 text-3xl font-extrabold text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalDestaque)}
+                </div>
+
+                {/* Linhas detalhando apenas os dois meses */}
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span className="capitalize">Mês {nomeMesAtual}:</span>
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMesAtual)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span className="capitalize">Mês {nomeMesProximo}:</span>
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalMesProximo)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rodapé com a contagem de pendências */}
+              <div className="mt-3 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+                <span>Boletos & contas a pagar</span>
+                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                  {despesasFiltradas.length} {despesasFiltradas.length === 1 ? "pendência" : "pendências"}
+                </span>
+              </div>
             </div>
           </div>
         );
