@@ -60,7 +60,7 @@ const MONTH_NAMES_LIST = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
-export type AgendaPeriodFilter = "ALL" | "CURRENT_MONTH" | "NEXT_MONTH" | "CUSTOM";
+export type AgendaPeriodFilter = "ALL" | "CURRENT_MONTH" | "NEXT_MONTH" | "CUSTOM" | "DATE_RANGE";
 
 export default function GestaoCaixaContasPage() {
   const { selectedYear, prevYear, nextYear, goToCurrentYear } = usePeriod();
@@ -94,6 +94,8 @@ export default function GestaoCaixaContasPage() {
 
   // Filtros de Agenda a Pagar (Padrão: Todas as Pendências do Ano)
   const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("ALL");
+  const [dataInicio, setDataInicio] = useState<string>("");
+  const [dataFim, setDataFim] = useState<string>("");
   const [customFilterMonth, setCustomFilterMonth] = useState<number>(new Date().getMonth() + 1);
   const [customFilterYear, setCustomFilterYear] = useState<number>(selectedYear || new Date().getFullYear());
   const [agendaSearch, setAgendaSearch] = useState("");
@@ -281,7 +283,50 @@ export default function GestaoCaixaContasPage() {
     return null;
   };
 
+  // Helper para obter a data ISO (YYYY-MM-DD) do item de compromisso
+  const getItemDueDateIso = (item: any): string | null => {
+    if (item.dueDateInput && typeof item.dueDateInput === "string") {
+      return item.dueDateInput.split("T")[0];
+    }
+    if (item.dueDateRaw) {
+      try {
+        const d = new Date(item.dueDateRaw);
+        if (!isNaN(d.getTime())) {
+          return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+        }
+      } catch {}
+    }
+    if (item.dueDateFormatted && typeof item.dueDateFormatted === "string") {
+      const parts = item.dueDateFormatted.split("/");
+      if (parts.length === 3) {
+        return `${parts[2]}-${String(parts[1]).padStart(2, "0")}-${String(parts[0]).padStart(2, "0")}`;
+      }
+    }
+    if (item.competenceYear && item.competenceMonth) {
+      return `${item.competenceYear}-${String(item.competenceMonth).padStart(2, "0")}-01`;
+    }
+    return null;
+  };
+
+  const formatIsoToPtBr = (iso: string) => {
+    if (!iso) return "";
+    const parts = iso.split("-");
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    return iso;
+  };
+
   const matchesAgendaPeriod = (item: any): boolean => {
+    // 1. Filtro por Intervalo de Datas personalizado (De / Até)
+    if (agendaPeriodFilter === "DATE_RANGE" || dataInicio || dataFim) {
+      if (dataInicio || dataFim) {
+        const iso = getItemDueDateIso(item);
+        if (!iso) return false;
+        if (dataInicio && iso < dataInicio) return false;
+        if (dataFim && iso > dataFim) return false;
+        return true;
+      }
+    }
+
     if (agendaPeriodFilter === "ALL") return true;
     const due = getItemDueDateParts(item);
     if (!due) return false;
@@ -298,6 +343,15 @@ export default function GestaoCaixaContasPage() {
   };
 
   const activePeriodBadgeLabel = useMemo(() => {
+    if (dataInicio || dataFim) {
+      if (dataInicio && dataFim) {
+        return `${formatIsoToPtBr(dataInicio)} à ${formatIsoToPtBr(dataFim)}`;
+      }
+      if (dataInicio) {
+        return `A partir de ${formatIsoToPtBr(dataInicio)}`;
+      }
+      return `Até ${formatIsoToPtBr(dataFim)}`;
+    }
     if (agendaPeriodFilter === "CURRENT_MONTH") return `Mês Atual (${currentPeriodLabel})`;
     if (agendaPeriodFilter === "NEXT_MONTH") return `Próximo Mês (${nextPeriodLabel})`;
     if (agendaPeriodFilter === "CUSTOM") {
@@ -305,7 +359,7 @@ export default function GestaoCaixaContasPage() {
       return `${mName}/${customFilterYear}`;
     }
     return `Todas as Pendências (${selectedYear})`;
-  }, [agendaPeriodFilter, currentPeriodLabel, nextPeriodLabel, customFilterMonth, customFilterYear, selectedYear]);
+  }, [dataInicio, dataFim, agendaPeriodFilter, currentPeriodLabel, nextPeriodLabel, customFilterMonth, customFilterYear, selectedYear]);
 
   // Contas pendentes que atendem ao período selecionado (sem o filtro textual de busca, para alimentar as métricas)
   const periodFilteredPendingCommitments = useMemo(() => {
@@ -313,6 +367,8 @@ export default function GestaoCaixaContasPage() {
   }, [
     pendingCommitments,
     agendaPeriodFilter,
+    dataInicio,
+    dataFim,
     customFilterMonth,
     customFilterYear,
     currentMonthNum,
@@ -387,6 +443,8 @@ export default function GestaoCaixaContasPage() {
     pendingCommitments,
     agendaSearch,
     agendaPeriodFilter,
+    dataInicio,
+    dataFim,
     customFilterMonth,
     customFilterYear,
     currentMonthNum,
@@ -1012,12 +1070,20 @@ export default function GestaoCaixaContasPage() {
 
         {/* Card 2: Despesas / Compromissos Pendentes */}
         <MetricKpiCard
-          label={agendaPeriodFilter === "ALL" ? `Despesas Pendentes (${selectedYear})` : "Despesas Pendentes"}
-          value={brl(agendaPeriodFilter === "ALL" ? totals.totalPendentesAno : periodPendingTotal)}
+          label={
+            agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+              ? `Despesas Pendentes (${selectedYear})`
+              : "Despesas Pendentes"
+          }
+          value={
+            agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+              ? brl(totals.totalPendentesAno)
+              : brl(periodPendingTotal)
+          }
           variant="warning"
           icon={Clock}
           badge={
-            agendaPeriodFilter !== "ALL" ? (
+            agendaPeriodFilter !== "ALL" || dataInicio || dataFim ? (
               <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-300 text-[9px] font-semibold px-1.5 py-0.5 rounded-full border border-amber-500/20 truncate">
                 Filtrado: {activePeriodBadgeLabel}
               </span>
@@ -1026,18 +1092,24 @@ export default function GestaoCaixaContasPage() {
           footer={
             <>
               <span>
-                {agendaPeriodFilter === "ALL" ? "Boletos & contas no ano" : "Boletos & contas no período"}
+                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                  ? "Boletos & contas no ano"
+                  : "Boletos & contas no período"}
               </span>
               <div className="flex items-center gap-1.5">
                 <span className="font-semibold text-amber-600 dark:text-amber-400">
-                  {agendaPeriodFilter === "ALL"
+                  {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
                     ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
                     : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
                 </span>
-                {agendaPeriodFilter !== "ALL" && (
+                {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
                   <button
                     type="button"
-                    onClick={() => setAgendaPeriodFilter("ALL")}
+                    onClick={() => {
+                      setDataInicio("");
+                      setDataFim("");
+                      setAgendaPeriodFilter("ALL");
+                    }}
                     className="text-[9px] text-zinc-400 hover:text-amber-400 font-medium underline cursor-pointer"
                     title="Ver todo o ano"
                   >
@@ -1181,12 +1253,16 @@ export default function GestaoCaixaContasPage() {
                   <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                     Apenas Pendentes ({filteredPendingCommitments.length})
                   </span>
-                  {agendaPeriodFilter !== "ALL" && (
+                  {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
                     <span className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                       Filtrado por: {activePeriodBadgeLabel}
                       <button
                         type="button"
-                        onClick={() => setAgendaPeriodFilter("ALL")}
+                        onClick={() => {
+                          setDataInicio("");
+                          setDataFim("");
+                          setAgendaPeriodFilter("ALL");
+                        }}
                         className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
                         title="Limpar filtro de período"
                       >
@@ -1208,9 +1284,13 @@ export default function GestaoCaixaContasPage() {
                 <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
                   <button
                     type="button"
-                    onClick={() => setAgendaPeriodFilter("ALL")}
+                    onClick={() => {
+                      setDataInicio("");
+                      setDataFim("");
+                      setAgendaPeriodFilter("ALL");
+                    }}
                     className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "ALL"
+                      agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
                         ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
@@ -1220,9 +1300,13 @@ export default function GestaoCaixaContasPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setAgendaPeriodFilter("CURRENT_MONTH")}
+                    onClick={() => {
+                      setDataInicio("");
+                      setDataFim("");
+                      setAgendaPeriodFilter("CURRENT_MONTH");
+                    }}
                     className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "CURRENT_MONTH"
+                      agendaPeriodFilter === "CURRENT_MONTH" && !dataInicio && !dataFim
                         ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
@@ -1232,9 +1316,13 @@ export default function GestaoCaixaContasPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setAgendaPeriodFilter("NEXT_MONTH")}
+                    onClick={() => {
+                      setDataInicio("");
+                      setDataFim("");
+                      setAgendaPeriodFilter("NEXT_MONTH");
+                    }}
                     className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "NEXT_MONTH"
+                      agendaPeriodFilter === "NEXT_MONTH" && !dataInicio && !dataFim
                         ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
@@ -1244,18 +1332,88 @@ export default function GestaoCaixaContasPage() {
                   </button>
                 </div>
 
+                {/* Seletor de Intervalo de Datas (Date Range) */}
+                <div className="flex items-center gap-1.5">
+                  <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
+                    dataInicio || dataFim
+                      ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                  }`}>
+                    <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">De:</span>
+                    <input
+                      type="date"
+                      value={dataInicio}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDataInicio(val);
+                        if (val || dataFim) {
+                          setAgendaPeriodFilter("DATE_RANGE");
+                        } else {
+                          setAgendaPeriodFilter("ALL");
+                        }
+                      }}
+                      className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
+                    />
+                  </div>
+
+                  <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
+                    dataInicio || dataFim
+                      ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                  }`}>
+                    <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">Até:</span>
+                    <input
+                      type="date"
+                      value={dataFim}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDataFim(val);
+                        if (dataInicio || val) {
+                          setAgendaPeriodFilter("DATE_RANGE");
+                        } else {
+                          setAgendaPeriodFilter("ALL");
+                        }
+                      }}
+                      className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
+                    />
+                  </div>
+
+                  {(dataInicio || dataFim) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDataInicio("");
+                        setDataFim("");
+                        setAgendaPeriodFilter("ALL");
+                      }}
+                      className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 font-bold cursor-pointer transition-colors"
+                      title="Limpar período de datas"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
                 {/* Dropdown Seletor Avançado / Personalizado */}
                 <div className="relative">
                   <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
                   <select
                     value={agendaPeriodFilter}
-                    onChange={(e) => setAgendaPeriodFilter(e.target.value as AgendaPeriodFilter)}
+                    onChange={(e) => {
+                      const val = e.target.value as AgendaPeriodFilter;
+                      setAgendaPeriodFilter(val);
+                      if (val !== "DATE_RANGE") {
+                        setDataInicio("");
+                        setDataFim("");
+                      }
+                    }}
                     className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
                   >
                     <option value="ALL">Todas as Pendências ({selectedYear})</option>
                     <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
                     <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
                     <option value="CUSTOM">Outro mês personalizado...</option>
+                    <option value="DATE_RANGE">Intervalo de datas personalizado...</option>
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
@@ -1337,19 +1495,23 @@ export default function GestaoCaixaContasPage() {
                       <div className="flex flex-col items-center justify-center gap-2">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500/80 dark:text-emerald-400/80" />
                         <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
-                          {agendaPeriodFilter !== "ALL"
+                          {agendaPeriodFilter !== "ALL" || dataInicio || dataFim
                             ? `Nenhum compromisso pendente encontrado para ${activePeriodBadgeLabel}.`
                             : `Nenhum compromisso pendente no ano de ${selectedYear}.`}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          {agendaPeriodFilter !== "ALL"
+                          {agendaPeriodFilter !== "ALL" || dataInicio || dataFim
                             ? "Não há boletos ou despesas a quitar com vencimento neste período selecionado."
                             : "Todas as obrigações cadastradas já foram quitadas ou não há lançamentos futuros."}
                         </p>
-                        {agendaPeriodFilter !== "ALL" && (
+                        {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
                           <button
                             type="button"
-                            onClick={() => setAgendaPeriodFilter("ALL")}
+                            onClick={() => {
+                              setDataInicio("");
+                              setDataFim("");
+                              setAgendaPeriodFilter("ALL");
+                            }}
                             className="mt-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
                           >
                             Ver todas as pendências do ano ({totals.pendingCount})
@@ -1363,12 +1525,13 @@ export default function GestaoCaixaContasPage() {
                     const isSelected = selectedCommitmentIds.includes(item.id);
                     const isCritico = checkIsVencimentoCritico(item);
 
-                    // Agrupamento visual por mês quando visualizando todas as pendências
+                    // Agrupamento visual por mês quando visualizando todas as pendências sem intervalo de datas
                     const parts = getItemDueDateParts(item);
                     const currentMonthKey = parts ? `${parts.year}-${String(parts.month).padStart(2, "0")}` : "sem-data";
                     const prevParts = index > 0 ? getItemDueDateParts(filteredPendingCommitments[index - 1]) : null;
                     const prevMonthKey = prevParts ? `${prevParts.year}-${String(prevParts.month).padStart(2, "0")}` : null;
-                    const isNewMonth = agendaPeriodFilter === "ALL" && (index === 0 || currentMonthKey !== prevMonthKey);
+                    const isNewMonth =
+                      agendaPeriodFilter === "ALL" && !dataInicio && !dataFim && (index === 0 || currentMonthKey !== prevMonthKey);
                     const monthInfo = isNewMonth ? monthlyTotalsMap.get(currentMonthKey) : null;
 
                     return (
