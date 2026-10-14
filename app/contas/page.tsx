@@ -418,7 +418,15 @@ export default function GestaoCaixaContasPage() {
       // 1. Filtro de competência / vencimento
       if (!matchesAgendaPeriod(item)) return false;
 
-      // 2. Filtro de busca textual
+      // 2. Filtro de conta bancária (quando selecionado no card ou dropdown)
+      if (extratoAccountFilter !== "ALL") {
+        const itemWallet = item.walletId || item.cardWalletId;
+        if (itemWallet && String(itemWallet) !== String(extratoAccountFilter)) {
+          return false;
+        }
+      }
+
+      // 3. Filtro de busca textual
       if (!agendaSearch.trim()) return true;
       const q = agendaSearch.toLowerCase().trim();
       const matchDesc = (item.description || "").toLowerCase().includes(q);
@@ -442,6 +450,7 @@ export default function GestaoCaixaContasPage() {
     pendingCommitments,
     agendaSearch,
     agendaPeriodFilter,
+    extratoAccountFilter,
     dataInicio,
     dataFim,
     customFilterMonth,
@@ -505,7 +514,7 @@ export default function GestaoCaixaContasPage() {
   // Filtros do Extrato Realizado (Movimentações que já aconteceram)
   const filteredRealizedMovements = useMemo(() => {
     return realizedTransactions.filter((tx) => {
-      if (extratoAccountFilter !== "ALL" && tx.walletId !== extratoAccountFilter) {
+      if (extratoAccountFilter !== "ALL" && String(tx.walletId) !== String(extratoAccountFilter)) {
         return false;
       }
       if (extratoSearch.trim()) {
@@ -1160,13 +1169,13 @@ export default function GestaoCaixaContasPage() {
           </div>
           <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-xs sm:max-w-sm" : accounts.length === 2 ? "lg:grid-cols-2 max-w-2xl" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
             {accounts.map((acc) => {
-              const isSelected = extratoAccountFilter === acc.id;
+              const isSelected = String(extratoAccountFilter) === String(acc.id);
               const walletTypeLabel = acc.walletType === "CONTA_CORRENTE" ? "Conta Corrente" : (acc.walletType === "DEBITO" ? "Débito" : "Conta");
 
               return (
                 <div
                   key={acc.id}
-                  onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : acc.id)}
+                  onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : String(acc.id))}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-2.5 ${
                     isSelected
                       ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
@@ -1188,9 +1197,20 @@ export default function GestaoCaixaContasPage() {
                         </span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400 shrink-0">
-                      {isSelected ? "✓ Filtrando" : "Filtrar"}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExtratoAccountFilter(isSelected ? "ALL" : String(acc.id));
+                      }}
+                      className={`text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
+                        isSelected
+                          ? "text-rose-500 hover:text-rose-600 font-bold underline"
+                          : "text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                      }`}
+                    >
+                      {isSelected ? "✕ Remover Filtro" : "Filtrar"}
+                    </button>
                   </div>
 
                   {/* Conteúdo: Saldo Real Disponível */}
@@ -1273,6 +1293,19 @@ export default function GestaoCaixaContasPage() {
                         }}
                         className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
                         title="Limpar filtro de período"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
+                  {extratoAccountFilter !== "ALL" && (
+                    <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
+                      <button
+                        type="button"
+                        onClick={() => setExtratoAccountFilter("ALL")}
+                        className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
+                        title="Limpar filtro de conta"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -1771,11 +1804,24 @@ export default function GestaoCaixaContasPage() {
                 <CheckCircle2 className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
                   Extrato da Conta (Movimentações Realizadas)
                   <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
                     {filteredRealizedMovements.length} {filteredRealizedMovements.length === 1 ? "operação" : "operações"}
                   </span>
+                  {extratoAccountFilter !== "ALL" && (
+                    <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
+                      <button
+                        type="button"
+                        onClick={() => setExtratoAccountFilter("ALL")}
+                        className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
+                        title="Limpar filtro de conta"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  )}
                 </h2>
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   Movimentações estritamente executadas (Pix, depósitos, débitos e boletos liquidados).
@@ -1792,7 +1838,7 @@ export default function GestaoCaixaContasPage() {
               >
                 <option value="ALL">Todas as Contas</option>
                 {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
+                  <option key={a.id} value={String(a.id)}>
                     {a.bankName}
                   </option>
                 ))}
