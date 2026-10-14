@@ -616,15 +616,15 @@ export function DashboardOverview() {
 
                 {/* Detalhamento das contas bancárias */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Contas Bancárias Ativas:</span>
-                    <span className="font-semibold text-slate-200 font-tnum tabular-nums">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
                       {contasBancarias.length} {contasBancarias.length === 1 ? "conta" : "contas"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Disponibilidade:</span>
-                    <span className="font-semibold text-blue-400">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
                       Imediata
                     </span>
                   </div>
@@ -632,9 +632,9 @@ export function DashboardOverview() {
               </div>
 
               {/* Rodapé */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-400">
+              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Disponibilidade em conta</span>
-                <span className="font-medium text-slate-400">Tempo real</span>
+                <span className="font-medium text-slate-600 dark:text-slate-400">Tempo real</span>
               </div>
             </div>
 
@@ -665,15 +665,15 @@ export function DashboardOverview() {
 
                 {/* Detalhamento Miúdo */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span className="capitalize">Cartões De Crédito ({nomeMesAtual}):</span>
-                    <span className="font-semibold text-slate-200 font-tnum tabular-nums">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Contas Pendentes (Próximos 60 dias):</span>
-                    <span className="font-semibold text-slate-200 font-tnum tabular-nums">
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalDestaque)}
                     </span>
                   </div>
@@ -681,9 +681,9 @@ export function DashboardOverview() {
               </div>
 
               {/* Rodapé */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-400">
+              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Previsão de saída</span>
-                <span className="font-semibold text-rose-400">
+                <span className="font-semibold text-rose-600 dark:text-rose-400">
                   {despesasFiltradas.length + faturasCartoes.length}{" "}
                   {despesasFiltradas.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
                 </span>
@@ -733,15 +733,15 @@ export function DashboardOverview() {
 
                 {/* Detalhamento do cálculo */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Receitas Previstas (+):</span>
-                    <span className="font-semibold text-emerald-400 font-tnum tabular-nums">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasPrevistas)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Total a Pagar (-):</span>
-                    <span className="font-semibold text-rose-400 font-tnum tabular-nums">
+                    <span className="font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagarCardVizinho)}
                     </span>
                   </div>
@@ -749,9 +749,9 @@ export function DashboardOverview() {
               </div>
 
               {/* Rodapé explicativo */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-400">
+              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Estimativa fim do mês</span>
-                <span className="font-medium text-slate-400">Saldo + Receitas - Saídas</span>
+                <span className="font-medium text-slate-600 dark:text-slate-400">Saldo + Receitas - Saídas</span>
               </div>
             </div>
           </div>
@@ -1002,18 +1002,18 @@ export function DashboardOverview() {
                         return (
                           <div
                             key={c.name}
-                            className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/50 border border-slate-800 text-xs gap-2"
+                            className="flex items-center justify-between px-3 py-2.5 rounded-xl border bg-slate-50/80 border-slate-200 text-slate-700 dark:bg-slate-800/50 dark:border-slate-800 dark:text-slate-200 text-xs gap-2"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span
-                                className="h-2 w-2 rounded-full shrink-0"
+                                className="h-2.5 w-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: c.color || "#10b981" }}
                               />
-                              <span className="text-slate-300 truncate">{c.name}</span>
+                              <span className="font-medium text-slate-700 dark:text-slate-300 truncate">{c.name}</span>
                             </div>
-                            <span className="font-semibold text-white shrink-0 font-tnum tabular-nums">
+                            <span className="font-bold text-slate-900 dark:text-white shrink-0 font-tnum tabular-nums">
                               {brl(Number(c.total))}{" "}
-                              <span className="text-slate-500 font-normal">({pct}%)</span>
+                              <span className="text-slate-400 font-normal">({pct}%)</span>
                             </span>
                           </div>
                         );
@@ -1066,31 +1066,31 @@ export function DashboardOverview() {
                   return (
                     <div
                       key={bill.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-800 text-slate-200 transition-all"
+                      className="flex items-center justify-between p-3.5 rounded-xl border transition-colors bg-white border-slate-100 text-slate-800 dark:bg-slate-800/40 dark:border-slate-800 dark:text-slate-200"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="text-slate-400 shrink-0 text-base">
                           {isOverdue ? "⚠️" : "⏱"}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-white truncate">
+                          <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                             {bill.title}
                           </p>
-                          <p className="text-xs text-slate-400 truncate">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                             Vencimento: {bill.vencimento}
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-slate-100 font-tnum tabular-nums">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100 font-tnum tabular-nums">
                           <CurrencyValue value={bill.valor} />
                         </p>
                         <span
-                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded border inline-block mt-0.5 ${
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md inline-block mt-0.5 ${
                             isOverdue
-                              ? "text-rose-400 border-rose-400/30 bg-rose-400/10"
-                              : "text-amber-400 border-amber-400/30 bg-amber-400/10"
+                              ? "text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-400 dark:bg-rose-400/10 dark:border-rose-400/30"
+                              : "text-amber-700 bg-amber-50 border border-amber-200 dark:text-amber-400 dark:bg-amber-400/10 dark:border-amber-400/30"
                           }`}
                         >
                           {bill.statusLabel || (isOverdue ? "VENCIDA" : "PENDENTE")}
@@ -1126,25 +1126,25 @@ export function DashboardOverview() {
             ) : (
               <div className="flex flex-col gap-3">
                 {(data?.goals || []).slice(0, 3).map((goal: any) => (
-                  <div key={goal.id} className="p-4 rounded-xl bg-slate-800/40 border border-slate-800">
-                    <div className="flex items-center justify-between text-sm font-semibold text-white mb-2">
+                  <div key={goal.id} className="p-4 rounded-xl border bg-white border-slate-100 shadow-sm dark:bg-slate-800/40 dark:border-slate-800 dark:shadow-none">
+                    <div className="flex items-center justify-between text-sm font-semibold mb-2 text-slate-900 dark:text-white">
                       <span className="truncate">{goal.title}</span>
-                      <span className="text-indigo-400 font-tnum tabular-nums shrink-0">{goal.pct}%</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400 font-tnum tabular-nums shrink-0">{goal.pct}%</span>
                     </div>
 
-                    {/* Trilha da barra de progresso */}
-                    <div className="w-full bg-slate-700/40 rounded-full h-1.5 mb-2 overflow-hidden">
+                    {/* Trilha da barra */}
+                    <div className="w-full bg-slate-100 dark:bg-slate-700/40 rounded-full h-2 mb-3 overflow-hidden">
                       <div
-                        className="bg-indigo-500 h-1.5 rounded-full transition-all duration-500"
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-500"
                         style={{ width: `${Math.min(100, goal.pct)}%` }}
                       />
                     </div>
 
-                    <div className="flex items-center justify-between text-xs text-slate-400">
-                      <span className="font-tnum tabular-nums">{brl(goal.acumulado)} acumulados</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-500 dark:text-slate-400 font-tnum tabular-nums">{brl(goal.acumulado)} acumulados</span>
                       <button
                         onClick={() => { setSelectedGoalId(goal.id); setAporteModalOpen(true); }}
-                        className="text-emerald-400 hover:text-emerald-300 font-medium cursor-pointer transition-colors"
+                        className="font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 border border-emerald-100 dark:bg-transparent dark:border-none dark:text-emerald-400 dark:hover:text-emerald-300 px-2 py-0.5 rounded cursor-pointer transition-colors"
                       >
                         + Aporte
                       </button>

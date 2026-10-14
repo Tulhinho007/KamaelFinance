@@ -160,9 +160,9 @@ export function PaymentMethodChart({
               return (
                 <div
                   key={m.method}
-                  className="p-3 rounded-xl bg-slate-800/40 border border-slate-800"
+                  className="p-3.5 rounded-xl border bg-slate-50/80 border-slate-100 dark:bg-slate-800/40 dark:border-slate-800"
                 >
-                  <div className="flex items-center justify-between text-xs mb-1.5">
+                  <div className="flex items-center justify-between text-xs mb-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
                         className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
@@ -173,15 +173,15 @@ export function PaymentMethodChart({
                       >
                         <Icon className="w-3 h-3" strokeWidth={1.75} />
                       </div>
-                      <span className="font-medium text-slate-200 truncate">{m.name}</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{m.name}</span>
                     </div>
                     <div className="flex items-center gap-2 font-tnum tabular-nums shrink-0">
-                      <span className="font-bold text-white">{brl(Number(m.total))}</span>
-                      <span className="text-slate-400 text-[11px]">{pct}%</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{brl(Number(m.total))}</span>
+                      <span className="text-slate-500 dark:text-slate-400 font-medium text-[11px]">{pct}%</span>
                     </div>
                   </div>
-                  {/* Trilha da barra de progresso */}
-                  <div className="w-full bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
+                  {/* Trilha da barra */}
+                  <div className="w-full bg-slate-200/70 dark:bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
                     <div
                       className="h-1.5 rounded-full transition-all duration-500"
                       style={{
