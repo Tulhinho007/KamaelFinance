@@ -160,42 +160,33 @@ export function PaymentMethodChart({
               return (
                 <div
                   key={m.method}
-                  className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 flex flex-col gap-1.5"
+                  className="p-3 rounded-xl bg-slate-800/40 border border-slate-800"
                 >
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-xs mb-1.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border"
+                        className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
                         style={{
-                          backgroundColor: `${m.color}15`,
-                          borderColor: `${m.color}35`,
+                          backgroundColor: `${m.color}25`,
                           color: m.color,
                         }}
                       >
-                        <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        <Icon className="w-3 h-3" strokeWidth={1.75} />
                       </div>
-                      <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
-                        {m.name}
-                      </span>
+                      <span className="font-medium text-slate-200 truncate">{m.name}</span>
                     </div>
-
-                    <div className="flex items-center gap-2 shrink-0 font-tnum tabular-nums">
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">
-                        {brl(Number(m.total))}
-                      </span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
-                        {pct}%
-                      </span>
+                    <div className="flex items-center gap-2 font-tnum tabular-nums shrink-0">
+                      <span className="font-bold text-white">{brl(Number(m.total))}</span>
+                      <span className="text-slate-400 text-[11px]">{pct}%</span>
                     </div>
                   </div>
-
-                  {/* Barra de Progresso Horizontal */}
-                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                  {/* Trilha da barra de progresso */}
+                  <div className="w-full bg-slate-700/50 rounded-full h-1.5 overflow-hidden">
                     <div
-                      className="h-full rounded-full transition-all duration-500"
+                      className="h-1.5 rounded-full transition-all duration-500"
                       style={{
                         width: `${pct}%`,
-                        backgroundColor: m.color,
+                        backgroundColor: m.color || "#10b981",
                       }}
                     />
                   </div>
