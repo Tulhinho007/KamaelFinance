@@ -569,8 +569,29 @@ export function DashboardOverview() {
 
         const totalDestaque = totalMesAtual + totalMesProximo;
 
+        // ── 1. Saldo atual disponível
+        const saldoAtual = Number(saldoConsolidado || 0);
+
+        // ── 2. Receitas previstas / a receber no mês vigente
+        const receitasMes = Number(
+          data?.receitasPrevistasMes ??
+          (data?.receitasPendentesMes > 0 ? data.receitasPendentesMes : data?.receitasMesAtual) ??
+          monthlyRollForward?.receitasPendentes ??
+          monthlyRollForward?.receitasMes ??
+          0
+        );
+
+        // ── 3. Total a pagar referente ao mês atual (Faturas do mês + Contas pendentes do mês atual)
+        const totalPagarMesAtual = Number(totalGeralCartoesMes + totalMesAtual);
+
+        // ── 4. Saldo projetado no final do mês
+        const saldoProjetadoFinal = saldoAtual + receitasMes - totalPagarMesAtual;
+
+        // Verifica se fecha positivo ou negativo
+        const isPositivo = saldoProjetadoFinal >= 0;
+
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
@@ -591,11 +612,29 @@ export function DashboardOverview() {
                 <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoConsolidado)}
                 </div>
+
+                {/* Detalhamento das contas bancárias */}
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span>Contas Bancárias Ativas:</span>
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      {contasBancarias.length} {contasBancarias.length === 1 ? "conta" : "contas"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span>Disponibilidade:</span>
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                      Imediata
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              <p className="mt-3 text-xs text-slate-400 dark:text-zinc-500">
-                Disponibilidade consolidada em conta
-              </p>
+              {/* Rodapé */}
+              <div className="mt-3 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+                <span>Disponibilidade em conta</span>
+                <span className="font-medium text-slate-500 dark:text-zinc-400">Tempo real</span>
+              </div>
             </div>
 
             {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + BOLETOS/CONTAS) */}
@@ -647,6 +686,71 @@ export function DashboardOverview() {
                   {despesasFiltradas.length + faturasCartoes.length}{" "}
                   {despesasFiltradas.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
                 </span>
+              </div>
+            </div>
+
+            {/* CARD 3: SALDO PREVISTO (PROJEÇÃO FINAL DO MÊS) */}
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+              <div>
+                {/* Cabeçalho */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                      Saldo Previsto
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                        isPositivo
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
+                          : "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20"
+                      }`}
+                    >
+                      {isPositivo ? "Superávit Previsto" : "Déficit Previsto"}
+                    </span>
+                  </div>
+                  <div
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm border ${
+                      isPositivo
+                        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
+                        : "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20"
+                    }`}
+                  >
+                    {isPositivo ? "📈" : "📉"}
+                  </div>
+                </div>
+
+                {/* Valor Grande da Previsão */}
+                <div
+                  className={`mt-3 text-3xl font-extrabold font-tnum tabular-nums ${
+                    isPositivo
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoProjetadoFinal)}
+                </div>
+
+                {/* Detalhamento do cálculo */}
+                <div className="mt-3 divide-y divide-slate-100 dark:divide-white/[0.06] border-t border-slate-100 dark:border-white/[0.06] pt-2 text-xs">
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span>Receitas Previstas (+):</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasMes)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
+                    <span>Total a Pagar (-):</span>
+                    <span className="font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPagarMesAtual)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rodapé explicativo */}
+              <div className="mt-3 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
+                <span>Estimativa fim do mês</span>
+                <span className="font-medium text-slate-500 dark:text-zinc-400">Saldo + Receitas - Saídas</span>
               </div>
             </div>
           </div>

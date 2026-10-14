@@ -7255,6 +7255,26 @@ export async function getDashboardOverviewData(
       dataVencimento: item.dueDateInput ? `${item.dueDateInput}T12:00:00` : (item.dueDateRaw || item.date),
     }));
 
+  const now = new Date();
+  const curMonthNum = now.getMonth() + 1;
+  const curYearNum = now.getFullYear();
+
+  const currentMonthIncomesList = (rawRangeTransactions || []).filter((t: any) => {
+    if (t.type !== "INCOME" || t.deletedAt) return false;
+    const wType = (t.wallet?.walletType || "").toUpperCase();
+    if (["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+    return isTxInPeriod(t, curYearNum, curMonthNum);
+  });
+
+  const pendingMonthIncomes = currentMonthIncomesList
+    .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
+    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+  const totalMonthIncomes = currentMonthIncomesList
+    .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+  const receitasPrevistasMes = pendingMonthIncomes > 0 ? pendingMonthIncomes : totalMonthIncomes;
+
   return {
     totalRealBalance,
     totalReceitas,
@@ -7272,6 +7292,9 @@ export async function getDashboardOverviewData(
     upcomingBills,
     pendingCommitments: despesasPendentes,
     despesasPendentes,
+    receitasPrevistasMes: Math.round(receitasPrevistasMes * 100) / 100,
+    receitasPendentesMes: Math.round(pendingMonthIncomes * 100) / 100,
+    receitasMesAtual: Math.round(totalMonthIncomes * 100) / 100,
   };
 }
 
@@ -11577,6 +11600,9 @@ export async function getDashboardBundleAction(
         upcomingInvoices: [],
         pendingCommitments: [],
         despesasPendentes: [],
+        receitasPrevistasMes: 0,
+        receitasPendentesMes: 0,
+        receitasMesAtual: 0,
         investmentsSummary: { totalPatrimony: 0, totalInvested: 0, totalProfit: 0, profitPercentage: 0, allocation: [] },
       } as any)),
       getWalletsAction(wallets, transactions).catch(() => []),
@@ -11646,6 +11672,9 @@ export async function getDashboardBundleAction(
         recentTransactions: [],
         activeGoals: [],
         upcomingInvoices: [],
+        receitasPrevistasMes: 0,
+        receitasPendentesMes: 0,
+        receitasMesAtual: 0,
         investmentsSummary: { totalPatrimony: 0, totalInvested: 0, totalProfit: 0, profitPercentage: 0, allocation: [] },
       } as any,
       wallets: [],
