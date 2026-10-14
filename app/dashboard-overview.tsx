@@ -569,26 +569,27 @@ export function DashboardOverview() {
 
         const totalDestaque = totalMesAtual + totalMesProximo;
 
-        // ── 1. Saldo atual disponível
+        // ── 1. Saldo Consolidado em conta
         const saldoAtual = Number(saldoConsolidado || 0);
 
-        // ── 2. Receitas previstas / a receber no mês vigente
-        const receitasMes = Number(
+        // ── 2. Receitas a receber + Saldo consolidado
+        const receitasPrevistas = Number(
           data?.receitasPrevistasMes ??
           (data?.receitasPendentesMes > 0 ? data.receitasPendentesMes : data?.receitasMesAtual) ??
           monthlyRollForward?.receitasPendentes ??
           monthlyRollForward?.receitasMes ??
           0
         );
+        const totalDisponivel = saldoAtual + receitasPrevistas;
 
-        // ── 3. Total a pagar referente ao mês atual (Faturas do mês + Contas pendentes do mês atual)
-        const totalPagarMesAtual = Number(totalGeralCartoesMes + totalMesAtual);
+        // ── 3. Total a Pagar exato do card vizinho (Faturas + Boletos/Contas Pendentes)
+        const totalAPagarCardVizinho = Number(totalGeralCartoesMes + totalDestaque);
 
-        // ── 4. Saldo projetado no final do mês
-        const saldoProjetadoFinal = saldoAtual + receitasMes - totalPagarMesAtual;
+        // ── 4. Saldo Previsto Final
+        const saldoPrevistoFinal = totalDisponivel - totalAPagarCardVizinho;
 
         // Verifica se fecha positivo ou negativo
-        const isPositivo = saldoProjetadoFinal >= 0;
+        const isPositivo = saldoPrevistoFinal >= 0;
 
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
@@ -658,7 +659,7 @@ export function DashboardOverview() {
                 {/* Valor Total Grande */}
                 <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                    totalGeralCartoesMes + totalDestaque
+                    totalAPagarCardVizinho
                   )}
                 </div>
 
@@ -727,7 +728,7 @@ export function DashboardOverview() {
                       : "text-rose-600 dark:text-rose-400"
                   }`}
                 >
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoProjetadoFinal)}
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoPrevistoFinal)}
                 </div>
 
                 {/* Detalhamento do cálculo */}
@@ -735,13 +736,13 @@ export function DashboardOverview() {
                   <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
                     <span>Receitas Previstas (+):</span>
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasMes)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasPrevistas)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between py-1 text-slate-600 dark:text-zinc-400">
                     <span>Total a Pagar (-):</span>
                     <span className="font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalPagarMesAtual)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagarCardVizinho)}
                     </span>
                   </div>
                 </div>
