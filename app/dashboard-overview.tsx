@@ -1002,7 +1002,7 @@ export function DashboardOverview() {
                         return (
                           <div
                             key={c.name}
-                            className="flex items-center justify-between gap-2 text-xs font-medium text-slate-800 dark:text-zinc-200 bg-slate-50/70 dark:bg-zinc-950/60 px-3.5 py-2 rounded-xl border border-slate-200/60 dark:border-white/[0.06]"
+                            className="flex items-center justify-between gap-2 text-xs font-medium text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700/60"
                           >
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c.color }} />
@@ -1010,7 +1010,7 @@ export function DashboardOverview() {
                             </div>
                             <div className="flex items-center gap-1.5 flex-shrink-0 font-tnum tabular-nums">
                               <span className="font-semibold">{brl(Number(c.total))}</span>
-                              <span className="text-[10px] font-medium text-slate-500 dark:text-zinc-400">({pct}%)</span>
+                              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">({pct}%)</span>
                             </div>
                           </div>
                         );
@@ -1060,39 +1060,39 @@ export function DashboardOverview() {
                   const isOverdue = !!bill.isPast || bill.statusBadgeVariant === "overdue";
                   const isUrgent = bill.statusBadgeVariant === "urgent" || (!isOverdue && bill.daysDiff !== undefined && bill.daysDiff <= 7);
 
-                  let badgeStyle = "bg-slate-100 dark:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-white/[0.08]";
-                  let iconBgStyle = "bg-slate-100 dark:bg-zinc-800/60 text-slate-700 dark:text-zinc-400";
-                  let cardBorder = "bg-slate-50/70 dark:bg-zinc-950/50 border-slate-200/60 dark:border-white/[0.06]";
+                  let badgeStyle = "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700/60";
+                  let iconBgStyle = "bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-400";
+                  let cardBorder = "bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100";
 
                   if (isOverdue) {
                     badgeStyle = "bg-rose-50 text-rose-700 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20";
                     iconBgStyle = "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20";
-                    cardBorder = "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200/60 dark:border-rose-500/20";
+                    cardBorder = "bg-rose-50/40 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-500/20 text-slate-800 dark:text-slate-100";
                   } else if (isUrgent) {
                     badgeStyle = "bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20";
                     iconBgStyle = "bg-amber-50 text-amber-700 border border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20";
-                    cardBorder = "bg-amber-50/40 dark:bg-amber-950/20 border-amber-200/60 dark:border-amber-500/20";
+                    cardBorder = "bg-amber-50/40 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-500/20 text-slate-800 dark:text-slate-100";
                   }
 
                   return (
-                    <div key={bill.id} className={`flex items-center justify-between p-3.5 rounded-xl border transition-all ${cardBorder}`}>
+                    <div key={bill.id} className={`flex items-center justify-between p-3 rounded-xl transition-all ${cardBorder}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconBgStyle}`}>
                           {isOverdue ? <AlertCircle className="w-4 h-4" strokeWidth={1.75} /> : <Clock className="w-4 h-4" strokeWidth={1.75} />}
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                          <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                             {bill.title}
                           </p>
-                          <p className="text-[11px] text-slate-500 dark:text-zinc-400 font-normal">
-                            Vencimento: <strong className="font-semibold text-slate-700 dark:text-zinc-300">{bill.vencimento}</strong>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                            Vencimento: <strong className="font-semibold text-slate-700 dark:text-slate-300">{bill.vencimento}</strong>
                           </p>
                         </div>
                       </div>
 
                       <div className="text-right">
                         <p className={`text-xs font-semibold font-tnum tabular-nums ${
-                          isOverdue ? "text-rose-700 dark:text-rose-400" : isUrgent ? "text-amber-700 dark:text-amber-400" : "text-slate-900 dark:text-zinc-100"
+                          isOverdue ? "text-rose-700 dark:text-rose-400" : isUrgent ? "text-amber-700 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"
                         }`}>
                           <CurrencyValue value={bill.valor} />
                         </p>
@@ -1130,20 +1130,20 @@ export function DashboardOverview() {
             ) : (
               <div className="flex flex-col gap-3">
                 {(data?.goals || []).slice(0, 3).map((goal: any) => (
-                  <div key={goal.id} className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-zinc-950/50 border border-slate-200/60 dark:border-white/[0.06] flex flex-col gap-2">
+                  <div key={goal.id} className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 flex flex-col gap-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-semibold text-slate-900 dark:text-zinc-100">{goal.title}</span>
+                      <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">{goal.title}</span>
                       <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 font-tnum tabular-nums">{goal.pct}%</span>
                     </div>
 
-                    <div className="w-full bg-slate-100 dark:bg-zinc-900 h-1.5 rounded-full overflow-hidden border border-slate-200/60 dark:border-white/[0.06]">
+                    <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden border border-slate-300 dark:border-slate-700/60">
                       <div 
                         className="h-full bg-gradient-to-r from-indigo-500 to-violet-600 rounded-full transition-all duration-500" 
                         style={{ width: `${Math.min(100, goal.pct)}%` }} 
                       />
                     </div>
 
-                    <div className="flex justify-between items-center text-[10px] font-medium text-slate-500 dark:text-zinc-400 pt-0.5">
+                    <div className="flex justify-between items-center text-[10px] font-medium text-slate-500 dark:text-slate-400 pt-0.5">
                       <span className="font-tnum tabular-nums">{brl(goal.acumulado)} acumulados</span>
                       <button
                         onClick={() => { setSelectedGoalId(goal.id); setAporteModalOpen(true); }}

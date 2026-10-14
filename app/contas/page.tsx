@@ -1553,7 +1553,7 @@ export default function GestaoCaixaContasPage() {
                                   <span className="font-extrabold uppercase tracking-wide text-[11px] text-slate-800 dark:text-slate-100">
                                     {monthInfo?.label || "Compromissos"}
                                   </span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200/90 dark:bg-slate-700/90 font-bold text-slate-600 dark:text-slate-300">
+                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700">
                                     {monthInfo?.count || 1} {monthInfo?.count === 1 ? "conta pendente" : "contas pendentes"}
                                   </span>
                                 </div>

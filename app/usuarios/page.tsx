@@ -849,11 +849,7 @@ export default function UsuariosPage() {
             invites.map((inv) => (
               <div
                 key={inv.id}
-                className={`flex items-center justify-between px-4 py-2.5 rounded-xl border transition-all ${
-                  inv.used
-                    ? "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/50"
-                    : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800"
-                }`}
+                className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-300 transition-all"
               >
                 <div className="flex items-center gap-2.5">
                   {inv.used ? (
@@ -863,7 +859,7 @@ export default function UsuariosPage() {
                   )}
                   <div>
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-300">{inv.email}</p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-400">
                       {inv.used ? "✅ Convite utilizado (Conta criada)" : "⏳ Aguardando cadastro do usuário"}
                     </p>
                   </div>

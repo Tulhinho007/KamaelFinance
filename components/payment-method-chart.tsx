@@ -160,7 +160,7 @@ export function PaymentMethodChart({
               return (
                 <div
                   key={m.method}
-                  className="p-2.5 rounded-xl bg-slate-50/70 dark:bg-zinc-950/50 border border-slate-200/60 dark:border-white/[0.06] flex flex-col gap-1.5"
+                  className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 text-slate-800 dark:text-slate-100 flex flex-col gap-1.5"
                 >
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2 min-w-0">
@@ -174,23 +174,23 @@ export function PaymentMethodChart({
                       >
                         <Icon className="w-3.5 h-3.5" strokeWidth={1.75} />
                       </div>
-                      <span className="font-semibold text-slate-800 dark:text-zinc-200 truncate">
+                      <span className="font-semibold text-slate-800 dark:text-slate-100 truncate">
                         {m.name}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0 font-tnum tabular-nums">
-                      <span className="font-semibold text-slate-900 dark:text-zinc-100">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
                         {brl(Number(m.total))}
                       </span>
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-zinc-900 border border-slate-200/60 dark:border-white/[0.08] text-slate-600 dark:text-zinc-400">
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
                         {pct}%
                       </span>
                     </div>
                   </div>
 
                   {/* Barra de Progresso Horizontal */}
-                  <div className="w-full bg-slate-100 dark:bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{

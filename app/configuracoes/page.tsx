@@ -429,7 +429,7 @@ export default function ConfiguracoesPage() {
 
                 <form onSubmit={handleSaveUserData} className="space-y-6">
                   {/* Seção de Avatar / Foto de Perfil */}
-                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 p-4 rounded-2xl bg-slate-50/70 border border-slate-100">
+                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-5 rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
                     <div className="relative group shrink-0">
                       {userAvatar ? (
                         <img
@@ -454,8 +454,8 @@ export default function ConfiguracoesPage() {
 
                     <div className="flex-1 text-center sm:text-left space-y-2">
                       <div>
-                        <h4 className="text-xs font-bold text-slate-900">Foto de Perfil</h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <h4 className="text-xs font-bold text-slate-800 dark:text-white">Foto de Perfil</h4>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                           Formatos aceitos: JPG, PNG ou GIF. Tamanho máximo recomendado: 2MB.
                         </p>
                       </div>
@@ -471,9 +471,9 @@ export default function ConfiguracoesPage() {
                         <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                          className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
                         >
-                          <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                           <span>Alterar Foto</span>
                         </button>
                         {userAvatar && (

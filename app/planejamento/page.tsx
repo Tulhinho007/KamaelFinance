@@ -1026,7 +1026,7 @@ export default function PlanningPage() {
             </div>
 
             {/* ── BARRA DE PROGRESSO FINANCEIRO (TERMÔMETRO DO ORÇAMENTO) ─────── */}
-            <div className="p-4 bg-slate-50/90 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-2.5 shadow-2xs">
+            <div className="rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/90 p-4 text-slate-800 dark:text-white space-y-2.5 shadow-2xs">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
@@ -1054,7 +1054,7 @@ export default function PlanningPage() {
               </div>
 
               {/* Barra com Gradiente */}
-              <div className="w-full h-3.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 relative">
+              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 relative">
                 <div
                   className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 shadow-sm"
                   style={{ width: `${percentualPago}%` }}
@@ -1631,7 +1631,7 @@ export default function PlanningPage() {
                           key={task.id}
                           className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all ${
                             isTaskDone
-                              ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-slate-500 dark:text-slate-400"
+                              ? "border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400"
                               : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                         >
@@ -1660,7 +1660,7 @@ export default function PlanningPage() {
                             <span
                               className={`text-xs font-semibold break-words transition-all ${
                                 isTaskDone
-                                  ? "line-through text-emerald-800/70 dark:text-emerald-400/80"
+                                  ? "line-through text-emerald-600 dark:text-emerald-400"
                                   : "text-slate-800 dark:text-slate-100"
                               }`}
                             >
@@ -1736,7 +1736,7 @@ export default function PlanningPage() {
                           key={task.id}
                           className={`group flex items-center justify-between p-2.5 rounded-xl border transition-all ${
                             isTaskDone
-                              ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-slate-500 dark:text-slate-400"
+                              ? "border border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-950/20 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400"
                               : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                         >
@@ -1765,7 +1765,7 @@ export default function PlanningPage() {
                             <span
                               className={`text-xs font-semibold break-words transition-all ${
                                 isTaskDone
-                                  ? "line-through text-emerald-800/70 dark:text-emerald-400/80"
+                                  ? "line-through text-emerald-600 dark:text-emerald-400"
                                   : "text-slate-800 dark:text-slate-100"
                               }`}
                             >
