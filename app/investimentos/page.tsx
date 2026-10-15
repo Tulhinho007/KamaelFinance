@@ -278,15 +278,21 @@ export default function InvestimentosPage() {
 
   const handleDeleteRf = async () => {
     if (!selectedRf) return;
+    const rfId = selectedRf.id;
     setSaving(true);
     try {
-      await deleteInvestmentAction(selectedRf.id);
-      await loadAllData();
+      setRendaFixaData(prev => prev ? { ...prev, investimentos: prev.investimentos.filter(rf => rf.id !== rfId) } : null);
       setActiveModal(null);
-    } catch (err) {
+      await deleteInvestmentAction(rfId);
+      await loadAllData();
+      showAlert("Investimento excluído com sucesso!", { variant: "success" });
+    } catch (err: any) {
       console.error(err);
+      showAlert(err?.message || "Erro ao excluir investimento.", { variant: "error" });
+      await loadAllData();
     } finally {
       setSaving(false);
+      setSelectedRf(null);
     }
   };
 
@@ -425,15 +431,21 @@ export default function InvestimentosPage() {
 
   const handleDeleteRv = async () => {
     if (!selectedRv) return;
+    const rvId = selectedRv.id;
     setSaving(true);
     try {
-      await deleteVariableAssetAction(selectedRv.id);
-      await loadAllData();
+      setRendaVariavelData(prev => prev.filter(rv => rv.id !== rvId));
       setActiveModal(null);
-    } catch (err) {
+      await deleteVariableAssetAction(rvId);
+      await loadAllData();
+      showAlert("Ciclo de renda variável excluído com sucesso!", { variant: "success" });
+    } catch (err: any) {
       console.error(err);
+      showAlert(err?.message || "Erro ao excluir ciclo.", { variant: "error" });
+      await loadAllData();
     } finally {
       setSaving(false);
+      setSelectedRv(null);
     }
   };
 
@@ -564,15 +576,21 @@ export default function InvestimentosPage() {
 
   const handleDeleteCrypto = async () => {
     if (!selectedCrypto) return;
+    const cryptoId = selectedCrypto.id;
     setSaving(true);
     try {
-      await deleteCryptoAssetAction(selectedCrypto.id);
-      await loadAllData();
+      setCriptoData(prev => prev.filter(c => c.id !== cryptoId));
       setActiveModal(null);
-    } catch (err) {
+      await deleteCryptoAssetAction(cryptoId);
+      await loadAllData();
+      showAlert("Ciclo cripto excluído com sucesso!", { variant: "success" });
+    } catch (err: any) {
       console.error(err);
+      showAlert(err?.message || "Erro ao excluir ciclo cripto.", { variant: "error" });
+      await loadAllData();
     } finally {
       setSaving(false);
+      setSelectedCrypto(null);
     }
   };
 
@@ -647,12 +665,15 @@ export default function InvestimentosPage() {
 
     setSaving(true);
     try {
+      setApostasData(prev => prev.filter(account => account.id !== b.id));
       await deleteBettingAccountAction(b.id);
       await loadAllData();
       setActiveModal(null);
-    } catch (err) {
+      showAlert("Plataforma excluída com sucesso!", { variant: "success" });
+    } catch (err: any) {
       console.error(err);
-      showAlert("Erro ao excluir plataforma.", { variant: "error" });
+      showAlert(err?.message || "Erro ao excluir plataforma.", { variant: "error" });
+      await loadAllData();
     } finally {
       setSaving(false);
     }

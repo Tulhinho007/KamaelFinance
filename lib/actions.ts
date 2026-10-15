@@ -7458,63 +7458,9 @@ export type InvestmentItem = {
 };
 
 export async function getInvestmentsData() {
-  let list = await db.investment.findMany({
+  const list = await db.investment.findMany({
     orderBy: { createdAt: "desc" }
   });
-
-  // Se o banco estiver vazio, cria investimentos de demonstração
-  if (list.length === 0) {
-    const demoData = [
-      {
-        titulo: "CDB Banco Master 120% CDI",
-        categoria: "Renda Fixa",
-        dataInicial: new Date("2024-01-15"),
-        valorInvestido: 10000.00,
-        valorAtualBruto: 11450.00,
-        taxasAcumuladas: 0.00,
-        impostoEstimado: 326.25,
-        status: "ATIVO"
-      },
-      {
-        titulo: "Ações PETR4 - Petrobras",
-        categoria: "Ações",
-        dataInicial: new Date("2023-05-10"),
-        valorInvestido: 5000.00,
-        valorAtualBruto: 7200.00,
-        taxasAcumuladas: 15.00,
-        impostoEstimado: 330.00,
-        status: "ATIVO"
-      },
-      {
-        titulo: "FII HGLG11 - Logística",
-        categoria: "Fundos Imobiliários",
-        dataInicial: new Date("2023-09-01"),
-        valorInvestido: 3500.00,
-        valorAtualBruto: 3820.00,
-        taxasAcumuladas: 0.00,
-        impostoEstimado: 0.00,
-        status: "ATIVO"
-      },
-      {
-        titulo: "Tesouro Selic 2029",
-        categoria: "Tesouro Direto",
-        dataInicial: new Date("2024-02-01"),
-        valorInvestido: 8000.00,
-        valorAtualBruto: 8520.00,
-        taxasAcumuladas: 12.00,
-        impostoEstimado: 117.00,
-        status: "ATIVO"
-      }
-    ];
-
-    for (const item of demoData) {
-      await db.investment.create({ data: item });
-    }
-
-    list = await db.investment.findMany({
-      orderBy: { createdAt: "desc" }
-    });
-  }
 
   const investimentos: InvestmentItem[] = list.map((inv: any) => ({
     id: inv.id,
@@ -7673,9 +7619,15 @@ export async function updateInvestmentAction(id: string, data: {
 }
 
 export async function deleteInvestmentAction(id: string) {
-  await db.investment.delete({ where: { id } });
-  revalidatePath("/investimentos");
-  revalidatePath("/");
+  try {
+    await db.investment.delete({ where: { id } });
+    revalidatePath("/investimentos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir investimento:", error);
+    throw new Error(error?.message || "Falha ao excluir investimento.");
+  }
 }
 
 export async function toggleInvestmentStatusAction(id: string, currentStatus: string) {
@@ -7729,48 +7681,10 @@ export type VariableAssetItem = {
 };
 
 export async function getVariableAssetsData() {
-  let list = await db.variableAsset.findMany({
+  const list = await db.variableAsset.findMany({
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
-
-  if (list.length === 0) {
-    await db.variableAsset.create({
-      data: {
-        titulo: "PETR4",
-        categoria: "Ação",
-        cotacaoAtual: 36.00,
-        dividendosRecebidos: 120.00,
-        status: "ABERTO",
-        transacoes: {
-          create: [
-            { tipo: "COMPRA", data: new Date("2023-05-10"), quantidade: 100, precoUnitario: 30.00, taxas: 5.00 },
-            { tipo: "COMPRA", data: new Date("2023-08-15"), quantidade: 50, precoUnitario: 34.00, taxas: 2.50 }
-          ]
-        }
-      }
-    });
-
-    await db.variableAsset.create({
-      data: {
-        titulo: "HGLG11",
-        categoria: "FII",
-        cotacaoAtual: 165.50,
-        dividendosRecebidos: 350.00,
-        status: "ABERTO",
-        transacoes: {
-          create: [
-            { tipo: "COMPRA", data: new Date("2023-09-01"), quantidade: 30, precoUnitario: 158.00, taxas: 0.00 }
-          ]
-        }
-      }
-    });
-
-    list = await db.variableAsset.findMany({
-      include: { transacoes: { orderBy: { data: "asc" } } },
-      orderBy: { createdAt: "desc" }
-    });
-  }
 
   const assets: VariableAssetItem[] = list.map((asset: any) => {
     type FifoLot = {
@@ -8137,8 +8051,18 @@ export async function toggleVariableAssetStatusAction(id: string, currentStatus:
 }
 
 export async function deleteVariableAssetAction(id: string) {
-  await db.variableAsset.delete({ where: { id } });
-  revalidatePath("/investimentos");
+  try {
+    await db.$transaction([
+      db.variableTransaction.deleteMany({ where: { assetId: id } }),
+      db.variableAsset.delete({ where: { id } }),
+    ]);
+    revalidatePath("/investimentos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir ativo de renda variável:", error);
+    throw new Error(error?.message || "Falha ao excluir ciclo de renda variável.");
+  }
 }
 
 
@@ -8181,45 +8105,10 @@ export type CryptoAssetItem = {
 };
 
 export async function getCryptoAssetsData() {
-  let list = await db.cryptoAsset.findMany({
+  const list = await db.cryptoAsset.findMany({
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
-
-  if (list.length === 0) {
-    await db.cryptoAsset.create({
-      data: {
-        token: "BTC",
-        nome: "Bitcoin",
-        cotacaoAtual: 340000.00,
-        status: "ABERTO",
-        transacoes: {
-          create: [
-            { tipo: "COMPRA", data: new Date("2023-05-10"), quantidade: 0.05, precoUnitario: 300000.00, taxas: 50.00 }
-          ]
-        }
-      }
-    });
-
-    await db.cryptoAsset.create({
-      data: {
-        token: "ETH",
-        nome: "Ethereum",
-        cotacaoAtual: 16500.00,
-        status: "ABERTO",
-        transacoes: {
-          create: [
-            { tipo: "COMPRA", data: new Date("2023-08-15"), quantidade: 0.8, precoUnitario: 12500.00, taxas: 20.00 }
-          ]
-        }
-      }
-    });
-
-    list = await db.cryptoAsset.findMany({
-      include: { transacoes: { orderBy: { data: "asc" } } },
-      orderBy: { createdAt: "desc" }
-    });
-  }
 
   const cryptos: CryptoAssetItem[] = list.map((c: any) => {
     type FifoLot = {
@@ -8585,8 +8474,18 @@ export async function updateCryptoAssetCotacaoAction(id: string, cotacaoAtual: n
 }
 
 export async function deleteCryptoAssetAction(id: string) {
-  await db.cryptoAsset.delete({ where: { id } });
-  revalidatePath("/investimentos");
+  try {
+    await db.$transaction([
+      db.cryptoTransaction.deleteMany({ where: { cryptoId: id } }),
+      db.cryptoAsset.delete({ where: { id } }),
+    ]);
+    revalidatePath("/investimentos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir crypto asset:", error);
+    throw new Error(error?.message || "Falha ao excluir ciclo de criptomoeda no banco de dados.");
+  }
 }
 
 
@@ -8608,44 +8507,10 @@ export type BettingAccountItem = {
 };
 
 export async function getBettingAccountsData() {
-  let list = await db.bettingAccount.findMany({
+  const list = await db.bettingAccount.findMany({
     include: { movimentacoes: { orderBy: { data: "desc" } } },
     orderBy: { createdAt: "desc" }
   });
-
-  if (list.length === 0) {
-    await db.bettingAccount.create({
-      data: {
-        nomePlataforma: "Betano",
-        saldoAtualBruto: 450.00,
-        movimentacoes: {
-          create: [
-            { tipo: "DEPOSITO", data: new Date("2026-01-01"), valor: 100.00 },
-            { tipo: "DEPOSITO", data: new Date("2026-01-15"), valor: 200.00 },
-            { tipo: "SAQUE", data: new Date("2026-02-10"), valor: 150.00 }
-          ]
-        }
-      }
-    });
-
-    await db.bettingAccount.create({
-      data: {
-        nomePlataforma: "Bet365",
-        saldoAtualBruto: 1200.00,
-        movimentacoes: {
-          create: [
-            { tipo: "DEPOSITO", data: new Date("2026-02-01"), valor: 800.00 },
-            { tipo: "SAQUE", data: new Date("2026-03-01"), valor: 300.00 }
-          ]
-        }
-      }
-    });
-
-    list = await db.bettingAccount.findMany({
-      include: { movimentacoes: { orderBy: { data: "desc" } } },
-      orderBy: { createdAt: "desc" }
-    });
-  }
 
   const accounts: BettingAccountItem[] = list.map((acc: any) => {
     let totalDepositado = 0;
@@ -8744,8 +8609,18 @@ export async function updateBettingAccountSaldoAction(id: string, saldoAtualBrut
 }
 
 export async function deleteBettingAccountAction(id: string) {
-  await db.bettingAccount.delete({ where: { id } });
-  revalidatePath("/investimentos");
+  try {
+    await db.$transaction([
+      db.bettingTransaction.deleteMany({ where: { accountId: id } }),
+      db.bettingAccount.delete({ where: { id } }),
+    ]);
+    revalidatePath("/investimentos");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro ao excluir banca de apostas:", error);
+    throw new Error(error?.message || "Falha ao excluir banca no banco de dados.");
+  }
 }
 
 export async function deleteBettingTransactionAction(txId: string) {
