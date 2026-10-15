@@ -8894,7 +8894,7 @@ export async function createQuickInvestmentAporteAction(data: {
 
 // ─── VISÃO GERAL CONSOLIDADA ───────────────────────────────────────────────────
 
-export async function getConsolidatedInvestmentsOverview() {
+export async function getConsolidatedInvestmentsOverview(month?: number, year?: number) {
   const userId = await getActiveUserId();
   const rendaFixa = await getInvestmentsData();
   const rendaVariavel = await getVariableAssetsData();
@@ -8964,10 +8964,12 @@ export async function getConsolidatedInvestmentsOverview() {
   const lucroTotal = rfLucro + rvLucro + criptoLucro + apostasLucro + outrosLucro;
   const rentabilidadeGeral = totalInvestido > 0 ? (lucroTotal / totalInvestido) * 100 : 0;
 
-  // Proventos / Dividendos Recebidos no Mês Corrente
+  // Proventos / Dividendos Recebidos no Mês Selecionado
   const now = new Date();
-  const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  const targetYear = year ?? now.getFullYear();
+  const targetMonth = month ? month - 1 : now.getMonth();
+  const startOfTargetMonth = new Date(targetYear, targetMonth, 1);
+  const endOfTargetMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
   const dividendTxs = await prisma.transaction.findMany({
     where: {
@@ -8975,20 +8977,88 @@ export async function getConsolidatedInvestmentsOverview() {
       type: "INCOME",
       status: "COMPLETED",
       deletedAt: null,
-      date: { gte: startOfCurrentMonth, lte: endOfCurrentMonth },
+      date: { gte: startOfTargetMonth, lte: endOfTargetMonth },
       OR: [
-        { category: { name: { contains: "Investimento", mode: "insensitive" } } },
         { category: { name: { contains: "Dividendo", mode: "insensitive" } } },
         { category: { name: { contains: "Provento", mode: "insensitive" } } },
         { category: { name: { contains: "Rendimento", mode: "insensitive" } } },
+        { category: { name: { contains: "JCP", mode: "insensitive" } } },
         { description: { contains: "Dividendo", mode: "insensitive" } },
         { description: { contains: "Rendimento", mode: "insensitive" } },
         { description: { contains: "Provento", mode: "insensitive" } },
         { description: { contains: "JCP", mode: "insensitive" } },
+        { tags: { contains: "PROVENTO", mode: "insensitive" } },
+        { tags: { contains: "DIVIDENDO", mode: "insensitive" } },
       ]
+    },
+    include: { category: true }
+  });
+
+  // Filtrar fora transações de saques de bancas/contas ou resgates
+  const validIncomeTxs = dividendTxs.filter(t => {
+    const desc = (t.description || "").toLowerCase();
+    if (desc.includes("saque") || desc.includes("resgate") || desc.includes("retirada") || desc.includes("estorno")) {
+      return false;
+    }
+    return true;
+  });
+
+  // Atribuição de proventos por classe de ativo
+  let rfProventos = 0;
+  let rvProventos = 0;
+  let criptoProventos = 0;
+  let outrosProventos = 0;
+
+  const rvTickers = rendaVariavel.map(a => a.titulo.toLowerCase());
+  const rfTitulos = rendaFixa.investimentos.map(i => i.titulo.toLowerCase());
+  const cryptoTokens = cripto.map(c => c.token.toLowerCase());
+  const outrosNomes = outros.map(o => o.nome.toLowerCase());
+
+  validIncomeTxs.forEach(t => {
+    const desc = (t.description || "").toLowerCase();
+    const amount = Number(t.amount || 0);
+
+    // 1. Renda Fixa: cupons ou juros de títulos públicos/privados (somente se houver RF ativa)
+    const matchesRf = rfTitulos.some(title => desc.includes(title)) ||
+      desc.includes("cdb") || desc.includes("tesouro") || desc.includes("lci") || desc.includes("lca") || desc.includes("cupom");
+    if (matchesRf && rfBruto > 0) {
+      rfProventos += amount;
+      return;
+    }
+
+    // 2. Cripto: staking ou recompensas (somente se houver cripto ativa)
+    const matchesCrypto = cryptoTokens.some(token => desc.includes(token)) ||
+      desc.includes("staking") || desc.includes("airdrop") || desc.includes("cripto");
+    if (matchesCrypto && criptoBruto > 0) {
+      criptoProventos += amount;
+      return;
+    }
+
+    // 3. Outros Investimentos: proventos específicos vinculados aos ativos cadastrados em Outros
+    const matchesOutros = outrosNomes.some(nome => desc.includes(nome));
+    if (matchesOutros && outrosValorAtual > 0) {
+      outrosProventos += amount;
+      return;
+    }
+
+    // 4. Renda Variável (Ações & FIIs): dividendos, JCP, rendimento de FIIs
+    const matchesRv = rvTickers.some(ticker => desc.includes(ticker)) ||
+      desc.includes("dividendo") || desc.includes("fii") || desc.includes("jcp") || desc.includes("ação") || desc.includes("acoes");
+    if (matchesRv && rvBruto > 0) {
+      rvProventos += amount;
+      return;
+    }
+
+    // 5. Transações genéricas de proventos ("Rendimento de Investimentos / Dividendos")
+    // Somente aloca se houver classe geradora de renda passiva ativa na carteira
+    if (rvBruto > 0) {
+      rvProventos += amount;
+    } else if (rfBruto > 0) {
+      rfProventos += amount;
     }
   });
-  const proventosMes = dividendTxs.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+
+  const proventosMes = rfProventos + rvProventos + criptoProventos + outrosProventos;
 
   // Alocação Percentual para o Gráfico Donut/Pizza
   const donutRaw = [
@@ -9016,11 +9086,11 @@ export async function getConsolidatedInvestmentsOverview() {
     totalDividendosHistorico,
     allocationDonutData,
     categorias: {
-      rendaFixa: { bruto: rfBruto, liquido: rfLiquido, investido: rfInvestido, lucro: rfLucro, qtd: rendaFixa.investimentos.length },
-      rendaVariavel: { bruto: rvBruto, investido: rvInvestido, lucro: rvLucro, qtd: rendaVariavel.length },
-      cripto: { bruto: criptoBruto, investido: criptoInvestido, lucro: criptoLucro, qtd: cripto.length },
-      apostas: { saldoBruto: apostasSaldoBruto, depositado: apostasDepositado, sacado: apostasSacado, lucro: apostasLucro, qtd: apostas.length },
-      outros: { investido: outrosInvestido, saque: outrosSaque, taxas: outrosTaxas, lucro: outrosLucro, qtd: outros.length }
+      rendaFixa: { bruto: rfBruto, liquido: rfLiquido, investido: rfInvestido, lucro: rfLucro, qtd: rendaFixa.investimentos.length, proventosMes: rfProventos },
+      rendaVariavel: { bruto: rvBruto, investido: rvInvestido, lucro: rvLucro, qtd: rendaVariavel.length, proventosMes: rvProventos },
+      cripto: { bruto: criptoBruto, investido: criptoInvestido, lucro: criptoLucro, qtd: cripto.length, proventosMes: criptoProventos },
+      apostas: { saldoBruto: apostasSaldoBruto, depositado: apostasDepositado, sacado: apostasSacado, lucro: apostasLucro, qtd: apostas.length, proventosMes: 0 },
+      outros: { investido: outrosInvestido, saque: outrosSaque, taxas: outrosTaxas, lucro: outrosLucro, qtd: outros.length, proventosMes: outrosProventos, bruto: outrosValorAtual }
     }
   };
 }

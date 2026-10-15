@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   LayoutDashboard, Landmark, TrendingUp, Coins, Dice5, Plus, Pencil, Trash2,
   RefreshCw, Sparkles, ArrowUpRight, ArrowDownRight, Wallet, LineChart, ShieldCheck,
@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronRight, ChevronUp, Tag, CornerDownRight, GitCommit, Briefcase
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
+import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
@@ -40,6 +41,7 @@ const formatCryptoQty = (v: number): string => {
 
 export default function InvestimentosPage() {
   const { showAlert, showConfirm } = useModal();
+  const { selectedMonth, selectedYear } = usePeriod();
   const [currentTab, setCurrentTab] = useState<"visao-geral" | "renda-fixa" | "renda-variavel" | "cripto" | "apostas" | "outros">("visao-geral");
 
   // Loaders & Data States
@@ -180,13 +182,15 @@ export default function InvestimentosPage() {
   const [outroTaxaImposto, setOutroTaxaImposto] = useState<number | "">("");
   const [outroTotalSaque, setOutroTotalSaque] = useState<number | "">("");
 
-  // Load All Data
-  const loadAllData = async () => {
+  // Load All Data Reativo ao Período
+  const loadAllData = async (m?: number, y?: number) => {
+    const monthToUse = m ?? selectedMonth;
+    const yearToUse = y ?? selectedYear;
     setLoading(true);
     try {
       const [ov, nw, rf, rv, cr, bet, out, wl] = await Promise.all([
-        getConsolidatedInvestmentsOverview(),
-        getMonthlyNetWorthEvolution(),
+        getConsolidatedInvestmentsOverview(monthToUse, yearToUse),
+        getMonthlyNetWorthEvolution(yearToUse),
         getInvestmentsData(),
         getVariableAssetsData(),
         getCryptoAssetsData(),
@@ -223,8 +227,8 @@ export default function InvestimentosPage() {
   };
 
   useEffect(() => {
-    loadAllData();
-  }, []);
+    loadAllData(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear]);
 
   const formatDateDisplay = (dateStr: string) => {
     const parts = dateStr.split("-");
@@ -932,53 +936,147 @@ export default function InvestimentosPage() {
         </button>
       </div>
 
-      {/* ── ABA 1: VISÃO GERAL ────────────────────────────────────────────────── */}
-      {currentTab === "visao-geral" && (
-        <section className="space-y-6 animate-in fade-in">
-          
-          {/* KPIs Consolidados */}
+      {/* 3. KPIS DE ALTO NÍVEL (REATIVOS À ABA E AO FILTRO DE CATEGORIA) */}
+      {(() => {
+        const activeKpis = (() => {
+          if (currentTab === "renda-fixa") {
+            const rf = overview?.categorias?.rendaFixa;
+            return {
+              title: "Renda Fixa",
+              bruto: rf?.bruto || 0,
+              liquido: rf?.liquido || 0,
+              lucro: rf?.lucro || 0,
+              rentabilidade: (rf?.investido || 0) > 0 ? ((rf?.lucro || 0) / rf!.investido) * 100 : 0,
+              proventosMes: rf?.proventosMes || 0,
+              isConsolidated: false,
+              icon: Landmark,
+              proventosLabel: "Cupons / Juros do Mês",
+              proventosSubtext: "Rendimentos creditados em conta",
+            };
+          }
+          if (currentTab === "renda-variavel") {
+            const rv = overview?.categorias?.rendaVariavel;
+            return {
+              title: "Ações & FIIs",
+              bruto: rv?.bruto || 0,
+              liquido: rv?.bruto || 0,
+              lucro: rv?.lucro || 0,
+              rentabilidade: (rv?.investido || 0) > 0 ? ((rv?.lucro || 0) / rv!.investido) * 100 : 0,
+              proventosMes: rv?.proventosMes || 0,
+              isConsolidated: false,
+              icon: TrendingUp,
+              proventosLabel: "Dividendos do Mês",
+              proventosSubtext: "Dividendos e JCP no período",
+            };
+          }
+          if (currentTab === "cripto") {
+            const cr = overview?.categorias?.cripto;
+            return {
+              title: "Criptomoedas",
+              bruto: cr?.bruto || 0,
+              liquido: cr?.bruto || 0,
+              lucro: cr?.lucro || 0,
+              rentabilidade: (cr?.investido || 0) > 0 ? ((cr?.lucro || 0) / cr!.investido) * 100 : 0,
+              proventosMes: cr?.proventosMes || 0,
+              isConsolidated: false,
+              icon: Coins,
+              proventosLabel: "Staking / Yield do Mês",
+              proventosSubtext: "Rendimentos passivos em cripto",
+            };
+          }
+          if (currentTab === "apostas") {
+            const ap = overview?.categorias?.apostas;
+            return {
+              title: "Apostas / Bancas",
+              bruto: ap?.saldoBruto || 0,
+              liquido: ap?.saldoBruto || 0,
+              lucro: ap?.lucro || 0,
+              rentabilidade: (ap?.depositado || 0) > 0 ? ((ap?.lucro || 0) / ap!.depositado) * 100 : 0,
+              proventosMes: 0,
+              isConsolidated: false,
+              icon: Dice5,
+              proventosLabel: "Proventos do Mês",
+              proventosSubtext: "Bancas operam por resultado / saque",
+            };
+          }
+          if (currentTab === "outros") {
+            const ot = overview?.categorias?.outros;
+            const bruto = (ot?.investido || 0) + (ot?.lucro || 0);
+            return {
+              title: "Outros Investimentos",
+              bruto,
+              liquido: bruto,
+              lucro: ot?.lucro || 0,
+              rentabilidade: (ot?.investido || 0) > 0 ? ((ot?.lucro || 0) / ot!.investido) * 100 : 0,
+              proventosMes: ot?.proventosMes || 0,
+              isConsolidated: false,
+              icon: Briefcase,
+              proventosLabel: "Proventos do Mês",
+              proventosSubtext: "Renda passiva direta cadastrada",
+            };
+          }
+          return {
+            title: "Carteira Consolidada",
+            bruto: overview?.patrimonioBruto || 0,
+            liquido: overview?.patrimonioLiquido || 0,
+            lucro: overview?.lucroTotal || 0,
+            rentabilidade: overview?.rentabilidadeGeral || 0,
+            proventosMes: overview?.proventosMes || 0,
+            isConsolidated: true,
+            icon: LayoutDashboard,
+            proventosLabel: "Proventos do Mês",
+            proventosSubtext: "Fluxo de caixa livre sem venda de ativos",
+          };
+        })();
+
+        return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
             <MetricKpiCard
               label="Patrimônio Bruto"
-              value={brl(overview?.patrimonioBruto || 0)}
-              subtext="Total acumulado na carteira"
+              value={brl(activeKpis.bruto)}
+              subtext={activeKpis.isConsolidated ? "Total acumulado na carteira" : `Total alocado em ${activeKpis.title}`}
               variant="neutral"
               icon={Wallet}
             />
 
             <MetricKpiCard
               label="Patrimônio Líquido"
-              value={brl(overview?.patrimonioLiquido || 0)}
-              subtext="Após impostos e taxas estimadas"
+              value={brl(activeKpis.liquido)}
+              subtext={activeKpis.isConsolidated ? "Após impostos e taxas estimadas" : `Líquido estimado de ${activeKpis.title}`}
               variant="success"
               icon={Landmark}
             />
 
             <MetricKpiCard
-              label="Lucro Total Acumulado"
-              value={`${(overview?.lucroTotal || 0) >= 0 ? "+" : ""}${brl(overview?.lucroTotal || 0)}`}
-              subtext={`Rentabilidade: ${(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}${(overview?.rentabilidadeGeral || 0).toFixed(2)}%`}
-              variant={(overview?.lucroTotal || 0) >= 0 ? "success" : "danger"}
+              label={activeKpis.isConsolidated ? "Lucro Total Acumulado" : `Resultado (${activeKpis.title})`}
+              value={`${activeKpis.lucro >= 0 ? "+" : ""}${brl(activeKpis.lucro)}`}
+              subtext={`Rentabilidade: ${activeKpis.rentabilidade >= 0 ? "+" : ""}${activeKpis.rentabilidade.toFixed(2)}%`}
+              variant={activeKpis.lucro >= 0 ? "success" : "danger"}
               icon={Sparkles}
               badge={{
-                text: `${(overview?.rentabilidadeGeral || 0) >= 0 ? "+" : ""}${(overview?.rentabilidadeGeral || 0).toFixed(1)}%`,
-                variant: (overview?.lucroTotal || 0) >= 0 ? "success" : "danger",
+                text: `${activeKpis.rentabilidade >= 0 ? "+" : ""}${activeKpis.rentabilidade.toFixed(1)}%`,
+                variant: activeKpis.lucro >= 0 ? "success" : "danger",
               }}
             />
 
-            {/* 4. Métrica: Proventos / Dividendos Recebidos no Mês */}
             <MetricKpiCard
-              label="Proventos do Mês"
-              value={`+${brl(overview?.proventosMes || 0)}`}
-              subtext="Fluxo de caixa livre sem venda de ativos"
-              variant="success"
+              label={activeKpis.proventosLabel}
+              value={`+${brl(activeKpis.proventosMes)}`}
+              subtext={activeKpis.proventosSubtext}
+              variant={activeKpis.proventosMes > 0 ? "success" : "neutral"}
               icon={Coins}
               badge={{
-                text: "Renda Passiva",
-                variant: "success",
+                text: activeKpis.proventosMes > 0 ? "Renda Passiva" : "Sem Proventos",
+                variant: activeKpis.proventosMes > 0 ? "success" : "neutral",
               }}
             />
           </div>
+        );
+      })()}
+
+      {/* ── ABA 1: VISÃO GERAL ────────────────────────────────────────────────── */}
+      {currentTab === "visao-geral" && (
+        <section className="space-y-6 animate-in fade-in">
 
           {/* Cards de Resumo por Categoria */}
           {overview?.categorias && (
