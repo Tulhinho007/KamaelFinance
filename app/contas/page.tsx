@@ -1270,221 +1270,60 @@ export default function GestaoCaixaContasPage() {
       {/* ── SEÇÃO A: AGENDA DE CONTAS A PAGAR (Apenas itens PENDENTES) ───── */}
       {(activeTab === "TODOS" || activeTab === "AGENDA") && (
         <section className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 bg-slate-50/40 dark:bg-slate-950/20">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50">
-                <Clock className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                  Agenda de Contas a Pagar
-                  <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
-                    Apenas Pendentes ({filteredPendingCommitments.length})
-                  </span>
-                  {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
-                    <span className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      Filtrado por: {activePeriodBadgeLabel}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDataInicio("");
-                          setDataFim("");
-                          setAgendaPeriodFilter("ALL");
-                        }}
-                        className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
-                        title="Limpar filtro de período"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
+          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/20 space-y-3.5">
+            {/* ── Linha Superior: Título, Badges e Busca ── */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50 shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white whitespace-nowrap">
+                      Agenda de Contas a Pagar
+                    </h2>
+                    <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                      Apenas Pendentes ({filteredPendingCommitments.length})
                     </span>
-                  )}
-                  {extratoAccountFilter !== "ALL" && (
-                    <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
-                      <button
-                        type="button"
-                        onClick={() => setExtratoAccountFilter("ALL")}
-                        className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
-                        title="Limpar filtro de conta"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Boletos, assinaturas e despesas a quitar. Ao pagar, o débito entra automaticamente no extrato.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 w-full xl:w-auto">
-              {/* ── 1. Atalhos Rápidos & Seletor de Competência / Período ── */}
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 w-full sm:w-auto">
-                {/* Botões Rápidos em Pílula */}
-                <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDataInicio("");
-                      setDataFim("");
-                      setAgendaPeriodFilter("ALL");
-                    }}
-                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title={`Ver todas as pendências de ${selectedYear}`}
-                  >
-                    Todas ({selectedYear})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDataInicio("");
-                      setDataFim("");
-                      setAgendaPeriodFilter("CURRENT_MONTH");
-                    }}
-                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "CURRENT_MONTH" && !dataInicio && !dataFim
-                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title={`Ver pendências do mês atual (${currentPeriodLabel})`}
-                  >
-                    Mês Atual
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDataInicio("");
-                      setDataFim("");
-                      setAgendaPeriodFilter("NEXT_MONTH");
-                    }}
-                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                      agendaPeriodFilter === "NEXT_MONTH" && !dataInicio && !dataFim
-                        ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                    title={`Ver pendências do próximo mês (${nextPeriodLabel})`}
-                  >
-                    Próximo Mês
-                  </button>
-                </div>
-
-                {/* Seletor de Intervalo de Datas (Date Range) */}
-                <div className="flex items-center gap-1.5">
-                  <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
-                    dataInicio || dataFim
-                      ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
-                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
-                  }`}>
-                    <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">De:</span>
-                    <input
-                      type="date"
-                      value={dataInicio}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setDataInicio(val);
-                        if (val || dataFim) {
-                          setAgendaPeriodFilter("DATE_RANGE");
-                        } else {
-                          setAgendaPeriodFilter("ALL");
-                        }
-                      }}
-                      className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
-                    />
+                    {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
+                      <span className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
+                        Filtrado por: {activePeriodBadgeLabel}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDataInicio("");
+                            setDataFim("");
+                            setAgendaPeriodFilter("ALL");
+                          }}
+                          className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
+                          title="Limpar filtro de período"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                    {extratoAccountFilter !== "ALL" && (
+                      <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
+                        Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
+                        <button
+                          type="button"
+                          onClick={() => setExtratoAccountFilter("ALL")}
+                          className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
+                          title="Limpar filtro de conta"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
                   </div>
-
-                  <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
-                    dataInicio || dataFim
-                      ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
-                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
-                  }`}>
-                    <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">Até:</span>
-                    <input
-                      type="date"
-                      value={dataFim}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setDataFim(val);
-                        if (dataInicio || val) {
-                          setAgendaPeriodFilter("DATE_RANGE");
-                        } else {
-                          setAgendaPeriodFilter("ALL");
-                        }
-                      }}
-                      className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
-                    />
-                  </div>
-
-                  {(dataInicio || dataFim) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDataInicio("");
-                        setDataFim("");
-                        setAgendaPeriodFilter("ALL");
-                      }}
-                      className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 font-bold cursor-pointer transition-colors"
-                      title="Limpar período de datas"
-                    >
-                      ✕
-                    </button>
-                  )}
+                  <p className="text-[11px] text-slate-400 mt-0.5 truncate sm:whitespace-normal">
+                    Boletos, assinaturas e despesas a quitar.
+                  </p>
                 </div>
-
-                {/* Dropdown Seletor Avançado / Personalizado */}
-                <div className="relative">
-                  <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
-                  <select
-                    value={agendaPeriodFilter}
-                    onChange={(e) => {
-                      const val = e.target.value as AgendaPeriodFilter;
-                      setAgendaPeriodFilter(val);
-                      if (val !== "DATE_RANGE") {
-                        setDataInicio("");
-                        setDataFim("");
-                      }
-                    }}
-                    className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
-                  >
-                    <option value="ALL">Todas as Pendências ({selectedYear})</option>
-                    <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
-                    <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
-                    <option value="CUSTOM">Outro mês personalizado...</option>
-                    <option value="DATE_RANGE">Intervalo de datas personalizado...</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                </div>
-
-                {agendaPeriodFilter === "CUSTOM" && (
-                  <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150">
-                    <select
-                      value={customFilterMonth}
-                      onChange={(e) => setCustomFilterMonth(Number(e.target.value))}
-                      className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                    >
-                      {MONTH_NAMES_LIST.map((m, idx) => (
-                        <option key={idx + 1} value={idx + 1}>{m}</option>
-                      ))}
-                    </select>
-                    <select
-                      value={customFilterYear}
-                      onChange={(e) => setCustomFilterYear(Number(e.target.value))}
-                      className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                    >
-                      {[selectedYear - 1, selectedYear, selectedYear + 1, selectedYear + 2].map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
 
-              {/* ── Campo de Busca ── */}
-              <div className="relative flex-1 sm:w-60">
+              {/* ── Campo de Busca Rápida ── */}
+              <div className="relative w-full md:w-64 shrink-0">
                 <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
@@ -1497,12 +1336,176 @@ export default function GestaoCaixaContasPage() {
                   <button
                     type="button"
                     onClick={() => setAgendaSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
                   >
                     <X className="w-3 h-3" />
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* ── Linha Inferior: Barra de Filtros e Períodos ── */}
+            <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100/80 dark:border-slate-800/80">
+              {/* Botões Rápidos em Pílula */}
+              <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDataInicio("");
+                    setDataFim("");
+                    setAgendaPeriodFilter("ALL");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                  title={`Ver todas as pendências de ${selectedYear}`}
+                >
+                  Todas ({selectedYear})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDataInicio("");
+                    setDataFim("");
+                    setAgendaPeriodFilter("CURRENT_MONTH");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    agendaPeriodFilter === "CURRENT_MONTH" && !dataInicio && !dataFim
+                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                  title={`Ver pendências do mês atual (${currentPeriodLabel})`}
+                >
+                  Mês Atual
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDataInicio("");
+                    setDataFim("");
+                    setAgendaPeriodFilter("NEXT_MONTH");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
+                    agendaPeriodFilter === "NEXT_MONTH" && !dataInicio && !dataFim
+                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                  title={`Ver pendências do próximo mês (${nextPeriodLabel})`}
+                >
+                  Próximo Mês
+                </button>
+              </div>
+
+              {/* Seletor de Intervalo de Datas (Date Range) */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
+                  dataInicio || dataFim
+                    ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                }`}>
+                  <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">De:</span>
+                  <input
+                    type="date"
+                    value={dataInicio}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDataInicio(val);
+                      if (val || dataFim) {
+                        setAgendaPeriodFilter("DATE_RANGE");
+                      } else {
+                        setAgendaPeriodFilter("ALL");
+                      }
+                    }}
+                    className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
+                  />
+                </div>
+
+                <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
+                  dataInicio || dataFim
+                    ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
+                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
+                }`}>
+                  <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">Até:</span>
+                  <input
+                    type="date"
+                    value={dataFim}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setDataFim(val);
+                      if (dataInicio || val) {
+                        setAgendaPeriodFilter("DATE_RANGE");
+                      } else {
+                        setAgendaPeriodFilter("ALL");
+                      }
+                    }}
+                    className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
+                  />
+                </div>
+
+                {(dataInicio || dataFim) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDataInicio("");
+                      setDataFim("");
+                      setAgendaPeriodFilter("ALL");
+                    }}
+                    className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 font-bold cursor-pointer transition-colors"
+                    title="Limpar período de datas"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown Seletor Avançado / Personalizado */}
+              <div className="relative shrink-0">
+                <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
+                <select
+                  value={agendaPeriodFilter}
+                  onChange={(e) => {
+                    const val = e.target.value as AgendaPeriodFilter;
+                    setAgendaPeriodFilter(val);
+                    if (val !== "DATE_RANGE") {
+                      setDataInicio("");
+                      setDataFim("");
+                    }
+                  }}
+                  className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
+                >
+                  <option value="ALL">Todas as Pendências ({selectedYear})</option>
+                  <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
+                  <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
+                  <option value="CUSTOM">Outro mês personalizado...</option>
+                  <option value="DATE_RANGE">Intervalo de datas personalizado...</option>
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+              </div>
+
+              {agendaPeriodFilter === "CUSTOM" && (
+                <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150 shrink-0">
+                  <select
+                    value={customFilterMonth}
+                    onChange={(e) => setCustomFilterMonth(Number(e.target.value))}
+                    className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    {MONTH_NAMES_LIST.map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={customFilterYear}
+                    onChange={(e) => setCustomFilterYear(Number(e.target.value))}
+                    className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
+                  >
+                    {[selectedYear - 1, selectedYear, selectedYear + 1, selectedYear + 2].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1799,14 +1802,14 @@ export default function GestaoCaixaContasPage() {
       {(activeTab === "TODOS" || activeTab === "EXTRATO") && (
         <section className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs overflow-hidden">
           <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/40 dark:bg-slate-950/20">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50 shrink-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                  Extrato da Conta (Movimentações Realizadas)
-                  <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                  <span className="whitespace-nowrap">Extrato da Conta (Movimentações Realizadas)</span>
+                  <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
                     {filteredRealizedMovements.length} {filteredRealizedMovements.length === 1 ? "operação" : "operações"}
                   </span>
                   {extratoAccountFilter !== "ALL" && (
