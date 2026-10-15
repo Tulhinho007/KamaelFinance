@@ -116,14 +116,11 @@ export function MetricKpiCard({
       />
 
       <div className="relative z-10">
-        {/* Linha 1 (Cabeçalho do Card): Label + Badge à esquerda, Ícone à direita */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 whitespace-nowrap shrink-0">
-              {label}
-            </span>
-            {renderBadge()}
-          </div>
+        {/* Linha 1 (Cabeçalho do Card): Label na esquerda, Ícone padronizado na direita */}
+        <div className="flex items-start justify-between gap-2 mb-1.5">
+          <span className="text-[11px] font-semibold tracking-wider uppercase text-slate-500 dark:text-zinc-400 leading-tight">
+            {label}
+          </span>
 
           {Icon && (
             <div
@@ -134,14 +131,17 @@ export function MetricKpiCard({
           )}
         </div>
 
-        {/* Linha 2 (Valor Numérico Principal) */}
+        {/* Linha 2 (Valor Numérico Principal + Badge harmoniosa) */}
         {isLoading ? (
           <div className="h-8 w-32 bg-slate-200 dark:bg-zinc-800 rounded-lg animate-pulse mt-2" />
         ) : (
-          <div
-            className={`text-2xl font-bold tracking-tight tabular-nums font-tnum mt-2 ${styles.value}`}
-          >
-            {value}
+          <div className="flex items-baseline gap-2 flex-wrap mt-1">
+            <span
+              className={`text-2xl font-bold tracking-tight tabular-nums font-tnum ${styles.value}`}
+            >
+              {value}
+            </span>
+            {renderBadge()}
           </div>
         )}
 

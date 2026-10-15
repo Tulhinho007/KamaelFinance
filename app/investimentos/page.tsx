@@ -12,7 +12,7 @@ import { useModal } from "@/components/ui/custom-dialog-provider";
 import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
   PieChart as RechartsPieChart, Pie, Cell, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Line
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Line, ReferenceLine
 } from "recharts";
 import {
   getInvestmentsData, createInvestmentAction, updateInvestmentAction, deleteInvestmentAction, toggleInvestmentStatusAction, InvestmentItem,
@@ -985,134 +985,279 @@ export default function InvestimentosPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5 items-stretch">
               
               {/* Renda Fixa */}
-              <div 
-                onClick={() => setCurrentTab("renda-fixa")}
-                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="p-2 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-200/50 dark:border-blue-500/20 shrink-0">
-                    <Landmark className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {(() => {
+                const rf = overview.categorias.rendaFixa;
+                const hasBalance = (rf?.bruto || 0) > 0;
+                return (
+                  <div 
+                    onClick={() => setCurrentTab("renda-fixa")}
+                    className={`bg-white dark:bg-zinc-900/80 backdrop-blur-md border rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                      hasBalance 
+                        ? "border-slate-200/80 dark:border-white/[0.08]" 
+                        : "border-slate-200/50 dark:border-white/[0.04] opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className={`p-2 rounded-xl border shrink-0 ${
+                        hasBalance 
+                          ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/50 dark:border-blue-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        <Landmark className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      </div>
+                      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
+                        hasBalance 
+                          ? "bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-200/50 dark:border-blue-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        {rf.qtd} ativo(s)
+                      </span>
+                    </div>
+                    <div className="h-5 flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Renda Fixa">
+                        Renda Fixa
+                      </p>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setCurrentTab("renda-fixa"); setSelectedRf(null); setActiveModal("rf-create"); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline"
+                        title="Adicionar Investimento em Renda Fixa"
+                      >
+                        + Aportar
+                      </span>
+                    </div>
+                    <p className={`text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 truncate ${
+                      hasBalance ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500 font-medium"
+                    }`}>
+                      {brl(rf.bruto)}
+                    </p>
+                    <p className={`text-xs font-medium mt-1 truncate ${
+                      hasBalance ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-slate-400 dark:text-zinc-500"
+                    }`}>
+                      Resultado: {rf.lucro >= 0 ? "+" : ""}{brl(rf.lucro)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-200/50 dark:border-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
-                    {overview.categorias.rendaFixa.qtd} ativo(s)
-                  </span>
-                </div>
-                <div className="h-5 flex items-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Renda Fixa">
-                    Renda Fixa
-                  </p>
-                </div>
-                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
-                  {brl(overview.categorias.rendaFixa.bruto)}
-                </p>
-                <p className="text-xs font-medium mt-1 truncate text-emerald-600 dark:text-emerald-400">
-                  Lucro: +{brl(overview.categorias.rendaFixa.lucro)}
-                </p>
-              </div>
+                );
+              })()}
 
               {/* Ações & FIIs */}
-              <div 
-                onClick={() => setCurrentTab("renda-variavel")}
-                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-200/50 dark:border-emerald-500/20 shrink-0">
-                    <TrendingUp className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {(() => {
+                const rv = overview.categorias.rendaVariavel;
+                const hasBalance = (rv?.bruto || 0) > 0;
+                return (
+                  <div 
+                    onClick={() => setCurrentTab("renda-variavel")}
+                    className={`bg-white dark:bg-zinc-900/80 backdrop-blur-md border rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                      hasBalance 
+                        ? "border-slate-200/80 dark:border-white/[0.08]" 
+                        : "border-slate-200/50 dark:border-white/[0.04] opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className={`p-2 rounded-xl border shrink-0 ${
+                        hasBalance 
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/50 dark:border-emerald-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        <TrendingUp className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      </div>
+                      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
+                        hasBalance 
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200/50 dark:border-emerald-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        {rv.qtd} ciclo(s)
+                      </span>
+                    </div>
+                    <div className="h-5 flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Ações & FIIs">
+                        Ações & FIIs
+                      </p>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setCurrentTab("renda-variavel"); setActiveModal("rv-create"); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline"
+                        title="Criar novo ciclo de Ações / FIIs"
+                      >
+                        + Novo Ciclo
+                      </span>
+                    </div>
+                    <p className={`text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 truncate ${
+                      hasBalance ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500 font-medium"
+                    }`}>
+                      {brl(rv.bruto)}
+                    </p>
+                    <p className={`text-xs font-medium mt-1 truncate ${
+                      hasBalance ? (rv.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-rose-600 dark:text-rose-400 font-semibold") : "text-slate-400 dark:text-zinc-500"
+                    }`}>
+                      Resultado: {rv.lucro >= 0 ? "+" : ""}{brl(rv.lucro)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200/50 dark:border-emerald-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
-                    {overview.categorias.rendaVariavel.qtd} ciclo(s)
-                  </span>
-                </div>
-                <div className="h-5 flex items-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Ações & FIIs">
-                    Ações & FIIs
-                  </p>
-                </div>
-                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
-                  {brl(overview.categorias.rendaVariavel.bruto)}
-                </p>
-                <p className="text-xs font-medium mt-1 truncate text-emerald-600 dark:text-emerald-400">
-                  Lucro Total: +{brl(overview.categorias.rendaVariavel.lucro)}
-                </p>
-              </div>
+                );
+              })()}
 
               {/* Cripto */}
-              <div 
-                onClick={() => setCurrentTab("cripto")}
-                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="p-2 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-200/50 dark:border-amber-500/20 shrink-0">
-                    <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {(() => {
+                const cr = overview.categorias.cripto;
+                const hasBalance = (cr?.bruto || 0) > 0;
+                return (
+                  <div 
+                    onClick={() => setCurrentTab("cripto")}
+                    className={`bg-white dark:bg-zinc-900/80 backdrop-blur-md border rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                      hasBalance 
+                        ? "border-slate-200/80 dark:border-white/[0.08]" 
+                        : "border-slate-200/50 dark:border-white/[0.04] opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className={`p-2 rounded-xl border shrink-0 ${
+                        hasBalance 
+                          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/50 dark:border-amber-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        <Coins className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      </div>
+                      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
+                        hasBalance 
+                          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200/50 dark:border-amber-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        {cr.qtd} ciclo(s)
+                      </span>
+                    </div>
+                    <div className="h-5 flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Criptomoedas">
+                        Criptomoedas
+                      </p>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setCurrentTab("cripto"); setActiveModal("crypto-create"); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline"
+                        title="Criar novo ciclo Cripto"
+                      >
+                        + Novo Ciclo
+                      </span>
+                    </div>
+                    <p className={`text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 truncate ${
+                      hasBalance ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500 font-medium"
+                    }`}>
+                      {brl(cr.bruto)}
+                    </p>
+                    <p className={`text-xs font-medium mt-1 truncate ${
+                      hasBalance ? (cr.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-rose-600 dark:text-rose-400 font-semibold") : "text-slate-400 dark:text-zinc-500"
+                    }`}>
+                      Resultado: {cr.lucro >= 0 ? "+" : ""}{brl(cr.lucro)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200/50 dark:border-amber-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
-                    {overview.categorias.cripto.qtd} ciclo(s)
-                  </span>
-                </div>
-                <div className="h-5 flex items-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Criptomoedas">
-                    Criptomoedas
-                  </p>
-                </div>
-                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
-                  {brl(overview.categorias.cripto.bruto)}
-                </p>
-                <p className={`text-xs font-medium mt-1 truncate ${overview.categorias.cripto.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  Lucro: {overview.categorias.cripto.lucro >= 0 ? "+" : ""}{brl(overview.categorias.cripto.lucro)}
-                </p>
-              </div>
+                );
+              })()}
 
               {/* Apostas / Bancas */}
-              <div 
-                onClick={() => setCurrentTab("apostas")}
-                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="p-2 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-200/50 dark:border-purple-500/20 shrink-0">
-                    <Dice5 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {(() => {
+                const ap = overview.categorias.apostas;
+                const hasBalance = (ap?.saldoBruto || 0) > 0;
+                return (
+                  <div 
+                    onClick={() => setCurrentTab("apostas")}
+                    className={`bg-white dark:bg-zinc-900/80 backdrop-blur-md border rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                      hasBalance 
+                        ? "border-slate-200/80 dark:border-white/[0.08]" 
+                        : "border-slate-200/50 dark:border-white/[0.04] opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className={`p-2 rounded-xl border shrink-0 ${
+                        hasBalance 
+                          ? "bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-200/50 dark:border-purple-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        <Dice5 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      </div>
+                      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
+                        hasBalance 
+                          ? "bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-200/50 dark:border-purple-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        {ap.qtd} banca(s)
+                      </span>
+                    </div>
+                    <div className="h-5 flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Bancas & Apostas">
+                        Bancas & Apostas
+                      </p>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setCurrentTab("apostas"); setActiveModal("bet-create"); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-extrabold text-purple-600 dark:text-purple-400 hover:underline"
+                        title="Cadastrar nova banca"
+                      >
+                        + Nova Banca
+                      </span>
+                    </div>
+                    <p className={`text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 truncate ${
+                      hasBalance ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500 font-medium"
+                    }`}>
+                      {brl(ap.saldoBruto)}
+                    </p>
+                    <p className={`text-xs font-medium mt-1 truncate ${
+                      hasBalance ? (ap.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-rose-600 dark:text-rose-400 font-semibold") : "text-slate-400 dark:text-zinc-500"
+                    }`}>
+                      Resultado: {ap.lucro >= 0 ? "+" : ""}{brl(ap.lucro)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200/50 dark:border-purple-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
-                    {overview.categorias.apostas.qtd} banca(s)
-                  </span>
-                </div>
-                <div className="h-5 flex items-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Bancas & Apostas">
-                    Bancas & Apostas
-                  </p>
-                </div>
-                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
-                  {brl(overview.categorias.apostas.saldoBruto)}
-                </p>
-                <p className={`text-xs font-medium mt-1 truncate ${overview.categorias.apostas.lucro >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  Lucro Real: {overview.categorias.apostas.lucro >= 0 ? "+" : ""}{brl(overview.categorias.apostas.lucro)}
-                </p>
-              </div>
+                );
+              })()}
 
               {/* Outros Investimentos */}
-              <div 
-                onClick={() => setCurrentTab("outros")}
-                className="bg-white dark:bg-zinc-900/80 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between"
-              >
-                <div className="flex items-center justify-between mb-2.5">
-                  <div className="p-2 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-xl border border-teal-200/50 dark:border-teal-500/20 shrink-0">
-                    <Briefcase className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {(() => {
+                const ou = overview.categorias.outros;
+                const hasBalance = (ou?.investido || 0) > 0;
+                return (
+                  <div 
+                    onClick={() => setCurrentTab("outros")}
+                    className={`bg-white dark:bg-zinc-900/80 backdrop-blur-md border rounded-2xl p-4 sm:p-4.5 shadow-xs hover:shadow-md dark:shadow-black/20 hover:-translate-y-0.5 transition-all cursor-pointer group flex flex-col justify-between ${
+                      hasBalance 
+                        ? "border-slate-200/80 dark:border-white/[0.08]" 
+                        : "border-slate-200/50 dark:border-white/[0.04] opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className={`p-2 rounded-xl border shrink-0 ${
+                        hasBalance 
+                          ? "bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-200/50 dark:border-teal-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        <Briefcase className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                      </div>
+                      <span className={`text-[10px] font-bold border px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0 ${
+                        hasBalance 
+                          ? "bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-200/50 dark:border-teal-500/20" 
+                          : "bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border-slate-200/40 dark:border-white/[0.06]"
+                      }`}>
+                        {ou?.qtd || 0} ativo(s)
+                      </span>
+                    </div>
+                    <div className="h-5 flex items-center justify-between">
+                      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Outros Investimentos">
+                        Outros Investimentos
+                      </p>
+                      <span 
+                        onClick={(e) => { e.stopPropagation(); setCurrentTab("outros"); openCreateOutroModal(); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-extrabold text-teal-600 dark:text-teal-400 hover:underline"
+                        title="Cadastrar outro investimento"
+                      >
+                        + Novo Registro
+                      </span>
+                    </div>
+                    <p className={`text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 truncate ${
+                      hasBalance ? "text-slate-900 dark:text-zinc-100" : "text-slate-400 dark:text-zinc-500 font-medium"
+                    }`}>
+                      {brl(ou?.investido || 0)}
+                    </p>
+                    <p className={`text-xs font-medium mt-1 truncate ${
+                      hasBalance ? ((ou?.lucro || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-rose-600 dark:text-rose-400 font-semibold") : "text-slate-400 dark:text-zinc-500"
+                    }`}>
+                      Resultado: {(ou?.lucro || 0) >= 0 ? "+" : ""}{brl(ou?.lucro || 0)}
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-300 border border-teal-200/50 dark:border-teal-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider whitespace-nowrap shrink-0">
-                    {overview.categorias.outros?.qtd || 0} ativo(s)
-                  </span>
-                </div>
-                <div className="h-5 flex items-center">
-                  <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 whitespace-nowrap overflow-hidden text-ellipsis" title="Outros Investimentos">
-                    Outros Investimentos
-                  </p>
-                </div>
-                <p className="text-lg sm:text-xl font-bold tracking-tight tabular-nums font-tnum mt-1 text-slate-900 dark:text-zinc-100 truncate">
-                  {brl(overview.categorias.outros?.investido || 0)}
-                </p>
-                <p className={`text-xs font-medium mt-1 truncate ${(overview.categorias.outros?.lucro || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                  Lucro Real: {(overview.categorias.outros?.lucro || 0) >= 0 ? "+" : ""}{brl(overview.categorias.outros?.lucro || 0)}
-                </p>
-              </div>
+                );
+              })()}
 
             </div>
           )}
@@ -1135,17 +1280,18 @@ export default function InvestimentosPage() {
 
               {overview?.allocationDonutData && overview.allocationDonutData.length > 0 ? (
                 <div className="flex flex-col sm:flex-row items-center gap-4 h-64">
-                  {/* Container Donut com Centro Preenchido */}
-                  <div className="w-full sm:w-1/2 h-full relative flex items-center justify-center">
+                  {/* Container Donut com Centro Preenchido e Ângulo Mínimo */}
+                  <div className="w-full sm:w-5/12 h-full relative flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <RechartsPieChart>
                         <Pie
                           data={overview.allocationDonutData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={88}
-                          paddingAngle={3}
+                          innerRadius={55}
+                          outerRadius={82}
+                          paddingAngle={overview.allocationDonutData.length > 1 ? 3 : 0}
+                          minAngle={8}
                           dataKey="value"
                         >
                           {overview.allocationDonutData.map((entry: any, index: number) => (
@@ -1163,17 +1309,19 @@ export default function InvestimentosPage() {
                     </div>
                   </div>
 
-                  {/* Legenda Dinâmica com Espaçamento e Sem Colar Texto */}
-                  <div className="w-full sm:w-1/2 flex flex-col gap-2.5">
+                  {/* Legenda Dinâmica com Espaçamento Amplo para Caber Nomes Completos */}
+                  <div className="w-full sm:w-7/12 flex flex-col gap-2 pl-0 sm:pl-2">
                     {overview.allocationDonutData.map((item: any) => (
-                      <div key={item.name} className="flex justify-between items-center text-xs gap-3">
-                        <div className="flex items-center gap-2 min-w-0 pr-1">
-                          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                          <span className="font-bold text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
+                      <div key={item.name} className="flex justify-between items-center text-xs gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                          <span className="font-bold text-slate-700 dark:text-slate-300 text-xs truncate" title={item.name}>
+                            {item.name}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-2 font-tnum tabular-nums shrink-0 ml-auto">
-                          <span className="font-semibold text-slate-500 dark:text-slate-400">{brl(item.value)}</span>
-                          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full text-[10px]">
+                        <div className="flex items-center gap-1.5 font-tnum tabular-nums shrink-0 ml-auto">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 text-xs">{brl(item.value)}</span>
+                          <span className="font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full text-[10px]">
                             {item.pct}%
                           </span>
                         </div>
@@ -1188,9 +1336,9 @@ export default function InvestimentosPage() {
               )}
             </div>
 
-            {/* Gráfico 2: Evolução Patrimonial Mensal (Área com Gradiente de Corretora + Projeção Tracejada) */}
+            {/* Gráfico 2: Evolução Patrimonial Mensal com Marcador de Mês Atual */}
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                     <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({new Date().getFullYear()})
@@ -1205,6 +1353,9 @@ export default function InvestimentosPage() {
                   </span>
                   <span className="flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
                     <span className="w-3.5 border-t-2 border-dashed border-indigo-500 inline-block" /> Projeção
+                  </span>
+                  <span className="hidden sm:inline-flex items-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
+                    Divisor: Mês Atual
                   </span>
                 </div>
               </div>
@@ -1232,6 +1383,20 @@ export default function InvestimentosPage() {
                           brl(Number(val)),
                           name === "realizado" ? "Patrimônio Consolidado" : "Projeção Futura (CDI)"
                         ]}
+                      />
+                      {/* Linha vertical que demarca o Mês Atual */}
+                      <ReferenceLine
+                        x={["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][new Date().getMonth()]}
+                        stroke="#6366f1"
+                        strokeDasharray="3 3"
+                        strokeWidth={1.5}
+                        label={{
+                          value: "Hoje",
+                          position: "top",
+                          fill: "#6366f1",
+                          fontSize: 10,
+                          fontWeight: 800,
+                        }}
                       />
                       <Area
                         type="monotone"
