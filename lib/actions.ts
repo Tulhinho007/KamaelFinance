@@ -7457,8 +7457,12 @@ export type InvestmentItem = {
   status: "ATIVO" | "RESGATADO";
 };
 
-export async function getInvestmentsData() {
+export async function getInvestmentsData(month?: number, year?: number) {
+  const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.investment.findMany({
+    where: endOfMonthDate ? {
+      dataInicial: { lte: endOfMonthDate }
+    } : undefined,
     orderBy: { createdAt: "desc" }
   });
 
@@ -7680,8 +7684,12 @@ export type VariableAssetItem = {
   }[];
 };
 
-export async function getVariableAssetsData() {
+export async function getVariableAssetsData(month?: number, year?: number) {
+  const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.variableAsset.findMany({
+    where: endOfMonthDate ? {
+      createdAt: { lte: endOfMonthDate }
+    } : undefined,
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -7702,7 +7710,11 @@ export async function getVariableAssetsData() {
     let custoTotalOriginalAportado = 0;
     let compraCounter = 0;
 
-    const transacoesOrdenadas = [...asset.transacoes].sort(
+    const rawTxs = endOfMonthDate
+      ? asset.transacoes.filter((t: any) => new Date(t.data) <= endOfMonthDate)
+      : asset.transacoes;
+
+    const transacoesOrdenadas = [...rawTxs].sort(
       (a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime()
     );
 
@@ -8104,8 +8116,12 @@ export type CryptoAssetItem = {
   }[];
 };
 
-export async function getCryptoAssetsData() {
+export async function getCryptoAssetsData(month?: number, year?: number) {
+  const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.cryptoAsset.findMany({
+    where: endOfMonthDate ? {
+      createdAt: { lte: endOfMonthDate }
+    } : undefined,
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -8126,7 +8142,11 @@ export async function getCryptoAssetsData() {
     let custoTotalOriginalAportado = 0;
     let compraCounter = 0;
 
-    const transacoesOrdenadas = [...c.transacoes].sort(
+    const rawTxs = endOfMonthDate
+      ? c.transacoes.filter((t: any) => new Date(t.data) <= endOfMonthDate)
+      : c.transacoes;
+
+    const transacoesOrdenadas = [...rawTxs].sort(
       (a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime()
     );
 
@@ -8506,8 +8526,12 @@ export type BettingAccountItem = {
   }[];
 };
 
-export async function getBettingAccountsData() {
+export async function getBettingAccountsData(month?: number, year?: number) {
+  const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.bettingAccount.findMany({
+    where: endOfMonthDate ? {
+      createdAt: { lte: endOfMonthDate }
+    } : undefined,
     include: { movimentacoes: { orderBy: { data: "desc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -8516,7 +8540,11 @@ export async function getBettingAccountsData() {
     let totalDepositado = 0;
     let totalSacado = 0;
 
-    acc.movimentacoes.forEach((m: any) => {
+    const rawMovs = endOfMonthDate
+      ? acc.movimentacoes.filter((m: any) => new Date(m.data) <= endOfMonthDate)
+      : acc.movimentacoes;
+
+    rawMovs.forEach((m: any) => {
       const val = Number(m.valor);
       if (m.tipo === "DEPOSITO") totalDepositado += val;
       if (m.tipo === "SAQUE") totalSacado += val;
@@ -8532,7 +8560,7 @@ export async function getBettingAccountsData() {
       totalDepositado,
       totalSacado,
       lucroReal,
-      movimentacoes: acc.movimentacoes.map((m: any) => ({
+      movimentacoes: rawMovs.map((m: any) => ({
         id: m.id,
         tipo: m.tipo as "DEPOSITO" | "SAQUE",
         data: new Date(m.data).toISOString().split("T")[0],
@@ -8657,8 +8685,16 @@ export type OtherInvestmentItem = {
   lucroPorcentagem: number;
 };
 
-export async function getOtherInvestmentsData(): Promise<OtherInvestmentItem[]> {
+export async function getOtherInvestmentsData(month?: number, year?: number): Promise<OtherInvestmentItem[]> {
+  const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
+  const whereClause = endOfMonthDate ? {
+    OR: [
+      { data: { lte: endOfMonthDate } },
+      { data: null, createdAt: { lte: endOfMonthDate } }
+    ]
+  } : {};
   const list = await db.otherInvestment.findMany({
+    where: whereClause,
     orderBy: { createdAt: "desc" }
   });
 
@@ -8896,11 +8932,11 @@ export async function createQuickInvestmentAporteAction(data: {
 
 export async function getConsolidatedInvestmentsOverview(month?: number, year?: number) {
   const userId = await getActiveUserId();
-  const rendaFixa = await getInvestmentsData();
-  const rendaVariavel = await getVariableAssetsData();
-  const cripto = await getCryptoAssetsData();
-  const apostas = await getBettingAccountsData();
-  const outros = await getOtherInvestmentsData();
+  const rendaFixa = await getInvestmentsData(month, year);
+  const rendaVariavel = await getVariableAssetsData(month, year);
+  const cripto = await getCryptoAssetsData(month, year);
+  const apostas = await getBettingAccountsData(month, year);
+  const outros = await getOtherInvestmentsData(month, year);
 
   // Renda Fixa
   const rfBruto = rendaFixa.resumo.patrimonioBruto;

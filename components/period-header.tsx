@@ -208,8 +208,9 @@ export function PeriodHeader({ title, tagline, badge, mode = "monthly", children
       </div>
 
       {/* 3. Ações e Status */}
-      <div className="hidden sm:flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <button
+          type="button"
           onClick={togglePrivacy}
           title={isPrivate ? "Mostrar valores (Modo Privacidade ativo)" : "Ocultar valores (Modo Privacidade)"}
           className={`p-2 rounded-xl border shadow-xs transition-all cursor-pointer flex items-center justify-center ${
@@ -221,12 +222,12 @@ export function PeriodHeader({ title, tagline, badge, mode = "monthly", children
           {isPrivate ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
         </button>
 
-        <button className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-colors cursor-pointer">
+        <button type="button" className="hidden sm:flex p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-xs hover:bg-slate-50 dark:hover:bg-slate-800 relative transition-colors cursor-pointer">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full border border-white dark:border-slate-900"></span>
         </button>
 
-        <span className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 font-bold text-[10px] px-3 py-2 rounded-xl uppercase tracking-widest shadow-xs">
+        <span className="hidden sm:inline-block bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 font-bold text-[10px] px-3 py-2 rounded-xl uppercase tracking-widest shadow-xs">
           EXECUTIVE
         </span>
       </div>

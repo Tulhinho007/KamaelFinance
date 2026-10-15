@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { usePrivacyMode } from "@/components/privacy-context";
 
 export type MetricKpiVariant = "neutral" | "success" | "danger" | "warning";
 
@@ -83,6 +84,7 @@ export function MetricKpiCard({
   isLoading = false,
   children,
 }: MetricKpiCardProps) {
+  const { isPrivate } = usePrivacyMode();
   const styles = variantStyles[variant] || variantStyles.neutral;
 
   const renderBadge = () => {
@@ -96,7 +98,9 @@ export function MetricKpiCard({
       const bClass = badgeStyles[bVariant] || badgeStyles.neutral;
       return (
         <span className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border shrink-0 whitespace-nowrap inline-flex items-center ${bClass}`}>
-          {bObj.text}
+          {isPrivate && typeof bObj.text === "string" && (bObj.text.includes("%") || bObj.text.includes("R$"))
+            ? "••••"
+            : bObj.text}
         </span>
       );
     }
@@ -139,7 +143,13 @@ export function MetricKpiCard({
             <span
               className={`text-2xl font-bold tracking-tight tabular-nums font-tnum ${styles.value}`}
             >
-              {value}
+              {isPrivate ? (
+                <span className="font-mono tracking-widest text-slate-400 dark:text-zinc-500 select-none">
+                  R$ •••••
+                </span>
+              ) : (
+                value
+              )}
             </span>
             {renderBadge()}
           </div>

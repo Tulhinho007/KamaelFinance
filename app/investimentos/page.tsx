@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PeriodHeader } from "@/components/period-header";
 import { usePeriod } from "@/components/period-context";
+import { usePrivacyMode } from "@/components/privacy-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { MetricKpiCard } from "@/components/metric-kpi-card";
 import {
@@ -25,24 +26,27 @@ import {
   createQuickInvestmentAporteAction, getWalletsAction
 } from "@/lib/actions";
 
-const brl = (v: number) => {
-  if (v === undefined || v === null || isNaN(v)) return "R$ 0,00";
-  const absStr = Math.abs(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-  return v < 0 ? `-${absStr}` : absStr;
-};
-
-// Formata quantidade de cripto: remove zeros desnecessários, máx 8 casas decimais
-const formatCryptoQty = (v: number): string => {
-  if (v === 0) return "0";
-  // Usa até 8 casas, remove zeros à direita
-  const s = v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 8 });
-  return s;
-};
-
 export default function InvestimentosPage() {
   const { showAlert, showConfirm } = useModal();
   const { selectedMonth, selectedYear } = usePeriod();
+  const { isPrivate } = usePrivacyMode();
   const [currentTab, setCurrentTab] = useState<"visao-geral" | "renda-fixa" | "renda-variavel" | "cripto" | "apostas" | "outros">("visao-geral");
+
+  const brl = (v: number) => {
+    if (isPrivate) return "R$ •••••";
+    if (v === undefined || v === null || isNaN(v)) return "R$ 0,00";
+    const absStr = Math.abs(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    return v < 0 ? `-${absStr}` : absStr;
+  };
+
+  // Formata quantidade de cripto: remove zeros desnecessários, máx 8 casas decimais
+  const formatCryptoQty = (v: number): string => {
+    if (isPrivate) return "•••••";
+    if (v === 0) return "0";
+    // Usa até 8 casas, remove zeros à direita
+    const s = v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+    return s;
+  };
 
   // Loaders & Data States
   const [loading, setLoading] = useState(true);
@@ -191,11 +195,11 @@ export default function InvestimentosPage() {
       const [ov, nw, rf, rv, cr, bet, out, wl] = await Promise.all([
         getConsolidatedInvestmentsOverview(monthToUse, yearToUse),
         getMonthlyNetWorthEvolution(yearToUse),
-        getInvestmentsData(),
-        getVariableAssetsData(),
-        getCryptoAssetsData(),
-        getBettingAccountsData(),
-        getOtherInvestmentsData(),
+        getInvestmentsData(monthToUse, yearToUse),
+        getVariableAssetsData(monthToUse, yearToUse),
+        getCryptoAssetsData(monthToUse, yearToUse),
+        getBettingAccountsData(monthToUse, yearToUse),
+        getOtherInvestmentsData(monthToUse, yearToUse),
         getWalletsAction()
       ]);
       setOverview(ov);
@@ -1402,7 +1406,7 @@ export default function InvestimentosPage() {
                     <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</span>
                       <span className="text-sm font-black text-slate-900 dark:text-white">
-                        {overview?.patrimonioBruto >= 1000 ? `R$ ${(overview.patrimonioBruto / 1000).toFixed(1)}k` : brl(overview.patrimonioBruto)}
+                        {isPrivate ? "•••••" : (overview?.patrimonioBruto >= 1000 ? `R$ ${(overview.patrimonioBruto / 1000).toFixed(1)}k` : brl(overview.patrimonioBruto))}
                       </span>
                     </div>
                   </div>
@@ -1434,12 +1438,12 @@ export default function InvestimentosPage() {
               )}
             </div>
 
-            {/* Gráfico 2: Evolução Patrimonial Mensal com Marcador de Mês Atual */}
+            {/* Gráfico 2: Evolução Patrimonial Mensal com Marcador de Mês Selecionado */}
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({new Date().getFullYear()})
+                    <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({selectedYear})
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
                     Curva contínua com histórico consolidado e projeção futura.
@@ -1453,7 +1457,7 @@ export default function InvestimentosPage() {
                     <span className="w-3.5 border-t-2 border-dashed border-indigo-500 inline-block" /> Projeção
                   </span>
                   <span className="hidden sm:inline-flex items-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
-                    Divisor: Mês Atual
+                    Período: {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/{selectedYear}
                   </span>
                 </div>
               </div>
@@ -1474,7 +1478,7 @@ export default function InvestimentosPage() {
                         tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }}
                         axisLine={false}
                         tickLine={false}
-                        tickFormatter={(v) => Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`}
+                        tickFormatter={(v) => isPrivate ? "••••" : (Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
                       />
                       <RechartsTooltip
                         formatter={(val: any, name: any) => [
@@ -1482,14 +1486,14 @@ export default function InvestimentosPage() {
                           name === "realizado" ? "Patrimônio Consolidado" : "Projeção Futura (CDI)"
                         ]}
                       />
-                      {/* Linha vertical que demarca o Mês Atual */}
+                      {/* Linha vertical que demarca o Mês Selecionado */}
                       <ReferenceLine
-                        x={["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][new Date().getMonth()]}
+                        x={["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}
                         stroke="#6366f1"
                         strokeDasharray="3 3"
                         strokeWidth={1.5}
                         label={{
-                          value: "Hoje",
+                          value: selectedMonth === (new Date().getMonth() + 1) && selectedYear === new Date().getFullYear() ? "Hoje" : `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/${selectedYear}`,
                           position: "top",
                           fill: "#6366f1",
                           fontSize: 10,
