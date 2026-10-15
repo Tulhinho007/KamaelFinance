@@ -1359,8 +1359,10 @@ export default function InvestimentosPage() {
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button
+                                type="button"
                                 onClick={() => { setSelectedRf(inv); setActiveModal("rf-delete"); }}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Excluir Investimento"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -2539,7 +2541,33 @@ export default function InvestimentosPage() {
         </div>
       )}
 
-      {/* Modais Excluir (RV, Cripto, Bet) */}
+      {/* Modais Excluir (RF, RV, Cripto) */}
+      {activeModal === "rf-delete" && selectedRf && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[32px] p-7 w-full max-w-sm flex flex-col gap-5 text-center shadow-2xl animate-in fade-in zoom-in-95">
+            <h3 className="text-sm font-black text-slate-900">Excluir Investimento ({selectedRf.titulo})</h3>
+            <p className="text-xs font-semibold text-slate-500">Tem certeza que deseja remover este investimento de renda fixa?</p>
+            <div className="flex gap-2 mt-2">
+              <button 
+                type="button"
+                onClick={() => setActiveModal(null)} 
+                className="flex-1 py-3 text-xs font-extrabold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl cursor-pointer"
+              >
+                CANCELAR
+              </button>
+              <button 
+                type="button"
+                onClick={handleDeleteRf} 
+                disabled={saving} 
+                className="flex-1 py-3 text-xs font-extrabold text-white bg-rose-500 hover:bg-rose-600 rounded-2xl cursor-pointer shadow-lg shadow-rose-500/20 disabled:opacity-50"
+              >
+                {saving ? "EXCLUINDO..." : "EXCLUIR"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeModal === "rv-delete" && selectedRv && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-[32px] p-7 w-full max-w-sm flex flex-col gap-5 text-center shadow-2xl animate-in fade-in zoom-in-95">
