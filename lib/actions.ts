@@ -6883,6 +6883,51 @@ export async function getUpcomingBillsAction() {
   return getUpcomingCreditCardBills(userId);
 }
 
+export function getExpenseEmoji(description: string, tipo?: string): string {
+  const d = (description || "").toLowerCase();
+  
+  if (d.includes("treino") || d.includes("academia") || d.includes("gym") || d.includes("futvolei") || d.includes("crossfit") || d.includes("futebol") || d.includes("esporte") || d.includes("personal")) {
+    return "🏋️";
+  }
+  if (d.includes("internet") || d.includes("fibra") || d.includes("tim live") || d.includes("wifi") || d.includes("banda larga") || d.includes("claro net") || d.includes("vivo fibra")) {
+    return "🌐";
+  }
+  if (d.includes("celular") || d.includes("telefone") || d.includes("tim celular") || d.includes("vivo") || d.includes("claro") || d.includes("plano celular")) {
+    return "📱";
+  }
+  if (d.includes("energia") || d.includes("luz") || d.includes("celpe") || d.includes("solar") || d.includes("enel") || d.includes("cpfl") || d.includes("neoenergia") || d.includes("light") || d.includes("eletro")) {
+    return "⚡";
+  }
+  if (d.includes("agua") || d.includes("água") || d.includes("compesa") || d.includes("sabesp") || d.includes("copasa") || d.includes("sanepar") || d.includes("saneamento")) {
+    return "💧";
+  }
+  if (d.includes("aluguel") || d.includes("condominio") || d.includes("condomínio") || d.includes("moradia") || d.includes("iptu") || d.includes("casa") || d.includes("apartamento")) {
+    return "🏠";
+  }
+  if (d.includes("netflix") || d.includes("spotify") || d.includes("prime") || d.includes("disney") || d.includes("max") || d.includes("hbo") || d.includes("youtube") || d.includes("streaming") || d.includes("deezer") || d.includes("apple")) {
+    return "🎬";
+  }
+  if (d.includes("seguro") || d.includes("saude") || d.includes("saúde") || d.includes("unimed") || d.includes("hapvida") || d.includes("farmacia") || d.includes("farmácia") || d.includes("medico") || d.includes("médico")) {
+    return "🩺";
+  }
+  if (d.includes("curso") || d.includes("faculdade") || d.includes("escola") || d.includes("educacao") || d.includes("educação") || d.includes("ingles") || d.includes("inglês")) {
+    return "📚";
+  }
+  if (d.includes("investimento") || d.includes("broker") || d.includes("polarium") || d.includes("aporte") || d.includes("reserva") || d.includes("bdr")) {
+    return "📈";
+  }
+  if (d.includes("emprestimo") || d.includes("empréstimo") || d.includes("financiamento") || d.includes("supersim") || d.includes("facio") || d.includes("mentore") || d.includes("stelios") || d.includes("parcela")) {
+    return "🏦";
+  }
+  if (d.includes("mercado") || d.includes("supermercado") || d.includes("feira") || d.includes("alimentacao") || d.includes("alimentação")) {
+    return "🛒";
+  }
+  if (tipo === "ASSINATURA") {
+    return "🔄";
+  }
+  return "⚡";
+}
+
 // ---------- Actions de Dashboard Principal ----------
 
 export async function getDashboardOverviewData(
@@ -7275,6 +7320,80 @@ export async function getDashboardOverviewData(
 
   const receitasPrevistasMes = pendingMonthIncomes > 0 ? pendingMonthIncomes : totalMonthIncomes;
 
+  // ── 4. RESUMO DE COMPROMISSOS RECORRENTES (CUSTO FIXO MENSAL) ───────────────
+  const allCandidateTxs = preloaded?.transactions || rawRangeTransactions || [];
+  const mapRecurring = new Map<string, any>();
+
+  for (const t of allCandidateTxs) {
+    if (t.deletedAt || t.type !== "EXPENSE") continue;
+    const tagStr = (t.tags || "").toLowerCase();
+    const descLower = (t.description || "").toLowerCase();
+
+    // Identifica se é gasto fixo/recorrente
+    const isExplicitRecurring = Boolean(
+      t.isRecurring ||
+      tagStr.includes("mensal") ||
+      tagStr.includes("recorrente") ||
+      tagStr.includes("assinatura") ||
+      t.source === "SUBSCRIPTION" ||
+      (t.source === "COMMITMENT" && !tagStr.includes("#unico")) ||
+      descLower.includes("treino") ||
+      descLower.includes("academia") ||
+      descLower.includes("tim celular") ||
+      descLower.includes("tim live") ||
+      descLower.includes("internet") ||
+      descLower.includes("energia solar") ||
+      descLower.includes("polarium")
+    );
+
+    if (!isExplicitRecurring) continue;
+
+    let cleanDesc = t.description || "";
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    else if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+    cleanDesc = cleanDesc.trim();
+
+    const normKey = cleanDesc.toLowerCase();
+    const amt = Number(t.amount || 0);
+    const dueDay = t.recurringDay || (t.dueDate ? new Date(t.dueDate).getUTCDate() : (t.date ? new Date(t.date).getUTCDate() : 10));
+    const isAssinatura = tagStr.includes("assinatura") || descLower.includes("assinatura") || t.source === "SUBSCRIPTION";
+    const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
+
+    const existing = mapRecurring.get(normKey);
+    if (!existing) {
+      mapRecurring.set(normKey, {
+        id: t.id,
+        description: cleanDesc,
+        rawDescription: t.description,
+        amount: amt,
+        recurringDay: dueDay,
+        tipo,
+        icon: getExpenseEmoji(cleanDesc, tipo),
+        walletTitle: t.wallet?.title || "Conta",
+        isPaid: t.status === "COMPLETED" || t.status === "PAID",
+        dueDate: t.dueDate || t.date,
+        tags: t.tags,
+      });
+    } else {
+      if (amt > 0 && (existing.amount <= 0 || new Date(t.date || t.dueDate || 0) > new Date(existing.dueDate || 0))) {
+        existing.amount = amt;
+      }
+      if (t.recurringDay) {
+        existing.recurringDay = t.recurringDay;
+      }
+    }
+  }
+
+  const recurringItems = Array.from(mapRecurring.values()).sort(
+    (a, b) => (a.recurringDay || 10) - (b.recurringDay || 10)
+  );
+  const totalRecurringMonthly = recurringItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+
+  const recurringCommitments = {
+    totalMonthly: Math.round(totalRecurringMonthly * 100) / 100,
+    items: recurringItems,
+  };
+
   return {
     totalRealBalance,
     totalReceitas,
@@ -7290,6 +7409,7 @@ export async function getDashboardOverviewData(
     paymentMethodBreakdown,
     monthlyHistory: historyMonths,
     upcomingBills,
+    recurringCommitments,
     pendingCommitments: despesasPendentes,
     despesasPendentes,
     receitasPrevistasMes: Math.round(receitasPrevistasMes * 100) / 100,
@@ -11487,6 +11607,221 @@ export async function deleteCommitmentAction(commitmentId: string) {
   safeRevalidatePath("/historico-pagamentos");
 
   return { success: true };
+}
+
+export async function saveRecurringCommitmentAction(input: {
+  id?: string;
+  description: string;
+  amount: number;
+  recurringDay: number;
+  tipo: "BOLETO" | "ASSINATURA";
+  walletId?: string;
+}) {
+  const userId = await getActiveUserId();
+  const desc = input.description.trim();
+  const amount = Number(input.amount);
+  const dueDay = Math.min(31, Math.max(1, Number(input.recurringDay || 10)));
+  const tipo = input.tipo || "BOLETO";
+
+  if (!desc || isNaN(amount) || amount <= 0) {
+    throw new Error("Preencha descrição e valor válidos.");
+  }
+
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth() + 1;
+  const maxDays = new Date(curYear, curMonth, 0).getDate();
+  const effectiveDay = Math.min(dueDay, maxDays);
+  const dueDate = new Date(Date.UTC(curYear, curMonth - 1, effectiveDay, 12, 0, 0));
+
+  if (input.id) {
+    const existing = await prisma.transaction.findFirst({
+      where: { id: input.id, wallet: { userId } },
+    });
+    if (!existing) {
+      throw new Error("Compromisso não encontrado.");
+    }
+
+    const tags = `#compromisso #${tipo.toLowerCase()} #mensal #recorrente`;
+
+    await prisma.transaction.update({
+      where: { id: input.id },
+      data: {
+        description: desc,
+        amount,
+        recurringDay: dueDay,
+        dueDate,
+        isRecurring: true,
+        paymentMethod: tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
+        tags,
+      },
+    });
+  } else {
+    let defaultWallet = input.walletId
+      ? await prisma.wallet.findFirst({ where: { id: input.walletId, userId } })
+      : null;
+
+    if (!defaultWallet) {
+      defaultWallet = await prisma.wallet.findFirst({
+        where: { userId, walletType: "CONTA_CORRENTE" },
+        orderBy: { title: "asc" },
+      });
+    }
+    if (!defaultWallet) {
+      defaultWallet = await prisma.wallet.findFirst({
+        where: { userId },
+        orderBy: { title: "asc" },
+      });
+    }
+    if (!defaultWallet) {
+      throw new Error("Nenhuma conta encontrada para vincular o compromisso.");
+    }
+
+    const tags = `#compromisso #${tipo.toLowerCase()} #mensal #recorrente`;
+
+    const created = await prisma.transaction.create({
+      data: {
+        walletId: defaultWallet.id,
+        description: desc,
+        type: "EXPENSE",
+        amount,
+        date: dueDate,
+        dueDate,
+        competenceMonth: curMonth,
+        competenceYear: curYear,
+        competenceDate: new Date(Date.UTC(curYear, curMonth - 1, 1, 12, 0, 0)),
+        status: "PENDING",
+        source: "COMMITMENT",
+        isRecurring: true,
+        recurringDay: dueDay,
+        paymentMethod: tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
+        tags,
+      },
+    });
+
+    await prisma.transaction.update({
+      where: { id: created.id },
+      data: { installmentGroupId: created.id },
+    });
+  }
+
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/despesas");
+
+  return { success: true };
+}
+
+export async function deleteRecurringCommitmentAction(id: string) {
+  const userId = await getActiveUserId();
+  const existing = await prisma.transaction.findFirst({
+    where: { id, wallet: { userId } },
+  });
+  if (!existing) {
+    throw new Error("Compromisso não encontrado.");
+  }
+
+  await prisma.transaction.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
+
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/compromissos");
+  safeRevalidatePath("/despesas");
+
+  return { success: true };
+}
+
+export async function getRecurringCommitmentsAction() {
+  const userId = await getActiveUserId();
+  const txs = await prisma.transaction.findMany({
+    where: {
+      wallet: { userId },
+      deletedAt: null,
+      type: "EXPENSE",
+      OR: [
+        { isRecurring: true },
+        { tags: { contains: "mensal", mode: "insensitive" } },
+        { tags: { contains: "recorrente", mode: "insensitive" } },
+        { tags: { contains: "assinatura", mode: "insensitive" } },
+        { source: "COMMITMENT" },
+      ],
+    },
+    include: { wallet: true },
+    orderBy: { date: "desc" },
+  });
+
+  const mapRecurring = new Map<string, any>();
+  for (const t of txs) {
+    const tagStr = (t.tags || "").toLowerCase();
+    const descLower = (t.description || "").toLowerCase();
+
+    const isExplicitRecurring = Boolean(
+      t.isRecurring ||
+      tagStr.includes("mensal") ||
+      tagStr.includes("recorrente") ||
+      tagStr.includes("assinatura") ||
+      t.source === "SUBSCRIPTION" ||
+      (t.source === "COMMITMENT" && !tagStr.includes("#unico")) ||
+      descLower.includes("treino") ||
+      descLower.includes("academia") ||
+      descLower.includes("tim celular") ||
+      descLower.includes("tim live") ||
+      descLower.includes("internet") ||
+      descLower.includes("energia solar") ||
+      descLower.includes("polarium")
+    );
+
+    if (!isExplicitRecurring) continue;
+
+    let cleanDesc = t.description || "";
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    else if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+    cleanDesc = cleanDesc.trim();
+
+    const normKey = cleanDesc.toLowerCase();
+    const amt = Number(t.amount || 0);
+    const dueDay = t.recurringDay || (t.dueDate ? new Date(t.dueDate).getUTCDate() : (t.date ? new Date(t.date).getUTCDate() : 10));
+    const isAssinatura = tagStr.includes("assinatura") || descLower.includes("assinatura") || t.source === "SUBSCRIPTION";
+    const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
+
+    const existing = mapRecurring.get(normKey);
+    if (!existing) {
+      mapRecurring.set(normKey, {
+        id: t.id,
+        description: cleanDesc,
+        rawDescription: t.description,
+        amount: amt,
+        recurringDay: dueDay,
+        tipo,
+        icon: getExpenseEmoji(cleanDesc, tipo),
+        walletTitle: t.wallet?.title || "Conta",
+        isPaid: t.status === "COMPLETED" || t.status === "PAID",
+        dueDate: t.dueDate || t.date,
+        tags: t.tags,
+      });
+    } else {
+      if (amt > 0 && (existing.amount <= 0 || new Date(t.date || t.dueDate || 0) > new Date(existing.dueDate || 0))) {
+        existing.amount = amt;
+      }
+      if (t.recurringDay) {
+        existing.recurringDay = t.recurringDay;
+      }
+    }
+  }
+
+  const items = Array.from(mapRecurring.values()).sort(
+    (a, b) => (a.recurringDay || 10) - (b.recurringDay || 10)
+  );
+  const totalMonthly = items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+
+  return {
+    totalMonthly: Math.round(totalMonthly * 100) / 100,
+    items,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

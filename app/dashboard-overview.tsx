@@ -21,6 +21,8 @@ import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
+import { RecurringCommitmentsWidget, RecurringCommitmentItem } from "@/components/recurring-commitments-widget";
+import { ManageRecurringModal } from "@/components/manage-recurring-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
@@ -77,6 +79,10 @@ export function DashboardOverview() {
   const [aporteModalOpen, setAporteModalOpen]     = useState(false);
   const [historyModalOpen, setHistoryModalOpen]   = useState(false);
   const [selectedGoalId, setSelectedGoalId]       = useState("");
+
+  // Modal de Compromissos Recorrentes (Custo Fixo)
+  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
+  const [editingRecurringItem, setEditingRecurringItem] = useState<RecurringCommitmentItem | null>(null);
 
   // Menu suspenso de Novo Lançamento (ação primária unificada)
   const [newEntryMenuOpen, setNewEntryMenuOpen] = useState(false);
@@ -1103,7 +1109,20 @@ export function DashboardOverview() {
             )}
           </div>
 
-          {/* BLOCO 2: Gastos por Meio de Pagamento */}
+          {/* BLOCO 2: Compromissos Recorrentes (Custo Fixo) */}
+          <RecurringCommitmentsWidget
+            data={data?.recurringCommitments}
+            onManageClick={() => {
+              setEditingRecurringItem(null);
+              setRecurringModalOpen(true);
+            }}
+            onEditItem={(item) => {
+              setEditingRecurringItem(item);
+              setRecurringModalOpen(true);
+            }}
+          />
+
+          {/* BLOCO 3: Gastos por Meio de Pagamento */}
           <PaymentMethodChart
             data={data?.paymentMethodBreakdown || []}
             periodLabel={`Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`}
@@ -1515,6 +1534,21 @@ export function DashboardOverview() {
           }
         />
       )}
+
+      {/* Modal 6: Gerenciar Gastos Fixos & Recorrentes */}
+      <ManageRecurringModal
+        isOpen={recurringModalOpen}
+        onClose={() => {
+          setRecurringModalOpen(false);
+          setEditingRecurringItem(null);
+        }}
+        onSuccess={async () => {
+          await loadDashboardData();
+        }}
+        items={data?.recurringCommitments?.items || []}
+        totalMonthly={data?.recurringCommitments?.totalMonthly || 0}
+        initialEditItem={editingRecurringItem}
+      />
 
     </div>
   );
