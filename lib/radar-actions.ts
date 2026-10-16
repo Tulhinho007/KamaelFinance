@@ -168,24 +168,22 @@ export async function getRadarExpensesAction({
 
     // Total de despesas gerais do mês (excluindo dívidas/faturas contratuais)
     const totalAllExpenses = validExpenses.reduce(
-      (acc, t) => acc + Number(t.amount),
+      (acc, t) => acc + Math.abs(Number(t.amount || 0)),
       0
     );
 
     // Filtra transações abaixo ou iguais ao limite parametrizado (ex: R$ 50,00)
-    // OU lançamentos em lote de fechamento semanal / microdespesas
+    // ✅ Garante que o limite seja numérico e usa Math.abs() para comparação correta de valor absoluto
+    const limitNumber = Number(maxAmount);
+
     const radarExpenses = validExpenses.filter((t) => {
-      const isBatch =
-        (t as any).source === "BATCH_WEEKLY" ||
-        (t.tags || "").includes("FECHAMENTO_SEMANAL") ||
-        (t.category?.name || "").includes("Gastos Formiga");
-      return Number(t.amount) <= maxAmount || isBatch;
+      const absoluteAmount = Math.abs(Number(t.amount || 0));
+      return absoluteAmount > 0 && absoluteAmount <= limitNumber;
     });
 
-    const totalRadarAmount = radarExpenses.reduce(
-      (acc, t) => acc + Number(t.amount),
-      0
-    );
+    const totalRadarAmount = Math.round(
+      radarExpenses.reduce((acc, t) => acc + Math.abs(Number(t.amount || 0)), 0) * 100
+    ) / 100;
     const countRadar = radarExpenses.length;
     const averageRadarAmount =
       countRadar > 0 ? totalRadarAmount / countRadar : 0;
@@ -202,7 +200,7 @@ export async function getRadarExpensesAction({
     for (const t of radarExpenses) {
       const catName = t.category?.name || "Outros";
       const catColor = t.category?.color || "#6366F1";
-      const amt = Number(t.amount);
+      const amt = Math.abs(Number(t.amount || 0));
 
       if (!categoryMap.has(catName)) {
         categoryMap.set(catName, {
@@ -242,7 +240,7 @@ export async function getRadarExpensesAction({
       const item: RadarTransactionItem = {
         id: t.id,
         description: t.description,
-        amount: Number(t.amount),
+        amount: Math.abs(Number(t.amount || 0)),
         date: t.date.toISOString(),
         categoryName: t.category?.name || "Sem Categoria",
         categoryColor: t.category?.color || "#64748B",
@@ -252,7 +250,8 @@ export async function getRadarExpensesAction({
         status: t.status,
         isBatchWeekly:
           (t as any).source === "BATCH_WEEKLY" ||
-          (t.tags || "").includes("FECHAMENTO_SEMANAL"),
+          (t.tags || "").includes("FECHAMENTO_SEMANAL") ||
+          (t.description || "").includes("[Semanal]"),
       };
 
       if (!groupsMap.has(dateKey)) {
@@ -499,7 +498,7 @@ export async function getMonthlyClosingExpensesAction({
     }
 
     for (const t of validCreditTxs) {
-      const amt = Number(t.amount || 0);
+      const amt = Math.abs(Number(t.amount || 0));
       let card = creditMap.get(t.walletId);
       if (!card) {
         card = {
@@ -566,7 +565,7 @@ export async function getMonthlyClosingExpensesAction({
     }
 
     for (const t of validBankTxs) {
-      const amt = Number(t.amount || 0);
+      const amt = Math.abs(Number(t.amount || 0));
       let acc = bankMap.get(t.walletId);
       if (!acc) {
         acc = {
@@ -687,7 +686,7 @@ export async function getMonthlyClosingExpensesAction({
       for (const t of histTxs) {
         if (isInvoicePayment(t)) continue;
         const isCard = t.wallet?.walletType === "CREDIT_CARD";
-        const amt = Number(t.amount || 0);
+        const amt = Math.abs(Number(t.amount || 0));
 
         if (isCard) {
           if (t.competenceMonth != null && t.competenceYear != null) {

@@ -65,7 +65,7 @@ export default function RadarGastosPage() {
         const res = await getRadarExpensesAction({
           month: selectedMonth,
           year: selectedYear,
-          maxAmount: limitVal,
+          maxAmount: Number(limitVal) || 50,
         });
         setData(res);
       } catch (err) {
