@@ -187,6 +187,7 @@ export default function GestaoCaixaContasPage() {
   const [editRecorrencia, setEditRecorrencia] = useState<"MENSAL" | "UNICO">("MENSAL");
   const [editCompMonth, setEditCompMonth] = useState<number>(new Date().getMonth() + 1);
   const [editCompYear, setEditCompYear] = useState<number>(selectedYear || 2026);
+  const [editWalletId, setEditWalletId] = useState<string>("");
 
   // Modal: Excluir Compromisso
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
@@ -885,8 +886,9 @@ export default function GestaoCaixaContasPage() {
         dueDate: editDueDate,
         tipo: editTipo,
         recorrencia: editRecorrencia,
-        competenceMonth: editCompMonth,
-        competenceYear: editCompYear,
+        competenceMonth: Number(editCompMonth),
+        competenceYear: Number(editCompYear),
+        walletId: editWalletId || undefined,
       });
       setEditItem(null);
       await loadData();
@@ -1743,13 +1745,15 @@ export default function GestaoCaixaContasPage() {
                                           onClick={() => {
                                             setActiveActionMenuId(null);
                                             setEditItem(item);
-                                            setEditDesc(item.description);
-                                            setEditAmount(String(item.amount));
-                                            setEditDueDate(item.dueDate ? item.dueDate.split("T")[0] : "");
-                                            setEditTipo(item.tipo || "BOLETO");
-                                            setEditRecorrencia(item.recorrencia || "MENSAL");
+                                            setEditDesc(item.description || "");
+                                            setEditAmount(String(item.amount || ""));
+                                            const rawDue = item.dueDateInput || (item.dueDateRaw ? item.dueDateRaw.split("T")[0] : (item.dueDate ? item.dueDate.split("T")[0] : ""));
+                                            setEditDueDate(rawDue);
+                                            setEditTipo(item.tipo === "ASSINATURA" ? "ASSINATURA" : "BOLETO");
+                                            setEditRecorrencia(item.recorrencia || (item.isRecurring ? "MENSAL" : "UNICO"));
                                             setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
                                             setEditCompYear(item.competenceYear || selectedYear);
+                                            setEditWalletId(item.walletId || (accounts[0]?.id ?? contasBancarias[0]?.id ?? ""));
                                           }}
                                           className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
                                         >
@@ -2951,17 +2955,32 @@ export default function GestaoCaixaContasPage() {
       {/* ── Modal 6: Editar Compromisso ─────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Editar Compromisso</h3>
-              <button onClick={() => setEditItem(null)} className="text-slate-400 p-1 cursor-pointer">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Editar Compromisso</h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Edite vencimento, competência, tipo e valor
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditItem(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Descrição</label>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Descrição *
+                </label>
                 <input
                   type="text"
                   value={editDesc}
@@ -2971,42 +2990,116 @@ export default function GestaoCaixaContasPage() {
                 />
               </div>
 
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Mês de Referência / Competência *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={editCompMonth}
+                    onChange={(e) => setEditCompMonth(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {MONTH_NAMES_LIST.map((m, idx) => (
+                      <option key={idx + 1} value={idx + 1}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={editCompYear}
+                    onChange={(e) => setEditCompYear(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {[2024, 2025, 2026, 2027, 2028].map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Valor (R$)</label>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Valor (R$) *
+                  </label>
                   <input
                     type="number"
                     step="0.01"
                     value={editAmount}
                     onChange={(e) => setEditAmount(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                     required
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Vencimento</label>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Vencimento *
+                  </label>
                   <input
                     type="date"
                     value={editDueDate}
                     onChange={(e) => setEditDueDate(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
                     required
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Tipo do Compromisso
+                  </label>
+                  <select
+                    value={editTipo}
+                    onChange={(e) => setEditTipo(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="BOLETO">Boleto / Conta Fixa</option>
+                    <option value="ASSINATURA">Assinatura / Mensalidade</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Recorrência
+                  </label>
+                  <select
+                    value={editRecorrencia}
+                    onChange={(e) => setEditRecorrencia(e.target.value as any)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    <option value="MENSAL">Repetir todo mês</option>
+                    <option value="UNICO">Apenas neste mês</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Conta Bancária de Débito
+                </label>
+                <select
+                  value={editWalletId}
+                  onChange={(e) => setEditWalletId(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
+                    <option key={conta.id} value={conta.id}>{conta.title || conta.banco}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditItem(null)}
-                  className="w-1/2 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-medium cursor-pointer"
+                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 font-semibold cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={editingCommitment}
-                  className="w-1/2 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg cursor-pointer disabled:opacity-50"
+                  className="w-1/2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg cursor-pointer transition-colors disabled:opacity-50"
                 >
                   {editingCommitment ? "Salvando..." : "Salvar Alterações"}
                 </button>

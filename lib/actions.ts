@@ -11398,6 +11398,7 @@ export async function updateCommitmentAction(input: {
   recorrencia: "MENSAL" | "UNICO";
   competenceMonth?: number;
   competenceYear?: number;
+  walletId?: string;
 }) {
   if (input.id.startsWith("invoice-")) {
     throw new Error("Faturas de cartão de crédito são gerenciadas pelo módulo de cartões e não podem ser editadas manualmente aqui.");
@@ -11439,6 +11440,7 @@ export async function updateCommitmentAction(input: {
       recurringDay: due.getUTCDate(),
       installmentGroupId: tx.installmentGroupId || tx.id,
       paymentMethod: input.tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
+      ...(input.walletId ? { walletId: input.walletId } : {}),
       tags,
     },
   });
