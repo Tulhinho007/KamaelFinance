@@ -59,6 +59,13 @@ export function ManageRecurringModal({
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Estado local para deleção e adição otimistas e instantâneas
+  const [localItems, setLocalItems] = useState<RecurringCommitmentItem[]>(items);
+
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items, isOpen]);
+
   // Carrega item para edição quando fornecido
   useEffect(() => {
     if (initialEditItem) {
@@ -145,6 +152,10 @@ export function ManageRecurringModal({
     if (!confirmed) return;
 
     setDeletingId(item.id);
+    const prevItems = [...localItems];
+    // Remoção otimista instantânea da lista visual
+    setLocalItems((prev) => prev.filter((it) => it.id !== item.id));
+
     try {
       await deleteRecurringCommitmentAction(item.id);
       showAlert("Compromisso removido com sucesso.", { variant: "success" });
@@ -153,11 +164,14 @@ export function ManageRecurringModal({
       }
       onSuccess();
     } catch (err: any) {
+      setLocalItems(prevItems); // Rollback se houver erro
       showAlert(err?.message || "Erro ao remover compromisso fixo.", { variant: "error" });
     } finally {
       setDeletingId(null);
     }
   };
+
+  const localTotal = localItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
 
   if (!isOpen) return null;
 
@@ -333,20 +347,20 @@ export function ManageRecurringModal({
         <div className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
-              Custos Fixos Ativos ({items.length})
+              Custos Fixos Ativos ({localItems.length})
             </span>
             <span className="text-xs font-semibold text-slate-900 dark:text-white font-tnum tabular-nums">
-              Soma: <CurrencyValue value={totalMonthly} />/mês
+              Soma: <CurrencyValue value={localTotal} />/mês
             </span>
           </div>
 
-          {items.length === 0 ? (
+          {localItems.length === 0 ? (
             <div className="p-6 rounded-2xl border border-dashed border-slate-200 dark:border-white/[0.1] text-center text-xs text-slate-400">
               Nenhum compromisso recorrente cadastrado ainda. Use o formulário acima para adicionar.
             </div>
           ) : (
             <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
-              {items.map((item) => (
+              {localItems.map((item) => (
                 <div
                   key={item.id}
                   className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
@@ -407,7 +421,7 @@ export function ManageRecurringModal({
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-white/[0.06]">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Atualiza a projeção de caixa e compromissos do mês</span>
+            <span>Estimativa puramente visual (não altera saldos nem extratos bancários)</span>
           </div>
 
           <button

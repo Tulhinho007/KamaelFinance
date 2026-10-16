@@ -7276,79 +7276,9 @@ export async function getDashboardOverviewData(
 
   const receitasPrevistasMes = pendingMonthIncomes > 0 ? pendingMonthIncomes : totalMonthIncomes;
 
-  // ── 4. RESUMO DE COMPROMISSOS RECORRENTES (CUSTO FIXO MENSAL) ───────────────
-  const allCandidateTxs = preloaded?.transactions || rawRangeTransactions || [];
-  const mapRecurring = new Map<string, any>();
-
-  for (const t of allCandidateTxs) {
-    if (t.deletedAt || t.type !== "EXPENSE") continue;
-    const tagStr = (t.tags || "").toLowerCase();
-    const descLower = (t.description || "").toLowerCase();
-
-    // Identifica se é gasto fixo/recorrente
-    const isExplicitRecurring = Boolean(
-      t.isRecurring ||
-      tagStr.includes("mensal") ||
-      tagStr.includes("recorrente") ||
-      tagStr.includes("assinatura") ||
-      t.source === "SUBSCRIPTION" ||
-      (t.source === "COMMITMENT" && !tagStr.includes("#unico")) ||
-      descLower.includes("treino") ||
-      descLower.includes("academia") ||
-      descLower.includes("tim celular") ||
-      descLower.includes("tim live") ||
-      descLower.includes("internet") ||
-      descLower.includes("energia solar") ||
-      descLower.includes("polarium")
-    );
-
-    if (!isExplicitRecurring) continue;
-
-    let cleanDesc = t.description || "";
-    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
-    else if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
-    cleanDesc = cleanDesc.trim();
-
-    const normKey = cleanDesc.toLowerCase();
-    const amt = Number(t.amount || 0);
-    const dueDay = t.recurringDay || (t.dueDate ? new Date(t.dueDate).getUTCDate() : (t.date ? new Date(t.date).getUTCDate() : 10));
-    const isAssinatura = tagStr.includes("assinatura") || descLower.includes("assinatura") || t.source === "SUBSCRIPTION";
-    const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
-
-    const existing = mapRecurring.get(normKey);
-    if (!existing) {
-      mapRecurring.set(normKey, {
-        id: t.id,
-        description: cleanDesc,
-        rawDescription: t.description,
-        amount: amt,
-        recurringDay: dueDay,
-        tipo,
-        icon: getExpenseEmoji(cleanDesc, tipo),
-        walletTitle: t.wallet?.title || "Conta",
-        isPaid: t.status === "COMPLETED" || t.status === "PAID",
-        dueDate: t.dueDate || t.date,
-        tags: t.tags,
-      });
-    } else {
-      if (amt > 0 && (existing.amount <= 0 || new Date(t.date || t.dueDate || 0) > new Date(existing.dueDate || 0))) {
-        existing.amount = amt;
-      }
-      if (t.recurringDay) {
-        existing.recurringDay = t.recurringDay;
-      }
-    }
-  }
-
-  const recurringItems = Array.from(mapRecurring.values()).sort(
-    (a, b) => (a.recurringDay || 10) - (b.recurringDay || 10)
-  );
-  const totalRecurringMonthly = recurringItems.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
-
-  const recurringCommitments = {
-    totalMonthly: Math.round(totalRecurringMonthly * 100) / 100,
-    items: recurringItems,
-  };
+  // ── 4. RESUMO DE COMPROMISSOS RECORRENTES (CUSTO FIXO MENSAL - 100% VISUAL) ─
+  // Totalmente isolado das contas bancárias e extrato financeiro
+  const recurringCommitments = await getRecurringCommitmentsAction(userId);
 
   return {
     totalRealBalance,
@@ -11583,260 +11513,108 @@ export async function saveRecurringCommitmentAction(input: {
     throw new Error("Preencha descrição e valor válidos.");
   }
 
-  const now = new Date();
-  const curYear = now.getFullYear();
-  const curMonth = now.getMonth() + 1;
-  const maxDays = new Date(curYear, curMonth, 0).getDate();
-  const effectiveDay = Math.min(dueDay, maxDays);
-  const dueDate = new Date(Date.UTC(curYear, curMonth - 1, effectiveDay, 12, 0, 0));
-
   if (input.id) {
-    const existing = await prisma.transaction.findFirst({
-      where: { id: input.id, wallet: { userId } },
+    const existing = await prisma.subscription.findFirst({
+      where: { id: input.id, userId },
     });
-    if (!existing) {
-      throw new Error("Compromisso não encontrado.");
-    }
-
-    const tags = `#compromisso #${tipo.toLowerCase()} #mensal #recorrente`;
-
-    if (existing.status === "COMPLETED" || existing.status === "pago") {
-      // Preserva o valor histórico liquidado no extrato bancário
-      await prisma.transaction.update({
+    if (existing) {
+      await prisma.subscription.update({
         where: { id: input.id },
         data: {
-          recurringDay: dueDay,
-          isRecurring: true,
-          tags,
+          name: desc,
+          amount,
+          dueDay,
+          category: tipo,
         },
       });
-
-      // Se houver uma projeção futura pendente vinculada, atualiza valor e vencimento nela
-      if (existing.installmentGroupId) {
-        await prisma.transaction.updateMany({
-          where: {
-            installmentGroupId: existing.installmentGroupId,
-            status: "PENDING",
-            wallet: { userId },
-          },
-          data: {
-            description: desc,
-            amount,
-            recurringDay: dueDay,
-            tags,
-          },
-        });
-      }
     } else {
-      await prisma.transaction.update({
-        where: { id: input.id },
+      await prisma.subscription.create({
         data: {
-          description: desc,
+          userId,
+          name: desc,
           amount,
-          recurringDay: dueDay,
-          dueDate,
-          isRecurring: true,
-          paymentMethod: tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
-          tags,
+          dueDay,
+          category: tipo,
         },
       });
     }
   } else {
-    let defaultWallet = input.walletId
-      ? await prisma.wallet.findFirst({ where: { id: input.walletId, userId } })
-      : null;
-
-    if (!defaultWallet) {
-      defaultWallet = await prisma.wallet.findFirst({
-        where: { userId, walletType: "CONTA_CORRENTE" },
-        orderBy: { title: "asc" },
-      });
-    }
-    if (!defaultWallet) {
-      defaultWallet = await prisma.wallet.findFirst({
-        where: { userId },
-        orderBy: { title: "asc" },
-      });
-    }
-    if (!defaultWallet) {
-      throw new Error("Nenhuma conta encontrada para vincular o compromisso.");
-    }
-
-    const tags = `#compromisso #${tipo.toLowerCase()} #mensal #recorrente`;
-
-    const created = await prisma.transaction.create({
+    // 100% VISUAL: cria apenas na tabela Subscription sem gerar transação financeira e sem alterar saldo
+    await prisma.subscription.create({
       data: {
-        walletId: defaultWallet.id,
-        description: desc,
-        type: "EXPENSE",
+        userId,
+        name: desc,
         amount,
-        date: dueDate,
-        dueDate,
-        competenceMonth: curMonth,
-        competenceYear: curYear,
-        competenceDate: new Date(Date.UTC(curYear, curMonth - 1, 1, 12, 0, 0)),
-        status: "PENDING",
-        source: "COMMITMENT",
-        isRecurring: true,
-        recurringDay: dueDay,
-        paymentMethod: tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
-        tags,
+        dueDay,
+        category: tipo,
       },
-    });
-
-    await prisma.transaction.update({
-      where: { id: created.id },
-      data: { installmentGroupId: created.id },
     });
   }
 
   safeRevalidatePath("/dashboard");
-  safeRevalidatePath("/contas");
-  safeRevalidatePath("/compromissos");
-  safeRevalidatePath("/despesas");
-
   return { success: true };
 }
 
 export async function deleteRecurringCommitmentAction(id: string) {
   const userId = await getActiveUserId();
-  const existing = await prisma.transaction.findFirst({
-    where: { id, wallet: { userId } },
+
+  // 1. Deleta do registro visual em Subscription
+  await prisma.subscription.deleteMany({
+    where: { id, userId },
   });
-  if (!existing) {
-    throw new Error("Compromisso não encontrado.");
-  }
 
-  // REGRA CRÍTICA DE INTEGRIDADE FINANCEIRA:
-  // Se o lançamento já foi liquidado/pago (COMPLETED), NUNCA podemos aplicar soft delete (deletedAt),
-  // pois isso apagaria a saída do extrato bancário e descalibraria o saldo real da conta corrente!
-  // Apenas desmarcamos a recorrência do lançamento.
-  const isPaid = existing.status === "COMPLETED" || existing.status === "pago" || existing.status === "confirmado";
-
-  if (isPaid) {
-    let cleanTags = existing.tags || "";
-    cleanTags = cleanTags
-      .replace(/#recorrente/gi, "")
-      .replace(/#mensal/gi, "")
-      .replace(/#assinatura/gi, "")
-      .trim();
-
-    await prisma.transaction.update({
-      where: { id },
-      data: {
-        isRecurring: false,
-        tags: cleanTags || null,
-        source: existing.source === "COMMITMENT" ? "MANUAL" : existing.source,
-      },
+  // 2. Fallback de segurança para itens que vieram de Transaction antes da migração:
+  // NUNCA deleta a transação bancária do extrato (para não alterar saldos ou extratos)!
+  // Apenas remove os marcadores de recorrência.
+  try {
+    const tx = await prisma.transaction.findFirst({
+      where: { id, wallet: { userId } },
     });
+    if (tx) {
+      let cleanTags = tx.tags || "";
+      cleanTags = cleanTags
+        .replace(/#recorrente/gi, "")
+        .replace(/#mensal/gi, "")
+        .replace(/#assinatura/gi, "")
+        .trim();
 
-    // Se houver projeções futuras pendentes vinculadas a este compromisso, cancela-as
-    if (existing.installmentGroupId) {
-      await prisma.transaction.updateMany({
-        where: {
-          installmentGroupId: existing.installmentGroupId,
-          status: "PENDING",
-          wallet: { userId },
+      await prisma.transaction.update({
+        where: { id },
+        data: {
+          isRecurring: false,
+          tags: cleanTags || null,
+          source: tx.source === "COMMITMENT" ? "MANUAL" : tx.source,
         },
-        data: { deletedAt: new Date() },
       });
     }
-  } else {
-    // Se o lançamento ainda é uma pendência/projeção, pode ser cancelado via soft-delete
-    await prisma.transaction.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-  }
+  } catch (err) {}
 
   safeRevalidatePath("/dashboard");
-  safeRevalidatePath("/contas");
-  safeRevalidatePath("/compromissos");
-  safeRevalidatePath("/despesas");
-
   return { success: true };
 }
 
-export async function getRecurringCommitmentsAction() {
-  const userId = await getActiveUserId();
-  const txs = await prisma.transaction.findMany({
-    where: {
-      wallet: { userId },
-      deletedAt: null,
-      type: "EXPENSE",
-      OR: [
-        { isRecurring: true },
-        { tags: { contains: "mensal", mode: "insensitive" } },
-        { tags: { contains: "recorrente", mode: "insensitive" } },
-        { tags: { contains: "assinatura", mode: "insensitive" } },
-        { source: "SUBSCRIPTION" },
-      ],
-    },
-    include: { wallet: true },
-    orderBy: { date: "desc" },
+export async function getRecurringCommitmentsAction(providedUserId?: string) {
+  const userId = providedUserId || (await getActiveUserId());
+
+  // Consulta puramente visual na tabela Subscription (zero acoplamento com saldos bancários)
+  const subs = await prisma.subscription.findMany({
+    where: { userId },
+    orderBy: { dueDay: "asc" },
   });
 
-  const mapRecurring = new Map<string, any>();
-  for (const t of txs) {
-    const tagStr = (t.tags || "").toLowerCase();
-    const descLower = (t.description || "").toLowerCase();
+  const items = subs.map((s) => {
+    const tipo = (s.category === "ASSINATURA" ? "ASSINATURA" : "BOLETO") as "BOLETO" | "ASSINATURA";
+    return {
+      id: s.id,
+      description: s.name,
+      rawDescription: s.name,
+      amount: Number(s.amount),
+      recurringDay: s.dueDay,
+      tipo,
+      icon: getExpenseEmoji(s.name, tipo),
+    };
+  });
 
-    // Filtra estritamente compromissos com recorrência ativa ou tags explícitas
-    const isExplicitRecurring = Boolean(
-      t.isRecurring ||
-      tagStr.includes("mensal") ||
-      tagStr.includes("recorrente") ||
-      tagStr.includes("assinatura") ||
-      t.source === "SUBSCRIPTION"
-    );
-
-    if (!isExplicitRecurring) continue;
-
-    let cleanDesc = t.description || "";
-    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
-    else if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
-    cleanDesc = cleanDesc.trim();
-
-    const normKey = cleanDesc.toLowerCase();
-    const amt = Number(t.amount || 0);
-    const dueDay = t.recurringDay || (t.dueDate ? new Date(t.dueDate).getUTCDate() : (t.date ? new Date(t.date).getUTCDate() : 10));
-    const isAssinatura = tagStr.includes("assinatura") || descLower.includes("assinatura") || t.source === "SUBSCRIPTION";
-    const tipo: "BOLETO" | "ASSINATURA" = isAssinatura ? "ASSINATURA" : "BOLETO";
-
-    const existing = mapRecurring.get(normKey);
-    if (!existing) {
-      mapRecurring.set(normKey, {
-        id: t.id,
-        description: cleanDesc,
-        rawDescription: t.description,
-        amount: amt,
-        recurringDay: dueDay,
-        tipo,
-        icon: getExpenseEmoji(cleanDesc, tipo),
-        walletTitle: t.wallet?.title || "Conta",
-        isPaid: t.status === "COMPLETED" || t.status === "PAID",
-        dueDate: t.dueDate || t.date,
-        tags: t.tags,
-      });
-    } else {
-      // Se já temos um registro mas encontramos o registro pendente ativo, vincula o ID ao pendente
-      if (existing.isPaid && t.status === "PENDING") {
-        existing.id = t.id;
-        existing.isPaid = false;
-        existing.dueDate = t.dueDate || t.date;
-      }
-      if (amt > 0 && (existing.amount <= 0 || new Date(t.date || t.dueDate || 0) > new Date(existing.dueDate || 0))) {
-        existing.amount = amt;
-      }
-      if (t.recurringDay) {
-        existing.recurringDay = t.recurringDay;
-      }
-    }
-  }
-
-  const items = Array.from(mapRecurring.values()).sort(
-    (a, b) => (a.recurringDay || 10) - (b.recurringDay || 10)
-  );
   const totalMonthly = items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
 
   return {
