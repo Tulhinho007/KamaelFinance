@@ -10996,9 +10996,9 @@ export async function getMonthlyCommitmentsAction(
 }
 
 export async function createCommitmentAction(input: {
-  description: string;
-  amount: number;
-  dueDate: string;
+  description?: string;
+  amount?: number;
+  dueDate?: string;
   tipo?: "BOLETO" | "ASSINATURA";
   recorrencia?: "MENSAL" | "UNICO";
   competenceMonth?: number;
@@ -11044,24 +11044,27 @@ export async function createCommitmentAction(input: {
     catId = cat.id;
   }
 
-  const due = parseInputDate(input.dueDate);
+  const compMonth = input.competenceMonth || (new Date().getMonth() + 1);
+  const compYear = input.competenceYear || 2026;
+  const dueDateStr = input.dueDate?.trim() || `${compYear}-${String(compMonth).padStart(2, "0")}-10`;
+  const due = parseInputDate(dueDateStr);
   const tipo = input.tipo || "BOLETO";
   const recorrencia = input.recorrencia || "MENSAL";
   const isMensal = recorrencia === "MENSAL";
   const dueDay = due.getUTCDate();
-  const compMonth = input.competenceMonth || (due.getUTCMonth() + 1);
-  const compYear = input.competenceYear || due.getUTCFullYear();
   const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
   const tags = "#compromisso #" + tipo.toLowerCase() + " #" + recorrencia.toLowerCase();
+  const description = input.description?.trim() || "Conta Fixa";
+  const amount = Number(input.amount) || 0;
 
   const created = await prisma.transaction.create({
     data: {
       walletId: targetWallet.id,
       categoryId: catId,
-      description: input.description.trim(),
+      description,
       type: "EXPENSE",
-      amount: input.amount,
+      amount,
       date: due,
       dueDate: due,
       competenceMonth: compMonth,

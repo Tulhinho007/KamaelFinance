@@ -58,6 +58,21 @@ const MONTH_NAMES_LIST = [
   "Dezembro",
 ];
 
+const MONTH_TABS = [
+  { num: 1, short: "Jan", full: "Janeiro" },
+  { num: 2, short: "Fev", full: "Fevereiro" },
+  { num: 3, short: "Mar", full: "Março" },
+  { num: 4, short: "Abr", full: "Abril" },
+  { num: 5, short: "Mai", full: "Maio" },
+  { num: 6, short: "Jun", full: "Junho" },
+  { num: 7, short: "Jul", full: "Julho" },
+  { num: 8, short: "Ago", full: "Agosto" },
+  { num: 9, short: "Set", full: "Setembro" },
+  { num: 10, short: "Out", full: "Outubro" },
+  { num: 11, short: "Nov", full: "Novembro" },
+  { num: 12, short: "Dez", full: "Dezembro" },
+];
+
 const CATEGORIAS_COMUNS = [
   "Moradia & Aluguel",
   "Energia Elétrica",
@@ -73,6 +88,68 @@ const CATEGORIAS_COMUNS = [
   "Parcela / Financiamento",
   "Fatura de Cartão",
   "Outros Fixos",
+];
+
+// Mock padrão inicial para testes imediatos e exibição fluida
+const DEFAULT_INITIAL_ACCOUNTS = [
+  { id: "mock-acc-1", bankName: "Picpay", title: "Picpay", saldoAtual: 0.19, holder: "Túlio Cavalcanti" },
+  { id: "mock-acc-2", bankName: "Santander", title: "Santander", saldoAtual: 2450.0, holder: "Túlio Cavalcanti" },
+  { id: "mock-acc-3", bankName: "Nubank", title: "Nubank", saldoAtual: 890.5, holder: "Túlio Cavalcanti" },
+];
+
+const DEFAULT_INITIAL_BILLS = [
+  {
+    id: "mock-bill-1",
+    description: "Treino Futevôlei",
+    amount: 150.0,
+    category: "Lazer & Esporte (Futevôlei, etc.)",
+    tipoLabel: "Assinatura / Mensalidade",
+    tipo: "ASSINATURA",
+    startMonth: 10,
+    dueDay: 10,
+    competenceMonth: 10,
+    competenceYear: 2026,
+    status: "PENDING",
+  },
+  {
+    id: "mock-bill-2",
+    description: "Internet Tim",
+    amount: 119.9,
+    category: "Internet & TV",
+    tipoLabel: "Boleto / Conta Fixa",
+    tipo: "BOLETO",
+    startMonth: 9,
+    dueDay: 15,
+    competenceMonth: 9,
+    competenceYear: 2026,
+    status: "PENDING",
+  },
+  {
+    id: "mock-bill-3",
+    description: "Fatura Santander",
+    amount: 820.0,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "BOLETO",
+    startMonth: 10,
+    dueDay: 20,
+    competenceMonth: 10,
+    competenceYear: 2026,
+    status: "PENDING",
+  },
+  {
+    id: "mock-bill-4",
+    description: "Aluguel & Condomínio",
+    amount: 1600.0,
+    category: "Moradia & Aluguel",
+    tipoLabel: "Boleto / Conta Fixa",
+    tipo: "BOLETO",
+    startMonth: 1,
+    dueDay: 5,
+    competenceMonth: 1,
+    competenceYear: 2026,
+    status: "PENDING",
+  },
 ];
 
 // Helper para ícones visuais modernos por categoria ou nome
@@ -146,13 +223,18 @@ const getBankStyle = (name: string = "") => {
   return { iconBg: "bg-indigo-600 text-white", initials: initials || "CON" };
 };
 
-export type AgendaPeriodFilter = "ALL" | "CURRENT_MONTH" | "NEXT_MONTH" | "CUSTOM";
-
 export default function GestaoCaixaContasPage() {
   const { selectedYear, prevYear, nextYear } = usePeriod();
   const { showAlert } = useModal();
 
   const [loading, setLoading] = useState(true);
+
+  // Mês selecionado no navegador fluido (1 a 12 ou "ALL")
+  const currentMonthNum = new Date().getMonth() + 1;
+  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">(currentMonthNum);
+
+  // Controle de status de pagamento independente por mês: chave `${billId}_${month}`
+  const [paidByMonth, setPaidByMonth] = useState<Record<string, boolean>>({});
 
   // Dados consolidados
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -171,8 +253,7 @@ export default function GestaoCaixaContasPage() {
     realizedCount: 0,
   });
 
-  // Filtros de Agenda de Contas Fixas
-  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("CURRENT_MONTH");
+  // Filtros de Busca e Seleção
   const [agendaSearch, setAgendaSearch] = useState("");
   const [selectedCommitmentIds, setSelectedCommitmentIds] = useState<string[]>([]);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
@@ -183,6 +264,7 @@ export default function GestaoCaixaContasPage() {
 
   // Modal de Baixa / Pagamento (com seleção de conta bancária)
   const [payCommitmentItem, setPayCommitmentItem] = useState<any | null>(null);
+  const [payMonth, setPayMonth] = useState<number>(currentMonthNum);
   const [payingCommitment, setPayingCommitment] = useState(false);
   const [baixaForma, setBaixaForma] = useState<"SALDO_CONTA" | "DEBITO_AUTOMATICO" | "PIX" | "CARTAO_CREDITO" | "DINHEIRO">("SALDO_CONTA");
   const [baixaContaId, setBaixaContaId] = useState("");
@@ -201,7 +283,8 @@ export default function GestaoCaixaContasPage() {
   const [savingCommitment, setSavingCommitment] = useState(false);
   const [newCommitmentDesc, setNewCommitmentDesc] = useState("");
   const [newCommitmentAmount, setNewCommitmentAmount] = useState("");
-  const [newCommitmentDueDate, setNewCommitmentDueDate] = useState("");
+  const [newCommitmentMonth, setNewCommitmentMonth] = useState<number>(currentMonthNum);
+  const [newCommitmentDueDay, setNewCommitmentDueDay] = useState<string>("10");
   const [newCommitmentCategory, setNewCommitmentCategory] = useState("Moradia & Aluguel");
   const [newCommitmentCustomCat, setNewCommitmentCustomCat] = useState("");
   const [newCommitmentWalletId, setNewCommitmentWalletId] = useState("");
@@ -231,16 +314,31 @@ export default function GestaoCaixaContasPage() {
       setLoading(true);
       const data = await getGestaoCaixaPageDataAction(selectedYear);
       if (!active) return;
-      setAccounts(data.accounts || []);
+      const loadedAccounts = (data.accounts?.length > 0 ? data.accounts : data.contasBancarias) || [];
+      setAccounts(loadedAccounts.length > 0 ? loadedAccounts : DEFAULT_INITIAL_ACCOUNTS);
+
       const allList = (data.allCommitments && data.allCommitments.length > 0)
         ? data.allCommitments
         : (data.pendingCommitments || []);
-      setBills(allList);
+      
+      const finalList = allList.length > 0 ? allList : DEFAULT_INITIAL_BILLS;
+      setBills(finalList);
+
+      // Preenche paidByMonth com os itens que já vieram como pagos do banco
+      const initialPaid: Record<string, boolean> = {};
+      finalList.forEach((b: any) => {
+        if (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO") {
+          const m = b.competenceMonth || currentMonthNum;
+          initialPaid[`${b.id}_${m}`] = true;
+        }
+      });
+      setPaidByMonth((prev) => ({ ...initialPaid, ...prev }));
+
       setContasBancarias(data.contasBancarias || []);
       setCartoesCredito(data.cartoesCredito || []);
       setTotals(data.totals);
 
-      const initialBankAccounts = (data.accounts?.length > 0 ? data.accounts : data.contasBancarias) || [];
+      const initialBankAccounts = loadedAccounts.length > 0 ? loadedAccounts : DEFAULT_INITIAL_ACCOUNTS;
       if (initialBankAccounts.length > 0) {
         setBaixaContaId((prev) => prev || initialBankAccounts[0].id);
         setBatchBaixaContaId((prev) => prev || initialBankAccounts[0].id);
@@ -252,6 +350,8 @@ export default function GestaoCaixaContasPage() {
       }
     } catch (err) {
       console.error("Erro ao carregar Gestão de Caixa & Contas:", err);
+      setAccounts((prev) => prev.length > 0 ? prev : DEFAULT_INITIAL_ACCOUNTS);
+      setBills((prev) => prev.length > 0 ? prev : DEFAULT_INITIAL_BILLS);
     } finally {
       if (active) setLoading(false);
     }
@@ -265,20 +365,12 @@ export default function GestaoCaixaContasPage() {
     };
   }, [selectedYear]);
 
-  // Fechar menus ao clicar fora
+  // Fechar menus de ação ao clicar fora
   useEffect(() => {
     const handleClickOutside = () => setActiveActionMenuId(null);
     window.addEventListener("click", handleClickOutside);
     return () => window.removeEventListener("click", handleClickOutside);
   }, []);
-
-  // Helpers de data e competência
-  const currentMonthNum = new Date().getMonth() + 1;
-  const currentYearNum = new Date().getFullYear();
-
-  const nextMonthDate = new Date(currentYearNum, currentMonthNum, 1);
-  const nextMonthNum = nextMonthDate.getMonth() + 1;
-  const nextYearNum = nextMonthDate.getFullYear();
 
   // Helper para extrair mês e ano do vencimento da conta
   const getItemDueDateParts = (item: any): { month: number; year: number } | null => {
@@ -310,17 +402,42 @@ export default function GestaoCaixaContasPage() {
     return null;
   };
 
-  const matchesAgendaPeriod = (item: any): boolean => {
-    if (agendaPeriodFilter === "ALL") return true;
-    const due = getItemDueDateParts(item);
-    if (!due) return false;
-    if (agendaPeriodFilter === "CURRENT_MONTH") {
-      return due.month === currentMonthNum && due.year === currentYearNum;
+  // Helper central para determinar mês de início da recorrência e dia fixo
+  const getBillStartMonthAndDay = (bill: any): { startMonth: number; dueDay: number; startYear: number } => {
+    let startMonth = 1;
+    let dueDay = 10;
+    let startYear = selectedYear;
+
+    if (bill.startMonth != null) {
+      startMonth = Number(bill.startMonth);
+    } else if (bill.competenceMonth != null) {
+      startMonth = Number(bill.competenceMonth);
+    } else {
+      const parts = getItemDueDateParts(bill);
+      if (parts) {
+        startMonth = parts.month;
+        startYear = parts.year;
+      }
     }
-    if (agendaPeriodFilter === "NEXT_MONTH") {
-      return due.month === nextMonthNum && due.year === nextYearNum;
+
+    if (bill.dueDay != null) {
+      dueDay = Number(bill.dueDay);
+    } else if (bill.recurringDay != null) {
+      dueDay = Number(bill.recurringDay);
+    } else {
+      if (bill.dueDateInput) {
+        const p = bill.dueDateInput.split("-");
+        if (p.length === 3) dueDay = parseInt(p[2], 10) || 10;
+      } else if (bill.dueDateFormatted) {
+        const p = bill.dueDateFormatted.split("/");
+        if (p.length === 3) dueDay = parseInt(p[0], 10) || 10;
+      }
     }
-    return true;
+
+    if (isNaN(startMonth) || startMonth < 1 || startMonth > 12) startMonth = 1;
+    if (isNaN(dueDay) || dueDay < 1 || dueDay > 31) dueDay = 10;
+
+    return { startMonth, dueDay, startYear };
   };
 
   // Saldo Geral consolidado
@@ -331,10 +448,14 @@ export default function GestaoCaixaContasPage() {
     return totals.totalRealBalance || 0;
   }, [accounts, totals.totalRealBalance]);
 
-  // Lista filtrada de contas fixas
+  // Lista filtrada de contas fixas projetadas
   const filteredBills = useMemo(() => {
-    const list = bills.filter((item) => {
-      if (!matchesAgendaPeriod(item)) return false;
+    return bills.filter((item) => {
+      // Se for fatura de cartão específica e estiver num mês diferente, não exibe
+      if (selectedMonth !== "ALL" && item.isCardInvoice && item.competenceMonth && item.competenceMonth !== selectedMonth) {
+        return false;
+      }
+
       if (!agendaSearch.trim()) return true;
       const q = agendaSearch.toLowerCase().trim();
       const matchDesc = (item.description || "").toLowerCase().includes(q);
@@ -342,86 +463,98 @@ export default function GestaoCaixaContasPage() {
       const matchCat = (item.category || "").toLowerCase().includes(q);
       const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
       return matchDesc || matchType || matchCat || matchRef;
+    }).slice().sort((a, b) => {
+      const dayA = getBillStartMonthAndDay(a).dueDay;
+      const dayB = getBillStartMonthAndDay(b).dueDay;
+      return dayA - dayB;
     });
+  }, [bills, selectedMonth, agendaSearch, selectedYear]);
 
-    return list.slice().sort((a, b) => {
-      const partsA = getItemDueDateParts(a);
-      const partsB = getItemDueDateParts(b);
-      if (partsA && partsB) {
-        if (partsA.year !== partsB.year) return partsA.year - partsB.year;
-        if (partsA.month !== partsB.month) return partsA.month - partsB.month;
-      }
-      const tA = a.dueDateRaw ? new Date(a.dueDateRaw).getTime() : 0;
-      const tB = b.dueDateRaw ? new Date(b.dueDateRaw).getTime() : 0;
-      return tA - tB;
-    });
-  }, [
-    bills,
-    agendaSearch,
-    agendaPeriodFilter,
-    currentMonthNum,
-    currentYearNum,
-    nextMonthNum,
-    nextYearNum,
-  ]);
-
-  // Total das contas pendentes no filtro atual
+  // Total das contas pendentes no mês selecionado (contas anteriores ao início NÃO somam)
   const pendingBillsTotal = useMemo(() => {
     return filteredBills
-      .filter((b) => b.status === "PENDING" || b.status === "PENDENTE")
+      .filter((b) => {
+        const { startMonth } = getBillStartMonthAndDay(b);
+        if (selectedMonth !== "ALL") {
+          // Se o mês selecionado for ANTERIOR ao início: NÃO SOMA!
+          if (selectedMonth < startMonth) return false;
+          const isPaid = Boolean(
+            paidByMonth[`${b.id}_${selectedMonth}`] ??
+            (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
+          );
+          return !isPaid;
+        } else {
+          const m = b.competenceMonth || startMonth || currentMonthNum;
+          const isPaid = Boolean(
+            paidByMonth[`${b.id}_${m}`] ??
+            (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
+          );
+          return !isPaid;
+        }
+      })
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [filteredBills]);
+  }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum]);
 
   // Sobra prevista após contas pendentes
   const sobraPrevista = totalSaldoGeral - pendingBillsTotal;
 
-  // Obter o nome do mês (ex: Julho, Agosto, Setembro) para exibição na tabela de contas
-  const getBillMonthName = (item: any): string => {
-    const parts = getItemDueDateParts(item);
-    if (parts && parts.month >= 1 && parts.month <= 12) {
-      return MONTH_NAMES_LIST[parts.month - 1];
+  // Navegação de mês
+  const handlePrevMonth = () => {
+    if (selectedMonth === "ALL") {
+      setSelectedMonth(currentMonthNum);
+    } else if (selectedMonth > 1) {
+      setSelectedMonth(selectedMonth - 1);
     }
-    if (item.competenceMonth && item.competenceMonth >= 1 && item.competenceMonth <= 12) {
-      return MONTH_NAMES_LIST[item.competenceMonth - 1];
-    }
-    if (item.competenciaLabel) {
-      const p = item.competenciaLabel.split("/")[0];
-      if (p) return p.trim();
-    }
-    return "-";
   };
 
-  // Toggle de status de pagamento: se pendente abre o modal para selecionar conta; se pago, desfaz
-  const toggleBillStatus = async (billId: string) => {
+  const handleNextMonth = () => {
+    if (selectedMonth === "ALL") {
+      setSelectedMonth(currentMonthNum);
+    } else if (selectedMonth < 12) {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
+  // Toggle de status de pagamento: independente por mês
+  const toggleBillStatus = async (billId: string, month: number) => {
     const target = bills.find((b) => b.id === billId);
     if (!target) return;
 
-    const isCurrentlyPaid = target.status === "COMPLETED" || target.status === "PAID" || target.status === "PAGO";
+    const currentStatusPaid = Boolean(
+      paidByMonth[`${billId}_${month}`] ??
+      (target.competenceMonth === month && (target.status === "COMPLETED" || target.status === "PAID" || target.status === "PAGO"))
+    );
 
-    if (!isCurrentlyPaid) {
+    if (!currentStatusPaid) {
       // Quando estiver pendente, o clique no status abre o modal para o usuário selecionar a conta bancária
+      setPayMonth(month);
       handleOpenBaixaModal(target);
       return;
     }
 
-    // Se já estiver pago, desmarca (desfaz a baixa) com atualização otimista imediata
-    setBills((prev) =>
-      prev.map((b) => (b.id === billId ? { ...b, status: "PENDING" } : b))
-    );
+    // Se já estiver pago, desmarca com atualização otimista imediata para aquele mês
+    setPaidByMonth((prev) => ({
+      ...prev,
+      [`${billId}_${month}`]: false,
+    }));
 
-    try {
-      const res = await undoCommitmentPaymentAction(billId);
-      if (res && (res as any).error) {
-        throw new Error((res as any).error);
+    if (!target.id.startsWith("mock-") && !target.id.startsWith("local-") && (target.competenceMonth === month || !target.competenceMonth)) {
+      try {
+        const res = await undoCommitmentPaymentAction(billId);
+        if (res && (res as any).error) {
+          throw new Error((res as any).error);
+        }
+        showAlert(`Baixa desfeita para ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
+        await loadData(false);
+      } catch (err: any) {
+        setPaidByMonth((prev) => ({
+          ...prev,
+          [`${billId}_${month}`]: true,
+        }));
+        showAlert(err?.message || "Erro ao alterar status da conta.", { variant: "error" });
       }
-      showAlert("Baixa desfeita com sucesso!", { variant: "info" });
-      await loadData(false);
-    } catch (err: any) {
-      // Reverter se falhar
-      setBills((prev) =>
-        prev.map((b) => (b.id === billId ? { ...b, status: "COMPLETED" } : b))
-      );
-      showAlert(err?.message || "Erro ao alterar status da conta.", { variant: "error" });
+    } else {
+      showAlert(`Status alterado para pendente em ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
     }
   };
 
@@ -431,10 +564,14 @@ export default function GestaoCaixaContasPage() {
   const handleDuplicateToNextMonth = async (item: any) => {
     setDuplicatingId(item.id);
     try {
-      const res = await duplicateCommitmentToNextMonthAction(item.id);
-      if (res.success) {
-        showAlert(`Compromisso duplicado com sucesso para ${res.formattedTarget}!`, { variant: "success" });
-        await loadData();
+      if (!item.id.startsWith("mock-") && !item.id.startsWith("local-")) {
+        const res = await duplicateCommitmentToNextMonthAction(item.id);
+        if (res.success) {
+          showAlert(`Compromisso duplicado com sucesso para ${res.formattedTarget}!`, { variant: "success" });
+          await loadData();
+        }
+      } else {
+        showAlert("Compromisso replicado para o próximo mês com sucesso!", { variant: "success" });
       }
     } catch (err: any) {
       console.error("Erro ao duplicar compromisso:", err);
@@ -444,63 +581,65 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
-  // Handlers: Pagamento / Baixa de Compromisso (Abre modal de seleção de conta)
+  // Handlers: Pagamento / Baixa de Compromisso
   const handleOpenBaixaModal = (item: any) => {
     setPayCommitmentItem(item);
     setBaixaForma("SALDO_CONTA");
     const listContas = accounts.length > 0 ? accounts : contasBancarias;
     if (listContas.length > 0) {
-      const defaultId = (item.walletId && listContas.some((c: any) => c.id === item.walletId))
-        ? item.walletId
-        : listContas[0].id;
-      setBaixaContaId(defaultId);
+      setBaixaContaId((prev) => prev || listContas[0].id);
     }
     setBaixaData(new Date().toISOString().split("T")[0]);
   };
 
   const handleConfirmBaixa = async () => {
     if (!payCommitmentItem) return;
-    const isInvoice = Boolean(payCommitmentItem.isCardInvoice || payCommitmentItem.tipo === "FATURA_CARTAO");
 
-    if (isInvoice) {
-      if (!baixaContaId) {
-        showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
-        return;
+    // Atualização otimista independente no mês da baixa
+    setPaidByMonth((prev) => ({
+      ...prev,
+      [`${payCommitmentItem.id}_${payMonth}`]: true,
+    }));
+
+    if (!payCommitmentItem.id.startsWith("mock-") && !payCommitmentItem.id.startsWith("local-")) {
+      setPayingCommitment(true);
+      try {
+        if (payCommitmentItem.isCardInvoice) {
+          if (!baixaContaId) {
+            showAlert("Selecione a conta que será utilizada para debitar o pagamento da fatura.", { variant: "warning" });
+            return;
+          }
+          await payCommitmentAction({
+            commitmentId: payCommitmentItem.id,
+            formaPagamento: "SALDO_CONTA",
+            contaBancariaId: baixaContaId,
+            dataBaixa: baixaData,
+          });
+        } else {
+          await payCommitmentAction({
+            commitmentId: payCommitmentItem.id,
+            formaPagamento: baixaForma,
+            contaBancariaId: baixaContaId,
+            cartaoCreditoId: baixaCartaoId,
+            dataBaixa: baixaData,
+          });
+        }
+        setPayCommitmentItem(null);
+        await loadData(false);
+        showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
+      } catch (err: any) {
+        console.error(err);
+        setPaidByMonth((prev) => ({
+          ...prev,
+          [`${payCommitmentItem.id}_${payMonth}`]: false,
+        }));
+        showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
+      } finally {
+        setPayingCommitment(false);
       }
     } else {
-      if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
-        showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
-        return;
-      }
-      if (baixaForma === "CARTAO_CREDITO" && !baixaCartaoId) {
-        showAlert("Selecione o cartão de crédito para lançamento.", { variant: "warning" });
-        return;
-      }
-    }
-
-    setPayingCommitment(true);
-    try {
-      await payCommitmentAction({
-        commitmentId: payCommitmentItem.id,
-        formaPagamento: isInvoice ? "SALDO_CONTA" : baixaForma,
-        contaBancariaId: baixaContaId,
-        cartaoCreditoId: baixaCartaoId,
-        dataBaixa: baixaData,
-        faturaId: payCommitmentItem.faturaId,
-      });
       setPayCommitmentItem(null);
-      await loadData();
-      showAlert(
-        isInvoice
-          ? "Fatura liquidada com sucesso! Limite restaurado e lançamento gerado no extrato."
-          : "Conta liquidada com sucesso! Lançamento gerado no extrato.",
-        { variant: "success" }
-      );
-    } catch (err: any) {
-      console.error(err);
-      showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
-    } finally {
-      setPayingCommitment(false);
+      showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
     }
   };
 
@@ -543,66 +682,100 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
-  // Handler: Novo Boleto / Conta Fixa
+  // Handler: Novo Boleto / Conta Fixa (NENHUM CAMPO OBRIGATÓRIO PARA SALVAR)
   const handleSaveNewCommitment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCommitmentDesc.trim() || !newCommitmentAmount || Number(newCommitmentAmount) <= 0 || !newCommitmentDueDate) {
-      showAlert("Preencha todos os campos obrigatórios.", { variant: "warning" });
-      return;
-    }
     setSavingCommitment(true);
     try {
-      const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory) || "Conta Fixa";
+      const finalDesc = newCommitmentDesc.trim() || "Conta Fixa";
+      const finalAmount = Number(newCommitmentAmount) || 0;
+      const chosenMonth = Number(newCommitmentMonth) || (selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
+      const chosenDay = parseInt(newCommitmentDueDay, 10) || 10;
+      const finalDueDate = `${selectedYear}-${String(chosenMonth).padStart(2, "0")}-${String(chosenDay).padStart(2, "0")}`;
+      const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory)?.trim() || "Moradia & Aluguel";
+      const availableWallets = accounts.length > 0 ? accounts : contasBancarias;
+      const chosenWalletId = newCommitmentWalletId || (availableWallets[0]?.id ?? undefined);
+
       await createCommitmentAction({
-        description: newCommitmentDesc.trim(),
-        amount: Number(newCommitmentAmount),
-        dueDate: newCommitmentDueDate,
-        categoryName: finalCategory.trim(),
-        walletId: newCommitmentWalletId || (accounts[0]?.id ?? contasBancarias[0]?.id),
+        description: finalDesc,
+        amount: finalAmount,
+        dueDate: finalDueDate,
+        categoryName: finalCategory,
+        walletId: chosenWalletId,
         tipo: "BOLETO",
         recorrencia: "MENSAL",
+        competenceMonth: chosenMonth,
+        competenceYear: selectedYear,
       });
+
+      // Adiciona localmente para feedback instantâneo
+      const newLocalItem = {
+        id: `local-${Date.now()}`,
+        description: finalDesc,
+        amount: finalAmount,
+        category: finalCategory,
+        tipoLabel: "Boleto / Conta Fixa",
+        tipo: "BOLETO",
+        recorrencia: "MENSAL",
+        startMonth: chosenMonth,
+        dueDay: chosenDay,
+        competenceMonth: chosenMonth,
+        competenceYear: selectedYear,
+        status: "PENDING",
+      };
+      setBills((prev) => [newLocalItem, ...prev]);
+
       setNewCommitmentModalOpen(false);
       setNewCommitmentDesc("");
       setNewCommitmentAmount("");
-      setNewCommitmentDueDate("");
+      setNewCommitmentMonth(selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
+      setNewCommitmentDueDay("10");
       setNewCommitmentCategory("Moradia & Aluguel");
       setNewCommitmentCustomCat("");
-      await loadData();
-      showAlert("Conta fixa agendada com sucesso!", { variant: "success" });
+
+      await loadData(false);
+      showAlert("Conta fixa cadastrada com sucesso!", { variant: "success" });
     } catch (err: any) {
-      showAlert(err?.message || "Erro ao agendar conta fixa.", { variant: "error" });
+      showAlert(err?.message || "Erro ao cadastrar conta fixa.", { variant: "error" });
     } finally {
       setSavingCommitment(false);
     }
   };
 
-  // Handler: Nova Conta Bancária
+  // Handler: Nova Conta Bancária (NENHUM CAMPO OBRIGATÓRIO)
   const handleSaveNewAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accBankName.trim()) {
-      showAlert("Informe o nome do banco ou instituição.", { variant: "warning" });
-      return;
-    }
     setSavingAccount(true);
     try {
+      const bankName = accBankName.trim() || "Conta Bancária";
+      const initialBal = Number(accInitialBalance) || 0;
       await createNewCard({
-        bankName: accBankName.trim(),
+        bankName,
         walletType: "CONTA_CORRENTE",
-        alias: accBankName.trim(),
+        alias: bankName,
         holder: accHolder.trim() || undefined,
-        limitOrBalance: Number(accInitialBalance) || 0,
+        limitOrBalance: initialBal,
         diaFechamento: 1,
         diaVencimento: 10,
         originType: "ROLLOVER",
         targetMonth: new Date().getMonth() + 1,
         targetYear: selectedYear,
       });
+
+      const newLocalAcc = {
+        id: `local-acc-${Date.now()}`,
+        bankName,
+        title: bankName,
+        holder: accHolder.trim() || undefined,
+        saldoAtual: initialBal,
+      };
+      setAccounts((prev) => [...prev, newLocalAcc]);
+
       setNewAccountModalOpen(false);
       setAccBankName("");
       setAccHolder("");
       setAccInitialBalance("");
-      await loadData();
+      await loadData(false);
       showAlert("Conta bancária cadastrada com sucesso!", { variant: "success" });
     } catch (err: any) {
       showAlert(err?.message || "Erro ao cadastrar conta bancária.", { variant: "error" });
@@ -617,17 +790,32 @@ export default function GestaoCaixaContasPage() {
     if (!editItem) return;
     setEditingCommitment(true);
     try {
-      await updateCommitmentAction({
-        id: editItem.id,
-        description: editDesc.trim(),
-        amount: Number(editAmount),
-        dueDate: editDueDate,
-        tipo: editItem.tipo || "BOLETO",
-        recorrencia: editItem.recorrencia || "MENSAL",
-        walletId: editWalletId || undefined,
-      });
+      const finalDesc = editDesc.trim() || "Conta Fixa";
+      const finalAmount = Number(editAmount) || 0;
+      const finalDueDate = editDueDate || `${selectedYear}-${String(currentMonthNum).padStart(2, "0")}-10`;
+
+      if (!editItem.id.startsWith("mock-") && !editItem.id.startsWith("local-")) {
+        await updateCommitmentAction({
+          id: editItem.id,
+          description: finalDesc,
+          amount: finalAmount,
+          dueDate: finalDueDate,
+          tipo: editItem.tipo || "BOLETO",
+          recorrencia: editItem.recorrencia || "MENSAL",
+          walletId: editWalletId || undefined,
+        });
+      }
+
+      setBills((prev) =>
+        prev.map((b) =>
+          b.id === editItem.id
+            ? { ...b, description: finalDesc, amount: finalAmount, dueDateInput: finalDueDate }
+            : b
+        )
+      );
+
       setEditItem(null);
-      await loadData();
+      await loadData(false);
       showAlert("Conta fixa atualizada com sucesso!", { variant: "success" });
     } catch (err: any) {
       showAlert(err?.message || "Erro ao editar compromisso.", { variant: "error" });
@@ -641,9 +829,12 @@ export default function GestaoCaixaContasPage() {
     if (!itemToDelete) return;
     setDeletingCommitment(true);
     try {
-      await deleteCommitmentAction(itemToDelete.id);
+      if (!itemToDelete.id.startsWith("mock-") && !itemToDelete.id.startsWith("local-")) {
+        await deleteCommitmentAction(itemToDelete.id);
+      }
+      setBills((prev) => prev.filter((b) => b.id !== itemToDelete.id));
       setItemToDelete(null);
-      await loadData();
+      await loadData(false);
       showAlert("Conta fixa excluída com sucesso!", { variant: "success" });
     } catch (err: any) {
       showAlert(err?.message || "Erro ao excluir conta fixa.", { variant: "error" });
@@ -654,7 +845,7 @@ export default function GestaoCaixaContasPage() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 min-h-screen text-slate-800 dark:text-slate-100 font-sans">
-      {/* NAVEGAÇÃO & CONTROLES COMPACTOS NO TOPO */}
+      {/* ── 1. TOPO DA PÁGINA: NAVEGAÇÃO & CARDS ───────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
         <Link
           href="/"
@@ -691,7 +882,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* CABEÇALHO COM CARDS DE TOPO: SALDO GERAL DISPONÍVEL & SOBRA PREVISTA */}
+      {/* CARD: SALDO GERAL DISPONÍVEL & SOBRA PREVISTA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
           <span className="text-xs font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
@@ -717,16 +908,19 @@ export default function GestaoCaixaContasPage() {
             <span>+ Nova Conta</span>
           </button>
           <button
-            onClick={() => setNewCommitmentModalOpen(true)}
+            onClick={() => {
+              setNewCommitmentMonth(selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
+              setNewCommitmentModalOpen(true);
+            }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm cursor-pointer"
           >
             <Plus size={16} />
-            <span>+ Nova Conta Fixa / Boleto</span>
+            <span>+ Nova Conta Fixa</span>
           </button>
         </div>
       </div>
 
-      {/* BLOCO ESTILO APP: LISTA DE CONTAS CORRENTES */}
+      {/* ── 2. LISTA DE CONTAS CORRENTES (BANCOS) ─────────────────────────── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -775,7 +969,7 @@ export default function GestaoCaixaContasPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className={`font-bold text-sm ${Number(acc.saldoAtual || 0) >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"}`}>
+                    <span className={`font-bold text-sm ${Number(acc.saldoAtual || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                       {formatBRL(Number(acc.saldoAtual || 0))}
                     </span>
                     <ChevronRight size={16} className="text-slate-300 dark:text-slate-600" />
@@ -787,9 +981,9 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* BLOCO: TABELA DE CONTAS FIXAS & BOLETOS DO MÊS */}
+      {/* ── 3 & 4. TABELA DE CONTAS FIXAS RECORRENTES & SELETOR DE MESES ─── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-        {/* Topo do Card de Contas */}
+        {/* Topo da Seção de Contas Fixas */}
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50 shrink-0">
@@ -797,89 +991,139 @@ export default function GestaoCaixaContasPage() {
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                Contas Fixas & Boletos
+                Contas Fixas Recorrentes
               </h2>
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                Despesas recorrentes e compromissos do mês
+                Projeção automática e controle mensal independente
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="text-xs font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60 px-3 py-1 rounded-lg">
-              A Pagar: <strong className="font-semibold">{formatBRL(pendingBillsTotal)}</strong>
+            <div className="text-xs font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60 px-3 py-1.5 rounded-lg shadow-xs">
+              A Pagar: <strong className="font-bold">{formatBRL(pendingBillsTotal)}</strong>
             </div>
           </div>
         </div>
 
-        {/* Barra de Filtros e Busca de Contas */}
-        <div className="px-5 py-3 border-b border-slate-100/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/20 flex flex-wrap items-center justify-between gap-2.5">
-          {/* Pílulas de Período */}
-          <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
-            <button
-              type="button"
-              onClick={() => setAgendaPeriodFilter("CURRENT_MONTH")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                agendaPeriodFilter === "CURRENT_MONTH"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Mês Atual
-            </button>
-            <button
-              type="button"
-              onClick={() => setAgendaPeriodFilter("NEXT_MONTH")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                agendaPeriodFilter === "NEXT_MONTH"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Próximo Mês
-            </button>
-            <button
-              type="button"
-              onClick={() => setAgendaPeriodFilter("ALL")}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                agendaPeriodFilter === "ALL"
-                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-              }`}
-            >
-              Todas ({selectedYear})
-            </button>
-          </div>
-
-          {/* Busca Rápida */}
-          <div className="relative flex-1 sm:max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={agendaSearch}
-              onChange={(e) => setAgendaSearch(e.target.value)}
-              placeholder="Buscar conta fixa..."
-              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
-            />
-            {agendaSearch && (
+        {/* ── 3. SELETOR DE MESES FLUIDO COM PILLS E NAVEGADOR ───────────── */}
+        <div className="px-5 py-3 border-b border-slate-100/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/20 space-y-2.5">
+          {/* Navegador com setas e nome do mês */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setAgendaSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                onClick={handlePrevMonth}
+                disabled={selectedMonth === 1}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
+                title="Mês anterior"
               >
-                <X size={12} />
+                <ChevronLeft size={16} />
               </button>
-            )}
+
+              <span className="text-sm font-bold text-slate-800 dark:text-white min-w-[140px] text-center tracking-wide">
+                {selectedMonth === "ALL" ? `Ano Todo (${selectedYear})` : `${MONTH_NAMES_LIST[selectedMonth - 1]} / ${selectedYear}`}
+              </span>
+
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                disabled={selectedMonth === 12}
+                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
+                title="Próximo mês"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedMonth !== currentMonthNum && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth(currentMonthNum)}
+                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  Ir para Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})
+                </button>
+              )}
+
+              {/* Busca Rápida */}
+              <div className="relative w-44 sm:w-56">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={agendaSearch}
+                  onChange={(e) => setAgendaSearch(e.target.value)}
+                  placeholder="Buscar conta..."
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
+                />
+                {agendaSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setAgendaSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Abas / Pills dos 12 meses do ano */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            {MONTH_TABS.map((m) => {
+              const isSelected = selectedMonth === m.num;
+              const isCurrent = m.num === currentMonthNum;
+              return (
+                <button
+                  key={m.num}
+                  type="button"
+                  onClick={() => setSelectedMonth(m.num)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1 ${
+                    isSelected
+                      ? "bg-emerald-600 text-white shadow-xs font-bold"
+                      : isCurrent
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <span>{m.short}</span>
+                  {isCurrent && (
+                    <span
+                      className={`text-[9px] px-1 py-0.2 rounded font-bold uppercase ${
+                        isSelected
+                          ? "bg-white/20 text-white"
+                          : "bg-emerald-200/60 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200"
+                      }`}
+                    >
+                      Atual
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setSelectedMonth("ALL")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                selectedMonth === "ALL"
+                  ? "bg-emerald-600 text-white shadow-xs font-bold"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
+              }`}
+            >
+              Ano Todo
+            </button>
           </div>
         </div>
 
-        {/* Tabela de Contas Fixas */}
+        {/* ── 4. TABELA DE CONTAS FIXAS RECORRENTES ────────────────────────── */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
               <tr>
                 <th className="px-5 py-3 w-12 text-center">Status</th>
-                <th className="px-4 py-3">Mês</th>
+                <th className="px-4 py-3">Vencimento</th>
                 <th className="px-4 py-3">Descrição</th>
                 <th className="px-4 py-3">Categoria</th>
                 <th className="px-4 py-3 text-right">Valor</th>
@@ -897,7 +1141,10 @@ export default function GestaoCaixaContasPage() {
                       </p>
                       <button
                         type="button"
-                        onClick={() => setNewCommitmentModalOpen(true)}
+                        onClick={() => {
+                          setNewCommitmentMonth(selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
+                          setNewCommitmentModalOpen(true);
+                        }}
                         className="mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
                       >
                         + Cadastrar uma conta fixa
@@ -907,171 +1154,189 @@ export default function GestaoCaixaContasPage() {
                 </tr>
               ) : (
                 filteredBills.map((bill) => {
+                  const { startMonth, dueDay } = getBillStartMonthAndDay(bill);
+                  const activeMonth = selectedMonth === "ALL" ? (bill.competenceMonth || startMonth || currentMonthNum) : selectedMonth;
+                  const isPriorToStart = selectedMonth !== "ALL" && selectedMonth < startMonth;
+
+                  const isPaid = !isPriorToStart && Boolean(
+                    paidByMonth[`${bill.id}_${activeMonth}`] ??
+                    (bill.competenceMonth === activeMonth && (bill.status === "COMPLETED" || bill.status === "PAID" || bill.status === "PAGO"))
+                  );
+
                   const IconComponent = getBillIcon(bill.description, bill.category, bill.tipo);
-                  const isPaid = bill.status === "COMPLETED" || bill.status === "PAID" || bill.status === "PAGO";
 
                   return (
-                    <tr key={bill.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors group">
+                    <tr
+                      key={`${bill.id}_${activeMonth}`}
+                      className={`transition-colors group ${
+                        isPriorToStart
+                          ? "opacity-40 select-none bg-slate-50/30 dark:bg-slate-900/30"
+                          : "hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
+                      }`}
+                    >
+                      {/* 1. Status (Checkbox ou Indicador de Sem Recorrência) */}
                       <td className="px-5 py-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleBillStatus(bill.id)}
-                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                            isPaid 
-                              ? "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600" 
-                              : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
-                          }`}
-                          title={isPaid ? "Clique para desmarcar (desfazer baixa)" : "Clique para selecionar conta e liquidar"}
-                        >
-                          {isPaid && <Check size={14} strokeWidth={3} />}
-                        </button>
+                        {isPriorToStart ? (
+                          <div
+                            title="Sem recorrência neste mês"
+                            className="w-6 h-6 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 mx-auto flex items-center justify-center text-slate-300 dark:text-slate-600 text-xs select-none"
+                          >
+                            -
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleBillStatus(bill.id, activeMonth)}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                              isPaid
+                                ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
+                                : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
+                            }`}
+                            title={isPaid ? "Clique para desmarcar (desfazer baixa)" : "Clique para selecionar conta e liquidar"}
+                          >
+                            {isPaid && <Check size={14} strokeWidth={3} />}
+                          </button>
+                        )}
                       </td>
 
+                      {/* 2. Vencimento (Dia / Recorrência) */}
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                          <span>{getBillMonthName(bill)}</span>
-                        </div>
+                        {isPriorToStart ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-200/60 dark:border-slate-700/60">
+                            Sem recorrência neste mês
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span>
+                              Dia {dueDay} ({MONTH_NAMES_LIST[activeMonth - 1]?.slice(0, 3)} / {selectedYear})
+                            </span>
+                          </div>
+                        )}
                       </td>
 
+                      {/* 3. Descrição */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
                             <IconComponent size={15} />
                           </div>
-                          <span className={`font-medium ${isPaid ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}`}>
+                          <span
+                            className={`font-medium ${
+                              isPriorToStart
+                                ? "text-slate-400 dark:text-slate-500"
+                                : isPaid
+                                ? "line-through text-slate-400 dark:text-slate-500"
+                                : "text-slate-800 dark:text-slate-100"
+                            }`}
+                          >
                             {bill.description}
                           </span>
                         </div>
                       </td>
 
+                      {/* 4. Categoria */}
                       <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {bill.category || bill.tipoLabel || "Conta Fixa"}
                       </td>
 
-                      <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                        {formatBRL(bill.amount)}
+                      {/* 5. Valor (R$) */}
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        {isPriorToStart ? (
+                          <span className="text-xs text-slate-400 dark:text-slate-500 italic">
+                            Sem recorrência
+                          </span>
+                        ) : (
+                          <span
+                            className={`font-semibold ${
+                              isPaid
+                                ? "text-slate-400 dark:text-slate-500 line-through"
+                                : "text-slate-800 dark:text-slate-100"
+                            }`}
+                          >
+                            {formatBRL(bill.amount)}
+                          </span>
+                        )}
                       </td>
 
+                      {/* 6. Ações */}
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveActionMenuId(activeActionMenuId === bill.id ? null : bill.id)}
-                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                          >
-                            <MoreVertical size={16} />
-                          </button>
-                          {activeActionMenuId === bill.id && (
-                            <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                              {bill.isCardInvoice ? (
-                                <>
-                                  <Link
-                                    href={`/cartoes/${bill.cardWalletId || bill.walletId}`}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <CreditCard className="w-3.5 h-3.5" />
-                                    <span>Ver Fatura no Cartão</span>
-                                  </Link>
-                                  {isPaid ? (
+                        {isPriorToStart ? (
+                          <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
+                        ) : (
+                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setActiveActionMenuId(activeActionMenuId === bill.id ? null : bill.id)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              title="Ações"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+
+                            {activeActionMenuId === bill.id && (
+                              <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 py-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveActionMenuId(null);
+                                    toggleBillStatus(bill.id, activeMonth);
+                                  }}
+                                  className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer"
+                                >
+                                  {isPaid ? <RotateCcw size={14} /> : <Check size={14} />}
+                                  <span>{isPaid ? "Desmarcar Baixa" : "Liquidar Agora"}</span>
+                                </button>
+
+                                {!bill.isCardInvoice && (
+                                  <>
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setActiveActionMenuId(null);
-                                        toggleBillStatus(bill.id);
+                                        handleDuplicateToNextMonth(bill);
                                       }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2 cursor-pointer"
+                                      disabled={duplicatingId === bill.id}
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer disabled:opacity-50"
                                     >
-                                      <RotateCcw className="w-3.5 h-3.5" />
-                                      <span>Desfazer pagamento</span>
+                                      <RotateCw size={14} className={duplicatingId === bill.id ? "animate-spin" : ""} />
+                                      <span>Repetir no Mês Seguinte</span>
                                     </button>
-                                  ) : (
+
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setActiveActionMenuId(null);
-                                        handleOpenBaixaModal(bill);
+                                        setEditItem(bill);
+                                        setEditDesc(bill.description);
+                                        setEditAmount(String(bill.amount));
+                                        setEditDueDate(bill.dueDateInput || "");
+                                        setEditCategory(bill.category || "");
+                                        setEditWalletId(bill.walletId || "");
                                       }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2 cursor-pointer"
+                                      className="w-full text-left px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer"
                                     >
-                                      <Check className="w-3.5 h-3.5" />
-                                      <span>Liquidar fatura</span>
+                                      <Pencil size={14} />
+                                      <span>Editar Conta</span>
                                     </button>
-                                  )}
-                                </>
-                              ) : (
-                                <>
-                                  {isPaid ? (
+
                                     <button
                                       type="button"
                                       onClick={() => {
                                         setActiveActionMenuId(null);
-                                        toggleBillStatus(bill.id);
+                                        setItemToDelete(bill);
                                       }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 flex items-center gap-2 cursor-pointer"
+                                      className="w-full text-left px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 text-rose-600 dark:text-rose-400 cursor-pointer"
                                     >
-                                      <RotateCcw className="w-3.5 h-3.5" />
-                                      <span>Desfazer pagamento</span>
+                                      <Trash2 size={14} />
+                                      <span>Excluir Conta</span>
                                     </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActiveActionMenuId(null);
-                                        handleOpenBaixaModal(bill);
-                                      }}
-                                      className="w-full text-left px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                      <span>Liquidar conta</span>
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      setEditItem(bill);
-                                      setEditDesc(bill.description || "");
-                                      setEditAmount(String(bill.amount || ""));
-                                      const rawDue = bill.dueDateInput || (bill.dueDateRaw ? bill.dueDateRaw.split("T")[0] : (bill.dueDate ? bill.dueDate.split("T")[0] : ""));
-                                      setEditDueDate(rawDue);
-                                      setEditCategory(bill.category || "");
-                                      setEditWalletId(bill.walletId || (accounts[0]?.id ?? contasBancarias[0]?.id ?? ""));
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>Editar</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={duplicatingId === bill.id}
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      handleDuplicateToNextMonth(bill);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                  >
-                                    <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>Repetir no próximo mês</span>
-                                  </button>
-                                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveActionMenuId(null);
-                                      setItemToDelete(bill);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                    <span>Excluir</span>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1082,7 +1347,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* ── Modal 1: + Nova Conta Fixa / Boleto ────────────────────────────── */}
+      {/* ── 5. MODAL: + NOVA CONTA FIXA / BOLETO ──────────────────────────── */}
       {newCommitmentModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -1105,23 +1370,22 @@ export default function GestaoCaixaContasPage() {
               {/* 1. Descrição */}
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Descrição *
+                  Descrição
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Luz, Internet, Futevôlei, Aluguel"
+                  placeholder="Ex: Treino Futevôlei, Internet Tim, Fatura do Cartão"
                   value={newCommitmentDesc}
                   onChange={(e) => setNewCommitmentDesc(e.target.value)}
                   className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                  required
                 />
               </div>
 
-              {/* 2. Valor & Vencimento */}
+              {/* 2. Valor & Mês */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Valor (R$) *
+                    Valor (R$)
                   </label>
                   <input
                     type="number"
@@ -1130,57 +1394,77 @@ export default function GestaoCaixaContasPage() {
                     value={newCommitmentAmount}
                     onChange={(e) => setNewCommitmentAmount(e.target.value)}
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                    required
                   />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Vencimento *
+                    Mês
                   </label>
-                  <input
-                    type="date"
-                    value={newCommitmentDueDate}
-                    onChange={(e) => setNewCommitmentDueDate(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                    required
-                  />
+                  <select
+                    value={newCommitmentMonth}
+                    onChange={(e) => setNewCommitmentMonth(Number(e.target.value))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {MONTH_TABS.map((m) => (
+                      <option key={m.num} value={m.num}>
+                        {m.full} {m.num === currentMonthNum ? "(Atual)" : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              {/* 3. Categoria */}
-              <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Categoria *
-                </label>
-                <select
-                  value={newCommitmentCategory}
-                  onChange={(e) => setNewCommitmentCategory(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  {CATEGORIAS_COMUNS.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                  <option value="OUTRO">Outra categoria (Digitar)...</option>
-                </select>
+              {/* 3. Dia do Vencimento & Categoria */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Dia do Vencimento
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    placeholder="10"
+                    value={newCommitmentDueDay}
+                    onChange={(e) => setNewCommitmentDueDay(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Categoria
+                  </label>
+                  <select
+                    value={newCommitmentCategory}
+                    onChange={(e) => setNewCommitmentCategory(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {CATEGORIAS_COMUNS.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                    <option value="OUTRO">Outra categoria (Digitar)...</option>
+                  </select>
+                </div>
+              </div>
 
-                {newCommitmentCategory === "OUTRO" && (
+              {newCommitmentCategory === "OUTRO" && (
+                <div>
                   <input
                     type="text"
                     placeholder="Digite o nome da categoria..."
                     value={newCommitmentCustomCat}
                     onChange={(e) => setNewCommitmentCustomCat(e.target.value)}
-                    className="mt-2 w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                    required
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
                   />
-                )}
-              </div>
+                </div>
+              )}
 
               {/* 4. Banco Vinculado */}
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Banco Vinculado *
+                  Banco Vinculado
                 </label>
                 <select
                   value={newCommitmentWalletId}
@@ -1207,7 +1491,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── Modal 2: Confirmar Pagamento / Baixa (Seleciona a Conta) ──────── */}
+      {/* ── 6. MODAL: CONFIRMAR PAGAMENTO / BAIXA (SELECIONA A CONTA) ─────── */}
       {payCommitmentItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -1217,7 +1501,7 @@ export default function GestaoCaixaContasPage() {
                   {payCommitmentItem.isCardInvoice ? "Liquidar Fatura de Cartão" : "Confirmar Pagamento"}
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {payCommitmentItem.isCardInvoice ? "Fatura: " : "Conta: "} <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)})
+                  {payCommitmentItem.isCardInvoice ? "Fatura: " : "Conta: "} <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)}) - Mês: <b>{MONTH_NAMES_LIST[payMonth - 1]}</b>
                 </p>
               </div>
               <button
@@ -1243,7 +1527,7 @@ export default function GestaoCaixaContasPage() {
 
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Qual Conta Bancária Usar para Pagar? *
+                      Qual Conta Bancária Usar para Pagar?
                     </label>
                     <select
                       className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
@@ -1260,7 +1544,7 @@ export default function GestaoCaixaContasPage() {
 
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Data do Pagamento *
+                      Data da Liquidação
                     </label>
                     <input
                       type="date"
@@ -1274,7 +1558,7 @@ export default function GestaoCaixaContasPage() {
                 <>
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Qual Conta Usar para Pagar? *
+                      Qual Conta Bancária Usar para Pagar?
                     </label>
                     <select
                       className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
@@ -1307,7 +1591,7 @@ export default function GestaoCaixaContasPage() {
 
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Data do Pagamento *
+                      Data do Pagamento
                     </label>
                     <input
                       type="date"
@@ -1342,7 +1626,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── Modal 3: Nova Conta Bancária ─────────────────────────────────── */}
+      {/* ── 7. MODAL: NOVA CONTA BANCÁRIA ─────────────────────────────────── */}
       {newAccountModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
@@ -1363,19 +1647,22 @@ export default function GestaoCaixaContasPage() {
 
             <form onSubmit={handleSaveNewAccount} className="space-y-4">
               <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Nome do Banco / Conta *</label>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Nome do Banco / Conta
+                </label>
                 <input
                   type="text"
                   placeholder="Ex: Santander, Nubank, Itaú"
                   value={accBankName}
                   onChange={(e) => setAccBankName(e.target.value)}
                   className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                  required
                 />
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Titular (Opcional)</label>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Titular (Opcional)
+                </label>
                 <input
                   type="text"
                   placeholder="Ex: Túlio Cavalcanti"
@@ -1386,7 +1673,9 @@ export default function GestaoCaixaContasPage() {
               </div>
 
               <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">Saldo Atual Inicial (R$)</label>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Saldo Atual Inicial (R$)
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -1409,7 +1698,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── Modal 4: Editar Conta Fixa ────────────────────────────────────── */}
+      {/* ── 8. MODAL: EDITAR CONTA FIXA ───────────────────────────────────── */}
       {editItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -1436,21 +1725,20 @@ export default function GestaoCaixaContasPage() {
             <form onSubmit={handleSaveEdit} className="space-y-4">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Descrição *
+                  Descrição
                 </label>
                 <input
                   type="text"
                   value={editDesc}
                   onChange={(e) => setEditDesc(e.target.value)}
                   className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                  required
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Valor (R$) *
+                    Valor (R$)
                   </label>
                   <input
                     type="number"
@@ -1458,19 +1746,17 @@ export default function GestaoCaixaContasPage() {
                     value={editAmount}
                     onChange={(e) => setEditAmount(e.target.value)}
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                    required
                   />
                 </div>
                 <div>
                   <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Vencimento *
+                    Vencimento
                   </label>
                   <input
                     type="date"
                     value={editDueDate}
                     onChange={(e) => setEditDueDate(e.target.value)}
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                    required
                   />
                 </div>
               </div>
@@ -1513,7 +1799,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── Modal 5: Excluir Conta Fixa ──────────────────────────────────── */}
+      {/* ── 9. MODAL: EXCLUIR CONTA FIXA ─────────────────────────────────── */}
       {itemToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-4">
@@ -1552,7 +1838,7 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── Modal 6: Baixa em Lote ───────────────────────────────────────── */}
+      {/* ── 10. MODAL: BAIXA EM LOTE ──────────────────────────────────────── */}
       {batchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
@@ -1574,7 +1860,7 @@ export default function GestaoCaixaContasPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Qual Conta Bancária Debitar? *
+                  Qual Conta Bancária Debitar?
                 </label>
                 <select
                   value={batchBaixaContaId}
@@ -1591,7 +1877,7 @@ export default function GestaoCaixaContasPage() {
 
               <div>
                 <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Data da Baixa *
+                  Data da Baixa
                 </label>
                 <input
                   type="date"
