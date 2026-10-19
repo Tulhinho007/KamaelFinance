@@ -34,6 +34,12 @@ import {
   Utensils,
   HeartPulse,
   GraduationCap,
+  SlidersHorizontal,
+  History,
+  ArrowDownRight,
+  ArrowUpRight,
+  Equal,
+  Minus,
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -47,12 +53,37 @@ import {
   deleteCommitmentAction,
   undoCommitmentPaymentAction,
   duplicateCommitmentToNextMonthAction,
+  recordBankAccountMovementAction,
 } from "@/lib/actions";
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const formatBRL = brl;
+
+export interface BalanceAdjustmentRecord {
+  id: string;
+  date: string;
+  type: "ENTRADA" | "SAIDA" | "AJUSTE";
+  amount: number;
+  diff: number;
+  description: string;
+  previousBalance: number;
+  resultingBalance: number;
+}
+
+export interface BankAccountItem {
+  id: string;
+  name: string;
+  bankName: string;
+  title: string;
+  balance: number;
+  saldoAtual: number;
+  color: string;
+  initials: string;
+  holder?: string;
+  history: BalanceAdjustmentRecord[];
+}
 
 const MONTH_NAMES_LIST = [
   "Janeiro",
@@ -102,10 +133,75 @@ const CATEGORIAS_COMUNS = [
 ];
 
 // Mock padrão inicial para testes imediatos e exibição fluida
-const DEFAULT_INITIAL_ACCOUNTS = [
-  { id: "mock-acc-1", bankName: "Picpay", title: "Picpay", saldoAtual: 0.19, holder: "Túlio Cavalcanti" },
-  { id: "mock-acc-2", bankName: "Santander", title: "Santander", saldoAtual: 2450.0, holder: "Túlio Cavalcanti" },
-  { id: "mock-acc-3", bankName: "Nubank", title: "Nubank", saldoAtual: 890.5, holder: "Túlio Cavalcanti" },
+const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [
+  {
+    id: "mock-acc-1",
+    name: "Picpay",
+    bankName: "Picpay",
+    title: "Picpay",
+    balance: 0.19,
+    saldoAtual: 0.19,
+    holder: "Túlio Cavalcanti",
+    color: "bg-emerald-600 text-white",
+    initials: "PIC",
+    history: [
+      {
+        id: "hist-pic-1",
+        date: "19/10/2026, 11:20",
+        type: "ENTRADA",
+        amount: 50.0,
+        diff: 50.0,
+        description: "Pix recebido",
+        previousBalance: 0.0,
+        resultingBalance: 50.0,
+      },
+      {
+        id: "hist-pic-2",
+        date: "19/10/2026, 12:45",
+        type: "SAIDA",
+        amount: 49.81,
+        diff: -49.81,
+        description: "Transferência almoço",
+        previousBalance: 50.0,
+        resultingBalance: 0.19,
+      },
+    ],
+  },
+  {
+    id: "mock-acc-2",
+    name: "Santander",
+    bankName: "Santander",
+    title: "Santander",
+    balance: 2450.0,
+    saldoAtual: 2450.0,
+    holder: "Túlio Cavalcanti",
+    color: "bg-red-700 text-white",
+    initials: "SAN",
+    history: [
+      {
+        id: "hist-san-1",
+        date: "18/10/2026, 09:30",
+        type: "AJUSTE",
+        amount: 2450.0,
+        diff: 2450.0,
+        description: "Conferência de saldo do app",
+        previousBalance: 0.0,
+        resultingBalance: 2450.0,
+      },
+    ],
+  },
+  {
+    id: "mock-acc-3",
+    name: "Nubank",
+    bankName: "Nubank",
+    title: "Nubank",
+    balance: 890.5,
+    saldoAtual: 890.5,
+    holder: "Túlio Cavalcanti",
+    color: "bg-purple-600 text-white",
+    initials: "NU",
+    history: [],
+  },
 ];
 
 const DEFAULT_INITIAL_BILLS = [
@@ -517,6 +613,17 @@ export default function GestaoCaixaContasPage() {
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [deletingCommitment, setDeletingCommitment] = useState(false);
 
+  // Modal: Gerenciar Saldo da Conta Bancária
+  const [managingAccount, setManagingAccount] = useState<any | null>(null);
+  const [manageTab, setManageTab] = useState<"AJUSTAR" | "HISTORICO">("AJUSTAR");
+  const [adjustMode, setAdjustMode] = useState<"EXATO" | "RAPIDO">("EXATO");
+  const [exactBalanceInput, setExactBalanceInput] = useState<string>("");
+  const [exactReasonInput, setExactReasonInput] = useState<string>("");
+  const [quickAdjustType, setQuickAdjustType] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
+  const [quickAmountInput, setQuickAmountInput] = useState<string>("");
+  const [quickDescriptionInput, setQuickDescriptionInput] = useState<string>("");
+  const [savingAdjustment, setSavingAdjustment] = useState<boolean>(false);
+
   // Carregar Dados Consolidados
   const loadData = async (active = true) => {
     try {
@@ -524,7 +631,32 @@ export default function GestaoCaixaContasPage() {
       const data = await getGestaoCaixaPageDataAction(selectedYear);
       if (!active) return;
       const loadedAccounts = (data.accounts?.length > 0 ? data.accounts : data.contasBancarias) || [];
-      setAccounts(loadedAccounts.length > 0 ? loadedAccounts : DEFAULT_INITIAL_ACCOUNTS);
+      if (loadedAccounts.length > 0) {
+        setAccounts((prev) => {
+          return loadedAccounts.map((a: any) => {
+            const existing = prev.find((p) => p.id === a.id);
+            const bankStyle = getBankStyle(a.bankName || a.title);
+            const bal = (existing && existing.history && existing.history.length > 0)
+              ? Number(existing.balance ?? existing.saldoAtual ?? 0)
+              : Number(a.saldoAtual ?? a.balance ?? 0);
+            return {
+              ...a,
+              id: a.id,
+              name: a.bankName || a.title || "Conta Bancária",
+              bankName: a.bankName || a.title || "Conta Bancária",
+              title: a.title || a.bankName || "Conta Bancária",
+              balance: bal,
+              saldoAtual: bal,
+              color: bankStyle.iconBg,
+              initials: bankStyle.initials,
+              holder: a.holder || existing?.holder,
+              history: existing?.history || [],
+            };
+          });
+        });
+      } else {
+        setAccounts((prev) => (prev.length > 0 ? prev : DEFAULT_INITIAL_ACCOUNTS));
+      }
 
       const allList = (data.allCommitments && data.allCommitments.length > 0)
         ? data.allCommitments
@@ -652,7 +784,7 @@ export default function GestaoCaixaContasPage() {
   // Saldo Geral consolidado
   const totalSaldoGeral = useMemo(() => {
     if (accounts.length > 0) {
-      return accounts.reduce((sum, a) => sum + Number(a.saldoAtual || 0), 0);
+      return accounts.reduce((sum, a) => sum + Number(a.balance ?? a.saldoAtual ?? 0), 0);
     }
     return totals.totalRealBalance || 0;
   }, [accounts, totals.totalRealBalance]);
@@ -1120,6 +1252,206 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
+  // Handlers: Gerenciar Saldo da Conta Bancária
+  const handleOpenManageModal = (acc: any) => {
+    setManagingAccount(acc);
+    setManageTab("AJUSTAR");
+    setAdjustMode("EXATO");
+    const currentVal = Number(acc.balance ?? acc.saldoAtual ?? 0);
+    setExactBalanceInput(String(currentVal));
+    setExactReasonInput("");
+    setQuickAdjustType("ENTRADA");
+    setQuickAmountInput("");
+    setQuickDescriptionInput("");
+  };
+
+  const handleConfirmExactBalance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingAccount) return;
+
+    const targetExact = parseFloat(exactBalanceInput.replace(",", "."));
+    if (isNaN(targetExact)) {
+      showAlert("Informe um valor de saldo válido.", { variant: "warning" });
+      return;
+    }
+
+    const currentBal = Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0);
+    const diff = Math.round((targetExact - currentBal) * 100) / 100;
+
+    if (diff === 0) {
+      showAlert("O saldo digitado é idêntico ao saldo atual da conta.", { variant: "info" });
+      return;
+    }
+
+    setSavingAdjustment(true);
+    try {
+      const now = new Date();
+      const dateFormatted = now.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const newRecord: BalanceAdjustmentRecord = {
+        id: `adj-${Date.now()}`,
+        date: dateFormatted,
+        type: "AJUSTE",
+        amount: Math.abs(diff),
+        diff,
+        description: exactReasonInput.trim() || `Ajuste manual para saldo exato (${formatBRL(targetExact)})`,
+        previousBalance: currentBal,
+        resultingBalance: targetExact,
+      };
+
+      const updatedAccount = {
+        ...managingAccount,
+        balance: targetExact,
+        saldoAtual: targetExact,
+        history: [newRecord, ...(managingAccount.history || [])],
+      };
+
+      // Atualização Reativa Imediata do Dashboard
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+      );
+      setManagingAccount(updatedAccount);
+      setExactReasonInput("");
+
+      showAlert(`Saldo de ${managingAccount.bankName || managingAccount.title || managingAccount.name} atualizado para ${formatBRL(targetExact)}!`, { variant: "success" });
+
+      if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
+        const isEntrada = diff > 0;
+        const todayYmd = new Date().toISOString().split("T")[0];
+        await recordBankAccountMovementAction({
+          contaId: managingAccount.id,
+          valor: Math.abs(diff),
+          dataOperacao: todayYmd,
+          descricao: newRecord.description,
+          tipoOperacao: isEntrada ? "ENTRADA" : "SAIDA",
+        }).catch((err) => console.error("Erro ao sincronizar saldo no banco:", err));
+      }
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao atualizar saldo.", { variant: "error" });
+    } finally {
+      setSavingAdjustment(false);
+    }
+  };
+
+  const handleConfirmQuickAdjust = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingAccount) return;
+
+    const val = parseFloat(quickAmountInput.replace(",", "."));
+    if (isNaN(val) || val <= 0) {
+      showAlert("Informe um valor válido maior que zero.", { variant: "warning" });
+      return;
+    }
+
+    const currentBal = Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0);
+    const diff = quickAdjustType === "ENTRADA" ? val : -val;
+    const resulting = Math.round((currentBal + diff) * 100) / 100;
+
+    setSavingAdjustment(true);
+    try {
+      const now = new Date();
+      const dateFormatted = now.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+      const newRecord: BalanceAdjustmentRecord = {
+        id: `adj-${Date.now()}`,
+        date: dateFormatted,
+        type: quickAdjustType,
+        amount: val,
+        diff,
+        description: quickDescriptionInput.trim() || (quickAdjustType === "ENTRADA" ? "Adição rápida de saldo" : "Abatimento / Retirada rápida"),
+        previousBalance: currentBal,
+        resultingBalance: resulting,
+      };
+
+      const updatedAccount = {
+        ...managingAccount,
+        balance: resulting,
+        saldoAtual: resulting,
+        history: [newRecord, ...(managingAccount.history || [])],
+      };
+
+      // Atualização Reativa Imediata do Dashboard
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+      );
+      setManagingAccount(updatedAccount);
+      setQuickAmountInput("");
+      setQuickDescriptionInput("");
+
+      showAlert(`Ajuste de ${quickAdjustType === "ENTRADA" ? "+" : "-"}${formatBRL(val)} realizado com sucesso!`, { variant: "success" });
+
+      if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
+        const todayYmd = new Date().toISOString().split("T")[0];
+        await recordBankAccountMovementAction({
+          contaId: managingAccount.id,
+          valor: val,
+          dataOperacao: todayYmd,
+          descricao: newRecord.description,
+          tipoOperacao: quickAdjustType,
+        }).catch((err) => console.error("Erro ao sincronizar ajuste no banco:", err));
+      }
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao realizar ajuste de saldo.", { variant: "error" });
+    } finally {
+      setSavingAdjustment(false);
+    }
+  };
+
+  const handleDeleteHistoryRecord = async (recordId: string) => {
+    if (!managingAccount) return;
+    const targetRecord = (managingAccount.history || []).find((r: any) => r.id === recordId);
+    if (!targetRecord) return;
+
+    const currentBal = Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0);
+    // Reversão do valor: inverte o sinal do diff
+    const revertedBalance = Math.round((currentBal - targetRecord.diff) * 100) / 100;
+    const updatedHistory = (managingAccount.history || []).filter((r: any) => r.id !== recordId);
+
+    const updatedAccount = {
+      ...managingAccount,
+      balance: revertedBalance,
+      saldoAtual: revertedBalance,
+      history: updatedHistory,
+    };
+
+    setAccounts((prev) =>
+      prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+    );
+    setManagingAccount(updatedAccount);
+
+    showAlert("Ajuste excluído e saldo revertido com sucesso!", { variant: "info" });
+
+    if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
+      try {
+        const wasEntrada = targetRecord.diff > 0;
+        const todayYmd = new Date().toISOString().split("T")[0];
+        await recordBankAccountMovementAction({
+          contaId: managingAccount.id,
+          valor: Math.abs(targetRecord.diff),
+          dataOperacao: todayYmd,
+          descricao: `Reversão: ${targetRecord.description}`,
+          tipoOperacao: wasEntrada ? "SAIDA" : "ENTRADA",
+        }).catch((err) => console.error("Erro ao reverter no backend:", err));
+      } catch (err: any) {
+        console.error("Erro ao reverter no backend:", err);
+      }
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 min-h-screen text-slate-800 dark:text-slate-100 font-sans">
       {/* ── 1. TOPO DA PÁGINA: NAVEGAÇÃO & CARDS ───────────────────────────── */}
@@ -1205,7 +1537,7 @@ export default function GestaoCaixaContasPage() {
               Contas Correntes
             </h2>
             <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
-              (Clique para filtrar contas fixas)
+              (Clique para gerenciar saldo e ver histórico)
             </span>
           </div>
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full">
@@ -1227,22 +1559,17 @@ export default function GestaoCaixaContasPage() {
             </div>
           ) : (
             accounts.map((acc) => {
-              const bankStyle = getBankStyle(acc.bankName || acc.title);
-              const bName = acc.bankName || acc.title || "";
-              const isSelected = selectedBankFilter.toLowerCase() === bName.toLowerCase();
+              const bankStyle = getBankStyle(acc.bankName || acc.title || acc.name);
+              const bName = acc.bankName || acc.title || acc.name || "";
+              const currentBal = Number(acc.balance ?? acc.saldoAtual ?? 0);
+              const isSelectedFilter = selectedBankFilter.toLowerCase() === bName.toLowerCase();
 
               return (
                 <div
                   key={acc.id}
-                  onClick={() => {
-                    setSelectedBankFilter((prev) => (prev.toLowerCase() === bName.toLowerCase() ? "ALL" : bName));
-                  }}
-                  className={`px-5 py-3.5 flex items-center justify-between transition-colors cursor-pointer select-none ${
-                    isSelected
-                      ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-l-4 border-emerald-500"
-                      : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-                  }`}
-                  title={isSelected ? "Clique para remover filtro" : `Clique para filtrar contas de ${bName}`}
+                  onClick={() => handleOpenManageModal(acc)}
+                  className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors cursor-pointer select-none group"
+                  title={`Clique para gerenciar saldo de ${bName}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${bankStyle.iconBg} shadow-sm shrink-0`}>
@@ -1250,10 +1577,10 @@ export default function GestaoCaixaContasPage() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                           {bName}
                         </p>
-                        {isSelected && (
+                        {isSelectedFilter && (
                           <span className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
                             Filtrado
                           </span>
@@ -1261,15 +1588,30 @@ export default function GestaoCaixaContasPage() {
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         {acc.holder ? `Titular: ${acc.holder}` : "Conta Corrente"}
+                        {acc.history && acc.history.length > 0 && (
+                          <span className="ml-1.5 text-slate-400 dark:text-slate-500">
+                            • {acc.history.length} {acc.history.length === 1 ? "ajuste" : "ajustes"}
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className={`font-bold text-sm ${Number(acc.saldoAtual || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
-                      {formatBRL(Number(acc.saldoAtual || 0))}
+                    <span className={`font-bold text-sm ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                      {formatBRL(currentBal)}
                     </span>
-                    <ChevronRight size={16} className={isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-slate-300 dark:text-slate-600"} />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenManageModal(acc);
+                      }}
+                      className="p-1 rounded-lg text-slate-300 dark:text-slate-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer"
+                      title={`Gerenciar saldo de ${bName}`}
+                    >
+                      <ChevronRight size={18} />
+                    </button>
                   </div>
                 </div>
               );
@@ -2217,6 +2559,357 @@ export default function GestaoCaixaContasPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 11. MODAL: GERENCIAR SALDO DA CONTA BANCÁRIA ────────────────── */}
+      {managingAccount && (
+        <div
+          onClick={() => setManagingAccount(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
+          >
+            {/* Topo do Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${getBankStyle(managingAccount.bankName || managingAccount.title || managingAccount.name).iconBg} shadow-sm shrink-0`}>
+                  {getBankStyle(managingAccount.bankName || managingAccount.title || managingAccount.name).initials}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Gerenciar Saldo - {managingAccount.bankName || managingAccount.title || managingAccount.name}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    {managingAccount.holder ? `Titular: ${managingAccount.holder}` : "Conta Corrente"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManagingAccount(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer transition-colors"
+                title="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Card de Destaque: Saldo Atual da Conta */}
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 mb-4 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Saldo Atual Disponível
+                </span>
+                <p className={`text-2xl font-black mt-0.5 ${Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {formatBRL(Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 block">
+                  Saldo Geral Atual
+                </span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {formatBRL(totalSaldoGeral)}
+                </span>
+              </div>
+            </div>
+
+            {/* Abas Principais: Aba 1: Ajustar Saldo | Aba 2: Histórico de Ajustes */}
+            <div className="flex border-b border-slate-200 dark:border-slate-800 mb-4">
+              <button
+                type="button"
+                onClick={() => setManageTab("AJUSTAR")}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  manageTab === "AJUSTAR"
+                    ? "border-emerald-600 text-emerald-600 dark:text-emerald-400"
+                    : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                }`}
+              >
+                <SlidersHorizontal size={14} />
+                <span>Ajustar Saldo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setManageTab("HISTORICO")}
+                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                  manageTab === "HISTORICO"
+                    ? "border-emerald-600 text-emerald-600 dark:text-emerald-400"
+                    : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                }`}
+              >
+                <History size={14} />
+                <span>Histórico de Ajustes</span>
+                {(managingAccount.history?.length || 0) > 0 && (
+                  <span className="ml-1 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 rounded-full font-bold">
+                    {managingAccount.history.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* CONTEÚDO DA ABA 1: AJUSTAR SALDO */}
+            {manageTab === "AJUSTAR" && (
+              <div className="space-y-4">
+                {/* Sub-tabs / Modo de Ajuste */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setAdjustMode("EXATO")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      adjustMode === "EXATO"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <Equal size={14} />
+                    <span>1. Definir Saldo Exato</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustMode("RAPIDO")}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                      adjustMode === "RAPIDO"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                    }`}
+                  >
+                    <Plus size={14} />
+                    <span>2. Ajuste Rápido (+ / -)</span>
+                  </button>
+                </div>
+
+                {/* MODO 1: DEFINIR SALDO EXATO */}
+                {adjustMode === "EXATO" && (
+                  <form onSubmit={handleConfirmExactBalance} className="space-y-3.5">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Digite o saldo final que está aparecendo no aplicativo do banco (ex: R$ 71,04). O Kamael calculará a diferença e registrará no histórico automaticamente.
+                    </p>
+
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                        Novo Saldo Final no App do Banco (R$)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                          R$
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={exactBalanceInput}
+                          onChange={(e) => setExactBalanceInput(e.target.value)}
+                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2.5 rounded-xl text-base font-bold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Indicador de Diferença Calculada */}
+                    {exactBalanceInput !== "" && !isNaN(parseFloat(exactBalanceInput)) && (
+                      <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+                        parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0
+                          ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
+                          : "bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-300"
+                      }`}>
+                        <span className="font-medium">Diferença calculada:</span>
+                        <span className="font-bold tabular-nums">
+                          {parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "+" : ""}
+                          {formatBRL(parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                        Motivo / Observação (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Conferência do app Santander, extrato do dia..."
+                        value={exactReasonInput}
+                        onChange={(e) => setExactReasonInput(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={savingAdjustment || exactBalanceInput === ""}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+                    >
+                      {savingAdjustment ? "Salvando..." : "Atualizar para este Saldo"}
+                    </button>
+                  </form>
+                )}
+
+                {/* MODO 2: AJUSTE RÁPIDO (+ / -) */}
+                {adjustMode === "RAPIDO" && (
+                  <form onSubmit={handleConfirmQuickAdjust} className="space-y-3.5">
+                    {/* Botões rápidos: Adicionar (+) ou Abater (-) */}
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1.5">
+                        Operação
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setQuickAdjustType("ENTRADA")}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                            quickAdjustType === "ENTRADA"
+                              ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500"
+                          }`}
+                        >
+                          <ArrowDownRight size={16} />
+                          <span>+ Adicionar (+)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setQuickAdjustType("SAIDA")}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                            quickAdjustType === "SAIDA"
+                              ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-500"
+                          }`}
+                        >
+                          <ArrowUpRight size={16} />
+                          <span>- Abater / Retirar (-)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                        Valor do Ajuste (R$)
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                          R$
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0,00"
+                          value={quickAmountInput}
+                          onChange={(e) => setQuickAmountInput(e.target.value)}
+                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2.5 rounded-xl text-base font-bold focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Prévia do Saldo Resultante */}
+                    {quickAmountInput !== "" && !isNaN(parseFloat(quickAmountInput)) && (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-xs flex items-center justify-between">
+                        <span className="text-slate-500">Saldo Resultante:</span>
+                        <span className="font-bold text-slate-900 dark:text-white tabular-nums">
+                          {formatBRL(
+                            Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) +
+                              (quickAdjustType === "ENTRADA" ? parseFloat(quickAmountInput) : -parseFloat(quickAmountInput))
+                          )}
+                        </span>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                        Motivo / Descrição Curta (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ex: Pix almoço, Entrada extra, Saque caixa 24h..."
+                        value={quickDescriptionInput}
+                        onChange={(e) => setQuickDescriptionInput(e.target.value)}
+                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={savingAdjustment || quickAmountInput === ""}
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
+                    >
+                      {savingAdjustment ? "Salvando..." : "Confirmar Ajuste"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {/* CONTEÚDO DA ABA 2: HISTÓRICO DE AJUSTES */}
+            {manageTab === "HISTORICO" && (
+              <div className="space-y-3">
+                {(!managingAccount.history || managingAccount.history.length === 0) ? (
+                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-xs space-y-1">
+                    <History className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" />
+                    <p className="font-semibold text-slate-600 dark:text-slate-400">Nenhum ajuste registrado ainda.</p>
+                    <p className="text-[11px]">Os ajustes feitos nesta conta aparecerão aqui com data e hora.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto pr-1 space-y-2">
+                    {managingAccount.history.map((record: any) => {
+                      const isEntrada = record.diff > 0 || record.type === "ENTRADA";
+
+                      return (
+                        <div
+                          key={record.id}
+                          className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 flex items-start justify-between gap-3"
+                        >
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                                  record.type === "AJUSTE"
+                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60"
+                                    : isEntrada
+                                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                                    : "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                                }`}
+                              >
+                                {record.type === "AJUSTE" ? "Ajuste Manual" : isEntrada ? "+ Entrada" : "- Saída"}
+                              </span>
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                {record.date}
+                              </span>
+                            </div>
+
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                              {record.description}
+                            </p>
+
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
+                              <span>
+                                Valor: <strong className={isEntrada ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-rose-600 dark:text-rose-400 font-bold"}>
+                                  {isEntrada ? "+" : ""}{formatBRL(record.diff ?? record.amount)}
+                                </strong>
+                              </span>
+                              <span>•</span>
+                              <span>
+                                Saldo resultante: <strong className="font-semibold text-slate-700 dark:text-slate-300">{formatBRL(record.resultingBalance)}</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteHistoryRecord(record.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
+                            title="Excluir este ajuste e reverter o saldo"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
