@@ -326,31 +326,7 @@ export default function ReceitasPage() {
   const [formSkipDeduction, setFormSkipDeduction] = useState(false);
 
   const checkAndSuggestSalaryCompetence = (dateStr: string, desc: string, cat?: string) => {
-    if (!dateStr) return;
-    const isSalary = (cat && cat.toLowerCase().includes("salário")) ||
-                     (desc && desc.toLowerCase().includes("salário")) ||
-                     (desc && desc.toLowerCase().includes("salario"));
-    
-    if (isSalary) {
-      const parts = dateStr.split("-");
-      if (parts.length >= 3) {
-        const y = Number(parts[0]);
-        const m = Number(parts[1]);
-        const d = Number(parts[2]);
-        if (d >= 1 && d <= 10) {
-          let prevMonth = m - 1;
-          let prevYear = y;
-          if (prevMonth < 1) {
-            prevMonth = 12;
-            prevYear = y - 1;
-          }
-          setFormCompetenceMonth(prevMonth);
-          setFormCompetenceYear(prevYear);
-          setCompetenceSuggested(true);
-          return;
-        }
-      }
-    }
+    // Mantém a competência sempre sincronizada com o mês que o usuário está visualizando para evitar que a receita suma
     setCompetenceSuggested(false);
   };
 
@@ -521,13 +497,10 @@ export default function ReceitasPage() {
     const defaultDate = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-05`;
     setFormDate(defaultDate);
     
-    // Sugere competência do mês trabalhado anterior para salário recebido no dia 5
-    let compM = selectedMonth - 1;
-    let compY = selectedYear;
-    if (compM < 1) { compM = 12; compY = selectedYear - 1; }
-    setFormCompetenceMonth(compM);
-    setFormCompetenceYear(compY);
-    setCompetenceSuggested(true);
+    // Mantém a competência no mês selecionado atual
+    setFormCompetenceMonth(selectedMonth);
+    setFormCompetenceYear(selectedYear);
+    setCompetenceSuggested(false);
 
     const validWallets = wallets.filter(w => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && !isBenefitWallet(w.walletType));
     const benefitWallets = wallets.filter(w => isBenefitWallet(w.walletType));
