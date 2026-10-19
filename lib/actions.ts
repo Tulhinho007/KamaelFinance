@@ -10831,7 +10831,9 @@ export async function getMonthlyCommitmentsAction(
       statusLabel: isPaid ? "Pago" : "Pendente",
       formaPagamentoLabel,
       walletId: t.walletId,
-      walletTitle: t.wallet?.title || "Conta",
+      walletTitle: t.wallet?.title || t.wallet?.bankName || "Conta",
+      wallet: t.wallet ? { id: t.wallet.id, title: t.wallet.title, bankName: t.wallet.bankName } : undefined,
+      bank: t.wallet?.bankName || t.wallet?.title || "Santander",
       paidAt: t.paymentDate ? safeIsoDate(t.paymentDate) : null,
     };
   });
@@ -10970,6 +10972,7 @@ export async function getMonthlyCommitmentsAction(
           : "-",
         walletId: card.id,
         walletTitle: cardName,
+        bank: cardName,
         paidAt: paidRecord?.paidAt ? safeIsoDate(paidRecord.paidAt) : null,
       });
     }
@@ -11004,6 +11007,7 @@ export async function createCommitmentAction(input: {
   competenceMonth?: number;
   competenceYear?: number;
   walletId?: string;
+  bank?: string;
   categoryName?: string;
 }) {
   const userId = await getActiveUserId();
@@ -11012,6 +11016,16 @@ export async function createCommitmentAction(input: {
   if (input.walletId) {
     targetWallet = await prisma.wallet.findFirst({
       where: { id: input.walletId, userId },
+    });
+  } else if (input.bank?.trim()) {
+    targetWallet = await prisma.wallet.findFirst({
+      where: {
+        userId,
+        OR: [
+          { title: { contains: input.bank.trim(), mode: "insensitive" } },
+          { bankName: { contains: input.bank.trim(), mode: "insensitive" } },
+        ],
+      },
     });
   }
 

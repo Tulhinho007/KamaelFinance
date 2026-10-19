@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Building2,
+  Home,
   Wallet,
   Receipt,
   Plus,
@@ -23,6 +24,16 @@ import {
   Wifi,
   Activity,
   Calendar,
+  Zap,
+  Smartphone,
+  Trophy,
+  FileText,
+  Droplet,
+  Car,
+  ShoppingCart,
+  Utensils,
+  HeartPulse,
+  GraduationCap,
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -100,7 +111,7 @@ const DEFAULT_INITIAL_ACCOUNTS = [
 const DEFAULT_INITIAL_BILLS = [
   {
     id: "mock-bill-1",
-    description: "Treino Futevôlei",
+    description: "Treino - Futevôlei",
     amount: 150.0,
     category: "Lazer & Esporte (Futevôlei, etc.)",
     tipoLabel: "Assinatura / Mensalidade",
@@ -109,11 +120,12 @@ const DEFAULT_INITIAL_BILLS = [
     dueDay: 10,
     competenceMonth: 10,
     competenceYear: 2026,
+    bank: "Santander",
     status: "PENDING",
   },
   {
     id: "mock-bill-2",
-    description: "Internet Tim",
+    description: "Internet Tim Live",
     amount: 119.9,
     category: "Internet & TV",
     tipoLabel: "Boleto / Conta Fixa",
@@ -122,55 +134,251 @@ const DEFAULT_INITIAL_BILLS = [
     dueDay: 15,
     competenceMonth: 9,
     competenceYear: 2026,
+    bank: "Santander",
     status: "PENDING",
   },
   {
     id: "mock-bill-3",
-    description: "Fatura Santander",
+    description: "2 Parcela Fonte Bira",
     amount: 820.0,
-    category: "Fatura de Cartão",
-    tipoLabel: "Fatura de Cartão",
+    category: "Parcela / Financiamento",
+    tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
     startMonth: 10,
     dueDay: 20,
     competenceMonth: 10,
     competenceYear: 2026,
+    bank: "Picpay",
     status: "PENDING",
   },
   {
     id: "mock-bill-4",
-    description: "Aluguel & Condomínio",
-    amount: 1600.0,
-    category: "Moradia & Aluguel",
+    description: "Energia Elétrica - Luz",
+    amount: 280.0,
+    category: "Energia Elétrica",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
     startMonth: 1,
     dueDay: 5,
     competenceMonth: 1,
     competenceYear: 2026,
+    bank: "Santander",
     status: "PENDING",
   },
 ];
 
-// Helper para ícones visuais modernos por categoria ou nome
+// Helper para ícones visuais modernos e contextuais por descrição ou categoria
 const getBillIcon = (title: string, category?: string, tipo?: string) => {
   const text = `${title} ${category || ""} ${tipo || ""}`.toLowerCase();
-  if (text.includes("fatura") || text.includes("cartão") || text.includes("cartao")) {
-    return CreditCard;
+  
+  // 1. Energia / Luz
+  if (
+    text.includes("luz") ||
+    text.includes("energia") ||
+    text.includes("eletric") ||
+    text.includes("enel") ||
+    text.includes("cpfl") ||
+    text.includes("cemig") ||
+    text.includes("ceb") ||
+    text.includes("light") ||
+    text.includes("neoenergia")
+  ) {
+    return Zap;
   }
-  if (text.includes("internet") || text.includes("wifi") || text.includes("fibra") || text.includes("banda")) {
+
+  // 2. Telefonia / Celular / Tim / Claro / Vivo
+  if (
+    text.includes("tim") ||
+    text.includes("claro") ||
+    text.includes("vivo") ||
+    text.includes("oi ") ||
+    text.includes("celular") ||
+    text.includes("telefone") ||
+    text.includes("telefonia")
+  ) {
+    return Smartphone;
+  }
+
+  // 3. Internet / Wifi / Banda Larga / Streaming
+  if (
+    text.includes("internet") ||
+    text.includes("wifi") ||
+    text.includes("fibra") ||
+    text.includes("banda") ||
+    text.includes("streaming") ||
+    text.includes("netflix") ||
+    text.includes("spotify")
+  ) {
     return Wifi;
   }
-  if (text.includes("futebol") || text.includes("futevôlei") || text.includes("futevolei") || text.includes("esporte") || text.includes("academia")) {
-    return Activity;
+
+  // 4. Esporte / Futevôlei / Futebol / Academia / Treino
+  if (
+    text.includes("futebol") ||
+    text.includes("futevôlei") ||
+    text.includes("futevolei") ||
+    text.includes("treino") ||
+    text.includes("esporte") ||
+    text.includes("academia") ||
+    text.includes("crossfit") ||
+    text.includes("natação") ||
+    text.includes("natacao")
+  ) {
+    return Trophy;
   }
-  if (text.includes("aluguel") || text.includes("condomínio") || text.includes("condominio") || text.includes("moradia")) {
+
+  // 5. Cartão de Crédito / Faturas
+  if (
+    text.includes("fatura") ||
+    text.includes("cartão") ||
+    text.includes("cartao") ||
+    text.includes("credit") ||
+    text.includes("card")
+  ) {
+    return CreditCard;
+  }
+
+  // 6. Parcelas / Financiamentos / Empréstimos / Contratos / Fonte
+  if (
+    text.includes("parcela") ||
+    text.includes("fonte") ||
+    text.includes("bira") ||
+    text.includes("financiamento") ||
+    text.includes("empréstimo") ||
+    text.includes("emprestimo") ||
+    text.includes("contrato") ||
+    text.includes("iptu") ||
+    text.includes("ipva")
+  ) {
+    return FileText;
+  }
+
+  // 7. Aluguel & Moradia / Condomínio
+  if (
+    text.includes("aluguel") ||
+    text.includes("condomínio") ||
+    text.includes("condominio") ||
+    text.includes("moradia") ||
+    text.includes("imobili") ||
+    text.includes("apto") ||
+    text.includes("apartamento")
+  ) {
     return Building2;
   }
-  if (text.includes("luz") || text.includes("energia") || text.includes("cpfl") || text.includes("enel") || text.includes("cemig")) {
-    return Receipt;
+
+  // 8. Água / Saneamento
+  if (
+    text.includes("água") ||
+    text.includes("agua") ||
+    text.includes("saneamento") ||
+    text.includes("sabesp") ||
+    text.includes("cedae") ||
+    text.includes("copasa")
+  ) {
+    return Droplet;
   }
+
+  // 9. Veículo / Transporte / Combustível
+  if (
+    text.includes("carro") ||
+    text.includes("combustível") ||
+    text.includes("combustivel") ||
+    text.includes("gasolina") ||
+    text.includes("uber") ||
+    text.includes("transporte") ||
+    text.includes("mecânic") ||
+    text.includes("mecanic")
+  ) {
+    return Car;
+  }
+
+  // 10. Mercado / Compras
+  if (
+    text.includes("mercado") ||
+    text.includes("supermercado") ||
+    text.includes("feira") ||
+    text.includes("compras")
+  ) {
+    return ShoppingCart;
+  }
+
+  // 11. Alimentação / Refeição
+  if (
+    text.includes("aliment") ||
+    text.includes("refeição") ||
+    text.includes("refeicao") ||
+    text.includes("restaurante") ||
+    text.includes("ifood")
+  ) {
+    return Utensils;
+  }
+
+  // 12. Saúde & Farmácia
+  if (
+    text.includes("saúde") ||
+    text.includes("saude") ||
+    text.includes("médic") ||
+    text.includes("medic") ||
+    text.includes("unimed") ||
+    text.includes("farmácia") ||
+    text.includes("farmacia") ||
+    text.includes("remédio") ||
+    text.includes("remedio") ||
+    text.includes("odonto")
+  ) {
+    return HeartPulse;
+  }
+
+  // 13. Educação
+  if (
+    text.includes("educa") ||
+    text.includes("faculdade") ||
+    text.includes("escola") ||
+    text.includes("curso") ||
+    text.includes("colégio") ||
+    text.includes("colegio")
+  ) {
+    return GraduationCap;
+  }
+
   return Calendar;
+};
+
+// Helper para obter o nome limpo e elegante do banco vinculado a uma conta fixa
+const getBillBankName = (bill: any, accountsList: any[] = []): string => {
+  if (bill.bank) return bill.bank;
+  if (bill.wallet?.bankName) return bill.wallet.bankName;
+  if (bill.wallet?.title && bill.wallet.title !== "Conta Principal") return bill.wallet.title;
+  if (bill.walletTitle && bill.walletTitle !== "Conta Principal") return bill.walletTitle;
+
+  if (bill.walletId) {
+    const match = accountsList.find((a) => a.id === bill.walletId);
+    if (match) {
+      const name = match.bankName || match.banco || match.title;
+      if (name && name !== "Conta Principal") return name;
+    }
+  }
+
+  const d = (bill.description || "").toLowerCase();
+  if (d.includes("santander")) return "Santander";
+  if (d.includes("picpay")) return "Picpay";
+  if (d.includes("nubank") || d.includes("nu ")) return "Nubank";
+  if (d.includes("inter")) return "Inter";
+  if (d.includes("itaú") || d.includes("itau")) return "Itaú";
+  if (d.includes("bradesco")) return "Bradesco";
+  if (d.includes("brasil") || d.includes("bb")) return "Banco do Brasil";
+
+  for (const acc of accountsList) {
+    const bName = acc.bankName || acc.banco || acc.title;
+    if (bName && bName !== "Conta Principal" && d.includes(bName.toLowerCase())) return bName;
+  }
+
+  if (accountsList.length > 0) {
+    const firstName = accountsList[0].bankName || accountsList[0].banco || accountsList[0].title;
+    if (firstName && firstName !== "Conta Principal") return firstName;
+  }
+
+  return "Santander";
 };
 
 // Cores e Iniciais elegantes para os bancos cadastrados
@@ -255,6 +463,7 @@ export default function GestaoCaixaContasPage() {
 
   // Filtros de Busca e Seleção
   const [agendaSearch, setAgendaSearch] = useState("");
+  const [selectedBankFilter, setSelectedBankFilter] = useState<string>("ALL");
   const [selectedCommitmentIds, setSelectedCommitmentIds] = useState<string[]>([]);
   const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
@@ -448,7 +657,29 @@ export default function GestaoCaixaContasPage() {
     return totals.totalRealBalance || 0;
   }, [accounts, totals.totalRealBalance]);
 
-  // Lista filtrada de contas fixas projetadas
+  // Lista de bancos disponíveis para o filtro rápido
+  const allRegisteredWallets = useMemo(() => {
+    return accounts.length > 0 ? accounts : contasBancarias;
+  }, [accounts, contasBancarias]);
+
+  const availableBankNames = useMemo(() => {
+    const set = new Set<string>();
+    allRegisteredWallets.forEach((w) => {
+      const name = w.bankName || w.banco || w.title;
+      if (name && name !== "Conta Principal") set.add(name);
+    });
+    bills.forEach((b) => {
+      const bank = getBillBankName(b, allRegisteredWallets);
+      if (bank && bank !== "Conta Principal") set.add(bank);
+    });
+    if (set.size === 0) {
+      set.add("Santander");
+      set.add("Picpay");
+    }
+    return Array.from(set).sort();
+  }, [allRegisteredWallets, bills]);
+
+  // Lista filtrada de contas fixas projetadas (por mês, busca e banco selecionado)
   const filteredBills = useMemo(() => {
     return bills.filter((item) => {
       // Se for fatura de cartão específica e estiver num mês diferente, não exibe
@@ -456,21 +687,58 @@ export default function GestaoCaixaContasPage() {
         return false;
       }
 
+      // Filtro por Banco selecionado
+      if (selectedBankFilter !== "ALL") {
+        const bank = getBillBankName(item, allRegisteredWallets);
+        if (bank.toLowerCase() !== selectedBankFilter.toLowerCase()) {
+          return false;
+        }
+      }
+
       if (!agendaSearch.trim()) return true;
       const q = agendaSearch.toLowerCase().trim();
+      const bank = getBillBankName(item, allRegisteredWallets).toLowerCase();
+      const matchBank = bank.includes(q);
       const matchDesc = (item.description || "").toLowerCase().includes(q);
       const matchType = (item.tipoLabel || "").toLowerCase().includes(q);
       const matchCat = (item.category || "").toLowerCase().includes(q);
       const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
-      return matchDesc || matchType || matchCat || matchRef;
+      return matchDesc || matchType || matchCat || matchRef || matchBank;
     }).slice().sort((a, b) => {
       const dayA = getBillStartMonthAndDay(a).dueDay;
       const dayB = getBillStartMonthAndDay(b).dueDay;
       return dayA - dayB;
     });
-  }, [bills, selectedMonth, agendaSearch, selectedYear]);
+  }, [bills, selectedMonth, selectedBankFilter, agendaSearch, selectedYear, allRegisteredWallets]);
 
-  // Total das contas pendentes no mês selecionado (contas anteriores ao início NÃO somam)
+  // Total das contas pendentes no mês selecionado (geral para cálculo da Sobra Prevista)
+  const monthPendingBillsTotal = useMemo(() => {
+    return bills
+      .filter((b) => {
+        if (selectedMonth !== "ALL" && b.isCardInvoice && b.competenceMonth && b.competenceMonth !== selectedMonth) {
+          return false;
+        }
+        const { startMonth } = getBillStartMonthAndDay(b);
+        if (selectedMonth !== "ALL") {
+          if (selectedMonth < startMonth) return false;
+          const isPaid = Boolean(
+            paidByMonth[`${b.id}_${selectedMonth}`] ??
+            (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
+          );
+          return !isPaid;
+        } else {
+          const m = b.competenceMonth || startMonth || currentMonthNum;
+          const isPaid = Boolean(
+            paidByMonth[`${b.id}_${m}`] ??
+            (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
+          );
+          return !isPaid;
+        }
+      })
+      .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  }, [bills, selectedMonth, paidByMonth, currentMonthNum]);
+
+  // Total das contas pendentes filtradas para exibição no card de A Pagar da tabela
   const pendingBillsTotal = useMemo(() => {
     return filteredBills
       .filter((b) => {
@@ -495,8 +763,8 @@ export default function GestaoCaixaContasPage() {
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum]);
 
-  // Sobra prevista após contas pendentes
-  const sobraPrevista = totalSaldoGeral - pendingBillsTotal;
+  // Sobra prevista após contas pendentes (com saldo geral)
+  const sobraPrevista = totalSaldoGeral - monthPendingBillsTotal;
 
   // Navegação de mês
   const handlePrevMonth = () => {
@@ -694,7 +962,9 @@ export default function GestaoCaixaContasPage() {
       const finalDueDate = `${selectedYear}-${String(chosenMonth).padStart(2, "0")}-${String(chosenDay).padStart(2, "0")}`;
       const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory)?.trim() || "Moradia & Aluguel";
       const availableWallets = accounts.length > 0 ? accounts : contasBancarias;
-      const chosenWalletId = newCommitmentWalletId || (availableWallets[0]?.id ?? undefined);
+      const chosenWallet = availableWallets.find((w: any) => w.id === newCommitmentWalletId) || availableWallets[0];
+      const chosenWalletId = chosenWallet?.id ?? undefined;
+      const chosenBankName = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
 
       await createCommitmentAction({
         description: finalDesc,
@@ -702,6 +972,7 @@ export default function GestaoCaixaContasPage() {
         dueDate: finalDueDate,
         categoryName: finalCategory,
         walletId: chosenWalletId,
+        bank: chosenBankName,
         tipo: "BOLETO",
         recorrencia: "MENSAL",
         competenceMonth: chosenMonth,
@@ -721,6 +992,9 @@ export default function GestaoCaixaContasPage() {
         dueDay: chosenDay,
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
+        walletId: chosenWalletId,
+        walletTitle: chosenBankName,
+        bank: chosenBankName,
         status: "PENDING",
       };
       setBills((prev) => [newLocalItem, ...prev]);
@@ -794,6 +1068,9 @@ export default function GestaoCaixaContasPage() {
       const finalAmount = Number(editAmount) || 0;
       const finalDueDate = editDueDate || `${selectedYear}-${String(currentMonthNum).padStart(2, "0")}-10`;
 
+      const chosenWallet = (accounts.length > 0 ? accounts : contasBancarias).find((w: any) => w.id === editWalletId);
+      const chosenBank = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
+
       if (!editItem.id.startsWith("mock-") && !editItem.id.startsWith("local-")) {
         await updateCommitmentAction({
           id: editItem.id,
@@ -809,7 +1086,7 @@ export default function GestaoCaixaContasPage() {
       setBills((prev) =>
         prev.map((b) =>
           b.id === editItem.id
-            ? { ...b, description: finalDesc, amount: finalAmount, dueDateInput: finalDueDate }
+            ? { ...b, description: finalDesc, amount: finalAmount, dueDateInput: finalDueDate, walletId: editWalletId, bank: chosenBank, walletTitle: chosenBank }
             : b
         )
       );
@@ -893,7 +1170,7 @@ export default function GestaoCaixaContasPage() {
           </h1>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
             Sobra prevista após contas pendentes:{" "}
-            <span className={`font-semibold ${sobraPrevista >= 0 ? "text-slate-700 dark:text-slate-300" : "text-rose-600 dark:text-rose-400"}`}>
+            <span className={`font-bold ${sobraPrevista >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
               {formatBRL(sobraPrevista)}
             </span>
           </p>
@@ -927,6 +1204,9 @@ export default function GestaoCaixaContasPage() {
             <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
               Contas Correntes
             </h2>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal">
+              (Clique para filtrar contas fixas)
+            </span>
           </div>
           <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full">
             {formatBRL(totalSaldoGeral)}
@@ -948,20 +1228,37 @@ export default function GestaoCaixaContasPage() {
           ) : (
             accounts.map((acc) => {
               const bankStyle = getBankStyle(acc.bankName || acc.title);
+              const bName = acc.bankName || acc.title || "";
+              const isSelected = selectedBankFilter.toLowerCase() === bName.toLowerCase();
 
               return (
                 <div
                   key={acc.id}
-                  className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                  onClick={() => {
+                    setSelectedBankFilter((prev) => (prev.toLowerCase() === bName.toLowerCase() ? "ALL" : bName));
+                  }}
+                  className={`px-5 py-3.5 flex items-center justify-between transition-colors cursor-pointer select-none ${
+                    isSelected
+                      ? "bg-emerald-50/80 dark:bg-emerald-950/30 border-l-4 border-emerald-500"
+                      : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
+                  }`}
+                  title={isSelected ? "Clique para remover filtro" : `Clique para filtrar contas de ${bName}`}
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${bankStyle.iconBg} shadow-sm shrink-0`}>
                       {bankStyle.initials}
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900 dark:text-white text-sm">
-                        {acc.bankName || acc.title}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                          {bName}
+                        </p>
+                        {isSelected && (
+                          <span className="text-[10px] bg-emerald-600 text-white font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Filtrado
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         {acc.holder ? `Titular: ${acc.holder}` : "Conta Corrente"}
                       </p>
@@ -972,7 +1269,7 @@ export default function GestaoCaixaContasPage() {
                     <span className={`font-bold text-sm ${Number(acc.saldoAtual || 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                       {formatBRL(Number(acc.saldoAtual || 0))}
                     </span>
-                    <ChevronRight size={16} className="text-slate-300 dark:text-slate-600" />
+                    <ChevronRight size={16} className={isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-slate-300 dark:text-slate-600"} />
                   </div>
                 </div>
               );
@@ -1006,72 +1303,27 @@ export default function GestaoCaixaContasPage() {
           </div>
         </div>
 
-        {/* ── 3. SELETOR DE MESES FLUIDO COM PILLS E NAVEGADOR ───────────── */}
+        {/* ── 3. SELETOR DE MESES FLUIDO COM PILLS E FILTRO DE BANCO ─────── */}
         <div className="px-5 py-3 border-b border-slate-100/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/20 space-y-2.5">
-          {/* Navegador com setas e nome do mês */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
+          {/* Ano centralizado acima da régua de botões dos meses */}
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Ano {selectedYear}
+            </span>
+
+            {selectedMonth !== currentMonthNum && (
               <button
                 type="button"
-                onClick={handlePrevMonth}
-                disabled={selectedMonth === 1}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
-                title="Mês anterior"
+                onClick={() => setSelectedMonth(currentMonthNum)}
+                className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
               >
-                <ChevronLeft size={16} />
+                Ir para Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})
               </button>
-
-              <span className="text-sm font-bold text-slate-800 dark:text-white min-w-[140px] text-center tracking-wide">
-                {selectedMonth === "ALL" ? `Ano Todo (${selectedYear})` : `${MONTH_NAMES_LIST[selectedMonth - 1]} / ${selectedYear}`}
-              </span>
-
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                disabled={selectedMonth === 12}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none cursor-pointer text-slate-600 dark:text-slate-300 transition-colors"
-                title="Próximo mês"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {selectedMonth !== currentMonthNum && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth(currentMonthNum)}
-                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
-                >
-                  Ir para Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})
-                </button>
-              )}
-
-              {/* Busca Rápida */}
-              <div className="relative w-44 sm:w-56">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={agendaSearch}
-                  onChange={(e) => setAgendaSearch(e.target.value)}
-                  placeholder="Buscar conta..."
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
-                />
-                {agendaSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setAgendaSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
           </div>
 
-          {/* Abas / Pills dos 12 meses do ano */}
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+          {/* Abas / Pills dos 12 meses do ano + Ano Todo */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {MONTH_TABS.map((m) => {
               const isSelected = selectedMonth === m.num;
               const isCurrent = m.num === currentMonthNum;
@@ -1114,6 +1366,61 @@ export default function GestaoCaixaContasPage() {
             >
               Ano Todo
             </button>
+          </div>
+
+          {/* Linha de Filtros: Filtro de Banco + Busca Rápida */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/40 dark:border-slate-800/40">
+            <div className="flex items-center gap-2">
+              {selectedBankFilter !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedBankFilter("ALL")}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100 transition-colors cursor-pointer"
+                  title="Clique para limpar filtro de banco"
+                >
+                  <span>Filtrado: {selectedBankFilter}</span>
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto w-full sm:w-auto">
+              {/* Filtro Rápido por Banco (Select simples) */}
+              <select
+                value={selectedBankFilter}
+                onChange={(e) => setSelectedBankFilter(e.target.value)}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium shadow-2xs"
+                title="Filtrar por Banco"
+              >
+                <option value="ALL">Todos os Bancos</option>
+                {availableBankNames.map((bName) => (
+                  <option key={bName} value={bName}>
+                    {bName}
+                  </option>
+                ))}
+              </select>
+
+              {/* Busca Rápida */}
+              <div className="relative flex-1 sm:w-52">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={agendaSearch}
+                  onChange={(e) => setAgendaSearch(e.target.value)}
+                  placeholder="Buscar conta..."
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors shadow-2xs"
+                />
+                {agendaSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setAgendaSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1199,39 +1506,43 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </td>
 
-                      {/* 2. Vencimento (Dia / Recorrência) */}
+                      {/* 2. Vencimento (Dia simples e direto) */}
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
                         {isPriorToStart ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-200/60 dark:border-slate-700/60">
-                            Sem recorrência neste mês
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
+                            Sem recorrência
                           </span>
                         ) : (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold text-xs">
                             <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                            <span>
-                              Dia {dueDay} ({MONTH_NAMES_LIST[activeMonth - 1]?.slice(0, 3)} / {selectedYear})
-                            </span>
+                            <span>Dia {String(dueDay).padStart(2, "0")}</span>
                           </div>
                         )}
                       </td>
 
-                      {/* 3. Descrição */}
+                      {/* 3. Descrição com Ícone Contextual & Banco como subtítulo */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">
-                          <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+                          <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
                             <IconComponent size={15} />
                           </div>
-                          <span
-                            className={`font-medium ${
-                              isPriorToStart
-                                ? "text-slate-400 dark:text-slate-500"
-                                : isPaid
-                                ? "line-through text-slate-400 dark:text-slate-500"
-                                : "text-slate-800 dark:text-slate-100"
-                            }`}
-                          >
-                            {bill.description}
-                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span
+                              className={`font-semibold text-sm leading-tight truncate ${
+                                isPriorToStart
+                                  ? "text-slate-400 dark:text-slate-500"
+                                  : isPaid
+                                  ? "line-through text-slate-400 dark:text-slate-500"
+                                  : "text-slate-900 dark:text-slate-100"
+                              }`}
+                            >
+                              {bill.description}
+                            </span>
+                            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+                              <CreditCard size={11} className="text-slate-400 shrink-0" />
+                              <span className="truncate">{getBillBankName(bill, allRegisteredWallets)}</span>
+                            </div>
+                          </div>
                         </div>
                       </td>
 
