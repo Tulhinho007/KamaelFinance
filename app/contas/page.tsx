@@ -601,65 +601,51 @@ export default function GestaoCaixaContasPage() {
   // Sobra prevista após contas pendentes
   const sobraPrevista = totalSaldoGeral - pendingBillsTotal;
 
-  // Formatação compacta de vencimento (ex: 06/11)
-  const formatBillDueDate = (item: any) => {
-    if (item.dueDateFormatted) {
-      const parts = item.dueDateFormatted.split("/");
-      if (parts.length >= 2) {
-        return `${parts[0].padStart(2, "0")}/${parts[1].padStart(2, "0")}`;
-      }
-      return item.dueDateFormatted;
+  // Obter o nome do mês (ex: Julho, Agosto, Setembro) para exibição na tabela de contas
+  const getBillMonthName = (item: any): string => {
+    const parts = getItemDueDateParts(item);
+    if (parts && parts.month >= 1 && parts.month <= 12) {
+      return MONTH_NAMES_LIST[parts.month - 1];
     }
-    if (item.dueDateInput) {
-      const parts = item.dueDateInput.split("-");
-      if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}`;
-      }
+    if (item.competenceMonth && item.competenceMonth >= 1 && item.competenceMonth <= 12) {
+      return MONTH_NAMES_LIST[item.competenceMonth - 1];
     }
-    const dIso = getItemDueDateIso(item);
-    if (dIso) {
-      const parts = dIso.split("-");
-      if (parts.length === 3) {
-        return `${parts[2]}/${parts[1]}`;
-      }
+    if (item.competenciaLabel) {
+      const p = item.competenciaLabel.split("/")[0];
+      if (p) return p.trim();
     }
     return "-";
   };
 
-  // Toggle rápido de pagamento com 1 clique no checkbox (sem abrir modal)
+  // Toggle de status de pagamento: se pendente abre o modal para selecionar conta; se pago, desfaz
   const toggleBillStatus = async (billId: string) => {
     const target = bills.find((b) => b.id === billId);
     if (!target) return;
 
     const isCurrentlyPaid = target.status === "COMPLETED" || target.status === "PAID" || target.status === "PAGO";
-    const nextStatus = isCurrentlyPaid ? "PENDING" : "PAGO";
 
-    // Atualização otimista imediata na interface
+    if (!isCurrentlyPaid) {
+      // Quando estiver pendente, o clique no status abre o modal para o usuário selecionar a conta bancária
+      handleOpenBaixaModal(target);
+      return;
+    }
+
+    // Se já estiver pago, desmarca (desfaz a baixa) com atualização otimista imediata
     setBills((prev) =>
-      prev.map((b) => (b.id === billId ? { ...b, status: nextStatus } : b))
+      prev.map((b) => (b.id === billId ? { ...b, status: "PENDING" } : b))
     );
 
     try {
-      if (isCurrentlyPaid) {
-        await undoCommitmentPaymentAction(billId);
-        showAlert("Baixa desfeita com sucesso!", { variant: "info" });
-      } else {
-        const defaultWalletId = target.walletId || accounts[0]?.id || contasBancarias[0]?.id;
-        const isInvoice = Boolean(target.isCardInvoice || target.tipo === "FATURA_CARTAO");
-        await payCommitmentAction({
-          commitmentId: target.id,
-          formaPagamento: "SALDO_CONTA",
-          contaBancariaId: defaultWalletId,
-          dataBaixa: new Date().toISOString().split("T")[0],
-          faturaId: target.faturaId,
-        });
-        showAlert("Conta liquidada com sucesso!", { variant: "success" });
+      const res = await undoCommitmentPaymentAction(billId);
+      if (res && (res as any).error) {
+        throw new Error((res as any).error);
       }
+      showAlert("Baixa desfeita com sucesso!", { variant: "info" });
       await loadData(false);
     } catch (err: any) {
       // Reverter se falhar
       setBills((prev) =>
-        prev.map((b) => (b.id === billId ? { ...b, status: isCurrentlyPaid ? "PAGO" : "PENDING" } : b))
+        prev.map((b) => (b.id === billId ? { ...b, status: "COMPLETED" } : b))
       );
       showAlert(err?.message || "Erro ao alterar status da conta.", { variant: "error" });
     }
@@ -1446,7 +1432,7 @@ export default function GestaoCaixaContasPage() {
             <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
               <tr>
                 <th className="px-5 py-3 w-12 text-center">Status</th>
-                <th className="px-4 py-3">Vencimento</th>
+                <th className="px-4 py-3">Mês</th>
                 <th className="px-4 py-3">Descrição</th>
                 <th className="px-4 py-3">Categoria</th>
                 <th className="px-4 py-3 text-right">Valor</th>
@@ -1488,16 +1474,16 @@ export default function GestaoCaixaContasPage() {
                               ? "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600" 
                               : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
                           }`}
-                          title={isPaid ? "Marcar como pendente" : "Marcar como pago"}
+                          title={isPaid ? "Clique para desmarcar (desfazer baixa)" : "Clique para selecionar conta e liquidar"}
                         >
                           {isPaid && <Check size={14} strokeWidth={3} />}
                         </button>
                       </td>
 
-                      <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">
+                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                          <span>{formatBillDueDate(bill)}</span>
+                          <span>{getBillMonthName(bill)}</span>
                         </div>
                       </td>
 
@@ -1611,89 +1597,6 @@ export default function GestaoCaixaContasPage() {
         </div>
       </div>
 
-      {/* BLOCO: EXTRATO DA CONTA (MOVIMENTAÇÕES REALIZADAS) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50 shrink-0">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                Extrato Realizado
-              </h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                Movimentações bancárias, depósitos, Pix e liquidações
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowAllMovements(!showAllMovements)}
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-            >
-              {showAllMovements ? "Ver menos" : `Ver todas (${filteredRealizedMovements.length})`}
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
-            <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
-              <tr>
-                <th className="px-5 py-3 whitespace-nowrap">Data</th>
-                <th className="px-4 py-3">Descrição</th>
-                <th className="px-4 py-3">Conta</th>
-                <th className="px-4 py-3">Categoria</th>
-                <th className="px-4 py-3 text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {displayedRealizedMovements.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400">
-                    Nenhuma movimentação realizada encontrada para o filtro atual.
-                  </td>
-                </tr>
-              ) : (
-                displayedRealizedMovements.map((tx) => {
-                  const isIncome = tx.type === "INCOME";
-                  return (
-                    <tr key={tx.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-5 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">
-                        {tx.date ? tx.date.split("T")[0].split("-").reverse().slice(0, 2).join("/") : "-"}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
-                            isIncome ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"
-                          }`}>
-                            {isIncome ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                          </div>
-                          <span className="truncate max-w-[260px]">{tx.description}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                        {tx.walletName}
-                      </td>
-                      <td className="px-4 py-3 text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        {tx.category}
-                      </td>
-                      <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${
-                        isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-200"
-                      }`}>
-                        {isIncome ? `+${brl(tx.amount)}` : `-${brl(tx.amount)}`}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
 
       {/* ── Modal 1: + Novo Boleto / Despesa a Pagar ────────────────────── */}

@@ -5453,79 +5453,120 @@ export async function undoCardInvoicePaymentAction(
   month: number,
   year: number
 ) {
-  const userId = await getActiveUserId();
+  try {
+    const userId = await getActiveUserId();
 
-  const existing = await (prisma as any).invoicePayment.findFirst({
-    where: {
-      walletId: cardWalletId,
-      OR: [
-        { month, year },
-        { wallet: { userId } }
-      ]
-    },
-  });
+    const card = await prisma.wallet.findFirst({
+      where: { id: cardWalletId, userId },
+    });
+    if (!card) return { success: true };
 
-  const specificPayment = await (prisma as any).invoicePayment.findUnique({
-    where: {
-      walletId_month_year: {
+    const dueDateInfo = getInvoiceDueDateInfo(
+      (card as any).diaFechamento ?? 1,
+      card.vencimento ?? 10,
+      month,
+      year
+    );
+    const targetVencMonth = dueDateInfo.billingMonth;
+    const targetVencYear = dueDateInfo.billingYear;
+
+    // Busca o pagamento da fatura: pode ter sido registrado pelo mês de competência ou pelo mês de vencimento
+    const payments = await (prisma as any).invoicePayment.findMany({
+      where: {
         walletId: cardWalletId,
-        month,
-        year,
+        OR: [
+          { month, year },
+          { month: targetVencMonth, year: targetVencYear },
+        ],
       },
-    },
-  }) || existing;
-
-  if (!specificPayment) return { success: true };
-
-  if (specificPayment.paymentTransactionId) {
-    await prisma.transaction.updateMany({
-      where: { id: specificPayment.paymentTransactionId },
-      data: { deletedAt: new Date() },
+      orderBy: { paidAt: "desc" },
     });
+
+    const specificPayment = payments[0] || null;
+
+    if (specificPayment) {
+      if (specificPayment.paymentTransactionId) {
+        try {
+          await prisma.transaction.updateMany({
+            where: { id: specificPayment.paymentTransactionId },
+            data: { deletedAt: new Date() },
+          });
+        } catch (e) {
+          console.warn("Aviso ao remover transação de baixa da fatura:", e);
+        }
+      }
+
+      // Se houve débito em conta bancária, estorna o saldo
+      if (specificPayment.paymentWalletId && specificPayment.amount) {
+        try {
+          const pWallet = await prisma.wallet.findUnique({
+            where: { id: specificPayment.paymentWalletId },
+          });
+          if (pWallet) {
+            await prisma.wallet.update({
+              where: { id: specificPayment.paymentWalletId },
+              data: { currentBalance: { increment: Number(specificPayment.amount) } } as any,
+            });
+          }
+        } catch (e) {
+          console.warn("Aviso ao estornar saldo bancário da fatura:", e);
+        }
+      }
+
+      try {
+        await (prisma as any).invoicePayment.delete({
+          where: { id: specificPayment.id },
+        });
+      } catch (e) {
+        console.warn("Aviso ao deletar registro invoicePayment:", e);
+      }
+    }
+
+    // Atualiza as transações da fatura de volta para PENDING
+    const targetMonth = specificPayment?.month || month;
+    const targetYear  = specificPayment?.year || year;
+    const invoiceFrom = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+    const invoiceTo   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+
+    const baseFrom = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+    const baseTo   = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+    try {
+      await prisma.transaction.updateMany({
+        where: {
+          walletId: cardWalletId,
+          type: "EXPENSE",
+          deletedAt: null,
+          OR: [
+            { competenceMonth: targetMonth, competenceYear: targetYear },
+            { competenceMonth: month, competenceYear: year },
+            { date: { gte: invoiceFrom, lte: invoiceTo } },
+            { date: { gte: baseFrom, lte: baseTo } },
+            { competenceDate: { gte: invoiceFrom, lte: invoiceTo } },
+            { competenceDate: { gte: baseFrom, lte: baseTo } },
+            { purchaseDate: { gte: invoiceFrom, lte: invoiceTo } },
+            { purchaseDate: { gte: baseFrom, lte: baseTo } },
+          ],
+        },
+        data: {
+          status: "PENDING",
+        },
+      });
+    } catch (e) {
+      console.warn("Aviso ao resetar status das despesas do cartão:", e);
+    }
+
+    safeRevalidatePath("/despesas");
+    safeRevalidatePath("/cartoes");
+    safeRevalidatePath("/cartoes/" + cardWalletId);
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/contas");
+    safeRevalidatePath("/compromissos");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro em undoCardInvoicePaymentAction:", error);
+    return { success: false, error: error?.message || "Erro ao desfazer pagamento da fatura." };
   }
-
-  // Se houve débito em conta bancária, estorna o saldo
-  if (specificPayment.paymentWalletId && specificPayment.amount) {
-    await prisma.wallet.update({
-      where: { id: specificPayment.paymentWalletId },
-      data: { currentBalance: { increment: Number(specificPayment.amount) } } as any,
-    });
-  }
-
-  // Atualiza as transações da fatura de volta para PENDING
-  const targetMonth = specificPayment?.month || month;
-  const targetYear  = specificPayment?.year || year;
-  const invoiceFrom = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
-  const invoiceTo   = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
-
-  await prisma.transaction.updateMany({
-    where: {
-      walletId: cardWalletId,
-      type: "EXPENSE",
-      deletedAt: null,
-      OR: [
-        { competenceMonth: targetMonth, competenceYear: targetYear },
-        { date: { gte: invoiceFrom, lte: invoiceTo } },
-        { competenceDate: { gte: invoiceFrom, lte: invoiceTo } },
-        { purchaseDate: { gte: invoiceFrom, lte: invoiceTo } },
-      ],
-    },
-    data: {
-      status: "PENDING",
-    },
-  });
-
-  await (prisma as any).invoicePayment.delete({
-    where: { id: specificPayment.id },
-  });
-
-  safeRevalidatePath("/despesas");
-  safeRevalidatePath("/cartoes");
-  safeRevalidatePath("/cartoes/" + cardWalletId);
-  safeRevalidatePath("/dashboard");
-  safeRevalidatePath("/contas");
-  safeRevalidatePath("/compromissos");
-  return { success: true };
 }
 
 export async function getPaidInvoicesAction(
@@ -11322,71 +11363,86 @@ export async function payBatchCommitmentsAction(input: {
 }
 
 export async function undoCommitmentPaymentAction(commitmentId: string) {
-  if (commitmentId.startsWith("invoice-")) {
-    const raw = commitmentId.replace("invoice-", "");
-    const lastDash = raw.lastIndexOf("-");
-    const secondLastDash = raw.lastIndexOf("-", lastDash - 1);
-    if (secondLastDash !== -1 && lastDash !== -1) {
-      const cardWalletId = raw.substring(0, secondLastDash);
-      const month = Number(raw.substring(secondLastDash + 1, lastDash));
-      const year = Number(raw.substring(lastDash + 1));
-      return await undoCardInvoicePaymentAction(cardWalletId, month, year);
+  try {
+    if (commitmentId.startsWith("invoice-")) {
+      const raw = commitmentId.replace("invoice-", "");
+      const lastDash = raw.lastIndexOf("-");
+      const secondLastDash = raw.lastIndexOf("-", lastDash - 1);
+      if (secondLastDash !== -1 && lastDash !== -1) {
+        const cardWalletId = raw.substring(0, secondLastDash);
+        const month = Number(raw.substring(secondLastDash + 1, lastDash));
+        const year = Number(raw.substring(lastDash + 1));
+        return await undoCardInvoicePaymentAction(cardWalletId, month, year);
+      }
     }
-  }
 
-  const userId = await getActiveUserId();
+    const userId = await getActiveUserId();
 
-  const tx = await prisma.transaction.findFirst({
-    where: { id: commitmentId, wallet: { userId } },
-    include: { wallet: true },
-  });
-
-  if (!tx) throw new Error("Compromisso não encontrado.");
-
-  const tagStr = (tx.tags || "").toUpperCase();
-  const wasCheckingDebit =
-    tagStr.includes("FORMA:SALDO_CONTA") ||
-    tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
-    tagStr.includes("FORMA:PIX") ||
-    (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED");
-
-  // Estorna o saldo na conta bancária
-  if (wasCheckingDebit && tx.walletId) {
-    await prisma.wallet.update({
-      where: { id: tx.walletId },
-      data: { currentBalance: { increment: tx.amount } } as any,
+    const tx = await prisma.transaction.findFirst({
+      where: { id: commitmentId, wallet: { userId } },
+      include: { wallet: true },
     });
+
+    if (!tx) {
+      // Se não encontrou no modelo Transaction, pode ser fatura ou já desfeita
+      return { success: true };
+    }
+
+    const tagStr = (tx.tags || "").toUpperCase();
+    const wasCheckingDebit =
+      tagStr.includes("FORMA:SALDO_CONTA") ||
+      tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
+      tagStr.includes("FORMA:PIX") ||
+      (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED");
+
+    // Estorna o saldo na conta bancária de forma segura
+    if (wasCheckingDebit && tx.walletId) {
+      try {
+        const w = await prisma.wallet.findUnique({ where: { id: tx.walletId } });
+        if (w) {
+          await prisma.wallet.update({
+            where: { id: tx.walletId },
+            data: { currentBalance: { increment: tx.amount } } as any,
+          });
+        }
+      } catch (err) {
+        console.warn("Aviso ao estornar saldo de conta bancária:", err);
+      }
+    }
+
+    let cleanDesc = tx.description;
+    if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
+    if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
+
+    const cleanTags = (tx.tags || "")
+      .replace(/#pago/g, "")
+      .replace(/FORMA:[A-Z_]+/g, "")
+      .replace(/origDesc:[^ ]+/g, "")
+      .trim();
+
+    await prisma.transaction.update({
+      where: { id: tx.id },
+      data: {
+        description: cleanDesc,
+        status: "PENDING",
+        paymentDate: null,
+        tags: cleanTags || "#compromisso",
+      },
+    });
+
+    safeRevalidatePath("/despesas");
+    safeRevalidatePath("/cartoes");
+    if (tx.walletId) safeRevalidatePath("/cartoes/" + tx.walletId);
+    safeRevalidatePath("/dashboard");
+    safeRevalidatePath("/contas");
+    safeRevalidatePath("/compromissos");
+    safeRevalidatePath("/historico-pagamentos");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Erro em undoCommitmentPaymentAction:", error);
+    return { success: false, error: error?.message || "Erro ao desfazer pagamento do compromisso." };
   }
-
-  let cleanDesc = tx.description;
-  if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
-  if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
-
-  const cleanTags = (tx.tags || "")
-    .replace(/#pago/g, "")
-    .replace(/FORMA:[A-Z_]+/g, "")
-    .replace(/origDesc:[^ ]+/g, "")
-    .trim();
-
-  await prisma.transaction.update({
-    where: { id: tx.id },
-    data: {
-      description: cleanDesc,
-      status: "PENDING",
-      paymentDate: null,
-      tags: cleanTags || "#compromisso",
-    },
-  });
-
-  safeRevalidatePath("/despesas");
-  safeRevalidatePath("/cartoes");
-  safeRevalidatePath("/cartoes/" + tx.walletId);
-  safeRevalidatePath("/dashboard");
-  safeRevalidatePath("/contas");
-  safeRevalidatePath("/compromissos");
-  safeRevalidatePath("/historico-pagamentos");
-
-  return { success: true };
 }
 
 export async function updateCommitmentAction(input: {
