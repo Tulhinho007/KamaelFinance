@@ -12349,9 +12349,10 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
 
     const totalReceitasAno = totalRealizedIncome + totalPendingIncome;
 
-    // 4. Agenda de Contas a Pagar: Apenas itens PENDENTES do ano selecionado
+    // 4. Agenda de Contas a Pagar: Compromissos do ano selecionado (pendentes e pagos)
     const commitmentsResult = await getMonthlyCommitmentsAction("ALL", year);
-    const pendingCommitments = (commitmentsResult.items || []).filter(
+    const allCommitments = commitmentsResult.items || [];
+    const pendingCommitments = allCommitments.filter(
       (item: any) => item.status === "PENDING"
     );
 
@@ -12369,6 +12370,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       accounts,
       realizedTransactions,
       pendingCommitments,
+      allCommitments,
       contasBancarias: accounts.map((a) => ({
         id: a.id,
         banco: a.bankName || a.title,
@@ -12393,6 +12395,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       accounts: [],
       realizedTransactions: [],
       pendingCommitments: [],
+      allCommitments: [],
       contasBancarias: [],
       cartoesCredito: [],
       totals: {

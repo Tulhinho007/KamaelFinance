@@ -32,6 +32,9 @@ import {
   CreditCard,
   AlertCircle,
   CalendarRange,
+  Wifi,
+  Activity,
+  Calendar,
 } from "lucide-react";
 import { usePeriod } from "@/components/period-context";
 import { useModal } from "@/components/ui/custom-dialog-provider";
@@ -54,10 +57,81 @@ import {
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const formatBRL = brl;
+
 const MONTH_NAMES_LIST = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
+
+const getBillIcon = (title: string, category?: string, tipo?: string) => {
+  const text = `${title || ""} ${category || ""} ${tipo || ""}`.toLowerCase();
+  if (text.includes("wifi") || text.includes("internet") || text.includes("tim") || text.includes("claro") || text.includes("vivo") || text.includes("fibra")) {
+    return Wifi;
+  }
+  if (text.includes("fatura") || text.includes("cartão") || text.includes("cartao") || text.includes("credit") || tipo === "FATURA_CARTAO") {
+    return CreditCard;
+  }
+  if (text.includes("luz") || text.includes("energia") || text.includes("enel") || text.includes("cpfl") || text.includes("eletro") || text.includes("cemig") || text.includes("copel") || text.includes("zap")) {
+    return Zap;
+  }
+  if (text.includes("treino") || text.includes("futevôlei") || text.includes("futebol") || text.includes("academia") || text.includes("esporte") || text.includes("lazer") || text.includes("crossfit") || text.includes("personal") || text.includes("natação")) {
+    return Activity;
+  }
+  if (tipo === "ASSINATURA" || text.includes("assinatura") || text.includes("netflix") || text.includes("spotify") || text.includes("prime") || text.includes("youtube")) {
+    return Zap;
+  }
+  return Receipt;
+};
+
+const getBankStyle = (name: string) => {
+  const lower = (name || "").toLowerCase();
+  if (lower.includes("santander")) {
+    return { iconBg: "bg-red-600 text-white", initials: "SAN" };
+  }
+  if (lower.includes("nubank") || lower.includes("nu")) {
+    return { iconBg: "bg-purple-600 text-white", initials: "NU" };
+  }
+  if (lower.includes("inter")) {
+    return { iconBg: "bg-orange-500 text-white", initials: "INT" };
+  }
+  if (lower.includes("itaú") || lower.includes("itau")) {
+    return { iconBg: "bg-amber-600 text-white", initials: "ITA" };
+  }
+  if (lower.includes("bradesco")) {
+    return { iconBg: "bg-rose-600 text-white", initials: "BRA" };
+  }
+  if (lower.includes("caixa")) {
+    return { iconBg: "bg-blue-600 text-white", initials: "CEF" };
+  }
+  if (lower.includes("brasil") || lower.includes("bb")) {
+    return { iconBg: "bg-yellow-500 text-blue-950", initials: "BB" };
+  }
+  if (lower.includes("c6")) {
+    return { iconBg: "bg-zinc-800 text-white", initials: "C6" };
+  }
+  if (lower.includes("btg")) {
+    return { iconBg: "bg-slate-900 text-white", initials: "BTG" };
+  }
+  if (lower.includes("mercado") || lower.includes("mp")) {
+    return { iconBg: "bg-sky-500 text-white", initials: "MP" };
+  }
+  if (lower.includes("picpay")) {
+    return { iconBg: "bg-emerald-600 text-white", initials: "PIC" };
+  }
+  if (lower.includes("sicoob") || lower.includes("sicredi")) {
+    return { iconBg: "bg-teal-700 text-white", initials: "SIC" };
+  }
+
+  const initials = (name || "CC")
+    .split(" ")
+    .map((w) => w[0])
+    .filter(Boolean)
+    .slice(0, 3)
+    .join("")
+    .toUpperCase();
+  return { iconBg: "bg-indigo-600 text-white", initials: initials || "CON" };
+};
 
 export type AgendaPeriodFilter = "ALL" | "CURRENT_MONTH" | "NEXT_MONTH" | "CUSTOM" | "DATE_RANGE";
 
@@ -72,6 +146,7 @@ export default function GestaoCaixaContasPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [realizedTransactions, setRealizedTransactions] = useState<any[]>([]);
   const [pendingCommitments, setPendingCommitments] = useState<any[]>([]);
+  const [bills, setBills] = useState<any[]>([]);
   const [contasBancarias, setContasBancarias] = useState<any[]>([]);
   const [cartoesCredito, setCartoesCredito] = useState<any[]>([]);
   const [totals, setTotals] = useState({
@@ -91,8 +166,8 @@ export default function GestaoCaixaContasPage() {
   const [extratoSearch, setExtratoSearch] = useState("");
   const [showAllMovements, setShowAllMovements] = useState(false);
 
-  // Filtros de Agenda a Pagar (Padrão: Todas as Pendências do Ano)
-  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("ALL");
+  // Filtros de Agenda a Pagar (Padrão: Mês Atual)
+  const [agendaPeriodFilter, setAgendaPeriodFilter] = useState<AgendaPeriodFilter>("CURRENT_MONTH");
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [customFilterMonth, setCustomFilterMonth] = useState<number>(new Date().getMonth() + 1);
@@ -202,6 +277,10 @@ export default function GestaoCaixaContasPage() {
       setAccounts(data.accounts || []);
       setRealizedTransactions(data.realizedTransactions || []);
       setPendingCommitments(data.pendingCommitments || []);
+      const allList = (data.allCommitments && data.allCommitments.length > 0)
+        ? data.allCommitments
+        : (data.pendingCommitments || []);
+      setBills(allList);
       setContasBancarias(data.contasBancarias || []);
       setCartoesCredito(data.cartoesCredito || []);
       setTotals(data.totals);
@@ -461,6 +540,130 @@ export default function GestaoCaixaContasPage() {
     nextMonthNum,
     nextYearNum,
   ]);
+
+  // Lista unificada de Contas Fixas do Mês / Período (Pendentes e Pagas)
+  const filteredBills = useMemo(() => {
+    const list = bills.filter((item) => {
+      // 1. Filtro de competência / vencimento
+      if (!matchesAgendaPeriod(item)) return false;
+
+      // 2. Filtro de conta bancária (quando selecionado no card compacto de contas)
+      if (extratoAccountFilter !== "ALL") {
+        const itemWallet = item.walletId || item.cardWalletId;
+        if (itemWallet && String(itemWallet) !== String(extratoAccountFilter)) {
+          return false;
+        }
+      }
+
+      // 3. Filtro de busca textual
+      if (!agendaSearch.trim()) return true;
+      const q = agendaSearch.toLowerCase().trim();
+      const matchDesc = (item.description || "").toLowerCase().includes(q);
+      const matchType = (item.tipoLabel || "").toLowerCase().includes(q);
+      const matchCat = (item.category || "").toLowerCase().includes(q);
+      const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
+      return matchDesc || matchType || matchCat || matchRef;
+    });
+
+    return list.slice().sort((a, b) => {
+      const partsA = getItemDueDateParts(a);
+      const partsB = getItemDueDateParts(b);
+      if (partsA && partsB) {
+        if (partsA.year !== partsB.year) return partsA.year - partsB.year;
+        if (partsA.month !== partsB.month) return partsA.month - partsB.month;
+      }
+      const tA = a.dueDateRaw ? new Date(a.dueDateRaw).getTime() : 0;
+      const tB = b.dueDateRaw ? new Date(b.dueDateRaw).getTime() : 0;
+      return tA - tB;
+    });
+  }, [
+    bills,
+    agendaSearch,
+    agendaPeriodFilter,
+    extratoAccountFilter,
+    dataInicio,
+    dataFim,
+    customFilterMonth,
+    customFilterYear,
+    currentMonthNum,
+    currentYearNum,
+    nextMonthNum,
+    nextYearNum,
+  ]);
+
+  // Total das contas pendentes no filtro atual
+  const pendingBillsTotal = useMemo(() => {
+    return filteredBills
+      .filter((b) => b.status === "PENDING" || b.status === "PENDENTE")
+      .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  }, [filteredBills]);
+
+  // Sobra prevista após contas pendentes
+  const sobraPrevista = totalSaldoGeral - pendingBillsTotal;
+
+  // Formatação compacta de vencimento (ex: 06/11)
+  const formatBillDueDate = (item: any) => {
+    if (item.dueDateFormatted) {
+      const parts = item.dueDateFormatted.split("/");
+      if (parts.length >= 2) {
+        return `${parts[0].padStart(2, "0")}/${parts[1].padStart(2, "0")}`;
+      }
+      return item.dueDateFormatted;
+    }
+    if (item.dueDateInput) {
+      const parts = item.dueDateInput.split("-");
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}`;
+      }
+    }
+    const dIso = getItemDueDateIso(item);
+    if (dIso) {
+      const parts = dIso.split("-");
+      if (parts.length === 3) {
+        return `${parts[2]}/${parts[1]}`;
+      }
+    }
+    return "-";
+  };
+
+  // Toggle rápido de pagamento com 1 clique no checkbox (sem abrir modal)
+  const toggleBillStatus = async (billId: string) => {
+    const target = bills.find((b) => b.id === billId);
+    if (!target) return;
+
+    const isCurrentlyPaid = target.status === "COMPLETED" || target.status === "PAID" || target.status === "PAGO";
+    const nextStatus = isCurrentlyPaid ? "PENDING" : "PAGO";
+
+    // Atualização otimista imediata na interface
+    setBills((prev) =>
+      prev.map((b) => (b.id === billId ? { ...b, status: nextStatus } : b))
+    );
+
+    try {
+      if (isCurrentlyPaid) {
+        await undoCommitmentPaymentAction(billId);
+        showAlert("Baixa desfeita com sucesso!", { variant: "info" });
+      } else {
+        const defaultWalletId = target.walletId || accounts[0]?.id || contasBancarias[0]?.id;
+        const isInvoice = Boolean(target.isCardInvoice || target.tipo === "FATURA_CARTAO");
+        await payCommitmentAction({
+          commitmentId: target.id,
+          formaPagamento: "SALDO_CONTA",
+          contaBancariaId: defaultWalletId,
+          dataBaixa: new Date().toISOString().split("T")[0],
+          faturaId: target.faturaId,
+        });
+        showAlert("Conta liquidada com sucesso!", { variant: "success" });
+      }
+      await loadData(false);
+    } catch (err: any) {
+      // Reverter se falhar
+      setBills((prev) =>
+        prev.map((b) => (b.id === billId ? { ...b, status: isCurrentlyPaid ? "PAGO" : "PENDING" } : b))
+      );
+      showAlert(err?.message || "Erro ao alterar status da conta.", { variant: "error" });
+    }
+  };
 
   // Helper para verificar se a conta tem vencimento crítico (atrasada, hoje, amanhã ou em até 3 dias)
   const checkIsVencimentoCritico = (item: any): boolean => {
@@ -977,1121 +1180,521 @@ export default function GestaoCaixaContasPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-8 select-none relative font-sans text-slate-900 dark:text-slate-100">
-      
-      {/* ── Top Header & Controles Globais ─────────────────────────────── */}
-      <div className="flex flex-col gap-3">
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6 min-h-screen text-slate-800 dark:text-slate-100 font-sans">
+      {/* NAVEGAÇÃO & CONTROLES COMPACTOS NO TOPO */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
         <Link
           href="/"
           prefetch={false}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 w-fit transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors w-fit"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Voltar para o Dashboard
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar para o Dashboard</span>
         </Link>
 
-        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-3.5">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-              <Building2 className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-              Conta Corrente & Extrato
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Controle unificado de saldo bancário real, despesas avulsas e obrigações a pagar.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap lg:flex-nowrap items-center gap-2 sm:gap-2.5 overflow-x-auto pb-1 lg:pb-0">
-            {/* Seletor Anual */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-xs shrink-0">
-              <button
-                type="button"
-                onClick={prevYear}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Ano Anterior"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <span className="px-2 py-0.5 text-xs font-black text-indigo-600 dark:text-indigo-400 tracking-wider tabular-nums">
-                ANO {selectedYear}
-              </span>
-              <button
-                type="button"
-                onClick={nextYear}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                title="Próximo Ano"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-              {selectedYear !== new Date().getFullYear() && (
-                <button
-                  type="button"
-                  onClick={goToCurrentYear}
-                  className="px-2 py-0.5 text-[9px] font-black uppercase rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 transition-colors cursor-pointer"
-                >
-                  Ano Atual
-                </button>
-              )}
-            </div>
-
-            {/* Botões Rápidos Compactos na Mesma Linha */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Seletor Anual Compacto */}
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-2 py-1 rounded-xl shadow-xs">
             <button
-              onClick={() => setNewCommitmentModalOpen(true)}
-              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl font-bold text-xs tracking-wide shadow-xs shadow-indigo-600/20 transition-all hover:scale-[1.01] cursor-pointer whitespace-nowrap shrink-0"
+              type="button"
+              onClick={prevYear}
+              className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Ano Anterior"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Novo Boleto</span>
+              <ChevronLeft size={14} />
             </button>
+            <span className="px-1 text-xs font-bold text-slate-700 dark:text-slate-200 tracking-wider tabular-nums">
+              {selectedYear}
+            </span>
             <button
-              onClick={() => setNewMovementModalOpen(true)}
-              className="flex items-center gap-1.5 bg-slate-900 dark:bg-slate-800 hover:bg-slate-800 dark:hover:bg-slate-700 text-white px-3 py-2 rounded-xl font-bold text-xs tracking-wide transition-all shadow-xs cursor-pointer whitespace-nowrap shrink-0"
+              type="button"
+              onClick={nextYear}
+              className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Próximo Ano"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Movimentação Avulsa</span>
-            </button>
-            <button
-              onClick={handleOpenBatchWeeklyModal}
-              className="flex items-center gap-1.5 border border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 px-3 py-2 rounded-xl font-bold text-xs tracking-wide transition-all shadow-xs hover:scale-[1.01] cursor-pointer whitespace-nowrap shrink-0"
-              title="Registrar fechamento semanal de pequenos gastos (Débito e Pix)"
-            >
-              <CalendarRange className="w-3.5 h-3.5 text-amber-500" />
-              <span>Fechamento Semanal</span>
+              <ChevronRight size={14} />
             </button>
           </div>
+
+          <button
+            onClick={() => setNewMovementModalOpen(true)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition-colors shadow-xs cursor-pointer"
+          >
+            + Movimentação
+          </button>
+          <button
+            onClick={handleOpenBatchWeeklyModal}
+            className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-amber-200/80 dark:border-amber-900/40 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100 text-amber-800 dark:text-amber-300 transition-colors shadow-xs cursor-pointer"
+          >
+            Fechamento Semanal
+          </button>
         </div>
       </div>
 
-      {/* ── 1. Visão Geral Superior: 2 Cards Consolidados Compactos ─────────── */}
-      <div className="flex flex-wrap gap-4 my-4 max-w-4xl">
-        {/* Card 1: Saldo Geral (Compacto) */}
-        <div className="w-full sm:w-72 rounded-xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 p-3.5 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                Saldo Geral
-              </span>
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs">
-                👛
-              </div>
-            </div>
-
-            <div className={`mt-1.5 text-2xl font-bold font-tnum tabular-nums ${totalSaldoGeral >= 0 ? "text-slate-900 dark:text-zinc-100" : "text-rose-600 dark:text-rose-400"}`}>
-              {brl(totalSaldoGeral)}
-            </div>
-          </div>
-
-          <div className="mt-2.5 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-            <span>Saldo líquido consolidado</span>
-            <span className="font-medium text-slate-500 dark:text-zinc-400">
-              {accounts.length} {accounts.length === 1 ? "conta ativa" : "contas ativas"}
+      {/* CABEÇALHO COM SALDO GERAL */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+        <div>
+          <span className="text-xs font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">
+            Saldo Geral Disponível
+          </span>
+          <h1 className="text-3xl sm:text-4xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+            {formatBRL(totalSaldoGeral)}
+          </h1>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+            Sobra prevista após contas pendentes:{" "}
+            <span className={`font-semibold ${sobraPrevista >= 0 ? "text-slate-700 dark:text-slate-300" : "text-rose-600 dark:text-rose-400"}`}>
+              {formatBRL(sobraPrevista)}
             </span>
-          </div>
+          </p>
         </div>
 
-        {/* Card 2: Despesas Pendentes (Compacto) */}
-        <div className="w-full sm:w-80 rounded-xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 p-3.5 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                  ? `Despesas Pendentes (${selectedYear})`
-                  : "Despesas Pendentes"}
-              </span>
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
-                ⏱
-              </div>
-            </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <button
+            onClick={() => setNewAccountModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Nova Conta</span>
+          </button>
+          <button
+            onClick={() => setNewCommitmentModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm cursor-pointer"
+          >
+            <Plus size={16} />
+            <span>Novo Boleto</span>
+          </button>
+        </div>
+      </div>
 
-            <div className="mt-1.5 text-2xl font-bold text-amber-600 dark:text-amber-400 font-tnum tabular-nums">
-              {brl(
-                agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                  ? totals.totalPendentesAno
-                  : periodPendingTotal
-              )}
-            </div>
-
-            {/* Detalhamento compacto limitado aos 2 primeiros meses (mês atual e próximo) */}
-            {pendenciasPorMes.length > 0 && (
-              <div className="mt-2 space-y-0.5 border-t border-slate-100 dark:border-white/[0.06] pt-1.5 text-[11px]">
-                {pendenciasPorMes.slice(0, 2).map((item) => (
-                  <div key={item.mes} className="flex justify-between text-slate-500 dark:text-zinc-400">
-                    <span>Mês {item.mes}:</span>
-                    <span className="font-medium text-slate-700 dark:text-zinc-200 font-tnum tabular-nums">
-                      {brl(item.valor)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+      {/* BLOCO ESTILO APP: LISTA DE BANCOS / CONTAS */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+              Contas Correntes
+            </h2>
+            {extratoAccountFilter !== "ALL" && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExtratoAccountFilter("ALL");
+                }}
+                className="text-[11px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer ml-1"
+                title="Limpar filtro de conta"
+              >
+                <X size={12} /> Limpar filtro
+              </button>
             )}
           </div>
-
-          <div className="mt-2.5 flex items-center justify-between border-t border-slate-50 dark:border-white/[0.06] pt-2 text-[11px] text-slate-400 dark:text-zinc-500">
-            <span>
-              {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                ? "Boletos & contas no ano"
-                : "Boletos & contas no período"}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="font-medium text-amber-600 dark:text-amber-400">
-                {agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                  ? `${totals.pendingCount} ${totals.pendingCount === 1 ? "conta a quitar" : "contas a quitar"}`
-                  : `${periodFilteredPendingCommitments.length} ${periodFilteredPendingCommitments.length === 1 ? "conta a quitar" : "contas a quitar"}`}
-              </span>
-              {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataInicio("");
-                    setDataFim("");
-                    setAgendaPeriodFilter("ALL");
-                  }}
-                  className="text-[9px] text-zinc-400 hover:text-amber-400 font-medium underline cursor-pointer"
-                  title="Ver todo o ano"
-                >
-                  (Ver ano)
-                </button>
-              )}
-            </div>
-          </div>
+          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full">
+            {formatBRL(totalSaldoGeral)}
+          </span>
         </div>
-      </div>
 
-      {/* ── Mini-Cards de Contas Bancárias Cadastradas ───────────────────── */}
-      {accounts.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5" /> Minhas Contas Bancárias ({accounts.length})
-            </span>
-            <button
-              onClick={() => setNewAccountModalOpen(true)}
-              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-            >
-              + Adicionar Conta
-            </button>
-          </div>
-          <div className={`grid grid-cols-1 ${accounts.length === 1 ? "max-w-xs sm:max-w-sm" : accounts.length === 2 ? "lg:grid-cols-2 max-w-2xl" : "md:grid-cols-2 lg:grid-cols-3"} gap-4`}>
-            {accounts.map((acc) => {
-              const isSelected = String(extratoAccountFilter) === String(acc.id);
-              const walletTypeLabel = acc.walletType === "CONTA_CORRENTE" ? "Conta Corrente" : (acc.walletType === "DEBITO" ? "Débito" : "Conta");
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          {accounts.length === 0 ? (
+            <div className="px-5 py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
+              <p>Nenhuma conta bancária cadastrada.</p>
+              <button
+                type="button"
+                onClick={() => setNewAccountModalOpen(true)}
+                className="mt-2 text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer"
+              >
+                + Adicionar primeira conta
+              </button>
+            </div>
+          ) : (
+            accounts.map((acc) => {
+              const bankStyle = getBankStyle(acc.bankName || acc.title);
+              const isFiltered = extratoAccountFilter === String(acc.id);
 
               return (
                 <div
                   key={acc.id}
-                  onClick={() => setExtratoAccountFilter(isSelected ? "ALL" : String(acc.id))}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between gap-2.5 ${
-                    isSelected
-                      ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-500 ring-2 ring-indigo-500/20 shadow-sm"
-                      : "bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs"
+                  onClick={() => setExtratoAccountFilter(isFiltered ? "ALL" : String(acc.id))}
+                  className={`px-5 py-3.5 flex items-center justify-between transition-colors cursor-pointer group ${
+                    isFiltered
+                      ? "bg-emerald-50/80 dark:bg-emerald-950/20"
+                      : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                   }`}
+                  title={isFiltered ? "Clique para remover filtro" : "Clique para filtrar por esta conta"}
                 >
-                  {/* Topo do Card: Identificação completa sem truncamento prematuro */}
-                  <div className="flex items-center justify-between gap-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/50">
-                        <Building2 className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                        <span className="font-bold text-sm text-slate-900 dark:text-white">
-                          {acc.bankName}
-                        </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 uppercase shrink-0">
-                          {walletTypeLabel}
-                        </span>
-                      </div>
+                  <div className="flex items-center gap-3.5">
+                    <div className={`w-9 h-9 rounded-xl ${bankStyle.iconBg} font-bold text-xs flex items-center justify-center shadow-sm shrink-0`}>
+                      {bankStyle.initials}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExtratoAccountFilter(isSelected ? "ALL" : String(acc.id));
-                      }}
-                      className={`text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
-                        isSelected
-                          ? "text-rose-500 hover:text-rose-600 font-bold underline"
-                          : "text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
-                      }`}
-                    >
-                      {isSelected ? "✕ Remover Filtro" : "Filtrar"}
-                    </button>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-slate-700 dark:text-slate-200 text-sm group-hover:text-slate-900 dark:group-hover:text-white">
+                        {acc.bankName || acc.title}
+                      </span>
+                      {isFiltered && (
+                        <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          ✓ Filtrando por esta conta
+                        </span>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Conteúdo: Saldo Real Disponível */}
-                  <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800/60">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
-                      Saldo Real Disponível
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm sm:text-base">
+                      {formatBRL(acc.saldoAtual)}
                     </span>
-                    <p className={`text-xl sm:text-2xl font-bold font-tnum tabular-nums mt-0.5 ${acc.saldoAtual >= 0 ? "text-slate-900 dark:text-white" : "text-rose-500"}`}>
-                      {brl(acc.saldoAtual)}
-                    </p>
+                    <ChevronRight size={16} className={`transition-colors ${
+                      isFiltered
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-slate-300 dark:text-slate-600 group-hover:text-slate-500"
+                    }`} />
                   </div>
                 </div>
               );
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Seletor de Visualização / Abas ──────────────────────────────── */}
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-          <button
-            onClick={() => setActiveTab("TODOS")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === "TODOS"
-                ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs"
-                : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            Visão Completa
-          </button>
-          <button
-            onClick={() => setActiveTab("AGENDA")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "AGENDA"
-                ? "bg-amber-500 text-white shadow-xs"
-                : "text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400"
-            }`}
-          >
-            <Clock className="w-3 h-3" />
-            Agenda a Pagar ({totals.pendingCount})
-          </button>
-          <button
-            onClick={() => setActiveTab("EXTRATO")}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "EXTRATO"
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400"
-            }`}
-          >
-            <CheckCircle2 className="w-3 h-3" />
-            Extrato Realizado ({totals.realizedCount})
-          </button>
+            })
+          )}
         </div>
       </div>
 
-      {/* ── SEÇÃO A: AGENDA DE CONTAS A PAGAR (Apenas itens PENDENTES) ───── */}
-      {(activeTab === "TODOS" || activeTab === "AGENDA") && (
-        <section className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/20 space-y-3.5">
-            {/* ── Linha Superior: Título, Badges e Busca ── */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200/50 dark:border-amber-800/50 shrink-0">
-                  <Clock className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-sm font-extrabold text-slate-900 dark:text-white whitespace-nowrap">
-                      Agenda de Contas a Pagar
-                    </h2>
-                    <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-                      Apenas Pendentes ({filteredPendingCommitments.length})
-                    </span>
-                    {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
-                      <span className="inline-flex items-center gap-1 bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
-                        Filtrado por: {activePeriodBadgeLabel}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDataInicio("");
-                            setDataFim("");
-                            setAgendaPeriodFilter("ALL");
-                          }}
-                          className="hover:text-amber-900 dark:hover:text-white cursor-pointer ml-0.5"
-                          title="Limpar filtro de período"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                    {extratoAccountFilter !== "ALL" && (
-                      <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
-                        Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
-                        <button
-                          type="button"
-                          onClick={() => setExtratoAccountFilter("ALL")}
-                          className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
-                          title="Limpar filtro de conta"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5 truncate sm:whitespace-normal">
-                    Boletos, assinaturas e despesas a quitar.
-                  </p>
-                </div>
-              </div>
-
-              {/* ── Campo de Busca Rápida ── */}
-              <div className="relative w-full md:w-64 shrink-0">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={agendaSearch}
-                  onChange={(e) => setAgendaSearch(e.target.value)}
-                  placeholder="Buscar conta pendente..."
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-amber-500 transition-colors"
-                />
-                {agendaSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setAgendaSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Linha Inferior: Barra de Filtros e Períodos ── */}
-            <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100/80 dark:border-slate-800/80">
-              {/* Botões Rápidos em Pílula */}
-              <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] font-bold shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataInicio("");
-                    setDataFim("");
-                    setAgendaPeriodFilter("ALL");
-                  }}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                    agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
-                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                  title={`Ver todas as pendências de ${selectedYear}`}
-                >
-                  Todas ({selectedYear})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataInicio("");
-                    setDataFim("");
-                    setAgendaPeriodFilter("CURRENT_MONTH");
-                  }}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                    agendaPeriodFilter === "CURRENT_MONTH" && !dataInicio && !dataFim
-                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                  title={`Ver pendências do mês atual (${currentPeriodLabel})`}
-                >
-                  Mês Atual
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDataInicio("");
-                    setDataFim("");
-                    setAgendaPeriodFilter("NEXT_MONTH");
-                  }}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer whitespace-nowrap ${
-                    agendaPeriodFilter === "NEXT_MONTH" && !dataInicio && !dataFim
-                      ? "bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  }`}
-                  title={`Ver pendências do próximo mês (${nextPeriodLabel})`}
-                >
-                  Próximo Mês
-                </button>
-              </div>
-
-              {/* Seletor de Intervalo de Datas (Date Range) */}
-              <div className="flex items-center gap-1.5 shrink-0">
-                <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
-                  dataInicio || dataFim
-                    ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
-                }`}>
-                  <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">De:</span>
-                  <input
-                    type="date"
-                    value={dataInicio}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDataInicio(val);
-                      if (val || dataFim) {
-                        setAgendaPeriodFilter("DATE_RANGE");
-                      } else {
-                        setAgendaPeriodFilter("ALL");
-                      }
-                    }}
-                    className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
-                  />
-                </div>
-
-                <div className={`flex items-center rounded-xl border px-2.5 py-1 text-xs shadow-2xs transition-colors ${
-                  dataInicio || dataFim
-                    ? "border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/30 ring-1 ring-amber-500/20"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
-                }`}>
-                  <span className="text-slate-400 dark:text-slate-500 mr-1.5 font-bold text-[11px]">Até:</span>
-                  <input
-                    type="date"
-                    value={dataFim}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setDataFim(val);
-                      if (dataInicio || val) {
-                        setAgendaPeriodFilter("DATE_RANGE");
-                      } else {
-                        setAgendaPeriodFilter("ALL");
-                      }
-                    }}
-                    className="bg-transparent text-slate-800 dark:text-slate-200 outline-none text-xs font-semibold cursor-pointer"
-                  />
-                </div>
-
-                {(dataInicio || dataFim) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDataInicio("");
-                      setDataFim("");
-                      setAgendaPeriodFilter("ALL");
-                    }}
-                    className="text-xs text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 px-1 font-bold cursor-pointer transition-colors"
-                    title="Limpar período de datas"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Dropdown Seletor Avançado / Personalizado */}
-              <div className="relative shrink-0">
-                <CalendarRange className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none" />
-                <select
-                  value={agendaPeriodFilter}
-                  onChange={(e) => {
-                    const val = e.target.value as AgendaPeriodFilter;
-                    setAgendaPeriodFilter(val);
-                    if (val !== "DATE_RANGE") {
-                      setDataInicio("");
-                      setDataFim("");
-                    }
-                  }}
-                  className="w-full sm:w-auto bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-8 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer appearance-none transition-colors"
-                >
-                  <option value="ALL">Todas as Pendências ({selectedYear})</option>
-                  <option value="CURRENT_MONTH">Mês Atual ({currentPeriodLabel})</option>
-                  <option value="NEXT_MONTH">Próximo Mês ({nextPeriodLabel})</option>
-                  <option value="CUSTOM">Outro mês personalizado...</option>
-                  <option value="DATE_RANGE">Intervalo de datas personalizado...</option>
-                </select>
-                <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-              </div>
-
-              {agendaPeriodFilter === "CUSTOM" && (
-                <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-150 shrink-0">
-                  <select
-                    value={customFilterMonth}
-                    onChange={(e) => setCustomFilterMonth(Number(e.target.value))}
-                    className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                  >
-                    {MONTH_NAMES_LIST.map((m, idx) => (
-                      <option key={idx + 1} value={idx + 1}>{m}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={customFilterYear}
-                    onChange={(e) => setCustomFilterYear(Number(e.target.value))}
-                    className="bg-slate-50 dark:bg-slate-950 border border-amber-500/50 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                  >
-                    {[selectedYear - 1, selectedYear, selectedYear + 1, selectedYear + 2].map((y) => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
+      {/* TABELA DE CONTAS FIXAS DO MÊS */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Contas Fixas do Mês</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Despesas recorrentes e compromissos fixos</p>
           </div>
-
-          {/* Tabela de Pendentes */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse table-auto text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-950/40">
-                  <th className="py-2.5 px-3 w-8 text-center">
-                    <input
-                      type="checkbox"
-                      checked={isAllVisibleSelected}
-                      onChange={(e) => handleToggleSelectAllVisible(e.target.checked)}
-                      disabled={filteredPendingCommitments.length === 0}
-                      className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-amber-600 focus:ring-amber-500 cursor-pointer disabled:opacity-40"
-                      title={isAllVisibleSelected ? "Desmarcar todas visíveis" : "Marcar todas visíveis"}
-                    />
-                  </th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Vencimento</th>
-                  <th className="py-2.5 px-3">Descrição / Fornecedor</th>
-                  <th className="py-2.5 px-2 whitespace-nowrap">Tipo</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Valor</th>
-                  <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
-                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Ação Rápida</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {filteredPendingCommitments.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-10 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <CheckCircle2 className="w-8 h-8 text-emerald-500/80 dark:text-emerald-400/80" />
-                        <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
-                          {agendaPeriodFilter !== "ALL" || dataInicio || dataFim
-                            ? `Nenhum compromisso pendente encontrado para ${activePeriodBadgeLabel}.`
-                            : `Nenhum compromisso pendente no ano de ${selectedYear}.`}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {agendaPeriodFilter !== "ALL" || dataInicio || dataFim
-                            ? "Não há boletos ou despesas a quitar com vencimento neste período selecionado."
-                            : "Todas as obrigações cadastradas já foram quitadas ou não há lançamentos futuros."}
-                        </p>
-                        {(agendaPeriodFilter !== "ALL" || dataInicio || dataFim) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDataInicio("");
-                              setDataFim("");
-                              setAgendaPeriodFilter("ALL");
-                            }}
-                            className="mt-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
-                          >
-                            Ver todas as pendências do ano ({totals.pendingCount})
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredPendingCommitments.map((item, index) => {
-                    const isSelected = selectedCommitmentIds.includes(item.id);
-                    const isCritico = checkIsVencimentoCritico(item);
-
-                    // Agrupamento visual por mês quando visualizando todas as pendências sem intervalo de datas
-                    const parts = getItemDueDateParts(item);
-                    const currentMonthKey = parts ? `${parts.year}-${String(parts.month).padStart(2, "0")}` : "sem-data";
-                    const prevParts = index > 0 ? getItemDueDateParts(filteredPendingCommitments[index - 1]) : null;
-                    const prevMonthKey = prevParts ? `${prevParts.year}-${String(prevParts.month).padStart(2, "0")}` : null;
-                    const isNewMonth =
-                      agendaPeriodFilter === "ALL" && !dataInicio && !dataFim && (index === 0 || currentMonthKey !== prevMonthKey);
-                    const monthInfo = isNewMonth ? monthlyTotalsMap.get(currentMonthKey) : null;
-
-                    return (
-                      <React.Fragment key={item.id}>
-                        {isNewMonth && (
-                          <tr className="bg-slate-100/90 dark:bg-slate-800/80 border-y border-slate-200/80 dark:border-slate-700/80">
-                            <td colSpan={7} className="py-2.5 px-3">
-                              <div className="flex items-center justify-between text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm">📅</span>
-                                  <span className="font-extrabold uppercase tracking-wide text-[11px] text-slate-800 dark:text-slate-100">
-                                    {monthInfo?.label || "Compromissos"}
-                                  </span>
-                                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:border dark:border-slate-700">
-                                    {monthInfo?.count || 1} {monthInfo?.count === 1 ? "conta pendente" : "contas pendentes"}
-                                  </span>
-                                </div>
-                                <div className="font-mono text-xs font-black text-amber-700 dark:text-amber-400">
-                                  Subtotal do Mês: {brl(monthInfo?.total || 0)}
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-
-                        <tr
-                          className={`transition-colors group ${
-                            isSelected
-                              ? "bg-amber-50/60 dark:bg-amber-950/30"
-                              : "hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
-                          }`}
-                        >
-                          <td className="py-2.5 px-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedCommitmentIds((prev) => [...prev, item.id]);
-                                } else {
-                                  setSelectedCommitmentIds((prev) => prev.filter((id) => id !== item.id));
-                                }
-                              }}
-                              className="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-700 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                            />
-                          </td>
-
-                          <td className="py-2.5 px-3 whitespace-nowrap">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                                {item.dueDateFormatted}
-                              </span>
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                {isCritico ? (
-                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${item.dueBadge?.color || "bg-amber-500/15 text-amber-700 border-amber-500/30"}`}>
-                                    {item.dueBadge?.label || "Urgente"}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                                    {item.dueBadge?.label || "A Vencer"}
-                                  </span>
-                                )}
-                                {(item.competenciaLabel || item.competenciaShort) && (
-                                  <span
-                                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70"
-                                    title="Mês de Competência / Consumo de referência"
-                                  >
-                                    Ref: {item.competenciaLabel || item.competenciaShort}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-
-                          <td className="py-2.5 px-3 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                                item.tipo === "FATURA_CARTAO"
-                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                                  : item.tipo === "ASSINATURA"
-                                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                                  : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                              }`}>
-                                {item.tipo === "FATURA_CARTAO" ? (
-                                  <CreditCard className="w-3 h-3" />
-                                ) : item.tipo === "ASSINATURA" ? (
-                                  <Zap className="w-3 h-3" />
-                                ) : (
-                                  <Receipt className="w-3 h-3" />
-                                )}
-                              </div>
-                              <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[220px]">
-                                {item.description}
-                              </span>
-                            </div>
-                          </td>
-
-                          <td className="py-2.5 px-2 whitespace-nowrap">
-                            {item.tipo === "FATURA_CARTAO" ? (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
-                                Fatura de Cartão
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold border bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                {item.tipoLabel || "Boleto"}
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono tabular-nums font-black text-slate-900 dark:text-white text-xs sm:text-sm">
-                            {brl(item.amount)}
-                          </td>
-
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20">
-                              Pendente
-                            </span>
-                          </td>
-
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {isCritico ? (
-                                <button
-                                  onClick={() => handleOpenBaixaModal(item)}
-                                  className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all cursor-pointer"
-                                  title="Baixar conta e lançar no extrato"
-                                >
-                                  <Check className="w-3.5 h-3.5" />
-                                  <span>Baixar</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleOpenBaixaModal(item)}
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-                                  title="Baixar conta e lançar no extrato"
-                                >
-                                  <Check className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                                  <span>Baixar</span>
-                                </button>
-                              )}
-
-                              {/* Menu 3 Pontos */}
-                              <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveActionMenuId(activeActionMenuId === item.id ? null : item.id)}
-                                  className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-colors cursor-pointer"
-                                >
-                                  <MoreVertical className="w-3.5 h-3.5" />
-                                </button>
-                                {activeActionMenuId === item.id && (
-                                  <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
-                                    {item.isCardInvoice ? (
-                                      <Link
-                                        href={`/cartoes/${item.cardWalletId || item.walletId}`}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
-                                      >
-                                        <CreditCard className="w-3.5 h-3.5" />
-                                        <span>Ver Fatura no Cartão</span>
-                                      </Link>
-                                    ) : (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveActionMenuId(null);
-                                            setEditItem(item);
-                                            setEditDesc(item.description || "");
-                                            setEditAmount(String(item.amount || ""));
-                                            const rawDue = item.dueDateInput || (item.dueDateRaw ? item.dueDateRaw.split("T")[0] : (item.dueDate ? item.dueDate.split("T")[0] : ""));
-                                            setEditDueDate(rawDue);
-                                            setEditTipo(item.tipo === "ASSINATURA" ? "ASSINATURA" : "BOLETO");
-                                            setEditRecorrencia(item.recorrencia || (item.isRecurring ? "MENSAL" : "UNICO"));
-                                            setEditCompMonth(item.competenceMonth || new Date().getMonth() + 1);
-                                            setEditCompYear(item.competenceYear || selectedYear);
-                                            setEditWalletId(item.walletId || (accounts[0]?.id ?? contasBancarias[0]?.id ?? ""));
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
-                                        >
-                                          <Pencil className="w-3.5 h-3.5 text-slate-400" />
-                                          <span>Editar</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          disabled={duplicatingId === item.id}
-                                          onClick={() => {
-                                            setActiveActionMenuId(null);
-                                            handleDuplicateToNextMonth(item);
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                                        >
-                                          <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
-                                          <span>Repetir no próximo mês</span>
-                                        </button>
-                                        <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActiveActionMenuId(null);
-                                            setItemToDelete(item);
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5 text-rose-500" />
-                                          <span>Excluir</span>
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* ── SEÇÃO B: EXTRATO DA CONTA (Movimentações Realizadas) ─────────── */}
-      {(activeTab === "TODOS" || activeTab === "EXTRATO") && (
-        <section className="bg-white dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 rounded-3xl shadow-xs overflow-hidden">
-          <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/40 dark:bg-slate-950/20">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50 shrink-0">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-                  <span className="whitespace-nowrap">Extrato da Conta (Movimentações Realizadas)</span>
-                  <span className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-                    {filteredRealizedMovements.length} {filteredRealizedMovements.length === 1 ? "operação" : "operações"}
-                  </span>
-                  {extratoAccountFilter !== "ALL" && (
-                    <span className="inline-flex items-center gap-1 bg-indigo-500/15 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full">
-                      Conta: {accounts.find((a) => String(a.id) === String(extratoAccountFilter))?.bankName || "Conta"}
-                      <button
-                        type="button"
-                        onClick={() => setExtratoAccountFilter("ALL")}
-                        className="hover:text-indigo-900 dark:hover:text-white cursor-pointer ml-0.5"
-                        title="Limpar filtro de conta"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  )}
-                </h2>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Movimentações estritamente executadas (Pix, depósitos, débitos e boletos liquidados).
-                </p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-              {/* Filtro por Conta */}
-              <select
-                value={extratoAccountFilter}
-                onChange={(e) => setExtratoAccountFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 dark:text-white font-medium focus:outline-none focus:border-indigo-500 cursor-pointer"
-              >
-                <option value="ALL">Todas as Contas</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={String(a.id)}>
-                    {a.bankName}
-                  </option>
-                ))}
-              </select>
-
-              <div className="relative flex-1 md:w-56">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  value={extratoSearch}
-                  onChange={(e) => setExtratoSearch(e.target.value)}
-                  placeholder="Buscar no extrato..."
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1.5 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-                {extratoSearch && (
-                  <button
-                    onClick={() => setExtratoSearch("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabela do Extrato */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse table-auto text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider bg-slate-50/50 dark:bg-slate-950/40">
-                  <th className="py-2.5 px-4 whitespace-nowrap">Data</th>
-                  <th className="py-2.5 px-4">Descrição</th>
-                  <th className="py-2.5 px-3">Conta / Banco</th>
-                  <th className="py-2.5 px-3 whitespace-nowrap">Categoria / Método</th>
-                  <th className="py-2.5 px-4 text-right whitespace-nowrap">Valor</th>
-                  <th className="py-2.5 px-4 text-right whitespace-nowrap">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
-                {displayedRealizedMovements.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-10 text-center text-slate-400">
-                      Nenhuma movimentação realizada encontrada para os filtros selecionados.
-                    </td>
-                  </tr>
-                ) : (
-                  displayedRealizedMovements.map((tx) => {
-                    const isIncome = tx.type === "INCOME";
-                    return (
-                      <tr
-                        key={tx.id}
-                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                      >
-                        <td className="py-2.5 px-4 whitespace-nowrap font-medium text-slate-600 dark:text-slate-400">
-                          {tx.date ? tx.date.split("T")[0].split("-").reverse().join("/") : "-"}
-                        </td>
-
-                        <td className="py-2.5 px-4 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
-                              isIncome ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
-                            }`}>
-                              {isIncome ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                {Boolean(tx.isBatchWeekly || (tx.description || "").includes("[Semanal]") || (tx as any).tags?.includes("FECHAMENTO_SEMANAL")) && (
-                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                                    <CalendarRange className="w-2.5 h-2.5" />
-                                    Semanal
-                                  </span>
-                                )}
-                                <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[280px]">
-                                  {(tx.description || "").replace(/^\[Semanal\]\s*/, "")}
-                                </span>
-                              </div>
-                              {tx.notes && (
-                                <span className="block text-[10px] text-slate-400 dark:text-slate-500 font-normal truncate max-w-[280px] mt-0.5">
-                                  {tx.notes}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-2.5 px-3 whitespace-nowrap font-medium text-slate-600 dark:text-slate-400">
-                          {tx.walletName}
-                        </td>
-
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                              {tx.category}
-                            </span>
-                            <span className="text-[9px] font-bold uppercase text-slate-400">
-                              {tx.paymentMethod}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="py-2.5 px-4 text-right whitespace-nowrap font-mono tabular-nums font-black text-xs sm:text-sm">
-                          <span className={isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
-                            {isIncome ? "+" : "-"}{brl(tx.amount)}
-                          </span>
-                        </td>
-
-                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditMovement(tx)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                              title="Editar movimentação"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setMovementToDelete(tx)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                              title="Excluir movimentação"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Botão de Expansão (10 Últimas ou Todas) */}
-          {filteredRealizedMovements.length > 10 && (
-            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 text-center">
-              <button
-                type="button"
-                onClick={() => setShowAllMovements(!showAllMovements)}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors cursor-pointer"
-              >
-                {showAllMovements ? (
-                  <>
-                    <ChevronUp className="w-3.5 h-3.5" />
-                    <span>Recolher para as 10 últimas movimentações</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-3.5 h-3.5" />
-                    <span>Ver todas as {filteredRealizedMovements.length} movimentações realizadas</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ── Barra Flutuante de Seleção Dinâmica & Calculadora (Floating Action Bar) ────────────────────────────── */}
-      {selectedCommitmentIds.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-4xl bg-slate-900/95 dark:bg-[#0B132B]/95 border border-slate-700/80 dark:border-indigo-500/40 text-white px-4 sm:px-6 py-3.5 sm:py-4 rounded-2xl shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-5 duration-300">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-            {/* Bloco 1: Contador & Valores Calculados */}
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3.5 w-full md:w-auto">
-              {/* Contador */}
-              <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1.5 rounded-xl text-xs font-black shadow-2xs shrink-0">
-                <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />
-                <span>
-                  {selectedCommitmentIds.length} {selectedCommitmentIds.length === 1 ? "conta selecionada" : "contas selecionadas"}
-                </span>
-              </div>
-
-              {/* Somatório Total Calculado */}
-              <div className="flex items-baseline gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/80 dark:bg-slate-900/80 border border-slate-700/60 shrink-0">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Total a pagar:
-                </span>
-                <span className="text-sm sm:text-base font-black font-mono tabular-nums text-amber-400">
-                  {brl(selectedBatchTotal)}
-                </span>
-              </div>
-
-              {/* Impacto no Saldo Real */}
-              {(() => {
-                const saldoRestante = totals.totalRealBalance - selectedBatchTotal;
-                const cobreSaldo = saldoRestante >= 0;
-
-                return (
-                  <div
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors shrink-0 ${
-                      cobreSaldo
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
-                        : "bg-rose-500/10 border-rose-500/30 text-rose-300"
-                    }`}
-                    title="Impacto no Saldo Real consolidado de todas as contas após quitar os itens selecionados"
-                  >
-                    <span className="text-[11px] font-bold text-slate-300">
-                      Saldo Restante:
-                    </span>
-                    <span
-                      className={`text-xs sm:text-sm font-black font-mono tabular-nums ${
-                        cobreSaldo ? "text-emerald-400" : "text-rose-400"
-                      }`}
-                    >
-                      {brl(saldoRestante)}
-                    </span>
-                    <span
-                      className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                        cobreSaldo
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                          : "bg-rose-500/20 text-rose-300 border border-rose-500/30"
-                      }`}
-                    >
-                      {cobreSaldo ? "✓ Cobre" : "⚠ Negativo"}
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
-
-            {/* Bloco 2: Ações */}
-            <div className="flex items-center justify-center md:justify-end gap-2 w-full md:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleOpenBatchModal}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-xs sm:text-sm px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>Baixar Selecionadas em Lote</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedCommitmentIds([])}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800/80 px-3 py-2 sm:py-2.5 rounded-xl transition-colors cursor-pointer"
-                title="Limpar seleção"
-              >
-                <X className="w-4 h-4" />
-                <span>Limpar Seleção</span>
-              </button>
+          <div className="flex items-center gap-2">
+            <div className="text-xs font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200/60 dark:border-amber-800/60 px-3 py-1 rounded-lg">
+              A Pagar: <strong className="font-semibold">{formatBRL(pendingBillsTotal)}</strong>
             </div>
           </div>
         </div>
-      )}
+
+        {/* Barra de Filtros e Busca de Contas */}
+        <div className="px-5 py-3 border-b border-slate-100/80 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-950/20 flex flex-wrap items-center justify-between gap-2.5">
+          {/* Pílulas de Período */}
+          <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setDataInicio("");
+                setDataFim("");
+                setAgendaPeriodFilter("CURRENT_MONTH");
+              }}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                agendaPeriodFilter === "CURRENT_MONTH" && !dataInicio && !dataFim
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Mês Atual
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDataInicio("");
+                setDataFim("");
+                setAgendaPeriodFilter("NEXT_MONTH");
+              }}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                agendaPeriodFilter === "NEXT_MONTH" && !dataInicio && !dataFim
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Próximo Mês
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDataInicio("");
+                setDataFim("");
+                setAgendaPeriodFilter("ALL");
+              }}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                agendaPeriodFilter === "ALL" && !dataInicio && !dataFim
+                  ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              Todas ({selectedYear})
+            </button>
+          </div>
+
+          {/* Busca Rápida */}
+          <div className="relative flex-1 sm:max-w-xs">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={agendaSearch}
+              onChange={(e) => setAgendaSearch(e.target.value)}
+              placeholder="Buscar conta fixa..."
+              className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-7 py-1 text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+            {agendaSearch && (
+              <button
+                type="button"
+                onClick={() => setAgendaSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Tabela de Contas */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+            <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+              <tr>
+                <th className="px-5 py-3 w-12 text-center">Status</th>
+                <th className="px-4 py-3">Vencimento</th>
+                <th className="px-4 py-3">Descrição</th>
+                <th className="px-4 py-3">Categoria</th>
+                <th className="px-4 py-3 text-right">Valor</th>
+                <th className="px-4 py-3 w-16 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredBills.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500/80" />
+                      <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
+                        Nenhuma conta encontrada para o filtro selecionado.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setNewCommitmentModalOpen(true)}
+                        className="mt-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                      >
+                        + Cadastrar uma conta fixa
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                filteredBills.map((bill) => {
+                  const IconComponent = getBillIcon(bill.description, bill.category, bill.tipo);
+                  const isPaid = bill.status === "COMPLETED" || bill.status === "PAID" || bill.status === "PAGO";
+
+                  return (
+                    <tr key={bill.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors group">
+                      <td className="px-5 py-3.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleBillStatus(bill.id)}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                            isPaid 
+                              ? "bg-emerald-500 text-white shadow-sm hover:bg-emerald-600" 
+                              : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
+                          }`}
+                          title={isPaid ? "Marcar como pendente" : "Marcar como pago"}
+                        >
+                          {isPaid && <Check size={14} strokeWidth={3} />}
+                        </button>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-slate-500 dark:text-slate-400 text-xs font-medium whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
+                          <span>{formatBillDueDate(bill)}</span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+                            <IconComponent size={15} />
+                          </div>
+                          <span className={`font-medium ${isPaid ? "line-through text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}`}>
+                            {bill.description}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                        {bill.category || bill.tipoLabel || "Conta Fixa"}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-right font-medium text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                        {formatBRL(bill.amount)}
+                      </td>
+
+                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => setActiveActionMenuId(activeActionMenuId === bill.id ? null : bill.id)}
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {activeActionMenuId === bill.id && (
+                            <div className="absolute right-0 z-30 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-1 text-left">
+                              {bill.isCardInvoice ? (
+                                <Link
+                                  href={`/cartoes/${bill.cardWalletId || bill.walletId}`}
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center gap-2 cursor-pointer"
+                                >
+                                  <CreditCard className="w-3.5 h-3.5" />
+                                  <span>Ver Fatura no Cartão</span>
+                                </Link>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      handleOpenBaixaModal(bill);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Baixar com detalhes</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      setEditItem(bill);
+                                      setEditDesc(bill.description || "");
+                                      setEditAmount(String(bill.amount || ""));
+                                      const rawDue = bill.dueDateInput || (bill.dueDateRaw ? bill.dueDateRaw.split("T")[0] : (bill.dueDate ? bill.dueDate.split("T")[0] : ""));
+                                      setEditDueDate(rawDue);
+                                      setEditTipo(bill.tipo === "ASSINATURA" ? "ASSINATURA" : "BOLETO");
+                                      setEditRecorrencia(bill.recorrencia || (bill.isRecurring ? "MENSAL" : "UNICO"));
+                                      setEditCompMonth(bill.competenceMonth || new Date().getMonth() + 1);
+                                      setEditCompYear(bill.competenceYear || selectedYear);
+                                      setEditWalletId(bill.walletId || (accounts[0]?.id ?? contasBancarias[0]?.id ?? ""));
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Editar</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={duplicatingId === bill.id}
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      handleDuplicateToNextMonth(bill);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 hover:text-indigo-600 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                                  >
+                                    <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>Repetir no próximo mês</span>
+                                  </button>
+                                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveActionMenuId(null);
+                                      setItemToDelete(bill);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                    <span>Excluir</span>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* BLOCO: EXTRATO DA CONTA (MOVIMENTAÇÕES REALIZADAS) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/50 dark:border-indigo-800/50 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Extrato Realizado
+              </h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                Movimentações bancárias, depósitos, Pix e liquidações
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAllMovements(!showAllMovements)}
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+            >
+              {showAllMovements ? "Ver menos" : `Ver todas (${filteredRealizedMovements.length})`}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600 dark:text-slate-300">
+            <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-[10px] font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
+              <tr>
+                <th className="px-5 py-3 whitespace-nowrap">Data</th>
+                <th className="px-4 py-3">Descrição</th>
+                <th className="px-4 py-3">Conta</th>
+                <th className="px-4 py-3">Categoria</th>
+                <th className="px-4 py-3 text-right">Valor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {displayedRealizedMovements.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    Nenhuma movimentação realizada encontrada para o filtro atual.
+                  </td>
+                </tr>
+              ) : (
+                displayedRealizedMovements.map((tx) => {
+                  const isIncome = tx.type === "INCOME";
+                  return (
+                    <tr key={tx.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-5 py-3 whitespace-nowrap text-slate-500 dark:text-slate-400">
+                        {tx.date ? tx.date.split("T")[0].split("-").reverse().slice(0, 2).join("/") : "-"}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-800 dark:text-slate-200">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${
+                            isIncome ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400" : "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400"
+                          }`}>
+                            {isIncome ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                          </div>
+                          <span className="truncate max-w-[260px]">{tx.description}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                        {tx.walletName}
+                      </td>
+                      <td className="px-4 py-3 text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                        {tx.category}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-semibold whitespace-nowrap ${
+                        isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-slate-800 dark:text-slate-200"
+                      }`}>
+                        {isIncome ? `+${brl(tx.amount)}` : `-${brl(tx.amount)}`}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
 
       {/* ── Modal 1: + Novo Boleto / Despesa a Pagar ────────────────────── */}
       {newCommitmentModalOpen && (
