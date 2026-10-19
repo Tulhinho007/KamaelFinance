@@ -10999,39 +10999,66 @@ export async function createCommitmentAction(input: {
   description: string;
   amount: number;
   dueDate: string;
-  tipo: "BOLETO" | "ASSINATURA";
-  recorrencia: "MENSAL" | "UNICO";
+  tipo?: "BOLETO" | "ASSINATURA";
+  recorrencia?: "MENSAL" | "UNICO";
   competenceMonth?: number;
   competenceYear?: number;
+  walletId?: string;
+  categoryName?: string;
 }) {
   const userId = await getActiveUserId();
 
-  let defaultWallet = await prisma.wallet.findFirst({
-    where: { userId, walletType: "CONTA_CORRENTE" },
-    orderBy: { title: "asc" },
-  });
-  if (!defaultWallet) {
-    defaultWallet = await prisma.wallet.findFirst({
+  let targetWallet: any = null;
+  if (input.walletId) {
+    targetWallet = await prisma.wallet.findFirst({
+      where: { id: input.walletId, userId },
+    });
+  }
+
+  if (!targetWallet) {
+    targetWallet = await prisma.wallet.findFirst({
+      where: { userId, walletType: "CONTA_CORRENTE" },
+      orderBy: { title: "asc" },
+    });
+  }
+  if (!targetWallet) {
+    targetWallet = await prisma.wallet.findFirst({
       where: { userId },
       orderBy: { title: "asc" },
     });
   }
-  if (!defaultWallet) {
+  if (!targetWallet) {
     throw new Error("Nenhuma conta encontrada no sistema para associar o compromisso.");
   }
 
+  let catId: string | undefined;
+  if (input.categoryName?.trim()) {
+    let cat = await prisma.category.findFirst({
+      where: { name: { equals: input.categoryName.trim(), mode: "insensitive" } },
+    });
+    if (!cat) {
+      cat = await prisma.category.create({
+        data: { name: input.categoryName.trim(), color: "#6366F1" },
+      });
+    }
+    catId = cat.id;
+  }
+
   const due = parseInputDate(input.dueDate);
-  const isMensal = input.recorrencia === "MENSAL";
+  const tipo = input.tipo || "BOLETO";
+  const recorrencia = input.recorrencia || "MENSAL";
+  const isMensal = recorrencia === "MENSAL";
   const dueDay = due.getUTCDate();
   const compMonth = input.competenceMonth || (due.getUTCMonth() + 1);
   const compYear = input.competenceYear || due.getUTCFullYear();
   const compDate = new Date(Date.UTC(compYear, compMonth - 1, 1, 12, 0, 0));
 
-  const tags = "#compromisso #" + input.tipo.toLowerCase() + " #" + input.recorrencia.toLowerCase();
+  const tags = "#compromisso #" + tipo.toLowerCase() + " #" + recorrencia.toLowerCase();
 
   const created = await prisma.transaction.create({
     data: {
-      walletId: defaultWallet.id,
+      walletId: targetWallet.id,
+      categoryId: catId,
       description: input.description.trim(),
       type: "EXPENSE",
       amount: input.amount,
@@ -11044,7 +11071,7 @@ export async function createCommitmentAction(input: {
       source: "COMMITMENT",
       isRecurring: isMensal,
       recurringDay: dueDay,
-      paymentMethod: input.tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
+      paymentMethod: tipo === "ASSINATURA" ? "CREDITO" : "BOLETO",
       tags,
     },
   });
