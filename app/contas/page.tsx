@@ -1269,7 +1269,7 @@ export default function GestaoCaixaContasPage() {
     setManagingAccount(acc);
     setManageTab("EXATO");
     const currentVal = Number(acc.balance ?? acc.saldoAtual ?? 0);
-    setExactBalanceInput(currentVal > 0 ? String(currentVal) : "");
+    setExactBalanceInput("");
     setExactReasonInput("");
     setQuickAdjustType("ENTRADA");
     setQuickAmountInput("");
@@ -1630,7 +1630,7 @@ export default function GestaoCaixaContasPage() {
                         e.stopPropagation();
                         handleOpenManageModal(acc);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/50 text-slate-700 hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300 border border-slate-200/80 hover:border-emerald-300 dark:border-slate-700/80 dark:hover:border-emerald-800/80 transition-all cursor-pointer shadow-2xs group/btn"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200/90 hover:border-emerald-300 dark:border-emerald-800/80 transition-all cursor-pointer shadow-2xs group/btn"
                       title={`Ajustar saldo de ${bName}`}
                     >
                       <SlidersHorizontal size={13} className="text-emerald-600 dark:text-emerald-400 group-hover/btn:rotate-90 transition-transform duration-200" />
@@ -2609,7 +2609,7 @@ export default function GestaoCaixaContasPage() {
                 }`}
               >
                 <Equal size={14} />
-                <span className="truncate">1. Saldo Exato</span>
+                <span className="truncate">1. Definir Saldo Exato</span>
               </button>
               <button
                 type="button"
@@ -2621,7 +2621,7 @@ export default function GestaoCaixaContasPage() {
                 }`}
               >
                 <Plus size={14} />
-                <span className="truncate">2. Adicionar / Retirar</span>
+                <span className="truncate">2. Adicionar ou Retirar (+ / -)</span>
               </button>
               <button
                 type="button"
@@ -2633,7 +2633,7 @@ export default function GestaoCaixaContasPage() {
                 }`}
               >
                 <History size={14} />
-                <span className="truncate">3. Histórico</span>
+                <span className="truncate">3. Histórico de Ajustes</span>
                 {(managingAccount.history?.length || 0) > 0 && (
                   <span className="ml-0.5 text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full font-bold">
                     {managingAccount.history.length}
@@ -2658,11 +2658,11 @@ export default function GestaoCaixaContasPage() {
                       R$
                     </span>
                     <input
-                      type="number"
-                      step="0.01"
-                      placeholder="60,00"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="Ex: 60,00"
                       value={exactBalanceInput}
-                      onChange={(e) => setExactBalanceInput(e.target.value)}
+                      onChange={(e) => setExactBalanceInput(e.target.value.replace(/[^0-9.,]/g, ""))}
                       className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-11 pr-3 py-3 rounded-xl text-lg font-bold focus:outline-none focus:border-emerald-500 transition-colors shadow-2xs"
                       autoFocus
                     />
@@ -2670,16 +2670,16 @@ export default function GestaoCaixaContasPage() {
                 </div>
 
                 {/* Indicador de Diferença Calculada */}
-                {exactBalanceInput !== "" && !isNaN(parseFloat(exactBalanceInput)) && (
+                {exactBalanceInput !== "" && !isNaN(parseFloat(exactBalanceInput.replace(",", "."))) && (
                   <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
-                    parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0
+                    parseFloat(exactBalanceInput.replace(",", ".")) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0
                       ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
                       : "bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-300"
                   }`}>
                     <span className="font-medium">Diferença calculada no histórico:</span>
                     <span className="font-bold text-sm tabular-nums">
-                      {parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "+" : ""}
-                      {formatBRL(parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
+                      {parseFloat(exactBalanceInput.replace(",", ".")) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "+" : ""}
+                      {formatBRL(parseFloat(exactBalanceInput.replace(",", ".")) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
                     </span>
                   </div>
                 )}
@@ -2699,7 +2699,7 @@ export default function GestaoCaixaContasPage() {
 
                 <button
                   type="submit"
-                  disabled={savingAdjustment || exactBalanceInput === ""}
+                  disabled={savingAdjustment || exactBalanceInput.trim() === ""}
                   className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
                 >
                   <Check size={16} strokeWidth={3} />
@@ -2753,11 +2753,11 @@ export default function GestaoCaixaContasPage() {
                       R$
                     </span>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0,00"
                       value={quickAmountInput}
-                      onChange={(e) => setQuickAmountInput(e.target.value)}
+                      onChange={(e) => setQuickAmountInput(e.target.value.replace(/[^0-9.,]/g, ""))}
                       className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-11 pr-3 py-3 rounded-xl text-lg font-bold focus:outline-none focus:border-emerald-500 transition-colors shadow-2xs"
                       autoFocus
                     />
@@ -2765,13 +2765,15 @@ export default function GestaoCaixaContasPage() {
                 </div>
 
                 {/* Prévia do Saldo Resultante */}
-                {quickAmountInput !== "" && !isNaN(parseFloat(quickAmountInput)) && (
+                {quickAmountInput !== "" && !isNaN(parseFloat(quickAmountInput.replace(",", "."))) && (
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-xs flex items-center justify-between">
                     <span className="text-slate-500 font-medium">Saldo Resultante no Banco:</span>
                     <span className="font-bold text-sm text-slate-900 dark:text-white tabular-nums">
                       {formatBRL(
                         Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) +
-                          (quickAdjustType === "ENTRADA" ? parseFloat(quickAmountInput) : -parseFloat(quickAmountInput))
+                          (quickAdjustType === "ENTRADA"
+                            ? parseFloat(quickAmountInput.replace(",", "."))
+                            : -parseFloat(quickAmountInput.replace(",", ".")))
                       )}
                     </span>
                   </div>
