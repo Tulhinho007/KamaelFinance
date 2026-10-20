@@ -11493,7 +11493,7 @@ export async function updateCommitmentAction(input: {
   id: string;
   description: string;
   amount: number;
-  dueDate: string;
+  dueDate?: string;
   tipo: "BOLETO" | "ASSINATURA";
   recorrencia: "MENSAL" | "UNICO";
   competenceMonth?: number;
@@ -11512,7 +11512,7 @@ export async function updateCommitmentAction(input: {
 
   if (!tx) throw new Error("Compromisso não encontrado.");
 
-  const due = parseInputDate(input.dueDate);
+  const due = input.dueDate ? parseInputDate(input.dueDate) : (tx.dueDate || tx.date || new Date());
   const isMensal = input.recorrencia === "MENSAL";
   const dueMonth = due.getUTCMonth() + 1;
   const dueYear = due.getUTCFullYear();

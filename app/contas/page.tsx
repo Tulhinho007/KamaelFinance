@@ -589,7 +589,6 @@ export default function GestaoCaixaContasPage() {
   const [newCommitmentDesc, setNewCommitmentDesc] = useState("");
   const [newCommitmentAmount, setNewCommitmentAmount] = useState("");
   const [newCommitmentMonth, setNewCommitmentMonth] = useState<number>(currentMonthNum);
-  const [newCommitmentDueDay, setNewCommitmentDueDay] = useState<string>("10");
   const [newCommitmentCategory, setNewCommitmentCategory] = useState("Moradia & Aluguel");
   const [newCommitmentCustomCat, setNewCommitmentCustomCat] = useState("");
   const [newCommitmentWalletId, setNewCommitmentWalletId] = useState("");
@@ -605,7 +604,6 @@ export default function GestaoCaixaContasPage() {
   const [editingCommitment, setEditingCommitment] = useState(false);
   const [editDesc, setEditDesc] = useState("");
   const [editAmount, setEditAmount] = useState("");
-  const [editDueDate, setEditDueDate] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editWalletId, setEditWalletId] = useState<string>("");
 
@@ -1090,8 +1088,6 @@ export default function GestaoCaixaContasPage() {
       const finalDesc = newCommitmentDesc.trim() || "Conta Fixa";
       const finalAmount = Number(newCommitmentAmount) || 0;
       const chosenMonth = Number(newCommitmentMonth) || (selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
-      const chosenDay = parseInt(newCommitmentDueDay, 10) || 10;
-      const finalDueDate = `${selectedYear}-${String(chosenMonth).padStart(2, "0")}-${String(chosenDay).padStart(2, "0")}`;
       const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory)?.trim() || "Moradia & Aluguel";
       const availableWallets = accounts.length > 0 ? accounts : contasBancarias;
       const chosenWallet = availableWallets.find((w: any) => w.id === newCommitmentWalletId) || availableWallets[0];
@@ -1101,7 +1097,6 @@ export default function GestaoCaixaContasPage() {
       await createCommitmentAction({
         description: finalDesc,
         amount: finalAmount,
-        dueDate: finalDueDate,
         categoryName: finalCategory,
         walletId: chosenWalletId,
         bank: chosenBankName,
@@ -1121,7 +1116,6 @@ export default function GestaoCaixaContasPage() {
         tipo: "BOLETO",
         recorrencia: "MENSAL",
         startMonth: chosenMonth,
-        dueDay: chosenDay,
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
         walletId: chosenWalletId,
@@ -1135,7 +1129,6 @@ export default function GestaoCaixaContasPage() {
       setNewCommitmentDesc("");
       setNewCommitmentAmount("");
       setNewCommitmentMonth(selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
-      setNewCommitmentDueDay("10");
       setNewCommitmentCategory("Moradia & Aluguel");
       setNewCommitmentCustomCat("");
 
@@ -1198,7 +1191,6 @@ export default function GestaoCaixaContasPage() {
     try {
       const finalDesc = editDesc.trim() || "Conta Fixa";
       const finalAmount = Number(editAmount) || 0;
-      const finalDueDate = editDueDate || `${selectedYear}-${String(currentMonthNum).padStart(2, "0")}-10`;
 
       const chosenWallet = (accounts.length > 0 ? accounts : contasBancarias).find((w: any) => w.id === editWalletId);
       const chosenBank = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
@@ -1208,7 +1200,6 @@ export default function GestaoCaixaContasPage() {
           id: editItem.id,
           description: finalDesc,
           amount: finalAmount,
-          dueDate: finalDueDate,
           tipo: editItem.tipo || "BOLETO",
           recorrencia: editItem.recorrencia || "MENSAL",
           walletId: editWalletId || undefined,
@@ -1218,7 +1209,7 @@ export default function GestaoCaixaContasPage() {
       setBills((prev) =>
         prev.map((b) =>
           b.id === editItem.id
-            ? { ...b, description: finalDesc, amount: finalAmount, dueDateInput: finalDueDate, walletId: editWalletId, bank: chosenBank, walletTitle: chosenBank }
+            ? { ...b, description: finalDesc, amount: finalAmount, walletId: editWalletId, bank: chosenBank, walletTitle: chosenBank }
             : b
         )
       );
@@ -1767,22 +1758,21 @@ export default function GestaoCaixaContasPage() {
         </div>
 
         {/* ── 4. TABELA DE CONTAS FIXAS RECORRENTES ────────────────────────── */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+        <div className="w-full overflow-hidden">
+          <table className="w-full table-auto text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
               <tr>
-                <th className="px-5 py-3 w-12 text-center">Status</th>
-                <th className="px-4 py-3">Vencimento</th>
-                <th className="px-4 py-3">Descrição</th>
-                <th className="px-4 py-3">Categoria</th>
-                <th className="px-4 py-3 text-right">Valor</th>
-                <th className="px-4 py-3 w-16 text-center">Ações</th>
+                <th className="w-12 px-2 py-3 text-center">Status</th>
+                <th className="w-auto px-4 py-3">Descrição</th>
+                <th className="w-44 px-4 py-3 text-left text-sm text-slate-500 dark:text-slate-400">Categoria</th>
+                <th className="w-32 px-4 py-3 text-right font-medium">Valor</th>
+                <th className="w-12 px-2 py-3 text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredBills.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-8 h-8 text-emerald-500/80" />
                       <p className="font-semibold text-xs text-slate-600 dark:text-slate-300">
@@ -1803,7 +1793,7 @@ export default function GestaoCaixaContasPage() {
                 </tr>
               ) : (
                 filteredBills.map((bill) => {
-                  const { startMonth, dueDay } = getBillStartMonthAndDay(bill);
+                  const { startMonth } = getBillStartMonthAndDay(bill);
                   const activeMonth = selectedMonth === "ALL" ? (bill.competenceMonth || startMonth || currentMonthNum) : selectedMonth;
                   const isPriorToStart = selectedMonth !== "ALL" && selectedMonth < startMonth;
 
@@ -1824,7 +1814,7 @@ export default function GestaoCaixaContasPage() {
                       }`}
                     >
                       {/* 1. Status (Checkbox ou Indicador de Sem Recorrência) */}
-                      <td className="px-5 py-3.5 text-center">
+                      <td className="w-12 px-2 py-3.5 text-center">
                         {isPriorToStart ? (
                           <div
                             title="Sem recorrência neste mês"
@@ -1836,7 +1826,7 @@ export default function GestaoCaixaContasPage() {
                           <button
                             type="button"
                             onClick={() => toggleBillStatus(bill.id, activeMonth)}
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer mx-auto ${
                               isPaid
                                 ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
                                 : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
@@ -1848,27 +1838,13 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </td>
 
-                      {/* 2. Vencimento (Dia simples e direto) */}
-                      <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 text-xs font-semibold whitespace-nowrap">
-                        {isPriorToStart ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700/60">
-                            Sem recorrência
-                          </span>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold text-xs">
-                            <Calendar size={13} className="text-slate-400 dark:text-slate-500 shrink-0" />
-                            <span>Dia {String(dueDay).padStart(2, "0")}</span>
-                          </div>
-                        )}
-                      </td>
-
-                      {/* 3. Descrição com Ícone Contextual & Banco como subtítulo */}
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-2.5">
+                      {/* 2. Descrição com Ícone Contextual & Banco como subtítulo */}
+                      <td className="w-auto px-4 py-3.5">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
                             <IconComponent size={15} />
                           </div>
-                          <div className="flex flex-col min-w-0">
+                          <div className="flex flex-col min-w-0 flex-1">
                             <span
                               className={`font-semibold text-sm leading-tight truncate ${
                                 isPriorToStart
@@ -1888,13 +1864,13 @@ export default function GestaoCaixaContasPage() {
                         </div>
                       </td>
 
-                      {/* 4. Categoria */}
-                      <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {/* 3. Categoria */}
+                      <td className="w-44 px-4 py-3.5 text-left text-sm text-slate-500 dark:text-slate-400 truncate">
                         {bill.category || bill.tipoLabel || "Conta Fixa"}
                       </td>
 
-                      {/* 5. Valor (R$) */}
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                      {/* 4. Valor (R$) */}
+                      <td className="w-32 px-4 py-3.5 text-right font-medium whitespace-nowrap">
                         {isPriorToStart ? (
                           <span className="text-xs text-slate-400 dark:text-slate-500 italic">
                             Sem recorrência
@@ -1912,8 +1888,8 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </td>
 
-                      {/* 6. Ações */}
-                      <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                      {/* 5. Ações */}
+                      <td className="w-12 px-2 py-3.5 text-center whitespace-nowrap">
                         {isPriorToStart ? (
                           <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
                         ) : (
@@ -1963,7 +1939,6 @@ export default function GestaoCaixaContasPage() {
                                         setEditItem(bill);
                                         setEditDesc(bill.description);
                                         setEditAmount(String(bill.amount));
-                                        setEditDueDate(bill.dueDateInput || "");
                                         setEditCategory(bill.category || "");
                                         setEditWalletId(bill.walletId || "");
                                       }}
@@ -2067,39 +2042,23 @@ export default function GestaoCaixaContasPage() {
                 </div>
               </div>
 
-              {/* 3. Dia do Vencimento & Categoria */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Dia do Vencimento
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    placeholder="10"
-                    value={newCommitmentDueDay}
-                    onChange={(e) => setNewCommitmentDueDay(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Categoria
-                  </label>
-                  <select
-                    value={newCommitmentCategory}
-                    onChange={(e) => setNewCommitmentCategory(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    {CATEGORIAS_COMUNS.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                    <option value="OUTRO">Outra categoria (Digitar)...</option>
-                  </select>
-                </div>
+              {/* 3. Categoria */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={newCommitmentCategory}
+                  onChange={(e) => setNewCommitmentCategory(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                  {CATEGORIAS_COMUNS.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                  <option value="OUTRO">Outra categoria (Digitar)...</option>
+                </select>
               </div>
 
               {newCommitmentCategory === "OUTRO" && (
@@ -2363,7 +2322,7 @@ export default function GestaoCaixaContasPage() {
                 <div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Editar Conta Fixa</h3>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Alterar descrição, valor, vencimento ou banco
+                    Alterar descrição, valor ou banco
                   </p>
                 </div>
               </div>
@@ -2388,30 +2347,17 @@ export default function GestaoCaixaContasPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Valor (R$)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={editAmount}
-                    onChange={(e) => setEditAmount(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                    Vencimento
-                  </label>
-                  <input
-                    type="date"
-                    value={editDueDate}
-                    onChange={(e) => setEditDueDate(e.target.value)}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                  Valor (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
+                />
               </div>
 
               <div>
