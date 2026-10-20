@@ -4360,6 +4360,7 @@ export async function recordBankAccountMovementAction(input: {
     data: { currentBalance: updatedBalance }
   });
 
+  revalidatePath("/contas");
   revalidatePath("/cartoes");
   revalidatePath(`/cartoes/${wallet.id}`);
   revalidatePath("/despesas");
@@ -4376,6 +4377,75 @@ export async function recordBankAccountMovementAction(input: {
     valor: isEntrada ? valorNumerico : -valorNumerico,
     saldoAtualizado: updatedBalance
   };
+}
+
+export async function setExactBankAccountBalanceAction(input: {
+  contaId: string;
+  novoSaldo: number;
+  descricao?: string;
+}) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.contaId, ...(userId ? { userId } : {}) }
+  });
+  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+
+  const now = new Date();
+  const bInfo = await calculateAccountBalance(wallet.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+  const currentReal = Number(bInfo.currentRealBalance ?? wallet.currentBalance ?? 0);
+  const target = Math.round(Number(input.novoSaldo) * 100) / 100;
+  const diff = Math.round((target - currentReal) * 100) / 100;
+
+  if (diff !== 0) {
+    const isEntrada = diff > 0;
+    const valorNumerico = Math.abs(diff);
+
+    const defaultCategoryName = isEntrada ? "Ajuste de Saldo (Entrada)" : "Ajuste de Saldo (Saída)";
+    let category = await prisma.category.findFirst({
+      where: { name: { equals: defaultCategoryName, mode: "insensitive" } }
+    });
+    if (!category) {
+      category = await prisma.category.create({
+        data: { name: defaultCategoryName, color: isEntrada ? "#10B981" : "#EF4444" }
+      });
+    }
+
+    await prisma.transaction.create({
+      data: {
+        walletId: wallet.id,
+        categoryId: category.id,
+        description: input.descricao?.trim() || `Ajuste para saldo exato (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+        type: isEntrada ? "INCOME" : "EXPENSE",
+        amount: valorNumerico,
+        status: "COMPLETED",
+        date: now,
+        paymentDate: now,
+        purchaseDate: now,
+        competenceDate: now,
+        dueDate: now,
+        competenceMonth: now.getMonth() + 1,
+        competenceYear: now.getFullYear(),
+        paymentMethod: isEntrada ? PaymentMethod.PIX : PaymentMethod.DEBITO,
+        tags: "AJUSTE_SALDO",
+        source: "MANUAL"
+      }
+    });
+  }
+
+  await prisma.wallet.update({
+    where: { id: wallet.id },
+    data: { currentBalance: target }
+  });
+
+  revalidatePath("/contas");
+  revalidatePath("/cartoes");
+  revalidatePath(`/cartoes/${wallet.id}`);
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/receitas");
+  revalidatePath("/historico-pagamentos");
+
+  return { success: true, updatedBalance: target, diff };
 }
 
 export async function getBankAccountsListAction() {

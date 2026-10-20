@@ -54,6 +54,7 @@ import {
   undoCommitmentPaymentAction,
   duplicateCommitmentToNextMonthAction,
   recordBankAccountMovementAction,
+  setExactBankAccountBalanceAction,
 } from "@/lib/actions";
 
 const brl = (v: number) =>
@@ -71,6 +72,23 @@ export interface BalanceAdjustmentRecord {
   previousBalance: number;
   resultingBalance: number;
 }
+
+const getAccountSavedHistory = (accId: string): BalanceAdjustmentRecord[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`kamael_acc_history_${accId}`);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveAccountHistory = (accId: string, history: BalanceAdjustmentRecord[]) => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`kamael_acc_history_${accId}`, JSON.stringify(history.slice(0, 50)));
+  } catch {}
+};
 
 export interface BankAccountItem {
   id: string;
@@ -613,8 +631,7 @@ export default function GestaoCaixaContasPage() {
 
   // Modal: Gerenciar Saldo da Conta Bancária
   const [managingAccount, setManagingAccount] = useState<any | null>(null);
-  const [manageTab, setManageTab] = useState<"AJUSTAR" | "HISTORICO">("AJUSTAR");
-  const [adjustMode, setAdjustMode] = useState<"EXATO" | "RAPIDO">("EXATO");
+  const [manageTab, setManageTab] = useState<"EXATO" | "RAPIDO" | "HISTORICO">("EXATO");
   const [exactBalanceInput, setExactBalanceInput] = useState<string>("");
   const [exactReasonInput, setExactReasonInput] = useState<string>("");
   const [quickAdjustType, setQuickAdjustType] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
@@ -634,6 +651,10 @@ export default function GestaoCaixaContasPage() {
           return loadedAccounts.map((a: any) => {
             const existing = prev.find((p) => p.id === a.id);
             const bankStyle = getBankStyle(a.bankName || a.title);
+            const savedHist = getAccountSavedHistory(a.id);
+            const hist = (existing && existing.history && existing.history.length > 0)
+              ? existing.history
+              : (savedHist.length > 0 ? savedHist : []);
             const bal = (existing && existing.history && existing.history.length > 0)
               ? Number(existing.balance ?? existing.saldoAtual ?? 0)
               : Number(a.saldoAtual ?? a.balance ?? 0);
@@ -648,7 +669,7 @@ export default function GestaoCaixaContasPage() {
               color: bankStyle.iconBg,
               initials: bankStyle.initials,
               holder: a.holder || existing?.holder,
-              history: existing?.history || [],
+              history: hist,
             };
           });
         });
@@ -1246,10 +1267,9 @@ export default function GestaoCaixaContasPage() {
   // Handlers: Gerenciar Saldo da Conta Bancária
   const handleOpenManageModal = (acc: any) => {
     setManagingAccount(acc);
-    setManageTab("AJUSTAR");
-    setAdjustMode("EXATO");
+    setManageTab("EXATO");
     const currentVal = Number(acc.balance ?? acc.saldoAtual ?? 0);
-    setExactBalanceInput(String(currentVal));
+    setExactBalanceInput(currentVal > 0 ? String(currentVal) : "");
     setExactReasonInput("");
     setQuickAdjustType("ENTRADA");
     setQuickAmountInput("");
@@ -1291,21 +1311,27 @@ export default function GestaoCaixaContasPage() {
         type: "AJUSTE",
         amount: Math.abs(diff),
         diff,
-        description: exactReasonInput.trim() || `Ajuste manual para saldo exato (${formatBRL(targetExact)})`,
+        description: exactReasonInput.trim() || `Ajuste para saldo real (${formatBRL(targetExact)})`,
         previousBalance: currentBal,
         resultingBalance: targetExact,
       };
+
+      const updatedHistory = [newRecord, ...(managingAccount.history || [])];
+      saveAccountHistory(managingAccount.id, updatedHistory);
 
       const updatedAccount = {
         ...managingAccount,
         balance: targetExact,
         saldoAtual: targetExact,
-        history: [newRecord, ...(managingAccount.history || [])],
+        history: updatedHistory,
       };
 
-      // Atualização Reativa Imediata do Dashboard
+      // Atualização Reativa Imediata do Dashboard (Conta, Saldo Geral e Sobra Prevista)
       setAccounts((prev) =>
         prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+      );
+      setContasBancarias((prev) =>
+        prev.map((acc) => (acc.id === managingAccount.id ? { ...acc, saldoAtual: targetExact, balance: targetExact } : acc))
       );
       setManagingAccount(updatedAccount);
       setExactReasonInput("");
@@ -1313,14 +1339,10 @@ export default function GestaoCaixaContasPage() {
       showAlert(`Saldo de ${managingAccount.bankName || managingAccount.title || managingAccount.name} atualizado para ${formatBRL(targetExact)}!`, { variant: "success" });
 
       if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
-        const isEntrada = diff > 0;
-        const todayYmd = new Date().toISOString().split("T")[0];
-        await recordBankAccountMovementAction({
+        await setExactBankAccountBalanceAction({
           contaId: managingAccount.id,
-          valor: Math.abs(diff),
-          dataOperacao: todayYmd,
+          novoSaldo: targetExact,
           descricao: newRecord.description,
-          tipoOperacao: isEntrada ? "ENTRADA" : "SAIDA",
         }).catch((err) => console.error("Erro ao sincronizar saldo no banco:", err));
       }
     } catch (err: any) {
@@ -1362,21 +1384,27 @@ export default function GestaoCaixaContasPage() {
         type: quickAdjustType,
         amount: val,
         diff,
-        description: quickDescriptionInput.trim() || (quickAdjustType === "ENTRADA" ? "Adição rápida de saldo" : "Abatimento / Retirada rápida"),
+        description: quickDescriptionInput.trim() || (quickAdjustType === "ENTRADA" ? "Adição de dinheiro ao saldo" : "Retirada / Abatimento de saldo"),
         previousBalance: currentBal,
         resultingBalance: resulting,
       };
+
+      const updatedHistory = [newRecord, ...(managingAccount.history || [])];
+      saveAccountHistory(managingAccount.id, updatedHistory);
 
       const updatedAccount = {
         ...managingAccount,
         balance: resulting,
         saldoAtual: resulting,
-        history: [newRecord, ...(managingAccount.history || [])],
+        history: updatedHistory,
       };
 
-      // Atualização Reativa Imediata do Dashboard
+      // Atualização Reativa Imediata do Dashboard (Conta, Saldo Geral e Sobra Prevista)
       setAccounts((prev) =>
         prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+      );
+      setContasBancarias((prev) =>
+        prev.map((acc) => (acc.id === managingAccount.id ? { ...acc, saldoAtual: resulting, balance: resulting } : acc))
       );
       setManagingAccount(updatedAccount);
       setQuickAmountInput("");
@@ -1411,6 +1439,7 @@ export default function GestaoCaixaContasPage() {
     // Reversão do valor: inverte o sinal do diff
     const revertedBalance = Math.round((currentBal - targetRecord.diff) * 100) / 100;
     const updatedHistory = (managingAccount.history || []).filter((r: any) => r.id !== recordId);
+    saveAccountHistory(managingAccount.id, updatedHistory);
 
     const updatedAccount = {
       ...managingAccount,
@@ -1421,6 +1450,9 @@ export default function GestaoCaixaContasPage() {
 
     setAccounts((prev) =>
       prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+    );
+    setContasBancarias((prev) =>
+      prev.map((acc) => (acc.id === managingAccount.id ? { ...acc, saldoAtual: revertedBalance, balance: revertedBalance } : acc))
     );
     setManagingAccount(updatedAccount);
 
@@ -1588,8 +1620,8 @@ export default function GestaoCaixaContasPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className={`font-bold text-sm ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={`font-bold text-sm tabular-nums ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                       {formatBRL(currentBal)}
                     </span>
                     <button
@@ -1598,10 +1630,11 @@ export default function GestaoCaixaContasPage() {
                         e.stopPropagation();
                         handleOpenManageModal(acc);
                       }}
-                      className="p-1 rounded-lg text-slate-300 dark:text-slate-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-all cursor-pointer"
-                      title={`Gerenciar saldo de ${bName}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-emerald-50 dark:bg-slate-800 dark:hover:bg-emerald-950/50 text-slate-700 hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300 border border-slate-200/80 hover:border-emerald-300 dark:border-slate-700/80 dark:hover:border-emerald-800/80 transition-all cursor-pointer shadow-2xs group/btn"
+                      title={`Ajustar saldo de ${bName}`}
                     >
-                      <ChevronRight size={18} />
+                      <SlidersHorizontal size={13} className="text-emerald-600 dark:text-emerald-400 group-hover/btn:rotate-90 transition-transform duration-200" />
+                      <span>Ajustar Saldo</span>
                     </button>
                   </div>
                 </div>
@@ -2545,256 +2578,245 @@ export default function GestaoCaixaContasPage() {
             </div>
 
             {/* Card de Destaque: Saldo Atual da Conta */}
-            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/80 dark:border-slate-800 mb-4 flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-slate-100/60 dark:from-slate-950/50 dark:to-slate-900/40 border border-slate-200/80 dark:border-slate-800 mb-4 flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Saldo Atual Disponível
+                  Saldo Atual no Sistema
                 </span>
-                <p className={`text-2xl font-black mt-0.5 ${Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                <p className={`text-2xl sm:text-3xl font-black mt-0.5 tabular-nums ${Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                   {formatBRL(Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
                 </p>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 block">
-                  Saldo Geral Atual
+                  Saldo Geral Disponível
                 </span>
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 tabular-nums">
                   {formatBRL(totalSaldoGeral)}
                 </span>
               </div>
             </div>
 
-            {/* Abas Principais: Aba 1: Ajustar Saldo | Aba 2: Histórico de Ajustes */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 mb-4">
+            {/* As 3 Abas Diretas de Ajuste */}
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl mb-4">
               <button
                 type="button"
-                onClick={() => setManageTab("AJUSTAR")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
-                  manageTab === "AJUSTAR"
-                    ? "border-emerald-600 text-emerald-600 dark:text-emerald-400"
-                    : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                onClick={() => setManageTab("EXATO")}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  manageTab === "EXATO"
+                    ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <SlidersHorizontal size={14} />
-                <span>Ajustar Saldo</span>
+                <Equal size={14} />
+                <span className="truncate">1. Saldo Exato</span>
               </button>
-
+              <button
+                type="button"
+                onClick={() => setManageTab("RAPIDO")}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  manageTab === "RAPIDO"
+                    ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                <Plus size={14} />
+                <span className="truncate">2. Adicionar / Retirar</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setManageTab("HISTORICO")}
-                className={`pb-2.5 px-3 text-xs font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                   manageTab === "HISTORICO"
-                    ? "border-emerald-600 text-emerald-600 dark:text-emerald-400"
-                    : "border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
                 <History size={14} />
-                <span>Histórico de Ajustes</span>
+                <span className="truncate">3. Histórico</span>
                 {(managingAccount.history?.length || 0) > 0 && (
-                  <span className="ml-1 text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 rounded-full font-bold">
+                  <span className="ml-0.5 text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full font-bold">
                     {managingAccount.history.length}
                   </span>
                 )}
               </button>
             </div>
 
-            {/* CONTEÚDO DA ABA 1: AJUSTAR SALDO */}
-            {manageTab === "AJUSTAR" && (
-              <div className="space-y-4">
-                {/* Sub-tabs / Modo de Ajuste */}
-                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-xl">
-                  <button
-                    type="button"
-                    onClick={() => setAdjustMode("EXATO")}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      adjustMode === "EXATO"
-                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                    }`}
-                  >
-                    <Equal size={14} />
-                    <span>1. Definir Saldo Exato</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustMode("RAPIDO")}
-                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                      adjustMode === "RAPIDO"
-                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
-                        : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-                    }`}
-                  >
-                    <Plus size={14} />
-                    <span>2. Ajuste Rápido (+ / -)</span>
-                  </button>
+            {/* ABA 1: DEFINIR SALDO EXATO */}
+            {manageTab === "EXATO" && (
+              <form onSubmit={handleConfirmExactBalance} className="space-y-4">
+                <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 text-xs text-emerald-900 dark:text-emerald-300 leading-relaxed">
+                  <strong>A forma mais rápida:</strong> digite o saldo real que você vê agora no aplicativo do banco (ex: <strong>60,00</strong>). O sistema substituirá o saldo na hora e calculará a diferença no histórico.
                 </div>
 
-                {/* MODO 1: DEFINIR SALDO EXATO */}
-                {adjustMode === "EXATO" && (
-                  <form onSubmit={handleConfirmExactBalance} className="space-y-3.5">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Digite o saldo final que está aparecendo no aplicativo do banco (ex: R$ 71,04). O Kamael calculará a diferença e registrará no histórico automaticamente.
-                    </p>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                    Qual é o saldo real atual no banco?
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="60,00"
+                      value={exactBalanceInput}
+                      onChange={(e) => setExactBalanceInput(e.target.value)}
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-11 pr-3 py-3 rounded-xl text-lg font-bold focus:outline-none focus:border-emerald-500 transition-colors shadow-2xs"
+                      autoFocus
+                    />
+                  </div>
+                </div>
 
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                        Novo Saldo Final no App do Banco (R$)
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                          R$
-                        </span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0,00"
-                          value={exactBalanceInput}
-                          onChange={(e) => setExactBalanceInput(e.target.value)}
-                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2.5 rounded-xl text-base font-bold focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Indicador de Diferença Calculada */}
-                    {exactBalanceInput !== "" && !isNaN(parseFloat(exactBalanceInput)) && (
-                      <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
-                        parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0
-                          ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
-                          : "bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-300"
-                      }`}>
-                        <span className="font-medium">Diferença calculada:</span>
-                        <span className="font-bold tabular-nums">
-                          {parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "+" : ""}
-                          {formatBRL(parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
-                        </span>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                        Motivo / Observação (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Conferência do app Santander, extrato do dia..."
-                        value={exactReasonInput}
-                        onChange={(e) => setExactReasonInput(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={savingAdjustment || exactBalanceInput === ""}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
-                    >
-                      {savingAdjustment ? "Salvando..." : "Atualizar para este Saldo"}
-                    </button>
-                  </form>
+                {/* Indicador de Diferença Calculada */}
+                {exactBalanceInput !== "" && !isNaN(parseFloat(exactBalanceInput)) && (
+                  <div className={`p-3.5 rounded-xl border text-xs flex items-center justify-between transition-all ${
+                    parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0
+                      ? "bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300"
+                      : "bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-300"
+                  }`}>
+                    <span className="font-medium">Diferença calculada no histórico:</span>
+                    <span className="font-bold text-sm tabular-nums">
+                      {parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) >= 0 ? "+" : ""}
+                      {formatBRL(parseFloat(exactBalanceInput) - Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0))}
+                    </span>
+                  </div>
                 )}
 
-                {/* MODO 2: AJUSTE RÁPIDO (+ / -) */}
-                {adjustMode === "RAPIDO" && (
-                  <form onSubmit={handleConfirmQuickAdjust} className="space-y-3.5">
-                    {/* Botões rápidos: Adicionar (+) ou Abater (-) */}
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1.5">
-                        Operação
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setQuickAdjustType("ENTRADA")}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                            quickAdjustType === "ENTRADA"
-                              ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
-                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500"
-                          }`}
-                        >
-                          <ArrowDownRight size={16} />
-                          <span>+ Adicionar (+)</span>
-                        </button>
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Motivo / Observação (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Conferência do app Santander, saldo real em conta..."
+                    value={exactReasonInput}
+                    onChange={(e) => setExactReasonInput(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
 
-                        <button
-                          type="button"
-                          onClick={() => setQuickAdjustType("SAIDA")}
-                          className={`py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
-                            quickAdjustType === "SAIDA"
-                              ? "bg-rose-600 text-white border-rose-600 shadow-sm"
-                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-500"
-                          }`}
-                        >
-                          <ArrowUpRight size={16} />
-                          <span>- Abater / Retirar (-)</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                        Valor do Ajuste (R$)
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                          R$
-                        </span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0,00"
-                          value={quickAmountInput}
-                          onChange={(e) => setQuickAmountInput(e.target.value)}
-                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-9 pr-3 py-2.5 rounded-xl text-base font-bold focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Prévia do Saldo Resultante */}
-                    {quickAmountInput !== "" && !isNaN(parseFloat(quickAmountInput)) && (
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-xs flex items-center justify-between">
-                        <span className="text-slate-500">Saldo Resultante:</span>
-                        <span className="font-bold text-slate-900 dark:text-white tabular-nums">
-                          {formatBRL(
-                            Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) +
-                              (quickAdjustType === "ENTRADA" ? parseFloat(quickAmountInput) : -parseFloat(quickAmountInput))
-                          )}
-                        </span>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                        Motivo / Descrição Curta (Opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ex: Pix almoço, Entrada extra, Saque caixa 24h..."
-                        value={quickDescriptionInput}
-                        onChange={(e) => setQuickDescriptionInput(e.target.value)}
-                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={savingAdjustment || quickAmountInput === ""}
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-sm"
-                    >
-                      {savingAdjustment ? "Salvando..." : "Confirmar Ajuste"}
-                    </button>
-                  </form>
-                )}
-              </div>
+                <button
+                  type="submit"
+                  disabled={savingAdjustment || exactBalanceInput === ""}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-2"
+                >
+                  <Check size={16} strokeWidth={3} />
+                  <span>{savingAdjustment ? "Salvando..." : "Salvar Novo Saldo"}</span>
+                </button>
+              </form>
             )}
 
-            {/* CONTEÚDO DA ABA 2: HISTÓRICO DE AJUSTES */}
+            {/* ABA 2: ADICIONAR OU RETIRAR (+ / -) */}
+            {manageTab === "RAPIDO" && (
+              <form onSubmit={handleConfirmQuickAdjust} className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                    Operação Desejada
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setQuickAdjustType("ENTRADA")}
+                      className={`py-3 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                        quickAdjustType === "ENTRADA"
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-500"
+                      }`}
+                    >
+                      <ArrowDownRight size={16} />
+                      <span>[ + Adicionar Dinheiro ]</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setQuickAdjustType("SAIDA")}
+                      className={`py-3 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                        quickAdjustType === "SAIDA"
+                          ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                          : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-rose-500"
+                      }`}
+                    >
+                      <ArrowUpRight size={16} />
+                      <span>[ - Retirar / Abater ]</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1">
+                    Valor (R$)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0,00"
+                      value={quickAmountInput}
+                      onChange={(e) => setQuickAmountInput(e.target.value)}
+                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-11 pr-3 py-3 rounded-xl text-lg font-bold focus:outline-none focus:border-emerald-500 transition-colors shadow-2xs"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Prévia do Saldo Resultante */}
+                {quickAmountInput !== "" && !isNaN(parseFloat(quickAmountInput)) && (
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-xs flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Saldo Resultante no Banco:</span>
+                    <span className="font-bold text-sm text-slate-900 dark:text-white tabular-nums">
+                      {formatBRL(
+                        Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0) +
+                          (quickAdjustType === "ENTRADA" ? parseFloat(quickAmountInput) : -parseFloat(quickAmountInput))
+                      )}
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
+                    Motivo / Descrição (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Pix avulso, Saque, Correção..."
+                    value={quickDescriptionInput}
+                    onChange={(e) => setQuickDescriptionInput(e.target.value)}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingAdjustment || quickAmountInput === ""}
+                  className={`w-full py-3 text-white font-bold text-sm rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-sm flex items-center justify-center gap-2 ${
+                    quickAdjustType === "ENTRADA" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-rose-600 hover:bg-rose-700"
+                  }`}
+                >
+                  <Check size={16} strokeWidth={3} />
+                  <span>
+                    {savingAdjustment
+                      ? "Salvando..."
+                      : quickAdjustType === "ENTRADA"
+                      ? "Confirmar Adição ao Saldo"
+                      : "Confirmar Retirada do Saldo"}
+                  </span>
+                </button>
+              </form>
+            )}
+
+            {/* ABA 3: HISTÓRICO RECENTE DE AJUSTES */}
             {manageTab === "HISTORICO" && (
               <div className="space-y-3">
                 {(!managingAccount.history || managingAccount.history.length === 0) ? (
-                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-xs space-y-1">
-                    <History className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" />
+                  <div className="p-8 text-center text-slate-400 dark:text-slate-500 text-xs space-y-2 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                    <History className="w-7 h-7 mx-auto text-slate-300 dark:text-slate-600" />
                     <p className="font-semibold text-slate-600 dark:text-slate-400">Nenhum ajuste registrado ainda.</p>
-                    <p className="text-[11px]">Os ajustes feitos nesta conta aparecerão aqui com data e hora.</p>
+                    <p className="text-[11px] text-slate-400">Os ajustes manuais feitos nesta conta aparecerão aqui em formato de extrato.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto pr-1 space-y-2">
@@ -2804,7 +2826,7 @@ export default function GestaoCaixaContasPage() {
                       return (
                         <div
                           key={record.id}
-                          className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 flex items-start justify-between gap-3"
+                          className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 flex items-start justify-between gap-3"
                         >
                           <div className="space-y-1 flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -2817,7 +2839,7 @@ export default function GestaoCaixaContasPage() {
                                     : "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
                                 }`}
                               >
-                                {record.type === "AJUSTE" ? "Ajuste Manual" : isEntrada ? "+ Entrada" : "- Saída"}
+                                {record.type === "AJUSTE" ? "Ajuste manual" : isEntrada ? "+ Entrada" : "- Saída"}
                               </span>
                               <span className="text-[11px] text-slate-400 dark:text-slate-500">
                                 {record.date}
