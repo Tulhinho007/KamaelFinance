@@ -2550,7 +2550,7 @@ export default function GestaoCaixaContasPage() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto"
           >
             {/* Topo do Modal */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
@@ -2602,40 +2602,40 @@ export default function GestaoCaixaContasPage() {
               <button
                 type="button"
                 onClick={() => setManageTab("EXATO")}
-                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "EXATO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <Equal size={14} />
-                <span className="truncate">1. Definir Saldo Exato</span>
+                <Equal size={14} className="shrink-0" />
+                <span>1. Definir Saldo Exato</span>
               </button>
               <button
                 type="button"
                 onClick={() => setManageTab("RAPIDO")}
-                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "RAPIDO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <Plus size={14} />
-                <span className="truncate">2. Adicionar ou Retirar (+ / -)</span>
+                <Plus size={14} className="shrink-0" />
+                <span>2. Adicionar ou Retirar</span>
               </button>
               <button
                 type="button"
                 onClick={() => setManageTab("HISTORICO")}
-                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "HISTORICO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
                     : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
                 }`}
               >
-                <History size={14} />
-                <span className="truncate">3. Histórico de Ajustes</span>
+                <History size={14} className="shrink-0" />
+                <span>3. Histórico de Ajustes</span>
                 {(managingAccount.history?.length || 0) > 0 && (
-                  <span className="ml-0.5 text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full font-bold">
+                  <span className="ml-0.5 text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full font-bold shrink-0">
                     {managingAccount.history.length}
                   </span>
                 )}
@@ -2848,7 +2848,7 @@ export default function GestaoCaixaContasPage() {
                               </span>
                             </div>
 
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 break-words">
                               {record.description}
                             </p>
 
