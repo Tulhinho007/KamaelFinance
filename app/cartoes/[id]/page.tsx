@@ -999,6 +999,7 @@ export default function CartaoDetailPage() {
                   try {
                     await undoCardInvoicePaymentAction(cardData.walletId, selectedMonth, selectedYear);
                     await loadData();
+                    router.refresh();
                     showAlert("Pagamento de fatura desfeito com sucesso.", { variant: "info" });
                   } catch (err) {
                     console.error(err);
@@ -2143,23 +2144,50 @@ export default function CartaoDetailPage() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                Debitar de uma Conta Corrente (Opcional)
+            {/* Toggle / Checkbox de Não Descontar Saldo Bancário */}
+            <div className="rounded-xl border border-purple-200 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/30 p-3">
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={selectedPaymentWalletId === "NONE"}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPaymentWalletId("NONE");
+                    } else {
+                      setSelectedPaymentWalletId(checkingWallets[0]?.id || "NONE");
+                    }
+                  }}
+                  className="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-purple-900 dark:text-purple-200">
+                  Apenas baixar fatura (não debitar saldo/salário)
+                </span>
               </label>
-              <select
-                value={selectedPaymentWalletId}
-                onChange={e => setSelectedPaymentWalletId(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20"
-              >
-                <option value="NONE">Marcação Direta (Sem débito em conta)</option>
-                {checkingWallets.map(w => (
-                  <option key={w.id} value={w.id}>
-                    {w.bankName || w.title}
-                  </option>
-                ))}
-              </select>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-purple-700 dark:text-purple-300">
+                {selectedPaymentWalletId !== "NONE"
+                  ? "Ao liquidar, o limite do cartão é restabelecido e o saldo é debitado da conta escolhida abaixo."
+                  : "Ao liquidar, o limite é restabelecido e nenhum saldo de conta bancária será debitado."}
+              </p>
             </div>
+
+            {selectedPaymentWalletId !== "NONE" && (
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Debitar de qual Conta Bancária?
+                </label>
+                <select
+                  value={selectedPaymentWalletId}
+                  onChange={e => setSelectedPaymentWalletId(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                >
+                  {checkingWallets.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.bankName || w.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 pt-2">
               <button
@@ -2181,9 +2209,12 @@ export default function CartaoDetailPage() {
                       selectedMonth,
                       selectedYear,
                       impactoMes,
-                      selectedPaymentWalletId
+                      selectedPaymentWalletId,
+                      undefined,
+                      selectedPaymentWalletId !== "NONE"
                     );
                     await loadData();
+                    router.refresh();
                     setPayInvoiceModalOpen(false);
                     showAlert("Fatura marcada como PAGA com sucesso!", { variant: "success" });
                   } catch (err) {

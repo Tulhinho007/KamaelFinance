@@ -5408,7 +5408,8 @@ export async function payCardInvoiceAction(
   year: number,
   amount: number,
   paymentWalletId?: string,
-  paymentDateStr?: string
+  paymentDateStr?: string,
+  deductFromBalance: boolean = true
 ) {
   const userId = await getActiveUserId();
 
@@ -5420,7 +5421,7 @@ export async function payCardInvoiceAction(
   const payDate = paymentDateStr ? parseInputDate(paymentDateStr) : new Date();
   let paymentTransactionId: string | null = null;
 
-  if (paymentWalletId && paymentWalletId !== "NONE") {
+  if (deductFromBalance && paymentWalletId && paymentWalletId !== "NONE") {
     const paymentWallet = await prisma.wallet.findUnique({
       where: { id: paymentWalletId, userId },
     });
@@ -5476,14 +5477,14 @@ export async function payCardInvoiceAction(
       month,
       year,
       amount: amount,
-      paymentWalletId: (paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
-      paymentTransactionId,
+      paymentWalletId: (deductFromBalance && paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
+      paymentTransactionId: deductFromBalance ? paymentTransactionId : null,
       paidAt: payDate,
     },
     update: {
       amount: amount,
-      paymentWalletId: (paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
-      paymentTransactionId,
+      paymentWalletId: (deductFromBalance && paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
+      paymentTransactionId: deductFromBalance ? paymentTransactionId : null,
       paidAt: payDate,
     },
   });
@@ -11178,8 +11179,10 @@ export async function payCommitmentAction(input: {
   cartaoCreditoId?: string;
   dataBaixa: string;
   faturaId?: string;
+  deductFromBalance?: boolean;
 }) {
   const userId = await getActiveUserId();
+  const shouldDeduct = input.deductFromBalance !== false;
 
   // Se for uma Fatura de Cartão de Crédito
   const isInvoice = Boolean(input.faturaId || input.commitmentId.startsWith("invoice-"));
@@ -11235,8 +11238,8 @@ export async function payCommitmentAction(input: {
     });
 
     const totalInvoiceAmount = cardPurchases.reduce((sum, t) => sum + Number(t.amount || 0), 0);
-    const targetWalletId = input.contaBancariaId;
-    if (!targetWalletId) {
+    const targetWalletId = shouldDeduct ? input.contaBancariaId : undefined;
+    if (shouldDeduct && !targetWalletId) {
       throw new Error("Selecione a conta corrente para debitar o pagamento da fatura.");
     }
 
@@ -11246,7 +11249,8 @@ export async function payCommitmentAction(input: {
       year,
       totalInvoiceAmount,
       targetWalletId,
-      input.dataBaixa
+      input.dataBaixa,
+      shouldDeduct
     );
 
     safeRevalidatePath("/contas");
@@ -11279,22 +11283,24 @@ export async function payCommitmentAction(input: {
   let targetWalletId = tx.walletId;
   let pm: PaymentMethod = "DEBITO";
 
-  if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
-    if (!input.contaBancariaId) throw new Error("Selecione a conta corrente para debitar.");
-    targetWalletId = input.contaBancariaId;
-    pm = input.formaPagamento === "PIX" ? "PIX" : "DEBITO";
-  } else if (input.formaPagamento === "CARTAO_CREDITO") {
-    if (!input.cartaoCreditoId) throw new Error("Selecione o cartão de crédito.");
-    targetWalletId = input.cartaoCreditoId;
-    pm = "CREDITO";
-  } else if (input.formaPagamento === "DINHEIRO") {
-    pm = "DINHEIRO";
+  if (shouldDeduct) {
+    if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
+      if (!input.contaBancariaId) throw new Error("Selecione a conta corrente para debitar.");
+      targetWalletId = input.contaBancariaId;
+      pm = input.formaPagamento === "PIX" ? "PIX" : "DEBITO";
+    } else if (input.formaPagamento === "CARTAO_CREDITO") {
+      if (!input.cartaoCreditoId) throw new Error("Selecione o cartão de crédito.");
+      targetWalletId = input.cartaoCreditoId;
+      pm = "CREDITO";
+    } else if (input.formaPagamento === "DINHEIRO") {
+      pm = "DINHEIRO";
+    }
   }
 
   const tagParts = [
     "#compromisso",
     "#pago",
-    "FORMA:" + input.formaPagamento,
+    shouldDeduct ? "FORMA:" + input.formaPagamento : "FORMA:SEM_DEBITO",
     "origDesc:" + cleanDesc,
   ];
   if (tx.isRecurring) tagParts.push("#mensal");
@@ -11313,8 +11319,8 @@ export async function payCommitmentAction(input: {
     },
   });
 
-  // 2. Se debitado de conta corrente, abate imediatamente do saldo do banco
-  if (["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
+  // 2. Se debitado de conta corrente e shouldDeduct for true, abate imediatamente do saldo do banco
+  if (shouldDeduct && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
     await prisma.wallet.update({
       where: { id: targetWalletId },
       data: { currentBalance: { decrement: tx.amount } } as any,
@@ -11496,10 +11502,13 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
 
     const tagStr = (tx.tags || "").toUpperCase();
     const wasCheckingDebit =
-      tagStr.includes("FORMA:SALDO_CONTA") ||
-      tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
-      tagStr.includes("FORMA:PIX") ||
-      (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED");
+      !tagStr.includes("FORMA:SEM_DEBITO") &&
+      (
+        tagStr.includes("FORMA:SALDO_CONTA") ||
+        tagStr.includes("FORMA:DEBITO_AUTOMATICO") ||
+        tagStr.includes("FORMA:PIX") ||
+        (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED")
+      );
 
     // Estorna o saldo na conta bancária de forma segura
     if (wasCheckingDebit && tx.walletId) {

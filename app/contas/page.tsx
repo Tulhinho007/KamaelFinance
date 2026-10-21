@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Building2,
   Home,
@@ -548,6 +549,7 @@ const getBankStyle = (name: string = "") => {
 export default function GestaoCaixaContasPage() {
   const { selectedYear, prevYear, nextYear } = usePeriod();
   const { showAlert } = useModal();
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
 
@@ -593,6 +595,7 @@ export default function GestaoCaixaContasPage() {
   const [baixaContaId, setBaixaContaId] = useState("");
   const [baixaCartaoId, setBaixaCartaoId] = useState("");
   const [baixaData, setBaixaData] = useState(new Date().toISOString().split("T")[0]);
+  const [deductFromBalance, setDeductFromBalance] = useState<boolean>(true);
 
   // Modal de Baixa em Lote
   const [batchModalOpen, setBatchModalOpen] = useState(false);
@@ -1005,8 +1008,9 @@ export default function GestaoCaixaContasPage() {
         if (res && (res as any).error) {
           throw new Error((res as any).error);
         }
-        showAlert(`Baixa desfeita para ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
+        router.refresh();
         await loadData(false);
+        showAlert(`Baixa desfeita para ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
       } catch (err: any) {
         setPaidByMonth((prev) => ({
           ...prev,
@@ -1045,6 +1049,7 @@ export default function GestaoCaixaContasPage() {
   // Handlers: Pagamento / Baixa de Compromisso
   const handleOpenBaixaModal = (item: any) => {
     setPayCommitmentItem(item);
+    setDeductFromBalance(true);
     setBaixaForma("SALDO_CONTA");
     const listContas = accounts.length > 0 ? accounts : contasBancarias;
     if (listContas.length > 0) {
@@ -1056,50 +1061,92 @@ export default function GestaoCaixaContasPage() {
   const handleConfirmBaixa = async () => {
     if (!payCommitmentItem) return;
 
-    // Atualização otimista independente no mês da baixa
+    const itemToPay = payCommitmentItem;
+    const itemAmount = Number(itemToPay.amount || 0);
+    const itemTargetAccountId = (deductFromBalance && (itemToPay.isCardInvoice || ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma)))
+      ? baixaContaId
+      : null;
+
+    if (deductFromBalance && itemToPay.isCardInvoice && !baixaContaId) {
+      showAlert("Selecione a conta que será utilizada para debitar o pagamento da fatura.", { variant: "warning" });
+      return;
+    }
+    if (deductFromBalance && !itemToPay.isCardInvoice && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
+      showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+      return;
+    }
+
+    // 1. Atualização Otimista Instantânea (0ms delay na UI - sem F5)
     setPaidByMonth((prev) => ({
       ...prev,
-      [`${payCommitmentItem.id}_${payMonth}`]: true,
+      [`${itemToPay.id}_${payMonth}`]: true,
     }));
 
-    if (!payCommitmentItem.id.startsWith("mock-") && !payCommitmentItem.id.startsWith("local-")) {
+    if (deductFromBalance && itemTargetAccountId) {
+      setAccounts((prev) =>
+        prev.map((acc) => {
+          if (acc.id === itemTargetAccountId) {
+            const current = Number(acc.balance ?? acc.saldoAtual ?? 0);
+            const newBal = current - itemAmount;
+            return {
+              ...acc,
+              balance: newBal,
+              saldoAtual: newBal,
+            };
+          }
+          return acc;
+        })
+      );
+    }
+
+    setBills((prev) =>
+      prev.map((b) =>
+        b.id === itemToPay.id
+          ? { ...b, status: "COMPLETED", paid: true }
+          : b
+      )
+    );
+
+    // Fecha o modal imediatamente para resposta visual instantânea
+    setPayCommitmentItem(null);
+
+    if (!itemToPay.id.startsWith("mock-") && !itemToPay.id.startsWith("local-")) {
       setPayingCommitment(true);
       try {
-        if (payCommitmentItem.isCardInvoice) {
-          if (!baixaContaId) {
-            showAlert("Selecione a conta que será utilizada para debitar o pagamento da fatura.", { variant: "warning" });
-            return;
-          }
+        if (itemToPay.isCardInvoice) {
           await payCommitmentAction({
-            commitmentId: payCommitmentItem.id,
+            commitmentId: itemToPay.id,
             formaPagamento: "SALDO_CONTA",
-            contaBancariaId: baixaContaId,
+            contaBancariaId: deductFromBalance ? baixaContaId : undefined,
             dataBaixa: baixaData,
+            deductFromBalance,
           });
         } else {
           await payCommitmentAction({
-            commitmentId: payCommitmentItem.id,
+            commitmentId: itemToPay.id,
             formaPagamento: baixaForma,
-            contaBancariaId: baixaContaId,
+            contaBancariaId: deductFromBalance ? baixaContaId : undefined,
             cartaoCreditoId: baixaCartaoId,
             dataBaixa: baixaData,
+            deductFromBalance,
           });
         }
-        setPayCommitmentItem(null);
+
+        router.refresh();
         await loadData(false);
         showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
       } catch (err: any) {
         console.error(err);
         setPaidByMonth((prev) => ({
           ...prev,
-          [`${payCommitmentItem.id}_${payMonth}`]: false,
+          [`${itemToPay.id}_${payMonth}`]: false,
         }));
+        await loadData(false);
         showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
       } finally {
         setPayingCommitment(false);
       }
     } else {
-      setPayCommitmentItem(null);
       showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
     }
   };
@@ -2174,34 +2221,52 @@ export default function GestaoCaixaContasPage() {
             </div>
 
             <div className="space-y-3">
+              {/* Toggle / Checkbox de Não Descontar */}
+              <div className="rounded-xl border border-purple-200 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/30 p-3">
+                <label className="flex cursor-pointer items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    checked={!deductFromBalance}
+                    onChange={(e) => setDeductFromBalance(!e.target.checked)}
+                    className="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-purple-900 dark:text-purple-200">
+                    {payCommitmentItem.isCardInvoice
+                      ? "Apenas baixar fatura (não debitar saldo/salário)"
+                      : "Apenas marcar como pago (não debitar saldo/salário)"}
+                  </span>
+                </label>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-purple-700 dark:text-purple-300">
+                  {payCommitmentItem.isCardInvoice
+                    ? (deductFromBalance
+                        ? "Ao liquidar, o limite do cartão é restabelecido e o saldo é debitado da conta escolhida abaixo."
+                        : "Ao liquidar, o limite é restabelecido e nenhum saldo de conta bancária será debitado.")
+                    : (deductFromBalance
+                        ? "O valor da conta será debitado da conta corrente escolhida abaixo."
+                        : "A conta será marcada como quitada sem debitar o saldo de nenhuma conta corrente.")}
+                </p>
+              </div>
+
               {payCommitmentItem.isCardInvoice ? (
                 <>
-                  <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/50 text-xs text-purple-700 dark:text-purple-300">
-                    <div className="flex items-center gap-1.5 font-bold mb-1">
-                      <CreditCard className="w-3.5 h-3.5" />
-                      <span>Sincronização de Fatura</span>
+                  {deductFromBalance && (
+                    <div>
+                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
+                        Qual Conta Bancária Usar para Pagar?
+                      </label>
+                      <select
+                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                        value={baixaContaId}
+                        onChange={(e) => setBaixaContaId(e.target.value)}
+                      >
+                        {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
+                          <option key={conta.id} value={conta.id}>
+                            {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <p className="text-[11px] leading-relaxed text-purple-600 dark:text-purple-400">
-                      Ao liquidar, o limite do cartão é restabelecido e o saldo é debitado da conta bancária escolhida abaixo.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Qual Conta Bancária Usar para Pagar?
-                    </label>
-                    <select
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                      value={baixaContaId}
-                      onChange={(e) => setBaixaContaId(e.target.value)}
-                    >
-                      {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
-                        <option key={conta.id} value={conta.id}>
-                          {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  )}
 
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
@@ -2217,38 +2282,42 @@ export default function GestaoCaixaContasPage() {
                 </>
               ) : (
                 <>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Qual Conta Bancária Usar para Pagar?
-                    </label>
-                    <select
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                      value={baixaContaId}
-                      onChange={(e) => setBaixaContaId(e.target.value)}
-                    >
-                      {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
-                        <option key={conta.id} value={conta.id}>
-                          {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {deductFromBalance && (
+                    <>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
+                          Qual Conta Bancária Usar para Pagar?
+                        </label>
+                        <select
+                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
+                          value={baixaContaId}
+                          onChange={(e) => setBaixaContaId(e.target.value)}
+                        >
+                          {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
+                            <option key={conta.id} value={conta.id}>
+                              {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Forma de Pagamento
-                    </label>
-                    <select
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
-                      value={baixaForma}
-                      onChange={(e) => setBaixaForma(e.target.value as any)}
-                    >
-                      <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
-                      <option value="DEBITO_AUTOMATICO">Débito Automático</option>
-                      <option value="PIX">Pix</option>
-                      <option value="DINHEIRO">Dinheiro em Espécie</option>
-                    </select>
-                  </div>
+                      <div>
+                        <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
+                          Forma de Pagamento
+                        </label>
+                        <select
+                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
+                          value={baixaForma}
+                          onChange={(e) => setBaixaForma(e.target.value as any)}
+                        >
+                          <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
+                          <option value="DEBITO_AUTOMATICO">Débito Automático</option>
+                          <option value="PIX">Pix</option>
+                          <option value="DINHEIRO">Dinheiro em Espécie</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
 
                   <div>
                     <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
