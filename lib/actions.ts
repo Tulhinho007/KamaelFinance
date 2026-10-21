@@ -5537,17 +5537,12 @@ export async function undoCardInvoicePaymentAction(
       month,
       year
     );
-    const targetVencMonth = dueDateInfo.billingMonth;
-    const targetVencYear = dueDateInfo.billingYear;
-
-    // Busca o pagamento da fatura: pode ter sido registrado pelo mês de competência ou pelo mês de vencimento
+    // Busca o pagamento da fatura pelo mês de competência exato
     const payments = await (prisma as any).invoicePayment.findMany({
       where: {
         walletId: cardWalletId,
-        OR: [
-          { month, year },
-          { month: targetVencMonth, year: targetVencYear },
-        ],
+        month,
+        year,
       },
       orderBy: { paidAt: "desc" },
     });
@@ -10945,10 +10940,7 @@ export async function getMonthlyCommitmentsAction(
       const dueFormatted = dueDateInfo.dateStr;
 
       const paidRecord = (allPaidInvoices || []).find(
-        (p: any) => p.walletId === card.id && (
-          (p.month === m && p.year === year) ||
-          (p.month === targetVencMonth && p.year === targetVencYear)
-        )
+        (p: any) => p.walletId === card.id && p.month === m && p.year === year
       );
 
       // Se não há pagamento registrado e o valor consolidado é zero, não gera compromisso
