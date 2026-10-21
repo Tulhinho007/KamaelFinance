@@ -776,6 +776,16 @@ export default function GestaoCaixaContasPage() {
       const parts = getItemDueDateParts(bill);
       if (parts) {
         startMonth = parts.month;
+      }
+    }
+
+    if (bill.competenceYear != null) {
+      startYear = Number(bill.competenceYear);
+    } else if (bill.startYear != null) {
+      startYear = Number(bill.startYear);
+    } else {
+      const parts = getItemDueDateParts(bill);
+      if (parts) {
         startYear = parts.year;
       }
     }
@@ -796,6 +806,7 @@ export default function GestaoCaixaContasPage() {
 
     if (isNaN(startMonth) || startMonth < 1 || startMonth > 12) startMonth = 1;
     if (isNaN(dueDay) || dueDay < 1 || dueDay > 31) dueDay = 10;
+    if (isNaN(startYear)) startYear = selectedYear;
 
     return { startMonth, dueDay, startYear };
   };
@@ -831,11 +842,33 @@ export default function GestaoCaixaContasPage() {
   }, [allRegisteredWallets, bills]);
 
   // Lista filtrada de contas fixas projetadas (por mês, busca e banco selecionado)
+  // Regra: Não exibe contas em meses que não existem. Só vai exibir a partir do mês cadastrado e posterior!
   const filteredBills = useMemo(() => {
     return bills.filter((item) => {
       // Se for fatura de cartão específica e estiver num mês diferente, não exibe
       if (selectedMonth !== "ALL" && item.isCardInvoice && item.competenceMonth && item.competenceMonth !== selectedMonth) {
         return false;
+      }
+
+      // Regra de recorrência e meses de início: só exibe a partir do mês que foi cadastrado e posterior!
+      if (!item.isCardInvoice) {
+        const { startMonth, startYear } = getBillStartMonthAndDay(item);
+
+        // Se o ano da conta for posterior ao ano selecionado, não exibe
+        if (startYear > selectedYear) return false;
+
+        if (selectedMonth !== "ALL") {
+          // Se estiver no mesmo ano e o mês selecionado for anterior ao mês de início, não exibe
+          if (startYear === selectedYear && selectedMonth < startMonth) {
+            return false;
+          }
+
+          // Se a conta for de recorrência única (avulsa), só exibe no mês e ano exatos
+          const isRecorrente = item.recorrencia !== "UNICO" && item.recorrenciaLabel !== "Apenas neste mês";
+          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) {
+            return false;
+          }
+        }
       }
 
       // Filtro por Banco selecionado
@@ -869,9 +902,14 @@ export default function GestaoCaixaContasPage() {
         if (selectedMonth !== "ALL" && b.isCardInvoice && b.competenceMonth && b.competenceMonth !== selectedMonth) {
           return false;
         }
-        const { startMonth } = getBillStartMonthAndDay(b);
+        const { startMonth, startYear } = getBillStartMonthAndDay(b);
+        if (startYear > selectedYear) return false;
+
         if (selectedMonth !== "ALL") {
-          if (selectedMonth < startMonth) return false;
+          if (startYear === selectedYear && selectedMonth < startMonth) return false;
+          const isRecorrente = b.recorrencia !== "UNICO" && b.recorrenciaLabel !== "Apenas neste mês";
+          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) return false;
+
           const isPaid = Boolean(
             paidByMonth[`${b.id}_${selectedMonth}`] ??
             (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
@@ -887,16 +925,20 @@ export default function GestaoCaixaContasPage() {
         }
       })
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [bills, selectedMonth, paidByMonth, currentMonthNum]);
+  }, [bills, selectedMonth, paidByMonth, currentMonthNum, selectedYear]);
 
   // Total das contas pendentes filtradas para exibição no card de A Pagar da tabela
   const pendingBillsTotal = useMemo(() => {
     return filteredBills
       .filter((b) => {
-        const { startMonth } = getBillStartMonthAndDay(b);
+        const { startMonth, startYear } = getBillStartMonthAndDay(b);
+        if (startYear > selectedYear) return false;
+
         if (selectedMonth !== "ALL") {
-          // Se o mês selecionado for ANTERIOR ao início: NÃO SOMA!
-          if (selectedMonth < startMonth) return false;
+          if (startYear === selectedYear && selectedMonth < startMonth) return false;
+          const isRecorrente = b.recorrencia !== "UNICO" && b.recorrenciaLabel !== "Apenas neste mês";
+          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) return false;
+
           const isPaid = Boolean(
             paidByMonth[`${b.id}_${selectedMonth}`] ??
             (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
@@ -912,7 +954,7 @@ export default function GestaoCaixaContasPage() {
         }
       })
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum]);
+  }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum, selectedYear]);
 
   // Sobra prevista após contas pendentes (com saldo geral)
   const sobraPrevista = totalSaldoGeral - monthPendingBillsTotal;
@@ -1828,9 +1870,8 @@ export default function GestaoCaixaContasPage() {
                 filteredBills.map((bill) => {
                   const { startMonth } = getBillStartMonthAndDay(bill);
                   const activeMonth = selectedMonth === "ALL" ? (bill.competenceMonth || startMonth || currentMonthNum) : selectedMonth;
-                  const isPriorToStart = selectedMonth !== "ALL" && selectedMonth < startMonth;
 
-                  const isPaid = !isPriorToStart && Boolean(
+                  const isPaid = Boolean(
                     paidByMonth[`${bill.id}_${activeMonth}`] ??
                     (bill.competenceMonth === activeMonth && (bill.status === "COMPLETED" || bill.status === "PAID" || bill.status === "PAGO"))
                   );
@@ -1840,35 +1881,22 @@ export default function GestaoCaixaContasPage() {
                   return (
                     <tr
                       key={`${bill.id}_${activeMonth}`}
-                      className={`transition-colors group ${
-                        isPriorToStart
-                          ? "opacity-40 select-none bg-slate-50/30 dark:bg-slate-900/30"
-                          : "hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
-                      }`}
+                      className="transition-colors group hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
                     >
-                      {/* 1. Status (Checkbox ou Indicador de Sem Recorrência) */}
+                      {/* 1. Status (Checkbox para Liquidar ou Desfazer) */}
                       <td className="w-12 px-2 py-3.5 text-center">
-                        {isPriorToStart ? (
-                          <div
-                            title="Sem recorrência neste mês"
-                            className="w-6 h-6 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 mx-auto flex items-center justify-center text-slate-300 dark:text-slate-600 text-xs select-none"
-                          >
-                            -
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggleBillStatus(bill.id, activeMonth)}
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer mx-auto ${
-                              isPaid
-                                ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
-                                : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
-                            }`}
-                            title={isPaid ? "Clique para desmarcar (desfazer baixa)" : "Clique para selecionar conta e liquidar"}
-                          >
-                            {isPaid && <Check size={14} strokeWidth={3} />}
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleBillStatus(bill.id, activeMonth)}
+                          className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all cursor-pointer mx-auto ${
+                            isPaid
+                              ? "bg-emerald-500 text-white shadow-xs hover:bg-emerald-600"
+                              : "border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 bg-white dark:bg-slate-800"
+                          }`}
+                          title={isPaid ? "Clique para desmarcar (desfazer baixa)" : "Clique para selecionar conta e liquidar"}
+                        >
+                          {isPaid && <Check size={14} strokeWidth={3} />}
+                        </button>
                       </td>
 
                       {/* 2. Descrição com Ícone Contextual & Banco como subtítulo */}
@@ -1880,9 +1908,7 @@ export default function GestaoCaixaContasPage() {
                           <div className="flex flex-col min-w-0 flex-1">
                             <span
                               className={`font-semibold text-sm leading-tight truncate ${
-                                isPriorToStart
-                                  ? "text-slate-400 dark:text-slate-500"
-                                  : isPaid
+                                isPaid
                                   ? "line-through text-slate-400 dark:text-slate-500"
                                   : "text-slate-900 dark:text-slate-100"
                               }`}
@@ -1904,29 +1930,20 @@ export default function GestaoCaixaContasPage() {
 
                       {/* 4. Valor (R$) */}
                       <td className="w-32 px-4 py-3.5 text-right font-medium whitespace-nowrap">
-                        {isPriorToStart ? (
-                          <span className="text-xs text-slate-400 dark:text-slate-500 italic">
-                            Sem recorrência
-                          </span>
-                        ) : (
-                          <span
-                            className={`font-semibold ${
-                              isPaid
-                                ? "text-slate-400 dark:text-slate-500 line-through"
-                                : "text-slate-800 dark:text-slate-100"
-                            }`}
-                          >
-                            {formatBRL(bill.amount)}
-                          </span>
-                        )}
+                        <span
+                          className={`font-semibold ${
+                            isPaid
+                              ? "text-slate-400 dark:text-slate-500 line-through"
+                              : "text-slate-800 dark:text-slate-100"
+                          }`}
+                        >
+                          {formatBRL(bill.amount)}
+                        </span>
                       </td>
 
                       {/* 5. Ações */}
                       <td className="w-12 px-2 py-3.5 text-center whitespace-nowrap">
-                        {isPriorToStart ? (
-                          <span className="text-slate-300 dark:text-slate-600 text-xs">-</span>
-                        ) : (
-                          <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                        <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               onClick={() => setActiveActionMenuId(activeActionMenuId === bill.id ? null : bill.id)}
@@ -1997,9 +2014,8 @@ export default function GestaoCaixaContasPage() {
                               </div>
                             )}
                           </div>
-                        )}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
                   );
                 })
               )}
