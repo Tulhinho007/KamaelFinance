@@ -596,6 +596,7 @@ export default function GestaoCaixaContasPage() {
   const [baixaCartaoId, setBaixaCartaoId] = useState("");
   const [baixaData, setBaixaData] = useState(new Date().toISOString().split("T")[0]);
   const [deductFromBalance, setDeductFromBalance] = useState<boolean>(true);
+  const [paidAccountByBill, setPaidAccountByBill] = useState<Record<string, string>>({});
 
   // Modal de Baixa em Lote
   const [batchModalOpen, setBatchModalOpen] = useState(false);
@@ -658,9 +659,7 @@ export default function GestaoCaixaContasPage() {
             const hist = (existing && existing.history && existing.history.length > 0)
               ? existing.history
               : (savedHist.length > 0 ? savedHist : []);
-            const bal = (existing && existing.history && existing.history.length > 0)
-              ? Number(existing.balance ?? existing.saldoAtual ?? 0)
-              : Number(a.saldoAtual ?? a.balance ?? 0);
+            const bal = Number(a.saldoAtual ?? a.balance ?? 0);
             return {
               ...a,
               id: a.id,
@@ -687,15 +686,13 @@ export default function GestaoCaixaContasPage() {
       const finalList = allList.length > 0 ? allList : DEFAULT_INITIAL_BILLS;
       setBills(finalList);
 
-      // Preenche paidByMonth com os itens que já vieram como pagos do banco
-      const initialPaid: Record<string, boolean> = {};
+      // Sincroniza paidByMonth com os dados atualizados vindos do banco
+      const freshPaid: Record<string, boolean> = {};
       finalList.forEach((b: any) => {
-        if (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO") {
-          const m = b.competenceMonth || currentMonthNum;
-          initialPaid[`${b.id}_${m}`] = true;
-        }
+        const m = b.competenceMonth || currentMonthNum;
+        freshPaid[`${b.id}_${m}`] = (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO");
       });
-      setPaidByMonth((prev) => ({ ...initialPaid, ...prev }));
+      setPaidByMonth((prev) => ({ ...prev, ...freshPaid }));
 
       setContasBancarias(data.contasBancarias || []);
       setCartoesCredito(data.cartoesCredito || []);
@@ -996,27 +993,102 @@ export default function GestaoCaixaContasPage() {
       return;
     }
 
-    // Se já estiver pago, desmarca com atualização otimista imediata para aquele mês
+    // ── REVERTER DE PAGO PARA PENDENTE (UNCHECK / DESMARCAR) ──
+    // Salva snapshots anteriores para rollback perfeito se a requisição falhar
+    const prevPaidByMonth = { ...paidByMonth };
+    const prevBills = [...bills];
+    const prevAccounts = [...accounts];
+
+    const billAmount = Number(target.amount || 0);
+
+    // Identifica qual conta bancária havia sido debitada
+    const targetAccountId =
+      paidAccountByBill[billId] ||
+      target.paymentWalletId ||
+      target.paidWalletId ||
+      (target.walletId && accounts.some((a) => a.id === target.walletId) ? target.walletId : null) ||
+      accounts.find((a) => (a.bankName || a.title || "").toLowerCase() === getBillBankName(target, accounts).toLowerCase())?.id ||
+      accounts[0]?.id;
+
+    // 1. ATUALIZAÇÃO OTIMISTA INSTANTÂNEA (0ms na UI - sem necessidade de F5)
+    // a) Checkbox e status de pagamento do mês
     setPaidByMonth((prev) => ({
       ...prev,
       [`${billId}_${month}`]: false,
     }));
 
+    // b) Lista de contas (muda status para PENDING)
+    setBills((prev) =>
+      prev.map((b) =>
+        b.id === billId
+          ? { ...b, status: "PENDING", paid: false }
+          : b
+      )
+    );
+
+    // c) Estorna o valor de volta no estado local das contas correntes (accounts)
+    // Isso faz com que o badge do banco (ex: Santander, Picpay) e o Saldo Geral Disponível aumentem no mesmo milissegundo!
+    if (targetAccountId && billAmount > 0) {
+      setAccounts((prev) =>
+        prev.map((acc) => {
+          if (acc.id === targetAccountId) {
+            const currentBal = Number(acc.balance ?? acc.saldoAtual ?? 0);
+            const newBal = currentBal + billAmount;
+            return {
+              ...acc,
+              balance: newBal,
+              saldoAtual: newBal,
+            };
+          }
+          return acc;
+        })
+      );
+    }
+
+    // 2. REQUISIÇÃO AO SERVIDOR
     if (!target.id.startsWith("mock-") && !target.id.startsWith("local-") && (target.competenceMonth === month || !target.competenceMonth)) {
       try {
         const res = await undoCommitmentPaymentAction(billId);
         if (res && (res as any).error) {
           throw new Error((res as any).error);
         }
+
+        // Se o backend estornou uma conta diferente da estimada, sincroniza pontualmente
+        if (res && (res as any).refundedWalletId && (res as any).refundedWalletId !== targetAccountId) {
+          const actualWalletId = (res as any).refundedWalletId;
+          const actualAmount = Number((res as any).refundedAmount || billAmount);
+          setAccounts((prev) =>
+            prev.map((acc) => {
+              if (acc.id === targetAccountId) {
+                const bal = Number(acc.balance ?? acc.saldoAtual ?? 0) - billAmount;
+                return { ...acc, balance: bal, saldoAtual: bal };
+              }
+              if (acc.id === actualWalletId) {
+                const bal = Number(acc.balance ?? acc.saldoAtual ?? 0) + actualAmount;
+                return { ...acc, balance: bal, saldoAtual: bal };
+              }
+              return acc;
+            })
+          );
+        }
+
+        // Remove do cache de contas pagas
+        setPaidAccountByBill((prev) => {
+          const next = { ...prev };
+          delete next[billId];
+          return next;
+        });
+
         router.refresh();
         await loadData(false);
         showAlert(`Baixa desfeita para ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
       } catch (err: any) {
-        setPaidByMonth((prev) => ({
-          ...prev,
-          [`${billId}_${month}`]: true,
-        }));
-        showAlert(err?.message || "Erro ao alterar status da conta.", { variant: "error" });
+        console.error("Erro ao desfazer baixa:", err);
+        // Rollback automático para o estado anterior em caso de erro
+        setPaidByMonth(prevPaidByMonth);
+        setBills(prevBills);
+        setAccounts(prevAccounts);
+        showAlert(err?.message || "Não foi possível desmarcar a conta. Revertendo...", { variant: "error" });
       }
     } else {
       showAlert(`Status alterado para pendente em ${MONTH_NAMES_LIST[month - 1]}!`, { variant: "info" });
@@ -1076,6 +1148,11 @@ export default function GestaoCaixaContasPage() {
       return;
     }
 
+    // Salva snapshot para rollback em caso de falha
+    const prevPaidByMonth = { ...paidByMonth };
+    const prevBills = [...bills];
+    const prevAccounts = [...accounts];
+
     // 1. Atualização Otimista Instantânea (0ms delay na UI - sem F5)
     setPaidByMonth((prev) => ({
       ...prev,
@@ -1083,6 +1160,10 @@ export default function GestaoCaixaContasPage() {
     }));
 
     if (deductFromBalance && itemTargetAccountId) {
+      setPaidAccountByBill((prev) => ({
+        ...prev,
+        [itemToPay.id]: itemTargetAccountId,
+      }));
       setAccounts((prev) =>
         prev.map((acc) => {
           if (acc.id === itemTargetAccountId) {
@@ -1102,7 +1183,7 @@ export default function GestaoCaixaContasPage() {
     setBills((prev) =>
       prev.map((b) =>
         b.id === itemToPay.id
-          ? { ...b, status: "COMPLETED", paid: true }
+          ? { ...b, status: "COMPLETED", paid: true, walletId: itemTargetAccountId || b.walletId }
           : b
       )
     );
@@ -1137,10 +1218,9 @@ export default function GestaoCaixaContasPage() {
         showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
       } catch (err: any) {
         console.error(err);
-        setPaidByMonth((prev) => ({
-          ...prev,
-          [`${itemToPay.id}_${payMonth}`]: false,
-        }));
+        setPaidByMonth(prevPaidByMonth);
+        setBills(prevBills);
+        setAccounts(prevAccounts);
         await loadData(false);
         showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
       } finally {

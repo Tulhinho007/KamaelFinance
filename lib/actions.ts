@@ -5550,6 +5550,9 @@ export async function undoCardInvoicePaymentAction(
 
     const specificPayment = payments[0] || null;
 
+    let refundedWalletId: string | null = null;
+    let refundedAmount: number = 0;
+
     if (specificPayment) {
       if (specificPayment.paymentTransactionId) {
         try {
@@ -5573,6 +5576,8 @@ export async function undoCardInvoicePaymentAction(
               where: { id: specificPayment.paymentWalletId },
               data: { currentBalance: { increment: Number(specificPayment.amount) } } as any,
             });
+            refundedWalletId = specificPayment.paymentWalletId;
+            refundedAmount = Number(specificPayment.amount || 0);
           }
         } catch (e) {
           console.warn("Aviso ao estornar saldo bancário da fatura:", e);
@@ -5628,7 +5633,7 @@ export async function undoCardInvoicePaymentAction(
     safeRevalidatePath("/dashboard");
     safeRevalidatePath("/contas");
     safeRevalidatePath("/compromissos");
-    return { success: true };
+    return { success: true, refundedWalletId, refundedAmount };
   } catch (error: any) {
     console.error("Erro em undoCardInvoicePaymentAction:", error);
     return { success: false, error: error?.message || "Erro ao desfazer pagamento da fatura." };
@@ -11510,6 +11515,9 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
         (tx.wallet && tx.wallet.walletType !== "CREDIT_CARD" && tx.status === "COMPLETED")
       );
 
+    let refundedWalletId: string | null = null;
+    let refundedAmount: number = 0;
+
     // Estorna o saldo na conta bancária de forma segura
     if (wasCheckingDebit && tx.walletId) {
       try {
@@ -11519,6 +11527,8 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
             where: { id: tx.walletId },
             data: { currentBalance: { increment: tx.amount } } as any,
           });
+          refundedWalletId = tx.walletId;
+          refundedAmount = Number(tx.amount || 0);
         }
       } catch (err) {
         console.warn("Aviso ao estornar saldo de conta bancária:", err);
@@ -11553,7 +11563,7 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
     safeRevalidatePath("/compromissos");
     safeRevalidatePath("/historico-pagamentos");
 
-    return { success: true };
+    return { success: true, refundedWalletId, refundedAmount };
   } catch (error: any) {
     console.error("Erro em undoCommitmentPaymentAction:", error);
     return { success: false, error: error?.message || "Erro ao desfazer pagamento do compromisso." };
