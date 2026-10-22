@@ -11,7 +11,6 @@ import {
   TrendingUp,
   CreditCard,
   Building2,
-  Radar,
   BarChart3,
   PieChart,
   Sun,
@@ -20,7 +19,6 @@ import {
   LogOut,
   Menu,
   X,
-  Zap,
   Wrench,
   Plane,
   Eye,
@@ -51,13 +49,6 @@ export const sidebarNavigation: SidebarNavGroup[] = [
       { name: "Cartões de Crédito", href: "/cartoes", icon: CreditCard },
       { name: "Conta Corrente", href: "/contas", icon: Building2 },
       { name: "Entradas & Receitas", href: "/receitas", icon: TrendingUp },
-    ],
-  },
-  {
-    group: "GESTÃO DE LIQUIDEZ & CRÉDITO",
-    items: [
-      { name: "Pix Crédito", href: "/pix-credito", icon: Zap },
-      { name: "Radar & Fechamento", href: "/gestao-financeira/radar-gastos", icon: Radar },
     ],
   },
   {

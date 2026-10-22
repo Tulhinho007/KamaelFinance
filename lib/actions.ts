@@ -3224,8 +3224,6 @@ export async function deleteCardPurchase(
     revalidatePath("/dashboard");
     revalidatePath("/receitas");
     revalidatePath("/contas");
-    revalidatePath("/radar-de-gastos");
-    revalidatePath("/gestao-financeira/radar-gastos");
 
     return { success: true, deletedCount: targetIds.length, isInstallmentGroup };
   } catch (error: any) {
@@ -4073,8 +4071,6 @@ export async function createBatchWeeklyDebitAction(input: {
   });
 
   revalidatePath("/contas");
-  revalidatePath("/radar-de-gastos");
-  revalidatePath("/gestao-financeira/radar-gastos");
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/cartoes");
@@ -4203,8 +4199,6 @@ export async function updateRealizedBankMovementAction(input: {
   }
 
   revalidatePath("/contas");
-  revalidatePath("/radar-de-gastos");
-  revalidatePath("/gestao-financeira/radar-gastos");
   revalidatePath("/dashboard");
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
@@ -4280,8 +4274,6 @@ export async function updateMicroexpenseAction(input: {
     }
   }
 
-  revalidatePath("/gestao-financeira/radar-gastos");
-  revalidatePath("/radar-de-gastos");
   revalidatePath("/contas");
   revalidatePath("/dashboard");
   revalidatePath("/despesas");
