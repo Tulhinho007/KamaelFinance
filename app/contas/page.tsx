@@ -250,8 +250,8 @@ export interface BillItem {
   [key: string]: any;
 }
 
-// Faturas já pagas e liquidadas do ano (Agosto e Setembro)
-export const DEFAULT_PAID_INVOICES: BillItem[] = [
+// Faturas HyperCard por Mês de Competência (Agosto a Dezembro de 2026)
+export const DEFAULT_HYPERCARD_INVOICES: BillItem[] = [
   {
     id: "invoice-hypercard-2026-08",
     description: "Fatura HyperCard",
@@ -282,9 +282,58 @@ export const DEFAULT_PAID_INVOICES: BillItem[] = [
     competenceYear: 2026,
     month: "2026-09",
   },
+  {
+    id: "invoice-hypercard-2026-10",
+    description: "Fatura HyperCard",
+    amount: 554.16,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "FATURA_CARTAO",
+    bank: "HyperCard",
+    dueDay: 10,
+    status: "PENDING",
+    isCardInvoice: true,
+    competenceMonth: 10,
+    competenceYear: 2026,
+    month: "2026-10",
+  },
+  {
+    id: "invoice-hypercard-2026-11",
+    description: "Fatura HyperCard",
+    amount: 114.69,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "FATURA_CARTAO",
+    bank: "HyperCard",
+    dueDay: 10,
+    status: "PENDING",
+    isCardInvoice: true,
+    competenceMonth: 11,
+    competenceYear: 2026,
+    month: "2026-11",
+  },
+  {
+    id: "invoice-hypercard-2026-12",
+    description: "Fatura HyperCard",
+    amount: 75.75,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "FATURA_CARTAO",
+    bank: "HyperCard",
+    dueDay: 10,
+    status: "PENDING",
+    isCardInvoice: true,
+    competenceMonth: 12,
+    competenceYear: 2026,
+    month: "2026-12",
+  },
 ];
 
-// Lista única das contas fixas e fatura de Outubro/2026
+export const DEFAULT_PAID_INVOICES: BillItem[] = DEFAULT_HYPERCARD_INVOICES.filter(
+  (inv) => inv.status === "PAID"
+);
+
+// Lista única das contas fixas recorrentes
 export const DEFAULT_MONTH_BILLS: BillItem[] = [
   {
     id: "bill-tim-celular",
@@ -366,29 +415,90 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     recorrencia: "MENSAL",
     recorrenciaLabel: "Repetir todo mês",
   },
-  {
-    id: "bill-fatura-hypercard",
-    description: "Fatura HyperCard",
-    amount: 554.16,
-    category: "Fatura de Cartão",
-    tipoLabel: "Fatura de Cartão",
-    tipo: "FATURA_CARTAO",
-    bank: "HyperCard",
-    dueDay: 10,
-    status: "PENDING",
-    isCardInvoice: true,
-    competenceMonth: 10,
-    competenceYear: 2026,
-    month: "2026-10",
-  },
 ];
 
 // Aliases para compatibilidade de tipagem
 export type AnyBill = BillItem;
 export const DEFAULT_INITIAL_BILLS: BillItem[] = [
-  ...DEFAULT_PAID_INVOICES,
+  ...DEFAULT_HYPERCARD_INVOICES,
   ...DEFAULT_MONTH_BILLS,
 ];
+
+// ── PERSISTÊNCIA DEFINITIVA DE EXCLUSÃO E EDIÇÃO NO LOCALSTORAGE ─────────────
+const DELETED_BILLS_STORAGE_KEY = "kamael_deleted_bills_v1";
+const EDITED_BILLS_STORAGE_KEY = "kamael_edited_bills_v1";
+
+export const getDeletedBillIds = (): string[] => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(DELETED_BILLS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const addDeletedBillId = (id: string, description?: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getDeletedBillIds();
+    const updated = [...current];
+    if (id && !updated.includes(id)) {
+      updated.push(id);
+    }
+    if (description) {
+      const norm = normalizeBillTitle(description);
+      if (norm && !updated.includes(norm)) {
+        updated.push(norm);
+      }
+    }
+    localStorage.setItem(DELETED_BILLS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+};
+
+export const removeDeletedBillId = (description: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    const norm = normalizeBillTitle(description);
+    const current = getDeletedBillIds();
+    const updated = current.filter((id) => id !== norm && id !== description);
+    localStorage.setItem(DELETED_BILLS_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
+};
+
+export const isBillDeleted = (id: string, description?: string, deletedList?: string[]): boolean => {
+  const list = deletedList || getDeletedBillIds();
+  if (!list || list.length === 0) return false;
+  if (id && list.includes(id)) return true;
+  if (description) {
+    const norm = normalizeBillTitle(description);
+    if (norm && list.includes(norm)) return true;
+  }
+  return false;
+};
+
+export const getEditedBills = (): Record<string, Partial<BillItem>> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(EDITED_BILLS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveEditedBill = (id: string, data: Partial<BillItem>) => {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getEditedBills();
+    current[id] = { ...(current[id] || {}), ...data };
+    if (data.description) {
+      const norm = normalizeBillTitle(data.description);
+      current[norm] = { ...(current[norm] || {}), ...data };
+    }
+    localStorage.setItem(EDITED_BILLS_STORAGE_KEY, JSON.stringify(current));
+  } catch {}
+};
 
 // Helper para normalizar descrições e evitar duplicidades indesejadas
 export function normalizeBillTitle(desc: string): string {
@@ -830,12 +940,30 @@ export default function GestaoCaixaContasPage() {
         ? data.allCommitments
         : (data.pendingCommitments || []);
       
-      // Consolidação completa respeitando o ano selecionado e faturas reais:
-      // 1. Inicializa com as faturas pagas (Agosto e Setembro) e contas fixas
-      const consolidated: BillItem[] = DEFAULT_INITIAL_BILLS.map((b) => ({ ...b }));
+      // Consolidação completa respeitando o ano selecionado, faturas reais e persistência do usuário:
+      const deletedIds = getDeletedBillIds();
+      const editedBills = getEditedBills();
+
+      // 1. Inicializa com as faturas (Ago-Dez) e contas fixas padrão (filtrando as excluídas pelo usuário)
+      const consolidated: BillItem[] = DEFAULT_INITIAL_BILLS
+        .filter((b) => !isBillDeleted(b.id, b.description, deletedIds))
+        .map((b) => {
+          const item = { ...b };
+          // Aplica edições salvas
+          const edit = editedBills[item.id] || editedBills[normalizeBillTitle(item.description)];
+          if (edit) {
+            if (edit.description) item.description = edit.description;
+            if (edit.amount !== undefined) item.amount = Number(edit.amount);
+            if (edit.category) item.category = edit.category;
+            if (edit.bank) item.bank = edit.bank;
+            if (edit.walletId) item.walletId = edit.walletId;
+          }
+          return item;
+        });
 
       // 2. Mescla os compromissos e faturas reais retornados do banco de dados para o selectedYear
       allList.forEach((dbItem: any) => {
+        if (isBillDeleted(dbItem.id, dbItem.description, deletedIds)) return;
         const normTitle = normalizeBillTitle(dbItem.description || "");
         const isCard = Boolean(
           dbItem.isCardInvoice ||
@@ -848,31 +976,32 @@ export default function GestaoCaixaContasPage() {
         if (isCard) {
           const cMonth = Number(
             dbItem.competenceMonth ||
-            (dbItem.competencia ? dbItem.competencia.split("-")[1] : 10)
+            (dbItem.competencia ? dbItem.competencia.split("-")[1] : 0)
           );
           const cYear = Number(
             dbItem.competenceYear ||
             (dbItem.competencia ? dbItem.competencia.split("-")[0] : selectedYear)
           );
+          if (!cMonth) return;
           const monthKey = `${cYear}-${String(cMonth).padStart(2, "0")}`;
 
           // Localiza se já existe uma fatura cadastrada para este mesmo mês
           const matchCard = consolidated.find(
-            (c) => c.isCardInvoice && (c.competenceMonth === cMonth || c.month === monthKey)
+            (c) => (c.isCardInvoice || c.tipo === "FATURA_CARTAO") && (c.competenceMonth === cMonth || c.month === monthKey)
           );
 
           if (matchCard) {
             matchCard.id = dbItem.id;
-            if (dbItem.amount) matchCard.amount = Number(dbItem.amount);
+            if (Number(dbItem.amount) > 0) matchCard.amount = Number(dbItem.amount);
             if (dbItem.walletId) matchCard.walletId = dbItem.walletId;
             if (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") {
               matchCard.status = "PAID";
             }
           } else {
-            // Nova fatura vinda do banco de dados (ex: Agosto/2026 R$ 419,74 PAGA, Setembro/2026 R$ 839,42 PAGA)
+            // Nova fatura vinda do banco de dados
             consolidated.push({
               id: dbItem.id,
-              description: "Fatura HyperCard",
+              description: `Fatura HyperCard – ${MONTH_NAMES_LIST[cMonth - 1]}/${cYear}`,
               amount: Number(dbItem.amount || 0),
               category: "Fatura de Cartão",
               tipoLabel: "Fatura de Cartão",
@@ -890,7 +1019,7 @@ export default function GestaoCaixaContasPage() {
         } else {
           // Conta Fixa
           const match = consolidated.find(
-            (c) => !c.isCardInvoice && normalizeBillTitle(c.description) === normTitle
+            (c) => !c.isCardInvoice && c.tipo !== "FATURA_CARTAO" && normalizeBillTitle(c.description) === normTitle
           );
           if (match) {
             match.id = dbItem.id;
@@ -1080,7 +1209,12 @@ export default function GestaoCaixaContasPage() {
         ? null
         : `${activeYear}-${String(selectedMonth).padStart(2, "0")}`;
 
+    const deletedIds = getDeletedBillIds();
+
     return bills.filter((item: any) => {
+      // 0. Filtro definitivo de exclusão pelo usuário
+      if (isBillDeleted(item.id, item.description, deletedIds)) return false;
+
       // 1. Filtro temporal por Mês e Ano
       if (selectedYearMonth) {
         if (item.isCardInvoice || item.tipo === "FATURA_CARTAO") {
@@ -1488,6 +1622,8 @@ export default function GestaoCaixaContasPage() {
       const chosenWalletId = chosenWallet?.id ?? undefined;
       const chosenBankName = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
 
+      removeDeletedBillId(finalDesc);
+
       await createCommitmentAction({
         description: finalDesc,
         amount: finalAmount,
@@ -1589,15 +1725,36 @@ export default function GestaoCaixaContasPage() {
       const chosenWallet = (accounts.length > 0 ? accounts : contasBancarias).find((w: any) => w.id === editWalletId);
       const chosenBank = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
 
-      if (!editItem.id.startsWith("mock-") && !editItem.id.startsWith("local-")) {
-        await updateCommitmentAction({
-          id: editItem.id,
-          description: finalDesc,
-          amount: finalAmount,
-          tipo: editItem.tipo || "BOLETO",
-          recorrencia: editItem.recorrencia || "MENSAL",
-          walletId: editWalletId || undefined,
-        });
+      // Salva edições localmente para persistência definitiva imediata
+      saveEditedBill(editItem.id, {
+        description: finalDesc,
+        amount: finalAmount,
+        walletId: editWalletId,
+        bank: chosenBank,
+      });
+
+      const isDbUuid =
+        editItem.id &&
+        editItem.id.length >= 32 &&
+        !editItem.id.includes("-acc-") &&
+        !editItem.id.startsWith("mock-") &&
+        !editItem.id.startsWith("local-") &&
+        !editItem.id.startsWith("bill-") &&
+        !editItem.id.startsWith("invoice-");
+
+      if (isDbUuid) {
+        try {
+          await updateCommitmentAction({
+            id: editItem.id,
+            description: finalDesc,
+            amount: finalAmount,
+            tipo: editItem.tipo || "BOLETO",
+            recorrencia: editItem.recorrencia || "MENSAL",
+            walletId: editWalletId || undefined,
+          });
+        } catch (dbErr) {
+          console.warn("Item editado localmente, falha no banco:", dbErr);
+        }
       }
 
       setBills((prev) =>
@@ -1618,18 +1775,51 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
-  // Handler: Excluir Compromisso
+  // Handler: Exclusão Definitiva (com persistência no localStorage e banco)
+  const handleDelete = async (id: string) => {
+    const target = bills.find((b) => b.id === id);
+    // 1. Grava no localStorage imediatamente
+    addDeletedBillId(id, target?.description);
+
+    // 2. Remove do estado bills de forma definitiva
+    setBills((prev) =>
+      prev.filter(
+        (b) =>
+          b.id !== id &&
+          normalizeBillTitle(b.description) !== normalizeBillTitle(target?.description || "")
+      )
+    );
+
+    // 3. Se for UUID real do banco, dispara rota de exclusão (DELETE) no backend
+    const isDbUuid =
+      target &&
+      target.id &&
+      target.id.length >= 32 &&
+      !target.id.includes("-acc-") &&
+      !target.id.startsWith("mock-") &&
+      !target.id.startsWith("local-") &&
+      !target.id.startsWith("bill-") &&
+      !target.id.startsWith("invoice-");
+
+    if (isDbUuid) {
+      try {
+        await deleteCommitmentAction(target.id);
+      } catch (dbErr) {
+        console.warn("Item removido localmente, falha no delete do banco:", dbErr);
+      }
+    }
+
+    await loadData(false);
+    showAlert("Conta fixa excluída com sucesso!", { variant: "success" });
+  };
+
+  // Handler: Confirmação do Modal de Exclusão
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     setDeletingCommitment(true);
     try {
-      if (!itemToDelete.id.startsWith("mock-") && !itemToDelete.id.startsWith("local-")) {
-        await deleteCommitmentAction(itemToDelete.id);
-      }
-      setBills((prev) => prev.filter((b) => b.id !== itemToDelete.id));
+      await handleDelete(itemToDelete.id);
       setItemToDelete(null);
-      await loadData(false);
-      showAlert("Conta fixa excluída com sucesso!", { variant: "success" });
     } catch (err: any) {
       showAlert(err?.message || "Erro ao excluir conta fixa.", { variant: "error" });
     } finally {
@@ -2370,7 +2560,9 @@ export default function GestaoCaixaContasPage() {
                                   : "text-slate-900 dark:text-slate-100"
                               }`}
                             >
-                              {bill.description}
+                              {bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
+                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                : bill.description}
                             </span>
                             <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
                               <CreditCard size={11} className="text-slate-400 shrink-0" />
@@ -2404,10 +2596,13 @@ export default function GestaoCaixaContasPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setEditItem(bill);
-                              setEditDesc(bill.description);
+                              const descToEdit = bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
+                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                : bill.description;
+                              setEditItem({ ...bill, description: descToEdit });
+                              setEditDesc(descToEdit);
                               setEditAmount(String(bill.amount));
-                              setEditCategory(bill.category || "");
+                              setEditCategory(bill.category || (bill.isCardInvoice ? "Fatura de Cartão" : "Conta Fixa"));
                               setEditWalletId(bill.walletId || "");
                             }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
@@ -2417,7 +2612,12 @@ export default function GestaoCaixaContasPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setItemToDelete(bill)}
+                            onClick={() => {
+                              const descToDelete = bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
+                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                : bill.description;
+                              setItemToDelete({ ...bill, description: descToDelete });
+                            }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                             title="Excluir Conta"
                           >
