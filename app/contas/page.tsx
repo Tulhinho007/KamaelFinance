@@ -333,10 +333,10 @@ export const DEFAULT_PAID_INVOICES: BillItem[] = DEFAULT_HYPERCARD_INVOICES.filt
   (inv) => inv.status === "PAID"
 );
 
-// Lista única das contas fixas recorrentes (sem vínculo prévio de banco)
+// Lista única das contas fixas (pertencentes estritamente ao mês de Outubro/2026, sem recorrência para outros meses)
 export const DEFAULT_MONTH_BILLS: BillItem[] = [
   {
-    id: "bill-tim-celular",
+    id: "bill-tim-celular-2026-10",
     description: "Tim Celular",
     amount: 30.99,
     category: "Boleto / Conta Fixa",
@@ -345,14 +345,15 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     bank: "",
     dueDay: 10,
     status: "PENDING",
+    month: "2026-10",
     startMonth: "2026-10",
     competenceMonth: 10,
     competenceYear: 2026,
-    recorrencia: "MENSAL",
-    recorrenciaLabel: "Repetir todo mês",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Apenas neste mês",
   },
   {
-    id: "bill-treino-futevolei",
+    id: "bill-treino-futevolei-2026-10",
     description: "Treino – Futevôlei",
     amount: 100.0,
     category: "Lazer & Esporte",
@@ -361,14 +362,15 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     bank: "",
     dueDay: 10,
     status: "PENDING",
+    month: "2026-10",
     startMonth: "2026-10",
     competenceMonth: 10,
     competenceYear: 2026,
-    recorrencia: "MENSAL",
-    recorrenciaLabel: "Repetir todo mês",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Apenas neste mês",
   },
   {
-    id: "bill-internet-tim-live",
+    id: "bill-internet-tim-live-2026-10",
     description: "Internet Tim Live",
     amount: 105.56,
     category: "Internet & TV",
@@ -377,14 +379,15 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     bank: "",
     dueDay: 15,
     status: "PENDING",
+    month: "2026-10",
     startMonth: "2026-10",
     competenceMonth: 10,
     competenceYear: 2026,
-    recorrencia: "MENSAL",
-    recorrenciaLabel: "Repetir todo mês",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Apenas neste mês",
   },
   {
-    id: "bill-2-parcela-fonte-bira",
+    id: "bill-2-parcela-fonte-bira-2026-10",
     description: "2 Parcela Fonte Bira",
     amount: 100.0,
     category: "Boleto / Conta Fixa",
@@ -393,6 +396,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     bank: "",
     dueDay: 20,
     status: "PENDING",
+    month: "2026-10",
     startMonth: "2026-10",
     competenceMonth: 10,
     competenceYear: 2026,
@@ -400,7 +404,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     recorrenciaLabel: "Apenas neste mês",
   },
   {
-    id: "bill-pagamento-camila",
+    id: "bill-pagamento-camila-2026-10",
     description: "Pagamento Camila",
     amount: 300.0,
     category: "Assinatura / Mensalidade",
@@ -409,11 +413,12 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     bank: "",
     dueDay: 5,
     status: "PENDING",
+    month: "2026-10",
     startMonth: "2026-10",
     competenceMonth: 10,
     competenceYear: 2026,
-    recorrencia: "MENSAL",
-    recorrenciaLabel: "Repetir todo mês",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Apenas neste mês",
   },
 ];
 
@@ -424,8 +429,22 @@ export const DEFAULT_INITIAL_BILLS: BillItem[] = [
   ...DEFAULT_MONTH_BILLS,
 ];
 
+// ── HELPER DE MÊS ESTRITO (YYYY-MM) ──────────────────────────────────────────
+export const getBillMonth = (bill: any): string => {
+  if (bill.month && typeof bill.month === "string" && bill.month.includes("-")) {
+    return bill.month;
+  }
+  if (bill.competenceYear && bill.competenceMonth) {
+    return `${bill.competenceYear}-${String(bill.competenceMonth).padStart(2, "0")}`;
+  }
+  if (bill.startMonth && typeof bill.startMonth === "string" && bill.startMonth.includes("-")) {
+    return bill.startMonth;
+  }
+  return "2026-10";
+};
+
 // ── PERSISTÊNCIA DEFINITIVA DE EXCLUSÃO E EDIÇÃO NO LOCALSTORAGE ─────────────
-const DELETED_BILLS_STORAGE_KEY = "kamael_deleted_bills_v1";
+const DELETED_BILLS_STORAGE_KEY = "kamael_deleted_bills_v2";
 const EDITED_BILLS_STORAGE_KEY = "kamael_edited_bills_v1";
 const PAID_ACCOUNTS_STORAGE_KEY = "kamael_paid_accounts_v1";
 
@@ -439,7 +458,7 @@ export const getDeletedBillIds = (): string[] => {
   }
 };
 
-export const addDeletedBillId = (id: string, description?: string) => {
+export const addDeletedBillId = (id: string) => {
   if (typeof window === "undefined") return;
   try {
     const current = getDeletedBillIds();
@@ -447,35 +466,23 @@ export const addDeletedBillId = (id: string, description?: string) => {
     if (id && !updated.includes(id)) {
       updated.push(id);
     }
-    if (description) {
-      const norm = normalizeBillTitle(description);
-      if (norm && !updated.includes(norm)) {
-        updated.push(norm);
-      }
-    }
     localStorage.setItem(DELETED_BILLS_STORAGE_KEY, JSON.stringify(updated));
   } catch {}
 };
 
-export const removeDeletedBillId = (description: string) => {
+export const removeDeletedBillId = (id: string) => {
   if (typeof window === "undefined") return;
   try {
-    const norm = normalizeBillTitle(description);
     const current = getDeletedBillIds();
-    const updated = current.filter((id) => id !== norm && id !== description);
+    const updated = current.filter((item) => item !== id);
     localStorage.setItem(DELETED_BILLS_STORAGE_KEY, JSON.stringify(updated));
   } catch {}
 };
 
-export const isBillDeleted = (id: string, description?: string, deletedList?: string[]): boolean => {
+export const isBillDeleted = (id: string, deletedList?: string[]): boolean => {
   const list = deletedList || getDeletedBillIds();
   if (!list || list.length === 0) return false;
-  if (id && list.includes(id)) return true;
-  if (description) {
-    const norm = normalizeBillTitle(description);
-    if (norm && list.includes(norm)) return true;
-  }
-  return false;
+  return Boolean(id && list.includes(id));
 };
 
 export const getEditedBills = (): Record<string, Partial<BillItem>> => {
@@ -971,7 +978,7 @@ export default function GestaoCaixaContasPage() {
 
       // 1. Inicializa com as faturas (Ago-Dez) e contas fixas padrão (filtrando as excluídas pelo usuário)
       const consolidated: BillItem[] = DEFAULT_INITIAL_BILLS
-        .filter((b) => !isBillDeleted(b.id, b.description, deletedIds))
+        .filter((b) => !isBillDeleted(b.id, deletedIds))
         .map((b) => {
           const item = { ...b };
           // Aplica edições salvas
@@ -988,7 +995,7 @@ export default function GestaoCaixaContasPage() {
 
       // 2. Mescla os compromissos e faturas reais retornados do banco de dados para o selectedYear
       allList.forEach((dbItem: any) => {
-        if (isBillDeleted(dbItem.id, dbItem.description, deletedIds)) return;
+        if (isBillDeleted(dbItem.id, deletedIds)) return;
         const normTitle = normalizeBillTitle(dbItem.description || "");
         const isCard = Boolean(
           dbItem.isCardInvoice ||
@@ -1042,9 +1049,19 @@ export default function GestaoCaixaContasPage() {
             });
           }
         } else {
-          // Conta Fixa
+          // Conta Fixa com mês estrito (YYYY-MM)
+          let sMonth = `${selectedYear}-10`;
+          if (dbItem.month && typeof dbItem.month === "string" && dbItem.month.includes("-")) {
+            sMonth = dbItem.month;
+          } else if (dbItem.competenceYear && dbItem.competenceMonth) {
+            sMonth = `${dbItem.competenceYear}-${String(dbItem.competenceMonth).padStart(2, "0")}`;
+          } else if (dbItem.startMonth && typeof dbItem.startMonth === "string" && dbItem.startMonth.includes("-")) {
+            sMonth = dbItem.startMonth;
+          }
+
+          // Localiza se já existe este mesmo item cadastrado no MESMO mês
           const match = consolidated.find(
-            (c) => !c.isCardInvoice && c.tipo !== "FATURA_CARTAO" && normalizeBillTitle(c.description) === normTitle
+            (c) => !c.isCardInvoice && c.tipo !== "FATURA_CARTAO" && normalizeBillTitle(c.description) === normTitle && getBillMonth(c) === sMonth
           );
           if (match) {
             match.id = dbItem.id;
@@ -1053,13 +1070,6 @@ export default function GestaoCaixaContasPage() {
               match.status = "PAID";
             }
           } else {
-            let sMonth = `${selectedYear}-10`;
-            if (dbItem.startMonth && typeof dbItem.startMonth === "string" && dbItem.startMonth.includes("-")) {
-              sMonth = dbItem.startMonth;
-            } else if (dbItem.competenceYear && dbItem.competenceMonth) {
-              sMonth = `${dbItem.competenceYear}-${String(dbItem.competenceMonth).padStart(2, "0")}`;
-            }
-
             consolidated.push({
               id: dbItem.id,
               description: dbItem.description,
@@ -1071,8 +1081,11 @@ export default function GestaoCaixaContasPage() {
               dueDay: Number(dbItem.dueDay || 10),
               status: (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") ? "PAID" : "PENDING",
               startMonth: sMonth,
-              recorrencia: dbItem.recorrencia || "MENSAL",
-              recorrenciaLabel: dbItem.recorrenciaLabel || "Repetir todo mês",
+              month: sMonth,
+              competenceMonth: Number(sMonth.split("-")[1]),
+              competenceYear: Number(sMonth.split("-")[0]),
+              recorrencia: "UNICO",
+              recorrenciaLabel: "Apenas neste mês",
             });
           }
         }
@@ -1237,38 +1250,21 @@ export default function GestaoCaixaContasPage() {
     const deletedIds = getDeletedBillIds();
 
     return bills.filter((item: any) => {
-      // 0. Filtro definitivo de exclusão pelo usuário
-      if (isBillDeleted(item.id, item.description, deletedIds)) return false;
+      // 0. Filtro definitivo de exclusão pelo usuário (estritamente por ID)
+      if (isBillDeleted(item.id, deletedIds)) return false;
 
-      // 1. Filtro temporal por Mês e Ano
+      // 1. Filtro estrito por Mês e Ano:
+      // Cada conta pertence única e exclusivamente ao seu month (YYYY-MM), sem replicação para meses posteriores
+      const itemMonthKey = getBillMonth(item);
+
       if (selectedYearMonth) {
-        if (item.isCardInvoice || item.tipo === "FATURA_CARTAO") {
-          // Fatura de cartão pertence estritamente ao seu mês de competência
-          const itemYear = item.competenceYear || (item.month ? Number(item.month.split("-")[0]) : 2026);
-          const itemMonth = item.competenceMonth || (item.month ? Number(item.month.split("-")[1]) : 10);
-          const itemYearMonth = `${itemYear}-${String(itemMonth).padStart(2, "0")}`;
-          if (itemYearMonth !== selectedYearMonth) return false;
-        } else {
-          // Contas Fixas / Recorrentes
-          const startMonthStr = item.startMonth || "2026-10";
-          if (selectedYearMonth < startMonthStr) {
-            // Conta ainda não havia sido criada no mês selecionado (ex: Agosto ou Setembro antes de Outubro)
-            return false;
-          }
-
-          const isRecorrente = item.recorrencia !== "UNICO" && item.recorrenciaLabel !== "Apenas neste mês" && item.recorrenciaLabel !== "Único";
-          if (!isRecorrente && startMonthStr !== selectedYearMonth) {
-            return false;
-          }
+        if (itemMonthKey !== selectedYearMonth) {
+          return false;
         }
       } else {
-        // Modo "ALL" (Ano Todo): exibe itens pertencentes ao selectedYear
-        if (item.isCardInvoice || item.tipo === "FATURA_CARTAO") {
-          const itemYear = item.competenceYear || (item.month ? Number(item.month.split("-")[0]) : 2026);
-          if (itemYear !== activeYear) return false;
-        } else {
-          const itemStartYear = item.startMonth ? Number(item.startMonth.split("-")[0]) : 2026;
-          if (activeYear < itemStartYear) return false;
+        // Modo "ALL" (Ano Todo): exibe apenas itens pertencentes ao selectedYear
+        if (!itemMonthKey.startsWith(`${activeYear}-`)) {
+          return false;
         }
       }
 
@@ -1613,39 +1609,47 @@ export default function GestaoCaixaContasPage() {
       const finalAmount = Number(newCommitmentAmount) || 0;
       const chosenMonth = Number(newCommitmentMonth) || (selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
       const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory)?.trim() || "Moradia & Aluguel";
+      const targetMonthKey = `${selectedYear || 2026}-${String(chosenMonth).padStart(2, "0")}`;
+      const newBillId = `bill-${Date.now()}-${targetMonthKey}`;
 
-      removeDeletedBillId(finalDesc);
+      removeDeletedBillId(newBillId);
 
-      await createCommitmentAction({
-        description: finalDesc,
-        amount: finalAmount,
-        categoryName: finalCategory,
-        walletId: undefined,
-        bank: "",
-        tipo: "BOLETO",
-        recorrencia: "MENSAL",
-        competenceMonth: chosenMonth,
-        competenceYear: selectedYear,
-      });
-
-      // Adiciona localmente para feedback instantâneo (sem vínculo prévio de banco)
-      const newLocalItem = {
-        id: `local-${Date.now()}`,
+      // Adiciona localmente para feedback instantâneo (com mês estrito)
+      const newLocalItem: BillItem = {
+        id: newBillId,
         description: finalDesc,
         amount: finalAmount,
         category: finalCategory,
         tipoLabel: "Boleto / Conta Fixa",
         tipo: "BOLETO",
-        recorrencia: "MENSAL",
-        startMonth: `${selectedYear || 2026}-${String(chosenMonth).padStart(2, "0")}`,
+        month: targetMonthKey,
+        startMonth: targetMonthKey,
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
         walletId: undefined,
         walletTitle: "",
         bank: "",
         status: "PENDING",
+        recorrencia: "UNICO",
+        recorrenciaLabel: "Apenas neste mês",
       };
       setBills((prev) => [newLocalItem, ...prev]);
+
+      try {
+        await createCommitmentAction({
+          description: finalDesc,
+          amount: finalAmount,
+          categoryName: finalCategory,
+          walletId: undefined,
+          bank: "",
+          tipo: "BOLETO",
+          recorrencia: "UNICO",
+          competenceMonth: chosenMonth,
+          competenceYear: selectedYear,
+        });
+      } catch (dbErr) {
+        console.warn("Item gravado localmente, backend:", dbErr);
+      }
 
       setNewCommitmentModalOpen(false);
       setNewCommitmentDesc("");
@@ -1654,8 +1658,7 @@ export default function GestaoCaixaContasPage() {
       setNewCommitmentCategory("Moradia & Aluguel");
       setNewCommitmentCustomCat("");
 
-      await loadData(false);
-      showAlert("Conta fixa cadastrada com sucesso!", { variant: "success" });
+      showAlert("Conta cadastrada com sucesso para este mês!", { variant: "success" });
     } catch (err: any) {
       showAlert(err?.message || "Erro ao cadastrar conta fixa.", { variant: "error" });
     } finally {
@@ -1767,20 +1770,16 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
-  // Handler: Exclusão Definitiva (com persistência no localStorage e banco)
+  // Handler: Exclusão Definitiva (com persistência no localStorage e banco estritamente por ID)
   const handleDelete = async (id: string) => {
     const target = bills.find((b) => b.id === id);
-    // 1. Grava no localStorage imediatamente
-    addDeletedBillId(id, target?.description);
+    if (!target) return;
 
-    // 2. Remove do estado bills de forma definitiva
-    setBills((prev) =>
-      prev.filter(
-        (b) =>
-          b.id !== id &&
-          normalizeBillTitle(b.description) !== normalizeBillTitle(target?.description || "")
-      )
-    );
+    // 1. Grava no localStorage estritamente pelo ID
+    addDeletedBillId(id);
+
+    // 2. Remove do estado bills estritamente pelo ID do mês selecionado
+    setBills((prev) => prev.filter((b) => b.id !== id));
 
     // 3. Se for UUID real do banco, dispara rota de exclusão (DELETE) no backend
     const isDbUuid =
@@ -2218,7 +2217,7 @@ export default function GestaoCaixaContasPage() {
           </button>
           <button
             onClick={() => {
-              setNewCommitmentMonth(10);
+              setNewCommitmentMonth(selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
               setNewCommitmentModalOpen(true);
             }}
             className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl transition-colors shadow-sm cursor-pointer"
