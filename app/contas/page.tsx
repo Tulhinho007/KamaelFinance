@@ -225,99 +225,178 @@ const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [
   },
 ];
 
-const DEFAULT_INITIAL_BILLS = [
+// 1. Contas Fixas (repetem todo mês a partir do mês em que foram criadas)
+export interface FixedBill {
+  id: string;
+  description: string;
+  category: string;
+  bank: string;
+  amount: number;
+  startMonth: string; // Ex: "2026-10"
+  tipo?: string;
+  tipoLabel?: string;
+  dueDay?: number;
+  walletId?: string;
+  walletTitle?: string;
+  paymentWalletId?: string;
+  paidWalletId?: string;
+  competenceMonth?: number;
+  competenceYear?: number;
+  status?: "PENDING" | "COMPLETED" | "PAID" | "PAGO" | string;
+  recorrencia?: "MENSAL" | "UNICO" | string;
+  recorrenciaLabel?: string;
+  isCardInvoice?: false;
+  [key: string]: any;
+}
+
+// 2. Faturas de Cartão (pontuais, pertencem exclusivamente a UM mês)
+export interface CreditCardBill {
+  id: string;
+  description: string; // Ex: "Fatura HyperCard"
+  category: "Fatura de Cartão";
+  bank: string; // "HyperCard"
+  month: string; // Ex: "2026-09" ou "2026-10"
+  amount: number;
+  isCardInvoice: true;
+  tipo?: "FATURA_CARTAO";
+  tipoLabel?: string;
+  dueDay?: number;
+  walletId?: string;
+  walletTitle?: string;
+  paymentWalletId?: string;
+  paidWalletId?: string;
+  competenceMonth?: number;
+  competenceYear?: number;
+  status: "PENDING" | "COMPLETED" | "PAID" | "PAGO" | string;
+  recorrencia?: "MENSAL" | "UNICO" | string;
+  recorrenciaLabel?: string;
+  [key: string]: any;
+}
+
+export type AnyBill = FixedBill | CreditCardBill;
+
+export const INITIAL_FIXED_BILLS: FixedBill[] = [
   {
-    id: "mock-bill-1",
+    id: "fixed-tim-celular",
     description: "Tim Celular",
     amount: 30.99,
     category: "Boleto / Conta Fixa",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    recorrencia: "MENSAL",
-    startMonth: 1,
-    dueDay: 10,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "Santander",
+    startMonth: "2026-10",
+    dueDay: 10,
     status: "PENDING",
+    recorrencia: "MENSAL",
+    recorrenciaLabel: "Repetir todo mês",
   },
   {
-    id: "mock-bill-2",
+    id: "fixed-treino-futevolei",
     description: "Treino – Futevôlei",
     amount: 100.0,
     category: "Lazer & Esporte",
     tipoLabel: "Assinatura / Mensalidade",
     tipo: "ASSINATURA",
-    recorrencia: "MENSAL",
-    startMonth: 1,
-    dueDay: 10,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "Santander",
+    startMonth: "2026-10",
+    dueDay: 10,
     status: "PENDING",
+    recorrencia: "MENSAL",
+    recorrenciaLabel: "Repetir todo mês",
   },
   {
-    id: "mock-bill-3",
+    id: "fixed-internet-tim-live",
     description: "Internet Tim Live",
     amount: 105.56,
     category: "Internet & TV",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    recorrencia: "MENSAL",
-    startMonth: 9,
-    dueDay: 15,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "Santander",
+    startMonth: "2026-10",
+    dueDay: 15,
     status: "PENDING",
+    recorrencia: "MENSAL",
+    recorrenciaLabel: "Repetir todo mês",
   },
   {
-    id: "mock-bill-4",
+    id: "fixed-2-parcela-fonte-bira",
     description: "2 Parcela Fonte Bira",
     amount: 100.0,
-    category: "Parcela / Financiamento",
+    category: "Boleto / Conta Fixa",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    recorrencia: "MENSAL",
-    startMonth: 10,
-    dueDay: 20,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "Santander",
+    startMonth: "2026-10",
+    dueDay: 20,
     status: "PENDING",
+    recorrencia: "MENSAL",
+    recorrenciaLabel: "Repetir todo mês",
   },
   {
-    id: "mock-bill-5",
+    id: "fixed-pagamento-camila",
     description: "Pagamento Camila",
     amount: 300.0,
     category: "Assinatura / Mensalidade",
     tipoLabel: "Assinatura / Mensalidade",
     tipo: "ASSINATURA",
-    recorrencia: "MENSAL",
-    startMonth: 1,
-    dueDay: 5,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "Santander",
+    startMonth: "2026-10",
+    dueDay: 5,
     status: "PENDING",
+    recorrencia: "MENSAL",
+    recorrenciaLabel: "Repetir todo mês",
+  },
+];
+
+export const INITIAL_CARD_BILLS: CreditCardBill[] = [
+  {
+    id: "card-hypercard-2026-09",
+    description: "Fatura HyperCard",
+    amount: 839.42,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "FATURA_CARTAO",
+    bank: "HyperCard",
+    month: "2026-09",
+    dueDay: 10,
+    isCardInvoice: true,
+    status: "PAID",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Fatura Mensal",
   },
   {
-    id: "mock-bill-6",
+    id: "card-hypercard-2026-10",
     description: "Fatura HyperCard",
     amount: 554.16,
     category: "Fatura de Cartão",
     tipoLabel: "Fatura de Cartão",
     tipo: "FATURA_CARTAO",
-    isCardInvoice: true,
-    recorrencia: "UNICO",
-    startMonth: 10,
-    dueDay: 10,
-    competenceMonth: 10,
-    competenceYear: 2026,
     bank: "HyperCard",
+    month: "2026-10",
+    dueDay: 10,
+    isCardInvoice: true,
     status: "PENDING",
+    recorrencia: "UNICO",
+    recorrenciaLabel: "Fatura Mensal",
   },
 ];
+
+export const DEFAULT_INITIAL_BILLS: AnyBill[] = [
+  ...INITIAL_FIXED_BILLS,
+  ...INITIAL_CARD_BILLS,
+];
+
+// Helper para normalizar descrições e evitar duplicidades indesejadas
+export function normalizeBillTitle(desc: string): string {
+  const d = (desc || "").toLowerCase().trim();
+  if (d.includes("treino") && (d.includes("futev") || d.includes("futvolei"))) return "Treino – Futevôlei";
+  if (d.includes("tim") && (d.includes("celular") || d.includes("telefone"))) return "Tim Celular";
+  if (d.includes("tim") && d.includes("live")) return "Internet Tim Live";
+  if (d.includes("bira") || d.includes("fonte bira")) return "2 Parcela Fonte Bira";
+  if (d.includes("camila")) return "Pagamento Camila";
+  if (d.includes("hypercard") || d.includes("hipercard")) return "Fatura HyperCard";
+  return desc.trim();
+}
 
 // Helper para ícones visuais modernos e contextuais por descrição ou categoria
 const getBillIcon = (title: string, category?: string, tipo?: string) => {
@@ -604,11 +683,13 @@ export default function GestaoCaixaContasPage() {
   const [selectedMonth, setSelectedMonth] = useState<number | "ALL">(currentMonthNum);
 
   // Controle de status de pagamento independente por mês: chave `${billId}_${month}`
-  const [paidByMonth, setPaidByMonth] = useState<Record<string, boolean>>({});
+  const [paidByMonth, setPaidByMonth] = useState<Record<string, boolean>>({
+    "card-hypercard-2026-09_9": true,
+  });
 
   // Dados consolidados
   const [accounts, setAccounts] = useState<any[]>([]);
-  const [bills, setBills] = useState<any[]>([]);
+  const [bills, setBills] = useState<AnyBill[]>(DEFAULT_INITIAL_BILLS);
   const [contasBancarias, setContasBancarias] = useState<any[]>([]);
   const [cartoesCredito, setCartoesCredito] = useState<any[]>([]);
   const [totals, setTotals] = useState({
@@ -738,25 +819,104 @@ export default function GestaoCaixaContasPage() {
         ? data.allCommitments
         : (data.pendingCommitments || []);
       
-      // Mescla as contas cadastradas com a lista oficial padrão (sem duplicar por descrição)
-      const mergedList = [...allList];
-      DEFAULT_INITIAL_BILLS.forEach((defBill) => {
-        const alreadyExists = mergedList.some(
-          (b: any) =>
-            (b.description || "").trim().toLowerCase() === defBill.description.trim().toLowerCase()
+      // Consolidação blindada:
+      // 1. Inicializa com as contas fixas e faturas oficiais limpas
+      const consolidatedFixed: FixedBill[] = INITIAL_FIXED_BILLS.map((b) => ({ ...b }));
+      const consolidatedCards: CreditCardBill[] = INITIAL_CARD_BILLS.map((b) => ({ ...b }));
+
+      // 2. Mescla compromissos do banco sem duplicatas
+      allList.forEach((dbItem: any) => {
+        const normTitle = normalizeBillTitle(dbItem.description || "");
+        const isCard = Boolean(
+          dbItem.isCardInvoice ||
+          dbItem.tipo === "FATURA_CARTAO" ||
+          (dbItem.category || "").toLowerCase().includes("fatura") ||
+          normTitle === "Fatura HyperCard"
         );
-        if (!alreadyExists) {
-          mergedList.push(defBill);
+
+        if (isCard) {
+          let cardMonth = "2026-10";
+          if (dbItem.competencia && typeof dbItem.competencia === "string" && dbItem.competencia.includes("-")) {
+            cardMonth = dbItem.competencia;
+          } else if (dbItem.competenceYear && dbItem.competenceMonth) {
+            cardMonth = `${dbItem.competenceYear}-${String(dbItem.competenceMonth).padStart(2, "0")}`;
+          }
+
+          const existingCard = consolidatedCards.find(
+            (c) => normalizeBillTitle(c.description) === normTitle && c.month === cardMonth
+          );
+          if (existingCard) {
+            existingCard.id = dbItem.id;
+            if (dbItem.walletId) existingCard.walletId = dbItem.walletId;
+            if (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") {
+              existingCard.status = "PAID";
+            }
+          } else if (cardMonth === "2026-09" || cardMonth === "2026-10") {
+            consolidatedCards.push({
+              id: dbItem.id,
+              description: normTitle,
+              category: "Fatura de Cartão",
+              tipoLabel: "Fatura de Cartão",
+              tipo: "FATURA_CARTAO",
+              bank: dbItem.bank || "HyperCard",
+              month: cardMonth,
+              amount: Number(dbItem.amount || 0),
+              isCardInvoice: true,
+              status: (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") ? "PAID" : "PENDING",
+              dueDay: 10,
+              recorrencia: "UNICO",
+              recorrenciaLabel: "Fatura Mensal",
+            });
+          }
+        } else {
+          // Conta Fixa
+          const existingFixed = consolidatedFixed.find(
+            (f) => normalizeBillTitle(f.description) === normTitle
+          );
+          if (existingFixed) {
+            existingFixed.id = dbItem.id;
+            if (dbItem.walletId) existingFixed.walletId = dbItem.walletId;
+            if (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") {
+              existingFixed.status = "PAID";
+            }
+          } else {
+            let sMonth = "2026-10";
+            if (dbItem.startMonth && typeof dbItem.startMonth === "string" && dbItem.startMonth.includes("-")) {
+              sMonth = dbItem.startMonth;
+            } else if (dbItem.competenceYear && dbItem.competenceMonth) {
+              sMonth = `${dbItem.competenceYear}-${String(dbItem.competenceMonth).padStart(2, "0")}`;
+            }
+
+            consolidatedFixed.push({
+              id: dbItem.id,
+              description: dbItem.description,
+              amount: Number(dbItem.amount || 0),
+              category: dbItem.category || "Outros Fixos",
+              tipoLabel: dbItem.tipoLabel || "Boleto / Conta Fixa",
+              tipo: dbItem.tipo || "BOLETO",
+              bank: getBillBankName(dbItem, loadedAccounts),
+              startMonth: sMonth,
+              dueDay: Number(dbItem.dueDay || 10),
+              status: (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") ? "PAID" : "PENDING",
+              recorrencia: dbItem.recorrencia || "MENSAL",
+              recorrenciaLabel: dbItem.recorrenciaLabel || "Repetir todo mês",
+            });
+          }
         }
       });
-      const finalList = mergedList.length > 0 ? mergedList : DEFAULT_INITIAL_BILLS;
+
+      const finalList: AnyBill[] = [...consolidatedFixed, ...consolidatedCards];
       setBills(finalList);
 
       // Sincroniza paidByMonth com os dados atualizados vindos do banco
-      const freshPaid: Record<string, boolean> = {};
+      const freshPaid: Record<string, boolean> = {
+        "card-hypercard-2026-09_9": true,
+      };
       finalList.forEach((b: any) => {
-        const m = b.competenceMonth || currentMonthNum;
-        freshPaid[`${b.id}_${m}`] = (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO");
+        const m = b.month ? parseInt(b.month.split("-")[1], 10) : (b.competenceMonth || currentMonthNum);
+        if (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO") {
+          freshPaid[`${b.id}_${m}`] = true;
+        }
       });
       setPaidByMonth((prev) => ({ ...prev, ...freshPaid }));
 
@@ -829,52 +989,34 @@ export default function GestaoCaixaContasPage() {
   };
 
   // Helper central para determinar mês de início da recorrência e dia fixo
-  const getBillStartMonthAndDay = (bill: any): { startMonth: number; dueDay: number; startYear: number } => {
-    let startMonth = 1;
-    let dueDay = 10;
-    let startYear = selectedYear;
+  // Helper central para determinar mês de início da recorrência e dia fixo
+  const getBillStartMonthAndDay = (bill: any): { startMonth: number; dueDay: number; startYear: number; startMonthStr: string } => {
+    let startMonth = 10;
+    let dueDay = Number(bill.dueDay || 10);
+    let startYear = 2026;
+    let startMonthStr = "2026-10";
 
-    if (bill.startMonth != null) {
-      startMonth = Number(bill.startMonth);
-    } else if (bill.competenceMonth != null) {
-      startMonth = Number(bill.competenceMonth);
-    } else {
-      const parts = getItemDueDateParts(bill);
-      if (parts) {
-        startMonth = parts.month;
-      }
-    }
-
-    if (bill.competenceYear != null) {
+    if (bill.startMonth && typeof bill.startMonth === "string" && bill.startMonth.includes("-")) {
+      startMonthStr = bill.startMonth;
+      const parts = bill.startMonth.split("-");
+      startYear = parseInt(parts[0], 10) || 2026;
+      startMonth = parseInt(parts[1], 10) || 10;
+    } else if (bill.month && typeof bill.month === "string" && bill.month.includes("-")) {
+      startMonthStr = bill.month;
+      const parts = bill.month.split("-");
+      startYear = parseInt(parts[0], 10) || 2026;
+      startMonth = parseInt(parts[1], 10) || 10;
+    } else if (bill.competenceYear && bill.competenceMonth) {
       startYear = Number(bill.competenceYear);
-    } else if (bill.startYear != null) {
-      startYear = Number(bill.startYear);
-    } else {
-      const parts = getItemDueDateParts(bill);
-      if (parts) {
-        startYear = parts.year;
-      }
+      startMonth = Number(bill.competenceMonth);
+      startMonthStr = `${startYear}-${String(startMonth).padStart(2, "0")}`;
     }
 
-    if (bill.dueDay != null) {
-      dueDay = Number(bill.dueDay);
-    } else if (bill.recurringDay != null) {
-      dueDay = Number(bill.recurringDay);
-    } else {
-      if (bill.dueDateInput) {
-        const p = bill.dueDateInput.split("-");
-        if (p.length === 3) dueDay = parseInt(p[2], 10) || 10;
-      } else if (bill.dueDateFormatted) {
-        const p = bill.dueDateFormatted.split("/");
-        if (p.length === 3) dueDay = parseInt(p[0], 10) || 10;
-      }
-    }
-
-    if (isNaN(startMonth) || startMonth < 1 || startMonth > 12) startMonth = 1;
+    if (isNaN(startMonth) || startMonth < 1 || startMonth > 12) startMonth = 10;
     if (isNaN(dueDay) || dueDay < 1 || dueDay > 31) dueDay = 10;
-    if (isNaN(startYear)) startYear = selectedYear;
+    if (isNaN(startYear)) startYear = 2026;
 
-    return { startMonth, dueDay, startYear };
+    return { startMonth, dueDay, startYear, startMonthStr };
   };
 
   // Saldo Geral consolidado
@@ -907,37 +1049,32 @@ export default function GestaoCaixaContasPage() {
     return Array.from(set).sort();
   }, [allRegisteredWallets, bills]);
 
-  // Lista filtrada de contas fixas projetadas (por mês, busca e banco selecionado)
-  // Regra: Não exibe contas em meses que não existem. Só vai exibir a partir do mês cadastrado e posterior!
+  // Lista filtrada de contas fixas e faturas
+  // REGRA ESTRITA DE FILTRO POR MÊS:
+  // - Contas Fixas: exibir apenas se selectedYearMonth >= bill.startMonth
+  // - Faturas de Cartão: exibir estritamente se cardBill.month === selectedYearMonth
   const filteredBills = useMemo(() => {
-    return bills.filter((item) => {
-      // Se for fatura de cartão específica e estiver num mês diferente, não exibe
-      if (selectedMonth !== "ALL" && item.isCardInvoice && item.competenceMonth && item.competenceMonth !== selectedMonth) {
-        return false;
-      }
+    const activeYear = 2026;
+    const selectedYearMonth =
+      selectedMonth === "ALL"
+        ? null
+        : `${activeYear}-${String(selectedMonth).padStart(2, "0")}`;
 
-      // Regra de recorrência e meses de início: só exibe a partir do mês que foi cadastrado e posterior!
-      if (!item.isCardInvoice) {
-        const { startMonth, startYear } = getBillStartMonthAndDay(item);
-
-        // Se o ano da conta for posterior ao ano selecionado, não exibe
-        if (startYear > selectedYear) return false;
-
-        if (selectedMonth !== "ALL") {
-          // Se estiver no mesmo ano e o mês selecionado for anterior ao mês de início, não exibe
-          if (startYear === selectedYear && selectedMonth < startMonth) {
-            return false;
-          }
-
-          // Se a conta for de recorrência única (avulsa), só exibe no mês e ano exatos
+    return bills.filter((item: any) => {
+      // 1. Regra de mês e recorrência
+      if (selectedYearMonth) {
+        if (item.isCardInvoice) {
+          const cardMonth = item.month || `${activeYear}-${String(item.competenceMonth || 10).padStart(2, "0")}`;
+          if (cardMonth !== selectedYearMonth) return false;
+        } else {
+          const startMonthStr = item.startMonth || "2026-10";
+          if (selectedYearMonth < startMonthStr) return false;
           const isRecorrente = item.recorrencia !== "UNICO" && item.recorrenciaLabel !== "Apenas neste mês";
-          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) {
-            return false;
-          }
+          if (!isRecorrente && startMonthStr !== selectedYearMonth) return false;
         }
       }
 
-      // Filtro por Banco selecionado
+      // 2. Filtro por Banco selecionado
       if (selectedBankFilter !== "ALL") {
         const bank = getBillBankName(item, allRegisteredWallets);
         if (bank.toLowerCase() !== selectedBankFilter.toLowerCase()) {
@@ -945,6 +1082,7 @@ export default function GestaoCaixaContasPage() {
         }
       }
 
+      // 3. Busca por texto
       if (!agendaSearch.trim()) return true;
       const q = agendaSearch.toLowerCase().trim();
       const bank = getBillBankName(item, allRegisteredWallets).toLowerCase();
@@ -955,34 +1093,40 @@ export default function GestaoCaixaContasPage() {
       const matchRef = (item.competenciaLabel || item.competenciaShort || "").toLowerCase().includes(q);
       return matchDesc || matchType || matchCat || matchRef || matchBank;
     }).slice().sort((a, b) => {
-      const dayA = getBillStartMonthAndDay(a).dueDay;
-      const dayB = getBillStartMonthAndDay(b).dueDay;
+      const dayA = a.dueDay || 10;
+      const dayB = b.dueDay || 10;
       return dayA - dayB;
     });
-  }, [bills, selectedMonth, selectedBankFilter, agendaSearch, selectedYear, allRegisteredWallets]);
+  }, [bills, selectedMonth, selectedBankFilter, agendaSearch, allRegisteredWallets]);
 
   // Total das contas pendentes no mês selecionado (geral para cálculo da Sobra Prevista)
   const monthPendingBillsTotal = useMemo(() => {
-    return bills
-      .filter((b) => {
-        if (selectedMonth !== "ALL" && b.isCardInvoice && b.competenceMonth && b.competenceMonth !== selectedMonth) {
-          return false;
-        }
-        const { startMonth, startYear } = getBillStartMonthAndDay(b);
-        if (startYear > selectedYear) return false;
+    const activeYear = 2026;
+    const selectedYearMonth =
+      selectedMonth === "ALL"
+        ? null
+        : `${activeYear}-${String(selectedMonth).padStart(2, "0")}`;
 
-        if (selectedMonth !== "ALL") {
-          if (startYear === selectedYear && selectedMonth < startMonth) return false;
-          const isRecorrente = b.recorrencia !== "UNICO" && b.recorrenciaLabel !== "Apenas neste mês";
-          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) return false;
+    return bills
+      .filter((b: any) => {
+        if (selectedYearMonth) {
+          if (b.isCardInvoice) {
+            const cardMonth = b.month || `${activeYear}-${String(b.competenceMonth || 10).padStart(2, "0")}`;
+            if (cardMonth !== selectedYearMonth) return false;
+          } else {
+            const startMonthStr = b.startMonth || "2026-10";
+            if (selectedYearMonth < startMonthStr) return false;
+            const isRecorrente = b.recorrencia !== "UNICO" && b.recorrenciaLabel !== "Apenas neste mês";
+            if (!isRecorrente && startMonthStr !== selectedYearMonth) return false;
+          }
 
           const isPaid = Boolean(
             paidByMonth[`${b.id}_${selectedMonth}`] ??
-            (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
+            (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
           );
           return !isPaid;
         } else {
-          const m = b.competenceMonth || startMonth || currentMonthNum;
+          const m = b.month ? parseInt(b.month.split("-")[1], 10) : (b.competenceMonth || currentMonthNum);
           const isPaid = Boolean(
             paidByMonth[`${b.id}_${m}`] ??
             (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
@@ -991,36 +1135,23 @@ export default function GestaoCaixaContasPage() {
         }
       })
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [bills, selectedMonth, paidByMonth, currentMonthNum, selectedYear]);
+  }, [bills, selectedMonth, paidByMonth, currentMonthNum]);
 
   // Total das contas pendentes filtradas para exibição no card de A Pagar da tabela
   const pendingBillsTotal = useMemo(() => {
     return filteredBills
-      .filter((b) => {
-        const { startMonth, startYear } = getBillStartMonthAndDay(b);
-        if (startYear > selectedYear) return false;
-
-        if (selectedMonth !== "ALL") {
-          if (startYear === selectedYear && selectedMonth < startMonth) return false;
-          const isRecorrente = b.recorrencia !== "UNICO" && b.recorrenciaLabel !== "Apenas neste mês";
-          if (!isRecorrente && (startYear !== selectedYear || selectedMonth !== startMonth)) return false;
-
-          const isPaid = Boolean(
-            paidByMonth[`${b.id}_${selectedMonth}`] ??
-            (b.competenceMonth === selectedMonth && (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO"))
-          );
-          return !isPaid;
-        } else {
-          const m = b.competenceMonth || startMonth || currentMonthNum;
-          const isPaid = Boolean(
-            paidByMonth[`${b.id}_${m}`] ??
-            (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
-          );
-          return !isPaid;
-        }
+      .filter((b: any) => {
+        const m = selectedMonth === "ALL"
+          ? (b.month ? parseInt(b.month.split("-")[1], 10) : (b.competenceMonth || currentMonthNum))
+          : selectedMonth;
+        const isPaid = Boolean(
+          paidByMonth[`${b.id}_${m}`] ??
+          (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO")
+        );
+        return !isPaid;
       })
       .reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum, selectedYear]);
+  }, [filteredBills, selectedMonth, paidByMonth, currentMonthNum]);
 
   // Sobra prevista após contas pendentes (com saldo geral)
   const sobraPrevista = totalSaldoGeral - monthPendingBillsTotal;
@@ -1371,7 +1502,7 @@ export default function GestaoCaixaContasPage() {
         tipoLabel: "Boleto / Conta Fixa",
         tipo: "BOLETO",
         recorrencia: "MENSAL",
-        startMonth: chosenMonth,
+        startMonth: `${selectedYear || 2026}-${String(chosenMonth).padStart(2, "0")}`,
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
         walletId: chosenWalletId,
@@ -1826,27 +1957,11 @@ export default function GestaoCaixaContasPage() {
         </Link>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Seletor Anual Compacto */}
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-2 py-1 rounded-xl shadow-xs">
-            <button
-              type="button"
-              onClick={prevYear}
-              className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Ano Anterior"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="px-1 text-xs font-bold text-slate-700 dark:text-slate-200 tracking-wider tabular-nums">
-              {selectedYear}
+          {/* Ano Base Fixo: 2026 */}
+          <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 px-3 py-1 rounded-xl shadow-xs">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 tracking-wider tabular-nums">
+              2026
             </span>
-            <button
-              type="button"
-              onClick={nextYear}
-              className="p-1 rounded-md text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              title="Próximo Ano"
-            >
-              <ChevronRight size={14} />
-            </button>
           </div>
         </div>
       </div>
@@ -1982,7 +2097,7 @@ export default function GestaoCaixaContasPage() {
       </div>
 
       {/* ── 3 & 4. TABELA DE CONTAS FIXAS RECORRENTES & SELETOR DE MESES ─── */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm relative min-h-[350px]">
         {/* Topo da Seção de Contas Fixas */}
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -2011,7 +2126,7 @@ export default function GestaoCaixaContasPage() {
           {/* Ano centralizado acima da régua de botões dos meses */}
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Ano {selectedYear}
+              Ano 2026
             </span>
 
             {selectedMonth !== currentMonthNum && (
@@ -2128,7 +2243,7 @@ export default function GestaoCaixaContasPage() {
         </div>
 
         {/* ── 4. TABELA DE CONTAS FIXAS RECORRENTES ────────────────────────── */}
-        <div className="w-full overflow-hidden">
+        <div className="w-full relative min-h-[350px] pb-24">
           <table className="w-full table-auto text-left text-sm text-slate-600 dark:text-slate-300">
             <thead className="bg-slate-50/70 dark:bg-slate-950/40 text-xs font-semibold uppercase text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800">
               <tr>
@@ -2162,7 +2277,7 @@ export default function GestaoCaixaContasPage() {
                   </td>
                 </tr>
               ) : (
-                filteredBills.map((bill) => {
+                filteredBills.map((bill, index) => {
                   const { startMonth } = getBillStartMonthAndDay(bill);
                   const activeMonth = selectedMonth === "ALL" ? (bill.competenceMonth || startMonth || currentMonthNum) : selectedMonth;
 
@@ -2170,6 +2285,9 @@ export default function GestaoCaixaContasPage() {
                     paidByMonth[`${bill.id}_${activeMonth}`] ??
                     (bill.competenceMonth === activeMonth && (bill.status === "COMPLETED" || bill.status === "PAID" || bill.status === "PAGO"))
                   );
+
+                  // Nas últimas linhas ou quando houver poucas linhas, abre o dropdown PARA CIMA
+                  const openUpward = index >= filteredBills.length - 2 || filteredBills.length <= 3;
 
                   const IconComponent = getBillIcon(bill.description, bill.category, bill.tipo);
 
@@ -2249,7 +2367,11 @@ export default function GestaoCaixaContasPage() {
                             </button>
 
                             {activeActionMenuId === bill.id && (
-                              <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-20 py-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                              <div
+                                className={`absolute right-0 ${
+                                  openUpward ? "bottom-full mb-1" : "top-full mt-1"
+                                } w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl z-50 py-1 text-xs animate-in fade-in zoom-in-95 duration-100`}
+                              >
                                 <button
                                   type="button"
                                   onClick={() => {
