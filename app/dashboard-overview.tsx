@@ -518,18 +518,13 @@ export function DashboardOverview() {
           : totalRealBalanceCalculated;
 
         const hoje = new Date();
-        const mesAtualIndex = hoje.getMonth(); // 0 a 11
-        const anoAtual = hoje.getFullYear();
+        const targetYear = selectedDashboardYear || selectedYear || hoje.getFullYear();
+        const targetMonthIndex = (selectedMonth && selectedMonth > 0 ? selectedMonth - 1 : hoje.getMonth());
 
-        // Define os dois meses de interesse
-        const dataAtual = new Date(anoAtual, mesAtualIndex, 1);
-        const dataProximo = new Date(anoAtual, mesAtualIndex + 1, 1);
-
-        const chaveMesAtual = `${dataAtual.getFullYear()}-${dataAtual.getMonth()}`;
-        const chaveMesProximo = `${dataProximo.getFullYear()}-${dataProximo.getMonth()}`;
-
+        // Mês selecionado / atual de referência
+        const dataAtual = new Date(targetYear, targetMonthIndex, 1);
+        const chaveMesAtual = `${targetYear}-${targetMonthIndex}`;
         const nomeMesAtual = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataAtual);
-        const nomeMesProximo = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataProximo);
 
         const cartoesCredito = (data?.cards || []).filter((c: any) => c.walletType === "CREDIT_CARD");
         const faturasCartoes = cartoesCredito
@@ -540,12 +535,16 @@ export function DashboardOverview() {
           }))
           .filter((c: any) => c.valor > 0);
 
+        // Fatura de Cartão de Crédito do Mês Atual
         const totalGeralCartoesMes = faturasCartoes.reduce((acc: number, c: any) => acc + c.valor, 0);
 
-        // ── Despesas Pendentes (Apenas Mês Atual e Mês + 1) ──────────────────────
+        // ── Despesas Pendentes (Estritamente do Mês Atual / Selecionado - Sem filtro de 60 dias) ──
         const despesasPendentes: any[] = data?.despesasPendentes || data?.pendingCommitments || [];
 
         const getVencKey = (d: any): string => {
+          if (d.competenceYear && d.competenceMonth) {
+            return `${Number(d.competenceYear)}-${Number(d.competenceMonth) - 1}`;
+          }
           if (d.dataVencimento) {
             const dt = new Date(d.dataVencimento);
             if (!isNaN(dt.getTime())) return `${dt.getFullYear()}-${dt.getMonth()}`;
@@ -554,31 +553,24 @@ export function DashboardOverview() {
             const [y, m] = d.dueDateInput.split("-").map(Number);
             if (!isNaN(y) && !isNaN(m)) return `${y}-${m - 1}`;
           }
-          if (d.competenceYear && d.competenceMonth) {
-            return `${Number(d.competenceYear)}-${Number(d.competenceMonth) - 1}`;
-          }
           return "";
         };
 
-        const despesasFiltradas = despesasPendentes.filter((d: any) => {
+        // Contas Fixas Pendentes do Mês Atual (ex: Treino R$ 100,00 + Internet R$ 105,56 = R$ 205,56)
+        const contasPendentesMes = despesasPendentes.filter((d: any) => {
           const chave = getVencKey(d);
-          return chave === chaveMesAtual || chave === chaveMesProximo;
+          return chave === chaveMesAtual;
         });
 
-        const totalMesAtual = despesasFiltradas
-          .filter((d: any) => getVencKey(d) === chaveMesAtual)
-          .reduce((acc: number, d: any) => acc + Number(d.valor || d.amount || 0), 0);
+        const totalContasFixasPendentes = contasPendentesMes.reduce(
+          (acc: number, d: any) => acc + Number(d.valor || d.amount || 0),
+          0
+        );
 
-        const totalMesProximo = despesasFiltradas
-          .filter((d: any) => getVencKey(d) === chaveMesProximo)
-          .reduce((acc: number, d: any) => acc + Number(d.valor || d.amount || 0), 0);
+        // ── 1. Saldo Geral Consolidado (soma de todas as contas bancárias ativas) ──
+        const saldoAtual = Number(saldoConsolidado || totalRealBalanceCalculated || 0);
 
-        const totalDestaque = totalMesAtual + totalMesProximo;
-
-        // ── 1. Saldo Consolidado em conta
-        const saldoAtual = Number(saldoConsolidado || 0);
-
-        // ── 2. Receitas a receber + Saldo consolidado
+        // ── 2. Receitas Previstas (campo real de entradas/receitas do mês) ──
         const receitasPrevistas = Number(
           data?.receitasPrevistasMes ??
           (data?.receitasPendentesMes > 0 ? data.receitasPendentesMes : data?.receitasMesAtual) ??
@@ -586,13 +578,12 @@ export function DashboardOverview() {
           monthlyRollForward?.receitasMes ??
           0
         );
-        const totalDisponivel = saldoAtual + receitasPrevistas;
 
-        // ── 3. Total a Pagar exato do card vizinho (Faturas + Boletos/Contas Pendentes)
-        const totalAPagarCardVizinho = Number(totalGeralCartoesMes + totalDestaque);
+        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês ──
+        const totalAPagar = Number(totalGeralCartoesMes + totalContasFixasPendentes);
 
-        // ── 4. Saldo Previsto Final
-        const saldoPrevistoFinal = totalDisponivel - totalAPagarCardVizinho;
+        // ── 4. Saldo Previsto = Saldo Geral Consolidado + Receitas Previstas - Total a Pagar ──
+        const saldoPrevistoFinal = saldoAtual + receitasPrevistas - totalAPagar;
 
         // Verifica se fecha positivo ou negativo
         const isPositivo = saldoPrevistoFinal >= 0;
@@ -617,7 +608,7 @@ export function DashboardOverview() {
                 </div>
 
                 <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoConsolidado)}
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoAtual)}
                 </div>
 
                 {/* Detalhamento das contas bancárias */}
@@ -644,7 +635,7 @@ export function DashboardOverview() {
               </div>
             </div>
 
-            {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + BOLETOS/CONTAS) */}
+            {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + CONTAS FIXAS PENDENTES DO MÊS) */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
               <div>
                 {/* Cabeçalho */}
@@ -653,8 +644,8 @@ export function DashboardOverview() {
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
                       Total a Pagar
                     </span>
-                    <span className="rounded-full bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">
-                      Faturas + Boletos
+                    <span className="rounded-full bg-rose-50 dark:bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 capitalize">
+                      {nomeMesAtual}
                     </span>
                   </div>
                   <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 text-base">
@@ -665,22 +656,22 @@ export function DashboardOverview() {
                 {/* Valor Total Grande */}
                 <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
                   {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                    totalAPagarCardVizinho
+                    totalAPagar
                   )}
                 </div>
 
                 {/* Detalhamento Miúdo */}
                 <div className="mt-3 space-y-1.5 text-xs">
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                    <span className="capitalize">Cartões De Crédito ({nomeMesAtual}):</span>
+                    <span className="capitalize">Fatura do Cartão ({nomeMesAtual}):</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                    <span>Contas Pendentes (Próximos 60 dias):</span>
+                    <span className="capitalize">Contas Fixas Pendentes ({nomeMesAtual}):</span>
                     <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalDestaque)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalContasFixasPendentes)}
                     </span>
                   </div>
                 </div>
@@ -688,10 +679,10 @@ export function DashboardOverview() {
 
               {/* Rodapé */}
               <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                <span>Previsão de saída</span>
+                <span>Faturas + Contas Fixas</span>
                 <span className="font-semibold text-rose-600 dark:text-rose-400">
-                  {despesasFiltradas.length + faturasCartoes.length}{" "}
-                  {despesasFiltradas.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
+                  {contasPendentesMes.length + faturasCartoes.length}{" "}
+                  {contasPendentesMes.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
                 </span>
               </div>
             </div>
@@ -740,6 +731,12 @@ export function DashboardOverview() {
                 {/* Detalhamento do cálculo */}
                 <div className="mt-3 space-y-1.5 text-xs">
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                    <span>Saldo Geral Consolidado:</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoAtual)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Receitas Previstas (+):</span>
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
                       {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasPrevistas)}
@@ -748,7 +745,7 @@ export function DashboardOverview() {
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span>Total a Pagar (-):</span>
                     <span className="font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagarCardVizinho)}
+                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagar)}
                     </span>
                   </div>
                 </div>
@@ -756,8 +753,8 @@ export function DashboardOverview() {
 
               {/* Rodapé explicativo */}
               <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                <span>Estimativa fim do mês</span>
-                <span className="font-medium text-slate-600 dark:text-slate-400">Saldo + Receitas - Saídas</span>
+                <span>Saldo + Receitas - Total a Pagar</span>
+                <span className="font-medium text-slate-600 dark:text-slate-400 capitalize">Mês de {nomeMesAtual}</span>
               </div>
             </div>
           </div>
