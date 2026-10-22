@@ -643,6 +643,15 @@ export default function GestaoCaixaContasPage() {
   const [quickDescriptionInput, setQuickDescriptionInput] = useState<string>("");
   const [savingAdjustment, setSavingAdjustment] = useState<boolean>(false);
 
+  // Estado para Edição de Registro no Histórico de Ajustes
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editRecordDesc, setEditRecordDesc] = useState<string>("");
+  const [editRecordAmount, setEditRecordAmount] = useState<string>("");
+  const [editRecordType, setEditRecordType] = useState<"ENTRADA" | "SAIDA" | "AJUSTE">("AJUSTE");
+  const [editRecordDirection, setEditRecordDirection] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
+  const [editRecordDate, setEditRecordDate] = useState<string>("");
+  const [savingEditRecord, setSavingEditRecord] = useState<boolean>(false);
+
   // Carregar Dados Consolidados
   const loadData = async (active = true) => {
     try {
@@ -1437,6 +1446,7 @@ export default function GestaoCaixaContasPage() {
   const handleOpenManageModal = (acc: any) => {
     setManagingAccount(acc);
     setManageTab("EXATO");
+    setEditingRecordId(null);
     const currentVal = Number(acc.balance ?? acc.saldoAtual ?? 0);
     setExactBalanceInput("");
     setExactReasonInput("");
@@ -1641,6 +1651,107 @@ export default function GestaoCaixaContasPage() {
       } catch (err: any) {
         console.error("Erro ao reverter no backend:", err);
       }
+    }
+  };
+
+  const handleStartEditHistoryRecord = (record: BalanceAdjustmentRecord) => {
+    setEditingRecordId(record.id);
+    setEditRecordDesc(record.description || "");
+    const amountVal = record.amount ?? Math.abs(record.diff ?? 0);
+    setEditRecordAmount(amountVal ? String(amountVal).replace(".", ",") : "");
+    const isPos = record.diff != null ? record.diff >= 0 : record.type !== "SAIDA";
+    setEditRecordDirection(isPos ? "ENTRADA" : "SAIDA");
+    setEditRecordType(record.type || "AJUSTE");
+    setEditRecordDate(record.date || "");
+  };
+
+  const handleCancelEditHistoryRecord = () => {
+    setEditingRecordId(null);
+  };
+
+  const handleSaveEditedRecord = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!managingAccount || !editingRecordId) return;
+
+    const targetRecord = (managingAccount.history || []).find(
+      (r: BalanceAdjustmentRecord) => r.id === editingRecordId
+    );
+    if (!targetRecord) return;
+
+    const parsedAmount = parseFloat(editRecordAmount.replace(",", "."));
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      showAlert("Informe um valor válido maior ou igual a zero.", { variant: "warning" });
+      return;
+    }
+
+    setSavingEditRecord(true);
+    try {
+      const oldDiff = Number(
+        targetRecord.diff ?? (targetRecord.type === "SAIDA" ? -targetRecord.amount : targetRecord.amount)
+      );
+      const newDiff = editRecordDirection === "ENTRADA" ? parsedAmount : -parsedAmount;
+      const balanceDelta = Math.round((newDiff - oldDiff) * 100) / 100;
+
+      const currentBal = Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0);
+      const newAccountBalance = Math.round((currentBal + balanceDelta) * 100) / 100;
+
+      const prevBal = Number(targetRecord.previousBalance ?? (currentBal - oldDiff));
+      const newResultingBalance = Math.round((prevBal + newDiff) * 100) / 100;
+
+      const updatedRecord: BalanceAdjustmentRecord = {
+        ...targetRecord,
+        description: editRecordDesc.trim() || targetRecord.description || "Ajuste de saldo",
+        type: editRecordType,
+        amount: parsedAmount,
+        diff: newDiff,
+        date: editRecordDate.trim() || targetRecord.date,
+        previousBalance: prevBal,
+        resultingBalance: newResultingBalance,
+      };
+
+      const updatedHistory = (managingAccount.history || []).map((r: BalanceAdjustmentRecord) =>
+        r.id === editingRecordId ? updatedRecord : r
+      );
+      saveAccountHistory(managingAccount.id, updatedHistory);
+
+      const updatedAccount = {
+        ...managingAccount,
+        balance: newAccountBalance,
+        saldoAtual: newAccountBalance,
+        history: updatedHistory,
+      };
+
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc))
+      );
+      setContasBancarias((prev) =>
+        prev.map((acc) =>
+          acc.id === managingAccount.id
+            ? { ...acc, saldoAtual: newAccountBalance, balance: newAccountBalance }
+            : acc
+        )
+      );
+      setManagingAccount(updatedAccount);
+      setEditingRecordId(null);
+
+      showAlert("Registro de histórico atualizado com sucesso!", { variant: "success" });
+
+      if (
+        !managingAccount.id.startsWith("mock-") &&
+        !managingAccount.id.startsWith("local-") &&
+        balanceDelta !== 0
+      ) {
+        await setExactBankAccountBalanceAction({
+          contaId: managingAccount.id,
+          novoSaldo: newAccountBalance,
+          descricao: `Ajuste após edição de histórico: ${updatedRecord.description}`,
+        }).catch((err) => console.error("Erro ao sincronizar saldo no backend:", err));
+      }
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao salvar alterações no histórico.", { variant: "error" });
+    } finally {
+      setSavingEditRecord(false);
     }
   };
 
@@ -2766,7 +2877,10 @@ export default function GestaoCaixaContasPage() {
             <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800/80 rounded-2xl mb-4">
               <button
                 type="button"
-                onClick={() => setManageTab("EXATO")}
+                onClick={() => {
+                  setManageTab("EXATO");
+                  setEditingRecordId(null);
+                }}
                 className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "EXATO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
@@ -2778,7 +2892,10 @@ export default function GestaoCaixaContasPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setManageTab("RAPIDO")}
+                onClick={() => {
+                  setManageTab("RAPIDO");
+                  setEditingRecordId(null);
+                }}
                 className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "RAPIDO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
@@ -2790,7 +2907,10 @@ export default function GestaoCaixaContasPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setManageTab("HISTORICO")}
+                onClick={() => {
+                  setManageTab("HISTORICO");
+                  setEditingRecordId(null);
+                }}
                 className={`py-2.5 px-2 sm:px-3 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center leading-tight whitespace-normal ${
                   manageTab === "HISTORICO"
                     ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs"
@@ -2986,62 +3106,297 @@ export default function GestaoCaixaContasPage() {
                     <p className="text-[11px] text-slate-400">Os ajustes manuais feitos nesta conta aparecerão aqui em formato de extrato.</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto pr-1 space-y-2">
-                    {managingAccount.history.map((record: any) => {
-                      const isEntrada = record.diff > 0 || record.type === "ENTRADA";
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-96 overflow-y-auto pr-1 space-y-2.5">
+                      {managingAccount.history.map((record: any) => {
+                        const isEntrada = record.diff != null ? record.diff > 0 : record.type === "ENTRADA";
+                        const isEditingThis = editingRecordId === record.id;
 
-                      return (
-                        <div
-                          key={record.id}
-                          className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 flex items-start justify-between gap-3"
-                        >
-                          <div className="space-y-1 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
-                                  record.type === "AJUSTE"
-                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60"
-                                    : isEntrada
-                                    ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
-                                    : "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
-                                }`}
-                              >
-                                {record.type === "AJUSTE" ? "Ajuste manual" : isEntrada ? "+ Entrada" : "- Saída"}
-                              </span>
-                              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                                {record.date}
-                              </span>
+                        if (isEditingThis) {
+                          const pAmt = parseFloat(editRecordAmount.replace(",", "."));
+                          const hasValidAmt = !isNaN(pAmt) && pAmt >= 0;
+                          const oldDiff = Number(
+                            record.diff ?? (record.type === "SAIDA" ? -record.amount : record.amount)
+                          );
+                          const nDiff = editRecordDirection === "ENTRADA" ? pAmt : -pAmt;
+                          const delta = hasValidAmt ? Math.round((nDiff - oldDiff) * 100) / 100 : 0;
+                          const curBal = Number(managingAccount.balance ?? managingAccount.saldoAtual ?? 0);
+                          const projBal = Math.round((curBal + delta) * 100) / 100;
+
+                          return (
+                            <form
+                              key={record.id}
+                              onSubmit={handleSaveEditedRecord}
+                              className="p-4 rounded-xl bg-white dark:bg-slate-900 border-2 border-emerald-500/80 shadow-md space-y-3 transition-all animate-in fade-in-50 duration-150"
+                            >
+                              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <Pencil size={12} />
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                    Editar Registro de Histórico
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditHistoryRecord}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md transition-colors cursor-pointer"
+                                  title="Cancelar edição"
+                                >
+                                  <X size={15} />
+                                </button>
+                              </div>
+
+                              {/* Tipo de Registro e Direção */}
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                                  Tipo de Movimentação
+                                </label>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditRecordType("AJUSTE")}
+                                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                                      editRecordType === "AJUSTE"
+                                        ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                                        : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    Ajuste manual
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditRecordType("ENTRADA");
+                                      setEditRecordDirection("ENTRADA");
+                                    }}
+                                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                                      editRecordType === "ENTRADA"
+                                        ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                        : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    + Entrada
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditRecordType("SAIDA");
+                                      setEditRecordDirection("SAIDA");
+                                    }}
+                                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                                      editRecordType === "SAIDA"
+                                        ? "bg-rose-600 text-white border-rose-600 shadow-2xs"
+                                        : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    - Saída
+                                  </button>
+                                </div>
+
+                                {editRecordType === "AJUSTE" && (
+                                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditRecordDirection("ENTRADA")}
+                                      className={`py-1 px-2 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
+                                        editRecordDirection === "ENTRADA"
+                                          ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-bold"
+                                          : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 border-slate-200 dark:border-slate-700"
+                                      }`}
+                                    >
+                                      + Aumenta saldo (Entrada)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditRecordDirection("SAIDA")}
+                                      className={`py-1 px-2 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
+                                        editRecordDirection === "SAIDA"
+                                          ? "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-700 font-bold"
+                                          : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 border-slate-200 dark:border-slate-700"
+                                      }`}
+                                    >
+                                      - Diminui saldo (Saída)
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Descrição / Motivo */}
+                              <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                  Descrição / Motivo
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editRecordDesc}
+                                  onChange={(e) => setEditRecordDesc(e.target.value)}
+                                  placeholder="Ex: Empréstimo, Depósito..."
+                                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2 rounded-xl text-xs font-semibold focus:outline-none focus:border-emerald-500 transition-colors"
+                                  required
+                                  autoFocus
+                                />
+                              </div>
+
+                              {/* Valor e Data */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                                    Valor (R$)
+                                  </label>
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                                      R$
+                                    </span>
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      value={editRecordAmount}
+                                      onChange={(e) => setEditRecordAmount(e.target.value.replace(/[^0-9.,]/g, ""))}
+                                      placeholder="0,00"
+                                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-8 pr-2.5 py-2 rounded-xl text-xs font-bold focus:outline-none focus:border-emerald-500 transition-colors"
+                                      required
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                                      Data / Hora
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const now = new Date();
+                                        setEditRecordDate(
+                                          now.toLocaleString("pt-BR", {
+                                            day: "2-digit",
+                                            month: "2-digit",
+                                            year: "numeric",
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })
+                                        );
+                                      }}
+                                      className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold hover:underline cursor-pointer"
+                                    >
+                                      Agora
+                                    </button>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={editRecordDate}
+                                    onChange={(e) => setEditRecordDate(e.target.value)}
+                                    placeholder="DD/MM/AAAA, HH:mm"
+                                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-2.5 py-2 rounded-xl text-xs focus:outline-none focus:border-emerald-500 transition-colors"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Impacto no Saldo */}
+                              {hasValidAmt && (
+                                <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-[11px] flex items-center justify-between">
+                                  <span className="text-slate-500">Impacto no saldo:</span>
+                                  <span className="font-bold tabular-nums">
+                                    {delta !== 0 ? (
+                                      <span className={delta > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}>
+                                        {delta > 0 ? "+" : ""}{formatBRL(delta)} → Novo saldo: {formatBRL(projBal)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-600 dark:text-slate-400">
+                                        Sem mudança de saldo ({formatBRL(curBal)})
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Botões de Ação */}
+                              <div className="flex items-center justify-end gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={handleCancelEditHistoryRecord}
+                                  disabled={savingEditRecord}
+                                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold cursor-pointer transition-colors"
+                                >
+                                  Cancelar
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={savingEditRecord || editRecordAmount.trim() === ""}
+                                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Check size={14} strokeWidth={2.5} />
+                                  <span>{savingEditRecord ? "Salvando..." : "Salvar Alterações"}</span>
+                                </button>
+                              </div>
+                            </form>
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={record.id}
+                            className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/60 dark:border-slate-800/60 flex items-start justify-between gap-3 transition-all hover:border-slate-300 dark:hover:border-slate-700"
+                          >
+                            <div className="space-y-1 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                                    record.type === "AJUSTE"
+                                      ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/60"
+                                      : isEntrada
+                                      ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
+                                      : "bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                                  }`}
+                                >
+                                  {record.type === "AJUSTE" ? "Ajuste manual" : isEntrada ? "+ Entrada" : "- Saída"}
+                                </span>
+                                <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                                  {record.date}
+                                </span>
+                              </div>
+
+                              <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 break-words">
+                                {record.description}
+                              </p>
+
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
+                                <span>
+                                  Valor: <strong className={isEntrada ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-rose-600 dark:text-rose-400 font-bold"}>
+                                    {isEntrada ? "+" : ""}{formatBRL(record.diff ?? record.amount)}
+                                  </strong>
+                                </span>
+                                <span>•</span>
+                                <span>
+                                  Saldo resultante: <strong className="font-semibold text-slate-700 dark:text-slate-300">{formatBRL(record.resultingBalance)}</strong>
+                                </span>
+                              </div>
                             </div>
 
-                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 break-words">
-                              {record.description}
-                            </p>
-
-                            <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 flex-wrap">
-                              <span>
-                                Valor: <strong className={isEntrada ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-rose-600 dark:text-rose-400 font-bold"}>
-                                  {isEntrada ? "+" : ""}{formatBRL(record.diff ?? record.amount)}
-                                </strong>
-                              </span>
-                              <span>•</span>
-                              <span>
-                                Saldo resultante: <strong className="font-semibold text-slate-700 dark:text-slate-300">{formatBRL(record.resultingBalance)}</strong>
-                              </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditHistoryRecord(record)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors cursor-pointer"
+                                title="Editar este registro"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteHistoryRecord(record.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                title="Excluir este ajuste e reverter o saldo"
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteHistoryRecord(record.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
-                            title="Excluir este ajuste e reverter o saldo"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
                 )}
               </div>
             )}
