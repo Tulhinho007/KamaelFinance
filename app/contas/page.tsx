@@ -158,31 +158,21 @@ const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [
     name: "Picpay",
     bankName: "Picpay",
     title: "Picpay",
-    balance: 0.19,
-    saldoAtual: 0.19,
+    balance: 625.18,
+    saldoAtual: 625.18,
     holder: "Túlio Cavalcanti",
     color: "bg-emerald-600 text-white",
     initials: "PIC",
     history: [
       {
         id: "hist-pic-1",
-        date: "19/10/2026, 11:20",
-        type: "ENTRADA",
-        amount: 50.0,
-        diff: 50.0,
-        description: "Pix recebido",
-        previousBalance: 0.0,
-        resultingBalance: 50.0,
-      },
-      {
-        id: "hist-pic-2",
-        date: "19/10/2026, 12:45",
-        type: "SAIDA",
-        amount: 49.81,
-        diff: -49.81,
-        description: "Transferência almoço",
-        previousBalance: 50.0,
-        resultingBalance: 0.19,
+        date: "22/10/2026, 11:21",
+        type: "AJUSTE",
+        amount: 624.99,
+        diff: 624.99,
+        description: "Emprestimo",
+        previousBalance: 0.19,
+        resultingBalance: 625.18,
       },
     ],
   },
@@ -221,17 +211,30 @@ const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [
     initials: "NU",
     history: [],
   },
+  {
+    id: "mock-acc-4",
+    name: "HyperCard",
+    bankName: "HyperCard",
+    title: "HyperCard",
+    balance: 0.0,
+    saldoAtual: 0.0,
+    holder: "Túlio Cavalcanti",
+    color: "bg-rose-700 text-white",
+    initials: "HIP",
+    history: [],
+  },
 ];
 
 const DEFAULT_INITIAL_BILLS = [
   {
     id: "mock-bill-1",
-    description: "Treino - Futevôlei",
-    amount: 150.0,
-    category: "Lazer & Esporte (Futevôlei, etc.)",
-    tipoLabel: "Assinatura / Mensalidade",
-    tipo: "ASSINATURA",
-    startMonth: 10,
+    description: "Tim Celular",
+    amount: 30.99,
+    category: "Boleto / Conta Fixa",
+    tipoLabel: "Boleto / Conta Fixa",
+    tipo: "BOLETO",
+    recorrencia: "MENSAL",
+    startMonth: 1,
     dueDay: 10,
     competenceMonth: 10,
     competenceYear: 2026,
@@ -240,44 +243,78 @@ const DEFAULT_INITIAL_BILLS = [
   },
   {
     id: "mock-bill-2",
-    description: "Internet Tim Live",
-    amount: 119.9,
-    category: "Internet & TV",
-    tipoLabel: "Boleto / Conta Fixa",
-    tipo: "BOLETO",
-    startMonth: 9,
-    dueDay: 15,
-    competenceMonth: 9,
+    description: "Treino – Futevôlei",
+    amount: 100.0,
+    category: "Lazer & Esporte",
+    tipoLabel: "Assinatura / Mensalidade",
+    tipo: "ASSINATURA",
+    recorrencia: "MENSAL",
+    startMonth: 1,
+    dueDay: 10,
+    competenceMonth: 10,
     competenceYear: 2026,
     bank: "Santander",
     status: "PENDING",
   },
   {
     id: "mock-bill-3",
-    description: "2 Parcela Fonte Bira",
-    amount: 820.0,
-    category: "Parcela / Financiamento",
+    description: "Internet Tim Live",
+    amount: 105.56,
+    category: "Internet & TV",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    startMonth: 10,
-    dueDay: 20,
+    recorrencia: "MENSAL",
+    startMonth: 9,
+    dueDay: 15,
     competenceMonth: 10,
     competenceYear: 2026,
-    bank: "Picpay",
+    bank: "Santander",
     status: "PENDING",
   },
   {
     id: "mock-bill-4",
-    description: "Energia Elétrica - Luz",
-    amount: 280.0,
-    category: "Energia Elétrica",
+    description: "2 Parcela Fonte Bira",
+    amount: 100.0,
+    category: "Parcela / Financiamento",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    startMonth: 1,
-    dueDay: 5,
-    competenceMonth: 1,
+    recorrencia: "MENSAL",
+    startMonth: 10,
+    dueDay: 20,
+    competenceMonth: 10,
     competenceYear: 2026,
     bank: "Santander",
+    status: "PENDING",
+  },
+  {
+    id: "mock-bill-5",
+    description: "Pagamento Camila",
+    amount: 300.0,
+    category: "Assinatura / Mensalidade",
+    tipoLabel: "Assinatura / Mensalidade",
+    tipo: "ASSINATURA",
+    recorrencia: "MENSAL",
+    startMonth: 1,
+    dueDay: 5,
+    competenceMonth: 10,
+    competenceYear: 2026,
+    bank: "Santander",
+    status: "PENDING",
+  },
+  {
+    id: "mock-bill-6",
+    description: "Fatura HyperCard",
+    amount: 554.16,
+    category: "Fatura de Cartão",
+    tipoLabel: "Fatura de Cartão",
+    tipo: "FATURA_CARTAO",
+    isCardInvoice: true,
+    recorrencia: "UNICO",
+    startMonth: 10,
+    dueDay: 10,
+    competenceMonth: 10,
+    competenceYear: 2026,
+    bank: "HyperCard",
     status: "PENDING",
   },
 ];
@@ -456,6 +493,11 @@ const getBillIcon = (title: string, category?: string, tipo?: string) => {
     return GraduationCap;
   }
 
+  // 14. Pessoal / Camila
+  if (text.includes("camila")) {
+    return HeartPulse;
+  }
+
   return Calendar;
 };
 
@@ -475,6 +517,7 @@ const getBillBankName = (bill: any, accountsList: any[] = []): string => {
   }
 
   const d = (bill.description || "").toLowerCase();
+  if (d.includes("hypercard") || d.includes("hipercard") || d.includes("hiper")) return "HyperCard";
   if (d.includes("santander")) return "Santander";
   if (d.includes("picpay")) return "Picpay";
   if (d.includes("nubank") || d.includes("nu ")) return "Nubank";
@@ -499,6 +542,9 @@ const getBillBankName = (bill: any, accountsList: any[] = []): string => {
 // Cores e Iniciais elegantes para os bancos cadastrados
 const getBankStyle = (name: string = "") => {
   const lower = name.toLowerCase();
+  if (lower.includes("hypercard") || lower.includes("hipercard") || lower.includes("hiper")) {
+    return { iconBg: "bg-rose-700 text-white", initials: "HIP" };
+  }
   if (lower.includes("nubank") || lower.includes("nu")) {
     return { iconBg: "bg-purple-600 text-white", initials: "NU" };
   }
@@ -692,7 +738,18 @@ export default function GestaoCaixaContasPage() {
         ? data.allCommitments
         : (data.pendingCommitments || []);
       
-      const finalList = allList.length > 0 ? allList : DEFAULT_INITIAL_BILLS;
+      // Mescla as contas cadastradas com a lista oficial padrão (sem duplicar por descrição)
+      const mergedList = [...allList];
+      DEFAULT_INITIAL_BILLS.forEach((defBill) => {
+        const alreadyExists = mergedList.some(
+          (b: any) =>
+            (b.description || "").trim().toLowerCase() === defBill.description.trim().toLowerCase()
+        );
+        if (!alreadyExists) {
+          mergedList.push(defBill);
+        }
+      });
+      const finalList = mergedList.length > 0 ? mergedList : DEFAULT_INITIAL_BILLS;
       setBills(finalList);
 
       // Sincroniza paidByMonth com os dados atualizados vindos do banco

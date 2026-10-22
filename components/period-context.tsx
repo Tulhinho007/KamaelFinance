@@ -20,7 +20,7 @@ const PeriodContext = createContext<PeriodContextType | undefined>(undefined);
 export function PeriodProvider({ children }: { children: ReactNode }) {
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1); // Mês atual por padrão
-  const [selectedYear, setSelectedYear] = useState(now.getFullYear());   // Ano atual por padrão
+  const [selectedYear, setSelectedYear] = useState(2026);   // Ano base corrente 2026
 
   const prevMonth = () => {
     setSelectedMonth((prev) => {
@@ -61,11 +61,11 @@ export function PeriodProvider({ children }: { children: ReactNode }) {
 
   const goToCurrentMonth = () => {
     setSelectedMonth(now.getMonth() + 1);
-    setSelectedYear(now.getFullYear());
+    setSelectedYear(2026);
   };
 
   const goToCurrentYear = () => {
-    setSelectedYear(now.getFullYear());
+    setSelectedYear(2026);
   };
 
   return (
