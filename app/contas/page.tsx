@@ -333,7 +333,7 @@ export const DEFAULT_PAID_INVOICES: BillItem[] = DEFAULT_HYPERCARD_INVOICES.filt
   (inv) => inv.status === "PAID"
 );
 
-// Lista única das contas fixas recorrentes
+// Lista única das contas fixas recorrentes (sem vínculo prévio de banco)
 export const DEFAULT_MONTH_BILLS: BillItem[] = [
   {
     id: "bill-tim-celular",
@@ -342,7 +342,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     category: "Boleto / Conta Fixa",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    bank: "Santander",
+    bank: "",
     dueDay: 10,
     status: "PENDING",
     startMonth: "2026-10",
@@ -358,7 +358,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     category: "Lazer & Esporte",
     tipoLabel: "Assinatura / Mensalidade",
     tipo: "ASSINATURA",
-    bank: "Santander",
+    bank: "",
     dueDay: 10,
     status: "PENDING",
     startMonth: "2026-10",
@@ -374,7 +374,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     category: "Internet & TV",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    bank: "Santander",
+    bank: "",
     dueDay: 15,
     status: "PENDING",
     startMonth: "2026-10",
@@ -390,7 +390,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     category: "Boleto / Conta Fixa",
     tipoLabel: "Boleto / Conta Fixa",
     tipo: "BOLETO",
-    bank: "Santander",
+    bank: "",
     dueDay: 20,
     status: "PENDING",
     startMonth: "2026-10",
@@ -406,7 +406,7 @@ export const DEFAULT_MONTH_BILLS: BillItem[] = [
     category: "Assinatura / Mensalidade",
     tipoLabel: "Assinatura / Mensalidade",
     tipo: "ASSINATURA",
-    bank: "Santander",
+    bank: "",
     dueDay: 5,
     status: "PENDING",
     startMonth: "2026-10",
@@ -427,6 +427,7 @@ export const DEFAULT_INITIAL_BILLS: BillItem[] = [
 // ── PERSISTÊNCIA DEFINITIVA DE EXCLUSÃO E EDIÇÃO NO LOCALSTORAGE ─────────────
 const DELETED_BILLS_STORAGE_KEY = "kamael_deleted_bills_v1";
 const EDITED_BILLS_STORAGE_KEY = "kamael_edited_bills_v1";
+const PAID_ACCOUNTS_STORAGE_KEY = "kamael_paid_accounts_v1";
 
 export const getDeletedBillIds = (): string[] => {
   if (typeof window === "undefined") return [];
@@ -497,6 +498,36 @@ export const saveEditedBill = (id: string, data: Partial<BillItem>) => {
       current[norm] = { ...(current[norm] || {}), ...data };
     }
     localStorage.setItem(EDITED_BILLS_STORAGE_KEY, JSON.stringify(current));
+  } catch {}
+};
+
+export const getSavedPaidAccounts = (): Record<string, string> => {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(PAID_ACCOUNTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const savePaidAccountForBill = (billId: string, month: number, accountId: string) => {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getSavedPaidAccounts();
+    current[billId] = accountId;
+    current[`${billId}_${month}`] = accountId;
+    localStorage.setItem(PAID_ACCOUNTS_STORAGE_KEY, JSON.stringify(current));
+  } catch {}
+};
+
+export const removePaidAccountForBill = (billId: string, month: number) => {
+  if (typeof window === "undefined") return;
+  try {
+    const current = getSavedPaidAccounts();
+    delete current[billId];
+    delete current[`${billId}_${month}`];
+    localStorage.setItem(PAID_ACCOUNTS_STORAGE_KEY, JSON.stringify(current));
   } catch {}
 };
 
@@ -724,12 +755,7 @@ const getBillBankName = (bill: any, accountsList: any[] = []): string => {
     if (bName && bName !== "Conta Principal" && d.includes(bName.toLowerCase())) return bName;
   }
 
-  if (accountsList.length > 0) {
-    const firstName = accountsList[0].bankName || accountsList[0].banco || accountsList[0].title;
-    if (firstName && firstName !== "Conta Principal") return firstName;
-  }
-
-  return "Santander";
+  return "";
 };
 
 // Cores e Iniciais elegantes para os bancos cadastrados
@@ -843,8 +869,7 @@ export default function GestaoCaixaContasPage() {
   const [baixaContaId, setBaixaContaId] = useState("");
   const [baixaCartaoId, setBaixaCartaoId] = useState("");
   const [baixaData, setBaixaData] = useState(new Date().toISOString().split("T")[0]);
-  const [deductFromBalance, setDeductFromBalance] = useState<boolean>(true);
-  const [paidAccountByBill, setPaidAccountByBill] = useState<Record<string, string>>({});
+  const [paidAccountByBill, setPaidAccountByBill] = useState<Record<string, string>>(() => getSavedPaidAccounts());
 
   // Modal de Baixa em Lote
   const [batchModalOpen, setBatchModalOpen] = useState(false);
@@ -1313,22 +1338,20 @@ export default function GestaoCaixaContasPage() {
     }
 
     // ── REVERTER DE PAGO PARA PENDENTE (UNCHECK / DESMARCAR) ──
-    const prevPaidBills = { ...paidBills };
-    const prevPaidByMonth = { ...paidByMonth };
-    const prevBills = [...bills];
-    const prevAccounts = [...accounts];
-
     const billAmount = Number(target.amount || 0);
 
     const targetAccountId =
+      paidAccountByBill[`${billId}_${activeMonth}`] ||
       paidAccountByBill[billId] ||
-      target.paymentWalletId ||
       target.paidWalletId ||
-      (target.walletId && accounts.some((a) => a.id === target.walletId) ? target.walletId : null) ||
-      accounts.find((a) => (a.bankName || a.title || "").toLowerCase() === getBillBankName(target, accounts).toLowerCase())?.id ||
+      target.paymentWalletId ||
+      target.walletId ||
       accounts[0]?.id;
 
-    // Atualização otimista
+    const refundedAccount = accounts.find((a) => a.id === targetAccountId);
+    const bankNameRefunded = refundedAccount?.bankName || refundedAccount?.title || "Conta Bancária";
+
+    // 1. Atualização otimista imediata
     setPaidBills((prev) => ({
       ...prev,
       [billId]: false,
@@ -1342,6 +1365,16 @@ export default function GestaoCaixaContasPage() {
       prev.map((b) => (b.id === billId ? { ...b, status: "PENDING", paid: false } : b))
     );
 
+    // Remove do mapa de contas pagas e do localStorage
+    removePaidAccountForBill(billId, activeMonth);
+    setPaidAccountByBill((prev) => {
+      const next = { ...prev };
+      delete next[billId];
+      delete next[`${billId}_${activeMonth}`];
+      return next;
+    });
+
+    // Estorna o valor de volta no saldo do banco utilizado
     if (targetAccountId && billAmount > 0) {
       setAccounts((prev) =>
         prev.map((acc) => {
@@ -1353,84 +1386,36 @@ export default function GestaoCaixaContasPage() {
           return acc;
         })
       );
-    }
-
-    // b) Lista de contas (muda status para PENDING)
-    setBills((prev) =>
-      prev.map((b) =>
-        b.id === billId
-          ? { ...b, status: "PENDING", paid: false }
-          : b
-      )
-    );
-
-    // c) Estorna o valor de volta no estado local das contas correntes (accounts)
-    // Isso faz com que o badge do banco (ex: Santander, Picpay) e o Saldo Geral Disponível aumentem no mesmo milissegundo!
-    if (targetAccountId && billAmount > 0) {
-      setAccounts((prev) =>
+      setContasBancarias((prev) =>
         prev.map((acc) => {
           if (acc.id === targetAccountId) {
-            const currentBal = Number(acc.balance ?? acc.saldoAtual ?? 0);
+            const currentBal = Number(acc.saldoAtual ?? acc.balance ?? 0);
             const newBal = currentBal + billAmount;
-            return {
-              ...acc,
-              balance: newBal,
-              saldoAtual: newBal,
-            };
+            return { ...acc, saldoAtual: newBal, balance: newBal };
           }
           return acc;
         })
       );
     }
 
-    // 2. REQUISIÇÃO AO SERVIDOR
-    if (!target.id.startsWith("mock-") && !target.id.startsWith("local-") && (target.competenceMonth === activeMonth || !target.competenceMonth)) {
+    // 2. Requisição ao backend se for item real do banco
+    const isDbUuid =
+      target.id &&
+      target.id.length >= 32 &&
+      !target.id.startsWith("mock-") &&
+      !target.id.startsWith("local-") &&
+      !target.id.startsWith("bill-") &&
+      !target.id.startsWith("invoice-");
+
+    if (isDbUuid) {
       try {
-        const res = await undoCommitmentPaymentAction(billId);
-        if (res && (res as any).error) {
-          throw new Error((res as any).error);
-        }
-
-        // Se o backend estornou uma conta diferente da estimada, sincroniza pontualmente
-        if (res && (res as any).refundedWalletId && (res as any).refundedWalletId !== targetAccountId) {
-          const actualWalletId = (res as any).refundedWalletId;
-          const actualAmount = Number((res as any).refundedAmount || billAmount);
-          setAccounts((prev) =>
-            prev.map((acc) => {
-              if (acc.id === targetAccountId) {
-                const bal = Number(acc.balance ?? acc.saldoAtual ?? 0) - billAmount;
-                return { ...acc, balance: bal, saldoAtual: bal };
-              }
-              if (acc.id === actualWalletId) {
-                const bal = Number(acc.balance ?? acc.saldoAtual ?? 0) + actualAmount;
-                return { ...acc, balance: bal, saldoAtual: bal };
-              }
-              return acc;
-            })
-          );
-        }
-
-        // Remove do cache de contas pagas
-        setPaidAccountByBill((prev) => {
-          const next = { ...prev };
-          delete next[billId];
-          return next;
-        });
-
-        router.refresh();
-        await loadData(false);
-        showAlert(`Baixa desfeita para ${MONTH_NAMES_LIST[activeMonth - 1]}!`, { variant: "info" });
+        await undoCommitmentPaymentAction(billId);
       } catch (err: any) {
-        console.error("Erro ao desfazer baixa:", err);
-        // Rollback automático para o estado anterior em caso de erro
-        setPaidByMonth(prevPaidByMonth);
-        setBills(prevBills);
-        setAccounts(prevAccounts);
-        showAlert(err?.message || "Não foi possível desmarcar a conta. Revertendo...", { variant: "error" });
+        console.warn("Aviso ao desfazer baixa no backend:", err);
       }
-    } else {
-      showAlert(`Status alterado para pendente em ${MONTH_NAMES_LIST[activeMonth - 1]}!`, { variant: "info" });
     }
+
+    showAlert(`Baixa desfeita! ${formatBRL(billAmount)} estornado para ${bankNameRefunded}.`, { variant: "info" });
   };
 
   // Handlers: Duplicar / Repetir no Mês Seguinte
@@ -1459,13 +1444,10 @@ export default function GestaoCaixaContasPage() {
   // Handlers: Pagamento / Baixa de Compromisso
   const handleOpenBaixaModal = (item: any) => {
     setPayCommitmentItem(item);
-    setDeductFromBalance(true);
-    setBaixaForma("SALDO_CONTA");
     const listContas = accounts.length > 0 ? accounts : contasBancarias;
     if (listContas.length > 0) {
-      setBaixaContaId((prev) => prev || listContas[0].id);
+      setBaixaContaId(listContas[0].id);
     }
-    setBaixaData(new Date().toISOString().split("T")[0]);
   };
 
   const handleConfirmBaixa = async () => {
@@ -1473,38 +1455,42 @@ export default function GestaoCaixaContasPage() {
 
     const itemToPay = payCommitmentItem;
     const itemAmount = Number(itemToPay.amount || 0);
-    const itemTargetAccountId = (deductFromBalance && (itemToPay.isCardInvoice || ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma)))
-      ? baixaContaId
-      : null;
 
-    if (deductFromBalance && itemToPay.isCardInvoice && !baixaContaId) {
-      showAlert("Selecione a conta que será utilizada para debitar o pagamento da fatura.", { variant: "warning" });
-      return;
-    }
-    if (deductFromBalance && !itemToPay.isCardInvoice && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(baixaForma) && !baixaContaId) {
-      showAlert("Selecione a conta corrente que será debitada.", { variant: "warning" });
+    const availableAccounts = accounts.length > 0 ? accounts : contasBancarias;
+    const chosenAccountId = baixaContaId || availableAccounts[0]?.id;
+
+    if (!chosenAccountId) {
+      showAlert("Selecione a conta bancária de onde sairá o pagamento.", { variant: "warning" });
       return;
     }
 
-    // Salva snapshot para rollback em caso de falha
-    const prevPaidByMonth = { ...paidByMonth };
-    const prevBills = [...bills];
-    const prevAccounts = [...accounts];
+    const chosenAccount = availableAccounts.find((a) => a.id === chosenAccountId);
+    const chosenBankName = chosenAccount?.bankName || chosenAccount?.title || "Conta Bancária";
 
     // 1. Atualização Otimista Instantânea (0ms delay na UI - sem F5)
+    setPaidBills((prev) => ({
+      ...prev,
+      [itemToPay.id]: true,
+      [`${itemToPay.id}_${payMonth}`]: true,
+    }));
     setPaidByMonth((prev) => ({
       ...prev,
       [`${itemToPay.id}_${payMonth}`]: true,
     }));
 
-    if (deductFromBalance && itemTargetAccountId) {
-      setPaidAccountByBill((prev) => ({
-        ...prev,
-        [itemToPay.id]: itemTargetAccountId,
-      }));
+    // Salva o vínculo da conta bancária utilizada para este pagamento
+    savePaidAccountForBill(itemToPay.id, payMonth, chosenAccountId);
+    setPaidAccountByBill((prev) => ({
+      ...prev,
+      [itemToPay.id]: chosenAccountId,
+      [`${itemToPay.id}_${payMonth}`]: chosenAccountId,
+    }));
+
+    // Subtrai automaticamente o valor da conta do saldo do banco selecionado
+    if (chosenAccountId && itemAmount > 0) {
       setAccounts((prev) =>
         prev.map((acc) => {
-          if (acc.id === itemTargetAccountId) {
+          if (acc.id === chosenAccountId) {
             const current = Number(acc.balance ?? acc.saldoAtual ?? 0);
             const newBal = current - itemAmount;
             return {
@@ -1516,56 +1502,66 @@ export default function GestaoCaixaContasPage() {
           return acc;
         })
       );
+      setContasBancarias((prev) =>
+        prev.map((acc) => {
+          if (acc.id === chosenAccountId) {
+            const current = Number(acc.saldoAtual ?? acc.balance ?? 0);
+            const newBal = current - itemAmount;
+            return {
+              ...acc,
+              saldoAtual: newBal,
+              balance: newBal,
+            };
+          }
+          return acc;
+        })
+      );
     }
 
     setBills((prev) =>
       prev.map((b) =>
         b.id === itemToPay.id
-          ? { ...b, status: "COMPLETED", paid: true, walletId: itemTargetAccountId || b.walletId }
+          ? {
+              ...b,
+              status: "COMPLETED",
+              paid: true,
+              walletId: chosenAccountId,
+              bank: chosenBankName,
+              paidWalletId: chosenAccountId,
+            }
           : b
       )
     );
 
     // Fecha o modal imediatamente para resposta visual instantânea
     setPayCommitmentItem(null);
+    showAlert(`Pagamento de ${formatBRL(itemAmount)} confirmado via ${chosenBankName}!`, { variant: "success" });
 
-    if (!itemToPay.id.startsWith("mock-") && !itemToPay.id.startsWith("local-")) {
+    // 2. Se for item real do backend, dispara requisição no servidor
+    const isDbUuid =
+      itemToPay.id &&
+      itemToPay.id.length >= 32 &&
+      !itemToPay.id.startsWith("mock-") &&
+      !itemToPay.id.startsWith("local-") &&
+      !itemToPay.id.startsWith("bill-") &&
+      !itemToPay.id.startsWith("invoice-");
+
+    if (isDbUuid) {
       setPayingCommitment(true);
       try {
-        if (itemToPay.isCardInvoice) {
-          await payCommitmentAction({
-            commitmentId: itemToPay.id,
-            formaPagamento: "SALDO_CONTA",
-            contaBancariaId: deductFromBalance ? baixaContaId : undefined,
-            dataBaixa: baixaData,
-            deductFromBalance,
-          });
-        } else {
-          await payCommitmentAction({
-            commitmentId: itemToPay.id,
-            formaPagamento: baixaForma,
-            contaBancariaId: deductFromBalance ? baixaContaId : undefined,
-            cartaoCreditoId: baixaCartaoId,
-            dataBaixa: baixaData,
-            deductFromBalance,
-          });
-        }
-
+        await payCommitmentAction({
+          commitmentId: itemToPay.id,
+          formaPagamento: "SALDO_CONTA",
+          contaBancariaId: chosenAccountId,
+          dataBaixa: new Date().toISOString().split("T")[0],
+          deductFromBalance: true,
+        });
         router.refresh();
-        await loadData(false);
-        showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
       } catch (err: any) {
-        console.error(err);
-        setPaidByMonth(prevPaidByMonth);
-        setBills(prevBills);
-        setAccounts(prevAccounts);
-        await loadData(false);
-        showAlert(err?.message || "Erro ao liquidar compromisso.", { variant: "error" });
+        console.warn("Aviso ao persistir baixa no backend:", err);
       } finally {
         setPayingCommitment(false);
       }
-    } else {
-      showAlert(`Conta liquidada com sucesso para ${MONTH_NAMES_LIST[payMonth - 1]}!`, { variant: "success" });
     }
   };
 
@@ -1617,10 +1613,6 @@ export default function GestaoCaixaContasPage() {
       const finalAmount = Number(newCommitmentAmount) || 0;
       const chosenMonth = Number(newCommitmentMonth) || (selectedMonth === "ALL" ? currentMonthNum : selectedMonth);
       const finalCategory = (newCommitmentCategory === "OUTRO" ? newCommitmentCustomCat : newCommitmentCategory)?.trim() || "Moradia & Aluguel";
-      const availableWallets = accounts.length > 0 ? accounts : contasBancarias;
-      const chosenWallet = availableWallets.find((w: any) => w.id === newCommitmentWalletId) || availableWallets[0];
-      const chosenWalletId = chosenWallet?.id ?? undefined;
-      const chosenBankName = chosenWallet?.bankName || chosenWallet?.banco || chosenWallet?.title || "Santander";
 
       removeDeletedBillId(finalDesc);
 
@@ -1628,15 +1620,15 @@ export default function GestaoCaixaContasPage() {
         description: finalDesc,
         amount: finalAmount,
         categoryName: finalCategory,
-        walletId: chosenWalletId,
-        bank: chosenBankName,
+        walletId: undefined,
+        bank: "",
         tipo: "BOLETO",
         recorrencia: "MENSAL",
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
       });
 
-      // Adiciona localmente para feedback instantâneo
+      // Adiciona localmente para feedback instantâneo (sem vínculo prévio de banco)
       const newLocalItem = {
         id: `local-${Date.now()}`,
         description: finalDesc,
@@ -1648,9 +1640,9 @@ export default function GestaoCaixaContasPage() {
         startMonth: `${selectedYear || 2026}-${String(chosenMonth).padStart(2, "0")}`,
         competenceMonth: chosenMonth,
         competenceYear: selectedYear,
-        walletId: chosenWalletId,
-        walletTitle: chosenBankName,
-        bank: chosenBankName,
+        walletId: undefined,
+        walletTitle: "",
+        bank: "",
         status: "PENDING",
       };
       setBills((prev) => [newLocalItem, ...prev]);
@@ -2564,10 +2556,27 @@ export default function GestaoCaixaContasPage() {
                                 ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
                                 : bill.description}
                             </span>
-                            <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
-                              <CreditCard size={11} className="text-slate-400 shrink-0" />
-                              <span className="truncate">{getBillBankName(bill, allRegisteredWallets)}</span>
-                            </div>
+                            {isPaid ? (
+                              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                <Check size={12} className="stroke-[3] text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <span className="truncate">
+                                  Pago via {(() => {
+                                    const paidAccId = paidAccountByBill[`${bill.id}_${activeMonth}`] || paidAccountByBill[bill.id] || bill.paidWalletId || bill.walletId;
+                                    const matchAcc = (accounts.length > 0 ? accounts : contasBancarias).find((a: any) => a.id === paidAccId);
+                                    return matchAcc?.bankName || matchAcc?.banco || matchAcc?.title || bill.bank || "Conta Bancária";
+                                  })()}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+                                <CreditCard size={11} className="text-slate-400 shrink-0" />
+                                <span className="truncate italic">
+                                  {bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
+                                    ? "Fatura HyperCard"
+                                    : "A definir no pagamento"}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -2732,23 +2741,7 @@ export default function GestaoCaixaContasPage() {
                 </div>
               )}
 
-              {/* 4. Banco Vinculado */}
-              <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Banco Vinculado
-                </label>
-                <select
-                  value={newCommitmentWalletId}
-                  onChange={(e) => setNewCommitmentWalletId(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  {(accounts.length > 0 ? accounts : contasBancarias).map((acc: any) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.bankName || acc.banco || acc.title} - Saldo: {brl(Number(acc.saldoAtual ?? 0))}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
 
               <button
                 type="submit"
@@ -2762,146 +2755,81 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
-      {/* ── 6. MODAL: CONFIRMAR PAGAMENTO / BAIXA (SELECIONA A CONTA) ─────── */}
+      {/* ── 6. MINI-MODAL: CONFIRMAR PAGAMENTO (SELECIONA CONTA & ABATE SALDO AUTOMATICAMENTE) ─────── */}
       {payCommitmentItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  {payCommitmentItem.isCardInvoice ? "Liquidar Fatura de Cartão" : "Confirmar Pagamento"}
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {payCommitmentItem.isCardInvoice ? "Fatura: " : "Conta: "} <b>{payCommitmentItem.description}</b> ({brl(payCommitmentItem.amount)}) - Mês: <b>{MONTH_NAMES_LIST[payMonth - 1]}</b>
-                </p>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150">
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200/50 shrink-0">
+                  <Check className="w-4 h-4 stroke-[3]" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white truncate">
+                    Confirmar Pagamento – {payCommitmentItem.description}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    Baixa e conciliação bancária direta
+                  </p>
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setPayCommitmentItem(null)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3">
-              {/* Toggle / Checkbox de Não Descontar */}
-              <div className="rounded-xl border border-purple-200 dark:border-purple-800/60 bg-purple-50/70 dark:bg-purple-950/30 p-3">
-                <label className="flex cursor-pointer items-center gap-2.5">
-                  <input
-                    type="checkbox"
-                    checked={!deductFromBalance}
-                    onChange={(e) => setDeductFromBalance(!e.target.checked)}
-                    className="h-4 w-4 rounded text-purple-600 focus:ring-purple-500 cursor-pointer"
-                  />
-                  <span className="text-xs font-bold text-purple-900 dark:text-purple-200">
-                    {payCommitmentItem.isCardInvoice
-                      ? "Apenas baixar fatura (não debitar saldo/salário)"
-                      : "Apenas marcar como pago (não debitar saldo/salário)"}
-                  </span>
+            <div className="space-y-4">
+              {/* Card Destaque: Valor da Conta */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-4 text-center">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                  Valor da Conta
+                </span>
+                <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {formatBRL(payCommitmentItem.amount)}
+                </span>
+                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Mês de Referência: <b>{MONTH_NAMES_LIST[(payMonth || currentMonthNum) - 1]}/{selectedYear}</b>
+                </div>
+              </div>
+
+              {/* Select Obrigatório: De qual conta saiu o pagamento? */}
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                  De qual conta saiu o pagamento? <span className="text-rose-500">*</span>
                 </label>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-purple-700 dark:text-purple-300">
-                  {payCommitmentItem.isCardInvoice
-                    ? (deductFromBalance
-                        ? "Ao liquidar, o limite do cartão é restabelecido e o saldo é debitado da conta escolhida abaixo."
-                        : "Ao liquidar, o limite é restabelecido e nenhum saldo de conta bancária será debitado.")
-                    : (deductFromBalance
-                        ? "O valor da conta será debitado da conta corrente escolhida abaixo."
-                        : "A conta será marcada como quitada sem debitar o saldo de nenhuma conta corrente.")}
+                <select
+                  className="w-full border border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-3 rounded-xl text-sm font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                  value={baixaContaId}
+                  onChange={(e) => setBaixaContaId(e.target.value)}
+                  required
+                >
+                  {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => {
+                    const bankName = conta.bankName || conta.banco || conta.title || "Conta";
+                    const bal = Number(conta.saldoAtual ?? conta.balance ?? 0);
+                    return (
+                      <option key={conta.id} value={conta.id}>
+                        {bankName} - {formatBRL(bal)}
+                      </option>
+                    );
+                  })}
+                </select>
+                <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                  O valor será debitado automaticamente do saldo do banco selecionado.
                 </p>
               </div>
 
-              {payCommitmentItem.isCardInvoice ? (
-                <>
-                  {deductFromBalance && (
-                    <div>
-                      <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                        Qual Conta Bancária Usar para Pagar?
-                      </label>
-                      <select
-                        className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                        value={baixaContaId}
-                        onChange={(e) => setBaixaContaId(e.target.value)}
-                      >
-                        {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
-                          <option key={conta.id} value={conta.id}>
-                            {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Data da Liquidação
-                    </label>
-                    <input
-                      type="date"
-                      value={baixaData}
-                      onChange={(e) => setBaixaData(e.target.value)}
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
-                    />
-                  </div>
-                </>
-              ) : (
-                <>
-                  {deductFromBalance && (
-                    <>
-                      <div>
-                        <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                          Qual Conta Bancária Usar para Pagar?
-                        </label>
-                        <select
-                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm cursor-pointer"
-                          value={baixaContaId}
-                          onChange={(e) => setBaixaContaId(e.target.value)}
-                        >
-                          {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
-                            <option key={conta.id} value={conta.id}>
-                              {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                          Forma de Pagamento
-                        </label>
-                        <select
-                          className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm bg-white cursor-pointer"
-                          value={baixaForma}
-                          onChange={(e) => setBaixaForma(e.target.value as any)}
-                        >
-                          <option value="SALDO_CONTA">Saldo da Conta Corrente (Manual)</option>
-                          <option value="DEBITO_AUTOMATICO">Débito Automático</option>
-                          <option value="PIX">Pix</option>
-                          <option value="DINHEIRO">Dinheiro em Espécie</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  <div>
-                    <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 mb-1 block">
-                      Data do Pagamento
-                    </label>
-                    <input
-                      type="date"
-                      value={baixaData}
-                      onChange={(e) => setBaixaData(e.target.value)}
-                      className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm"
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex gap-2 pt-2">
+              {/* Botões Cancelar e Confirmar */}
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setPayCommitmentItem(null)}
                   disabled={payingCommitment}
-                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="w-1/2 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer text-sm"
                 >
                   Cancelar
                 </button>
@@ -2909,8 +2837,9 @@ export default function GestaoCaixaContasPage() {
                   type="button"
                   onClick={handleConfirmBaixa}
                   disabled={payingCommitment}
-                  className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-xs"
+                  className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50 shadow-md shadow-emerald-600/20 text-sm flex items-center justify-center gap-1.5"
                 >
+                  <Check size={16} strokeWidth={2.5} />
                   {payingCommitment ? "Processando..." : "Confirmar Pagamento"}
                 </button>
               </div>
@@ -3041,22 +2970,7 @@ export default function GestaoCaixaContasPage() {
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold uppercase text-slate-600 dark:text-slate-400 block mb-1">
-                  Banco Vinculado
-                </label>
-                <select
-                  value={editWalletId}
-                  onChange={(e) => setEditWalletId(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-lg text-sm focus:outline-none focus:border-indigo-500 cursor-pointer"
-                >
-                  {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
-                    <option key={conta.id} value={conta.id}>
-                      {conta.bankName || conta.banco || conta.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
 
               <div className="flex gap-2 pt-2">
                 <button
