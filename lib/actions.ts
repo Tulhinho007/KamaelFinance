@@ -2056,6 +2056,8 @@ export async function calculateAccountBalance(
       monthExpense: 0,
       finalBalance: 0,
       currentRealBalance,
+      totalEntradasHoje,
+      totalSaidasHoje,
     };
   }
 
@@ -2127,6 +2129,8 @@ export async function calculateAccountBalance(
     monthExpense,
     finalBalance,
     currentRealBalance,
+    totalEntradasHoje,
+    totalSaidasHoje,
   };
 }
 
@@ -4291,6 +4295,7 @@ export async function recordBankAccountMovementAction(input: {
   dataOperacao: string;
   descricao: string;
   tipoOperacao: "ENTRADA" | "SAIDA";
+  isVisualOnly?: boolean;
 }) {
   const userId = await getActiveUserId();
   const wallet = await prisma.wallet.findFirst({
@@ -4304,6 +4309,35 @@ export async function recordBankAccountMovementAction(input: {
   }
 
   const isEntrada = input.tipoOperacao === "ENTRADA";
+  const now = new Date();
+  const bInfo = await calculateAccountBalance(wallet.id, now.getUTCMonth() + 1, now.getUTCFullYear());
+  const currentBal = Number(bInfo.currentRealBalance ?? wallet.currentBalance ?? 0);
+  const updatedBalance = isEntrada ? currentBal + valorNumerico : currentBal - valorNumerico;
+
+  if (input.isVisualOnly) {
+    const netTxs = Number(bInfo.totalEntradasHoje ?? 0) - Number(bInfo.totalSaidasHoje ?? 0);
+    const newInitial = Math.round((updatedBalance - netTxs) * 100) / 100;
+    await prisma.wallet.update({
+      where: { id: wallet.id },
+      data: {
+        currentBalance: updatedBalance,
+        initialBalance: newInitial,
+      },
+    });
+
+    revalidatePath("/contas");
+    revalidatePath("/dashboard");
+    return {
+      id: `visual-${Date.now()}`,
+      contaId: wallet.id,
+      data: input.dataOperacao,
+      descricao: input.descricao,
+      tipo: input.tipoOperacao,
+      valor: isEntrada ? valorNumerico : -valorNumerico,
+      saldoAtualizado: updatedBalance
+    };
+  }
+
   const dateParts = input.dataOperacao.split("-");
   const year = Number(dateParts[0]);
   const month = Number(dateParts[1]);
@@ -4346,10 +4380,10 @@ export async function recordBankAccountMovementAction(input: {
 
   // 2. Atualiza o saldo real da conta selecionada
   const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-  const updatedBalance = isEntrada ? currentVal + valorNumerico : currentVal - valorNumerico;
+  const finalBalance = isEntrada ? currentVal + valorNumerico : currentVal - valorNumerico;
   await prisma.wallet.update({
     where: { id: wallet.id },
-    data: { currentBalance: updatedBalance }
+    data: { currentBalance: finalBalance }
   });
 
   revalidatePath("/contas");
@@ -4375,6 +4409,7 @@ export async function setExactBankAccountBalanceAction(input: {
   contaId: string;
   novoSaldo: number;
   descricao?: string;
+  isVisualOnly?: boolean;
 }) {
   const userId = await getActiveUserId();
   const wallet = await prisma.wallet.findFirst({
@@ -4389,45 +4424,64 @@ export async function setExactBankAccountBalanceAction(input: {
   const diff = Math.round((target - currentReal) * 100) / 100;
 
   if (diff !== 0) {
-    const isEntrada = diff > 0;
-    const valorNumerico = Math.abs(diff);
+    if (input.isVisualOnly) {
+      // Ajuste puramente visual: atualiza o saldo diretamente sem criar lançamentos em Receitas/Despesas
+      const netTxs = Number(bInfo.totalEntradasHoje ?? 0) - Number(bInfo.totalSaidasHoje ?? 0);
+      const newInitial = Math.round((target - netTxs) * 100) / 100;
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: {
+          currentBalance: target,
+          initialBalance: newInitial,
+        },
+      });
+    } else {
+      // Ajuste contábil formal: cria transação correspondente
+      const isEntrada = diff > 0;
+      const valorNumerico = Math.abs(diff);
 
-    const defaultCategoryName = isEntrada ? "Ajuste de Saldo (Entrada)" : "Ajuste de Saldo (Saída)";
-    let category = await prisma.category.findFirst({
-      where: { name: { equals: defaultCategoryName, mode: "insensitive" } }
-    });
-    if (!category) {
-      category = await prisma.category.create({
-        data: { name: defaultCategoryName, color: isEntrada ? "#10B981" : "#EF4444" }
+      const defaultCategoryName = isEntrada ? "Ajuste de Saldo (Entrada)" : "Ajuste de Saldo (Saída)";
+      let category = await prisma.category.findFirst({
+        where: { name: { equals: defaultCategoryName, mode: "insensitive" } }
+      });
+      if (!category) {
+        category = await prisma.category.create({
+          data: { name: defaultCategoryName, color: isEntrada ? "#10B981" : "#EF4444" }
+        });
+      }
+
+      await prisma.transaction.create({
+        data: {
+          walletId: wallet.id,
+          categoryId: category.id,
+          description: input.descricao?.trim() || `Ajuste para saldo exato (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+          type: isEntrada ? "INCOME" : "EXPENSE",
+          amount: valorNumerico,
+          status: "COMPLETED",
+          date: now,
+          paymentDate: now,
+          purchaseDate: now,
+          competenceDate: now,
+          dueDate: now,
+          competenceMonth: now.getMonth() + 1,
+          competenceYear: now.getFullYear(),
+          paymentMethod: isEntrada ? PaymentMethod.PIX : PaymentMethod.DEBITO,
+          tags: "AJUSTE_SALDO",
+          source: "MANUAL"
+        }
+      });
+
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { currentBalance: target }
       });
     }
-
-    await prisma.transaction.create({
-      data: {
-        walletId: wallet.id,
-        categoryId: category.id,
-        description: input.descricao?.trim() || `Ajuste para saldo exato (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
-        type: isEntrada ? "INCOME" : "EXPENSE",
-        amount: valorNumerico,
-        status: "COMPLETED",
-        date: now,
-        paymentDate: now,
-        purchaseDate: now,
-        competenceDate: now,
-        dueDate: now,
-        competenceMonth: now.getMonth() + 1,
-        competenceYear: now.getFullYear(),
-        paymentMethod: isEntrada ? PaymentMethod.PIX : PaymentMethod.DEBITO,
-        tags: "AJUSTE_SALDO",
-        source: "MANUAL"
-      }
+  } else {
+    await prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { currentBalance: target }
     });
   }
-
-  await prisma.wallet.update({
-    where: { id: wallet.id },
-    data: { currentBalance: target }
-  });
 
   revalidatePath("/contas");
   revalidatePath("/cartoes");
@@ -6845,6 +6899,7 @@ export async function deleteCardAccount(walletId: string): Promise<{ success: bo
 
 export const deleteWalletAccount = deleteCardAccount;
 export const deleteWalletAction = deleteCardAccount;
+export const deleteBankAccountAction = deleteCardAccount;
 
 // ---------- Busca de Faturas Pendentes a Vencer (Ordenação Cronológica) ----------
 

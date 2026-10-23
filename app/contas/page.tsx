@@ -57,6 +57,7 @@ import {
   recordBankAccountMovementAction,
   setExactBankAccountBalanceAction,
   clearAccountAdjustmentsAction,
+  deleteBankAccountAction,
 } from "@/lib/actions";
 
 const brl = (v: number) =>
@@ -73,6 +74,7 @@ export interface BalanceAdjustmentRecord {
   description: string;
   previousBalance: number;
   resultingBalance: number;
+  isVisualOnly?: boolean;
 }
 
 const getAccountSavedHistory = (accId: string): BalanceAdjustmentRecord[] => {
@@ -929,9 +931,14 @@ export default function GestaoCaixaContasPage() {
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
   const [deletingCommitment, setDeletingCommitment] = useState(false);
 
+  // Modal: Excluir Conta Bancária
+  const [accountToDelete, setAccountToDelete] = useState<any | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState<boolean>(false);
+
   // Modal: Gerenciar Saldo da Conta Bancária
   const [managingAccount, setManagingAccount] = useState<any | null>(null);
   const [manageTab, setManageTab] = useState<"EXATO" | "RAPIDO" | "HISTORICO">("EXATO");
+  const [isVisualOnly, setIsVisualOnly] = useState<boolean>(true);
   const [exactBalanceInput, setExactBalanceInput] = useState<string>("");
   const [exactReasonInput, setExactReasonInput] = useState<string>("");
   const [quickAdjustType, setQuickAdjustType] = useState<"ENTRADA" | "SAIDA">("ENTRADA");
@@ -1824,7 +1831,7 @@ export default function GestaoCaixaContasPage() {
     showAlert("Conta fixa excluída com sucesso!", { variant: "success" });
   };
 
-  // Handler: Confirmação do Modal de Exclusão
+  // Handler: Confirmação do Modal de Exclusão de Conta Fixa
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     setDeletingCommitment(true);
@@ -1838,10 +1845,43 @@ export default function GestaoCaixaContasPage() {
     }
   };
 
+  // Handler: Confirmação de Exclusão de Conta Bancária
+  const handleConfirmDeleteAccount = async () => {
+    if (!accountToDelete) return;
+    setDeletingAccount(true);
+    try {
+      const accName = accountToDelete.bankName || accountToDelete.title || accountToDelete.name || "Conta Bancária";
+      const accId = accountToDelete.id;
+
+      // Remove do estado local imediatamente
+      setAccounts((prev) => prev.filter((a) => a.id !== accId));
+      setContasBancarias((prev) => prev.filter((a) => a.id !== accId));
+      if (managingAccount?.id === accId) {
+        setManagingAccount(null);
+      }
+
+      if (!accId.startsWith("mock-") && !accId.startsWith("local-")) {
+        const res = await deleteBankAccountAction(accId);
+        if (!res.success) {
+          throw new Error(res.error || "Falha ao excluir conta no banco de dados.");
+        }
+      }
+
+      showAlert(`Conta "${accName}" excluída com sucesso!`, { variant: "success" });
+      setAccountToDelete(null);
+      await loadData(false);
+    } catch (err: any) {
+      showAlert(err?.message || "Erro ao excluir conta bancária.", { variant: "error" });
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   // Handlers: Gerenciar Saldo da Conta Bancária
   const handleOpenManageModal = (acc: any) => {
     setManagingAccount(acc);
     setManageTab("EXATO");
+    setIsVisualOnly(true);
     setEditingRecordId(null);
     const currentVal = Number(acc.balance ?? acc.saldoAtual ?? 0);
     setExactBalanceInput("");
@@ -1889,6 +1929,7 @@ export default function GestaoCaixaContasPage() {
         description: exactReasonInput.trim() || `Ajuste para saldo real (${formatBRL(targetExact)})`,
         previousBalance: currentBal,
         resultingBalance: targetExact,
+        isVisualOnly,
       };
 
       const updatedHistory = [newRecord, ...(managingAccount.history || [])];
@@ -1918,6 +1959,7 @@ export default function GestaoCaixaContasPage() {
           contaId: managingAccount.id,
           novoSaldo: targetExact,
           descricao: newRecord.description,
+          isVisualOnly,
         }).catch((err) => console.error("Erro ao sincronizar saldo no banco:", err));
       }
     } catch (err: any) {
@@ -1962,6 +2004,7 @@ export default function GestaoCaixaContasPage() {
         description: quickDescriptionInput.trim() || (quickAdjustType === "ENTRADA" ? "Adição de dinheiro ao saldo" : "Retirada / Abatimento de saldo"),
         previousBalance: currentBal,
         resultingBalance: resulting,
+        isVisualOnly,
       };
 
       const updatedHistory = [newRecord, ...(managingAccount.history || [])];
@@ -1995,6 +2038,7 @@ export default function GestaoCaixaContasPage() {
           dataOperacao: todayYmd,
           descricao: newRecord.description,
           tipoOperacao: quickAdjustType,
+          isVisualOnly,
         }).catch((err) => console.error("Erro ao sincronizar ajuste no banco:", err));
       }
     } catch (err: any) {
@@ -2369,7 +2413,7 @@ export default function GestaoCaixaContasPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className={`font-bold text-sm tabular-nums ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
                       {formatBRL(currentBal)}
                     </span>
@@ -2384,6 +2428,17 @@ export default function GestaoCaixaContasPage() {
                     >
                       <SlidersHorizontal size={13} className="text-emerald-600 dark:text-emerald-400 group-hover/btn:rotate-90 transition-transform duration-200" />
                       <span>Ajustar Saldo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAccountToDelete(acc);
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-xl border border-transparent hover:border-rose-200 dark:hover:border-rose-800/50 transition-all cursor-pointer"
+                      title={`Excluir conta ${bName}`}
+                    >
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 </div>
@@ -3110,6 +3165,57 @@ export default function GestaoCaixaContasPage() {
         </div>
       )}
 
+      {/* ── MODAL: EXCLUIR CONTA BANCÁRIA ─────────────────────────────────── */}
+      {accountToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-md w-full shadow-2xl p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-800/60">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Excluir Conta Bancária</h3>
+                <p className="text-xs text-slate-500">Esta ação não poderá ser desfeita.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Tem certeza que deseja excluir a conta{" "}
+              <strong className="text-slate-900 dark:text-white">
+                {accountToDelete.bankName || accountToDelete.title || accountToDelete.name || "Conta Bancária"}
+              </strong>
+              ? Esta ação removerá a conta e suas configurações associadas.
+            </p>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setAccountToDelete(null)}
+                disabled={deletingAccount}
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAccount}
+                disabled={deletingAccount}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+              >
+                {deletingAccount ? (
+                  <span>Excluindo...</span>
+                ) : (
+                  <>
+                    <Trash2 size={13} />
+                    <span>Excluir Conta</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 10. MODAL: BAIXA EM LOTE ──────────────────────────────────────── */}
       {batchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
@@ -3346,6 +3452,25 @@ export default function GestaoCaixaContasPage() {
                   />
                 </div>
 
+                {/* Opção de Ajuste Visual vs Contábil */}
+                <div 
+                  className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 cursor-pointer select-none" 
+                  onClick={() => setIsVisualOnly(!isVisualOnly)}
+                >
+                  <input
+                    type="checkbox"
+                    id="visualOnlyExact"
+                    checked={isVisualOnly}
+                    onChange={(e) => setIsVisualOnly(e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-0.5 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-emerald-600"
+                  />
+                  <label htmlFor="visualOnlyExact" className="text-xs text-slate-700 dark:text-slate-300 cursor-pointer leading-tight">
+                    <span className="font-semibold block text-slate-900 dark:text-white">Apenas ajuste visual</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Não registrar movimentação nas abas de Receitas/Despesas nem inflar relatórios.</span>
+                  </label>
+                </div>
+
                 <button
                   type="submit"
                   disabled={savingAdjustment || exactBalanceInput.trim() === ""}
@@ -3439,6 +3564,25 @@ export default function GestaoCaixaContasPage() {
                     onChange={(e) => setQuickDescriptionInput(e.target.value)}
                     className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white p-2.5 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
                   />
+                </div>
+
+                {/* Opção de Ajuste Visual vs Contábil */}
+                <div 
+                  className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 cursor-pointer select-none" 
+                  onClick={() => setIsVisualOnly(!isVisualOnly)}
+                >
+                  <input
+                    type="checkbox"
+                    id="visualOnlyQuick"
+                    checked={isVisualOnly}
+                    onChange={(e) => setIsVisualOnly(e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-0.5 h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-emerald-600"
+                  />
+                  <label htmlFor="visualOnlyQuick" className="text-xs text-slate-700 dark:text-slate-300 cursor-pointer leading-tight">
+                    <span className="font-semibold block text-slate-900 dark:text-white">Apenas ajuste visual</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">Não registrar movimentação nas abas de Receitas/Despesas nem inflar relatórios.</span>
+                  </label>
                 </div>
 
                 <button
@@ -3736,6 +3880,11 @@ export default function GestaoCaixaContasPage() {
                                 <span className="text-[11px] text-slate-400 dark:text-slate-500">
                                   {record.date}
                                 </span>
+                                {record.isVisualOnly && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                    Apenas visual
+                                  </span>
+                                )}
                               </div>
 
                               <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 break-words">
