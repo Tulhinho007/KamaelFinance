@@ -56,6 +56,7 @@ import {
   duplicateCommitmentToNextMonthAction,
   recordBankAccountMovementAction,
   setExactBankAccountBalanceAction,
+  clearAccountAdjustmentsAction,
 } from "@/lib/actions";
 
 const brl = (v: number) =>
@@ -867,6 +868,21 @@ export default function GestaoCaixaContasPage() {
   // Modais
   const [newCommitmentModalOpen, setNewCommitmentModalOpen] = useState(false);
   const [newAccountModalOpen, setNewAccountModalOpen] = useState(false);
+
+  // Limpeza de histórico legado de ajustes das contas
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const resetKey = "kamael_acc_history_cleared_v2";
+      if (!localStorage.getItem(resetKey)) {
+        Object.keys(localStorage).forEach((k) => {
+          if (k.startsWith("kamael_acc_history_")) {
+            localStorage.removeItem(k);
+          }
+        });
+        localStorage.setItem(resetKey, "true");
+      }
+    }
+  }, []);
 
   // Modal de Baixa / Pagamento (com seleção de conta bancária)
   const [payCommitmentItem, setPayCommitmentItem] = useState<any | null>(null);
@@ -2019,18 +2035,52 @@ export default function GestaoCaixaContasPage() {
 
     if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
       try {
-        const wasEntrada = targetRecord.diff > 0;
-        const todayYmd = new Date().toISOString().split("T")[0];
-        await recordBankAccountMovementAction({
-          contaId: managingAccount.id,
-          valor: Math.abs(targetRecord.diff),
-          dataOperacao: todayYmd,
-          descricao: `Reversão: ${targetRecord.description}`,
-          tipoOperacao: wasEntrada ? "SAIDA" : "ENTRADA",
-        }).catch((err) => console.error("Erro ao reverter no backend:", err));
+        if (updatedHistory.length === 0) {
+          await clearAccountAdjustmentsAction(managingAccount.id);
+          await loadData(false);
+        }
       } catch (err: any) {
-        console.error("Erro ao reverter no backend:", err);
+        console.error("Erro ao sincronizar exclusão de ajuste:", err);
       }
+    }
+  };
+
+  const handleClearAllAdjustments = async () => {
+    if (!managingAccount) return;
+    setSavingAdjustment(true);
+    try {
+      saveAccountHistory(managingAccount.id, []);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`kamael_acc_history_${managingAccount.id}`);
+      }
+
+      if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
+        const res = await clearAccountAdjustmentsAction(managingAccount.id);
+        const newBal = Number(res.updatedBalance ?? 0);
+        const updatedAccount = {
+          ...managingAccount,
+          balance: newBal,
+          saldoAtual: newBal,
+          history: [],
+        };
+        setManagingAccount(updatedAccount);
+        setAccounts((prev) => prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc)));
+        setContasBancarias((prev) => prev.map((acc) => (acc.id === managingAccount.id ? { ...acc, saldoAtual: newBal, balance: newBal } : acc)));
+      } else {
+        const updatedAccount = {
+          ...managingAccount,
+          history: [],
+        };
+        setManagingAccount(updatedAccount);
+        setAccounts((prev) => prev.map((acc) => (acc.id === managingAccount.id ? updatedAccount : acc)));
+      }
+      showAlert("Histórico e ajustes desta conta zerados com sucesso!", { variant: "success" });
+      await loadData(false);
+    } catch (err: any) {
+      console.error(err);
+      showAlert(err?.message || "Erro ao limpar histórico de ajustes.", { variant: "error" });
+    } finally {
+      setSavingAdjustment(false);
     }
   };
 
@@ -3420,6 +3470,22 @@ export default function GestaoCaixaContasPage() {
                     <p className="text-[11px] text-slate-400">Os ajustes manuais feitos nesta conta aparecerão aqui em formato de extrato.</p>
                   </div>
                 ) : (
+                  <>
+                    <div className="flex items-center justify-between pb-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                        {managingAccount.history.length} {managingAccount.history.length === 1 ? "ajuste registrado" : "ajustes registrados"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleClearAllAdjustments}
+                        disabled={savingAdjustment}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 rounded-lg transition-colors cursor-pointer"
+                        title="Zerar todos os ajustes desta conta"
+                      >
+                        <Trash2 size={12} />
+                        <span>Zerar Todos os Ajustes</span>
+                      </button>
+                    </div>
                     <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-96 overflow-y-auto pr-1 space-y-2.5">
                       {managingAccount.history.map((record: any) => {
                         const isEntrada = record.diff != null ? record.diff > 0 : record.type === "ENTRADA";
@@ -3711,6 +3777,7 @@ export default function GestaoCaixaContasPage() {
                         );
                       })}
                     </div>
+                  </>
                 )}
               </div>
             )}

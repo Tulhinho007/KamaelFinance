@@ -4440,6 +4440,43 @@ export async function setExactBankAccountBalanceAction(input: {
   return { success: true, updatedBalance: target, diff };
 }
 
+export async function clearAccountAdjustmentsAction(walletId: string) {
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, ...(userId ? { userId } : {}) },
+  });
+  if (!wallet) throw new Error("Conta não encontrada.");
+
+  await prisma.transaction.deleteMany({
+    where: {
+      walletId,
+      OR: [
+        { tags: { contains: "AJUSTE" } },
+        { description: { contains: "Ajuste para saldo", mode: "insensitive" } },
+        { description: { contains: "Reversão:", mode: "insensitive" } },
+      ],
+    },
+  });
+
+  await prisma.wallet.update({
+    where: { id: walletId },
+    data: { initialBalance: 0 },
+  });
+
+  const now = new Date();
+  const bInfo = await calculateAccountBalance(walletId, now.getUTCMonth() + 1, now.getUTCFullYear());
+  const newBal = Number(bInfo.currentRealBalance ?? 0);
+
+  await prisma.wallet.update({
+    where: { id: walletId },
+    data: { currentBalance: newBal },
+  });
+
+  revalidatePath("/contas");
+  revalidatePath("/dashboard");
+  return { success: true, updatedBalance: newBal };
+}
+
 export async function getBankAccountsListAction() {
   const userId = await getActiveUserId();
   const wallets = await prisma.wallet.findMany({
