@@ -154,79 +154,7 @@ const CATEGORIAS_COMUNS = [
   "Outros Fixos",
 ];
 
-// Mock padrão inicial para testes imediatos e exibição fluida
-const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [
-  {
-    id: "mock-acc-1",
-    name: "Picpay",
-    bankName: "Picpay",
-    title: "Picpay",
-    balance: 625.18,
-    saldoAtual: 625.18,
-    holder: "Túlio Cavalcanti",
-    color: "bg-emerald-600 text-white",
-    initials: "PIC",
-    history: [
-      {
-        id: "hist-pic-1",
-        date: "22/10/2026, 11:21",
-        type: "AJUSTE",
-        amount: 624.99,
-        diff: 624.99,
-        description: "Emprestimo",
-        previousBalance: 0.19,
-        resultingBalance: 625.18,
-      },
-    ],
-  },
-  {
-    id: "mock-acc-2",
-    name: "Santander",
-    bankName: "Santander",
-    title: "Santander",
-    balance: 2450.0,
-    saldoAtual: 2450.0,
-    holder: "Túlio Cavalcanti",
-    color: "bg-red-700 text-white",
-    initials: "SAN",
-    history: [
-      {
-        id: "hist-san-1",
-        date: "18/10/2026, 09:30",
-        type: "AJUSTE",
-        amount: 2450.0,
-        diff: 2450.0,
-        description: "Conferência de saldo do app",
-        previousBalance: 0.0,
-        resultingBalance: 2450.0,
-      },
-    ],
-  },
-  {
-    id: "mock-acc-3",
-    name: "Nubank",
-    bankName: "Nubank",
-    title: "Nubank",
-    balance: 890.5,
-    saldoAtual: 890.5,
-    holder: "Túlio Cavalcanti",
-    color: "bg-purple-600 text-white",
-    initials: "NU",
-    history: [],
-  },
-  {
-    id: "mock-acc-4",
-    name: "HyperCard",
-    bankName: "HyperCard",
-    title: "HyperCard",
-    balance: 0.0,
-    saldoAtual: 0.0,
-    holder: "Túlio Cavalcanti",
-    color: "bg-rose-700 text-white",
-    initials: "HIP",
-    history: [],
-  },
-];
+const DEFAULT_INITIAL_ACCOUNTS: BankAccountItem[] = [];
 
 // Interface para as contas e faturas
 export interface BillItem {
@@ -983,12 +911,13 @@ export default function GestaoCaixaContasPage() {
               color: bankStyle.iconBg,
               initials: bankStyle.initials,
               holder: a.holder || existing?.holder,
+              walletType: a.walletType || "CONTA_CORRENTE",
               history: hist,
             };
           });
         });
       } else {
-        setAccounts((prev) => (prev.length > 0 ? prev : DEFAULT_INITIAL_ACCOUNTS));
+        setAccounts([]);
       }
 
       const allList = (data.allCommitments && data.allCommitments.length > 0)
@@ -1153,7 +1082,7 @@ export default function GestaoCaixaContasPage() {
       }
     } catch (err) {
       console.error("Erro ao carregar Gestão de Caixa & Contas:", err);
-      setAccounts((prev) => prev.length > 0 ? prev : DEFAULT_INITIAL_ACCOUNTS);
+      setAccounts((prev) => prev);
       setBills((prev) => prev.length > 0 ? prev : DEFAULT_INITIAL_BILLS);
     } finally {
       if (active) setLoading(false);
@@ -1236,13 +1165,33 @@ export default function GestaoCaixaContasPage() {
     return { startMonth, dueDay, startYear, startMonthStr };
   };
 
-  // Saldo Geral consolidado
+  // 1. Filtrar apenas as Contas Correntes (Liquidez) - Exclui estritamente Cartões de Crédito e Faturas
+  const contasCorrentes = useMemo(() => {
+    return accounts.filter((acc) => {
+      const type = (acc.walletType || acc.tipo || acc.type || "").toUpperCase();
+      const cat = (acc.category || acc.categoria || "").toUpperCase();
+      const name = (acc.bankName || acc.title || acc.name || "").toUpperCase();
+
+      const isCardOrInvoice =
+        type === "CREDIT_CARD" ||
+        type === "CARTAO_CREDITO" ||
+        type === "CARTAO" ||
+        type === "FATURA" ||
+        type === "FATURA_CARTAO" ||
+        cat.includes("FATURA") ||
+        cat.includes("CARTAO") ||
+        cat.includes("CARTÃO") ||
+        name.includes("FATURA") ||
+        name.includes("HYPERCARD");
+
+      return !isCardOrInvoice;
+    });
+  }, [accounts]);
+
+  // 2. Saldo Geral Disponível APENAS com contas correntes legítimas (liquidez imediata)
   const totalSaldoGeral = useMemo(() => {
-    if (accounts.length > 0) {
-      return accounts.reduce((sum, a) => sum + Number(a.balance ?? a.saldoAtual ?? 0), 0);
-    }
-    return totals.totalRealBalance || 0;
-  }, [accounts, totals.totalRealBalance]);
+    return contasCorrentes.reduce((sum, a) => sum + Number(a.balance ?? a.saldoAtual ?? 0), 0);
+  }, [contasCorrentes]);
 
   // Lista de bancos disponíveis para o filtro rápido
   const allRegisteredWallets = useMemo(() => {
@@ -1849,17 +1798,23 @@ export default function GestaoCaixaContasPage() {
   const handleConfirmDeleteAccount = async () => {
     if (!accountToDelete) return;
     setDeletingAccount(true);
-    try {
-      const accName = accountToDelete.bankName || accountToDelete.title || accountToDelete.name || "Conta Bancária";
-      const accId = accountToDelete.id;
+    const accName = accountToDelete.bankName || accountToDelete.title || accountToDelete.name || "Conta Bancária";
+    const accId = accountToDelete.id;
 
-      // Remove do estado local imediatamente
+    try {
+      // 1. Remove do estado local imediatamente para feedback instantâneo
       setAccounts((prev) => prev.filter((a) => a.id !== accId));
       setContasBancarias((prev) => prev.filter((a) => a.id !== accId));
       if (managingAccount?.id === accId) {
         setManagingAccount(null);
       }
 
+      // 2. Limpa histórico salvo da conta no localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`kamael_acc_history_${accId}`);
+      }
+
+      // 3. Chamada de exclusão definitiva no banco de dados
       if (!accId.startsWith("mock-") && !accId.startsWith("local-")) {
         const res = await deleteBankAccountAction(accId);
         if (!res.success) {
@@ -1872,6 +1827,7 @@ export default function GestaoCaixaContasPage() {
       await loadData(false);
     } catch (err: any) {
       showAlert(err?.message || "Erro ao excluir conta bancária.", { variant: "error" });
+      await loadData(false);
     } finally {
       setDeletingAccount(false);
     }
@@ -2362,9 +2318,9 @@ export default function GestaoCaixaContasPage() {
         </div>
 
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-          {accounts.length === 0 ? (
+          {contasCorrentes.length === 0 ? (
             <div className="px-5 py-8 text-center text-slate-400 dark:text-slate-500 text-xs">
-              <p>Nenhuma conta bancária cadastrada.</p>
+              <p>Nenhuma conta corrente cadastrada.</p>
               <button
                 type="button"
                 onClick={() => setNewAccountModalOpen(true)}
@@ -2374,7 +2330,7 @@ export default function GestaoCaixaContasPage() {
               </button>
             </div>
           ) : (
-            accounts.map((acc) => {
+            contasCorrentes.map((acc) => {
               const bankStyle = getBankStyle(acc.bankName || acc.title || acc.name);
               const bName = acc.bankName || acc.title || acc.name || "";
               const currentBal = Number(acc.balance ?? acc.saldoAtual ?? 0);
@@ -2447,6 +2403,85 @@ export default function GestaoCaixaContasPage() {
           )}
         </div>
       </div>
+
+      {/* ── 2.1 BLOCO SEPARADO: CARTÕES DE CRÉDITO (NÃO ENTRA NO SALDO GERAL DISPONÍVEL) ── */}
+      {cartoesCredito.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                <CreditCard className="w-3.5 h-3.5" />
+              </div>
+              <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                Cartões de Crédito (Passivo & Limite)
+              </h2>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 font-normal hidden sm:inline">
+                (Representam limite/fatura e não entram no Saldo Geral Disponível)
+              </span>
+            </div>
+            <Link
+              href="/cartoes"
+              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Gerenciar Cartões →
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+            {cartoesCredito.map((card: any) => {
+              const bankStyle = getBankStyle(card.bankName || card.title || card.banco);
+              const cardName = card.bankName || card.title || card.banco || "Cartão de Crédito";
+              const limit = Number(card.limiteTotal || card.creditLimit || 0);
+              const curBal = Number(card.faturaAtual || card.saldoAtual || card.currentBalance || 0);
+
+              return (
+                <div
+                  key={card.id}
+                  className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${bankStyle.iconBg} shadow-sm shrink-0`}>
+                      {bankStyle.initials}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white text-sm">
+                        {cardName}
+                      </p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                        {card.holder ? `Titular: ${card.holder} • ` : ""}
+                        Vencimento dia {card.vencimento || 10}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 shrink-0 text-right">
+                    <div>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase block">Fatura Atual</span>
+                      <span className="font-bold text-sm text-rose-600 dark:text-rose-400 tabular-nums">
+                        {formatBRL(curBal)}
+                      </span>
+                    </div>
+                    {limit > 0 && (
+                      <div className="hidden sm:block">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase block">Limite Total</span>
+                        <span className="font-semibold text-xs text-slate-600 dark:text-slate-400 tabular-nums">
+                          {formatBRL(limit)}
+                        </span>
+                      </div>
+                    )}
+                    <Link
+                      href="/cartoes"
+                      className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                    >
+                      Ver Fatura
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── 3 & 4. TABELA DE CONTAS FIXAS & DESPESAS DO MÊS ──────────────── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm relative min-h-[350px]">

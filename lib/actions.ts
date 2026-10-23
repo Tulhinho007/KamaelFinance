@@ -6739,8 +6739,11 @@ export async function deleteCardAccount(walletId: string): Promise<{ success: bo
       return { success: false, error: "Cartão ou conta bancária não encontrado(a)." };
     }
 
-    if (wallet.userId !== userId) {
-      return { success: false, error: "Você não tem permissão para excluir este registro." };
+    if (userId && wallet.userId !== userId) {
+      const activeUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+      if (activeUser?.role !== "MASTER") {
+        return { success: false, error: "Você não tem permissão para excluir este registro." };
+      }
     }
 
     await prisma.$transaction(async (tx) => {
@@ -12515,7 +12518,15 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
     const wallets = await prisma.wallet.findMany({
       where: {
         userId,
-        walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA"] },
+        walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA", "POUPANCA", "CARTEIRA"] },
+      },
+      orderBy: { title: "asc" },
+    });
+
+    const cardWallets = await prisma.wallet.findMany({
+      where: {
+        userId,
+        walletType: { in: ["CREDIT_CARD", "CARTAO_CREDITO", "CARTAO"] },
       },
       orderBy: { title: "asc" },
     });
@@ -12679,7 +12690,19 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
         banco: a.bankName || a.title,
         saldoAtual: a.saldoAtual,
       })),
-      cartoesCredito: commitmentsResult.cartoesCredito || [],
+      cartoesCredito: cardWallets.map((c) => ({
+        id: c.id,
+        banco: c.bankName || c.title,
+        title: c.title,
+        bankName: c.bankName || c.title,
+        limiteTotal: Number(c.creditLimit || 0),
+        saldoAtual: Number(c.currentBalance || 0),
+        faturaAtual: Number(c.currentBalance || 0),
+        vencimento: c.vencimento || 10,
+        diaFechamento: c.diaFechamento || 1,
+        holder: c.holder,
+        walletType: c.walletType,
+      })),
       totals: {
         totalRealBalance,
         totalReceitasAno,
