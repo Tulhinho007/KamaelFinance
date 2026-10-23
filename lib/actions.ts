@@ -12520,6 +12520,9 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
         userId,
         walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA", "POUPANCA", "CARTEIRA"] },
       },
+      include: {
+        user: { select: { name: true, email: true } },
+      },
       orderBy: { title: "asc" },
     });
 
@@ -12576,6 +12579,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
           title: w.title,
           bankName: w.bankName || w.title,
           walletType: w.walletType,
+          holder: w.holder || w.user?.name || "Túlio da Silva Cavalcanti",
           saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
           entradasAno,
           saidasAno,
@@ -12689,6 +12693,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
         id: a.id,
         banco: a.bankName || a.title,
         saldoAtual: a.saldoAtual,
+        holder: a.holder,
       })),
       cartoesCredito: cardWallets.map((c) => ({
         id: c.id,

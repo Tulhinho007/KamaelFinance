@@ -910,7 +910,7 @@ export default function GestaoCaixaContasPage() {
               saldoAtual: bal,
               color: bankStyle.iconBg,
               initials: bankStyle.initials,
-              holder: a.holder || existing?.holder,
+              holder: a.holder || existing?.holder || "Túlio Cavalcanti",
               walletType: a.walletType || "CONTA_CORRENTE",
               history: hist,
             };
@@ -2359,7 +2359,7 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                        {acc.holder ? `Titular: ${acc.holder}` : "Conta Corrente"}
+                        <span>Titular: {acc.holder || "Túlio Cavalcanti"}</span>
                         {acc.history && acc.history.length > 0 && (
                           <span className="ml-1.5 text-slate-400 dark:text-slate-500">
                             • {acc.history.length} {acc.history.length === 1 ? "ajuste" : "ajustes"}
