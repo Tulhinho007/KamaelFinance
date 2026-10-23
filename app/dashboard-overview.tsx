@@ -556,8 +556,17 @@ export function DashboardOverview() {
           return "";
         };
 
-        // Contas Fixas Pendentes do Mês Atual (ex: Treino R$ 100,00 + Internet R$ 105,56 = R$ 205,56)
+        // Contas Fixas Pendentes do Mês Atual (excluindo faturas de cartão para não duplicar com totalGeralCartoesMes)
         const contasPendentesMes = despesasPendentes.filter((d: any) => {
+          // Isola e exclui qualquer item de fatura de cartão de crédito (já computado em faturasCartoes)
+          const isFatura =
+            d.isCardInvoice === true ||
+            d.tipo === "FATURA_CARTAO" ||
+            Boolean(d.cardWalletId) ||
+            (d.category || "").toLowerCase().includes("fatura") ||
+            (d.description || "").toLowerCase().startsWith("fatura ");
+          if (isFatura) return false;
+
           const chave = getVencKey(d);
           return chave === chaveMesAtual;
         });
@@ -570,16 +579,17 @@ export function DashboardOverview() {
         // ── 1. Saldo Geral Consolidado (soma de todas as contas bancárias ativas) ──
         const saldoAtual = Number(saldoConsolidado || totalRealBalanceCalculated || 0);
 
-        // ── 2. Receitas Previstas (campo real de entradas/receitas do mês) ──
+        // ── 2. Receitas Previstas (campo real de entradas/receitas PENDENTES do mês) ──
+        // Para a fórmula do Saldo Previsto, considera APENAS receitas com status PENDENTE (não liquidadas).
+        // Quando a receita é recebida/confirmada em conta, este valor vira R$ 0,00 para evitar duplicidade.
         const receitasPrevistas = Number(
+          data?.receitasPendentesMes ??
           data?.receitasPrevistasMes ??
-          (data?.receitasPendentesMes > 0 ? data.receitasPendentesMes : data?.receitasMesAtual) ??
           monthlyRollForward?.receitasPendentes ??
-          monthlyRollForward?.receitasMes ??
           0
         );
 
-        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês ──
+        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês (sem sobreposição) ──
         const totalAPagar = Number(totalGeralCartoesMes + totalContasFixasPendentes);
 
         // ── 4. Saldo Previsto = Saldo Geral Consolidado + Receitas Previstas - Total a Pagar ──

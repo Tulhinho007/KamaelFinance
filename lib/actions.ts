@@ -7515,7 +7515,7 @@ export async function getDashboardOverviewData(
   const totalMonthIncomes = currentMonthIncomesList
     .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
-  const receitasPrevistasMes = pendingMonthIncomes > 0 ? pendingMonthIncomes : totalMonthIncomes;
+  const receitasPrevistasMes = pendingMonthIncomes;
 
   // ── 4. RESUMO DE COMPROMISSOS RECORRENTES (CUSTO FIXO MENSAL - 100% VISUAL) ─
   // Totalmente isolado das contas bancárias e extrato financeiro
