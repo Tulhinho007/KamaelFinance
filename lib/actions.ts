@@ -455,28 +455,47 @@ export async function toggleTransactionStatusAction(id: string) {
   // Inverte o status: PENDING → COMPLETED ou COMPLETED → PENDING
   const currentStatus = transaction.status ?? "COMPLETED";
   const newStatus = currentStatus === "PENDING" ? "COMPLETED" : "PENDING";
+  const isConfirming = newStatus === "COMPLETED";
+  const now = new Date();
 
-  const updated = await prisma.transaction.update({
-    where: { id },
-    data: { status: newStatus }
-  });
+  const updated = await prisma.$transaction(async (tx) => {
+    // 1. Atualiza status e data de liquidação da transação
+    const updatedTx = await tx.transaction.update({
+      where: { id },
+      data: {
+        status: newStatus,
+        paymentDate: isConfirming ? now : null,
+      },
+    });
 
-  // Atualiza saldo da conta bancária vinculada
-  if (transaction.walletId && Number(transaction.amount) > 0) {
-    if (transaction.type === "INCOME") {
-      const factor = newStatus === "COMPLETED" ? 1 : -1;
-      await prisma.wallet.update({
+    // 2. Operação atômica no saldo da conta de destino/origem
+    if (transaction.walletId && Number(transaction.amount) > 0) {
+      const amountNum = Number(transaction.amount);
+      const wallet = await tx.wallet.findUnique({
         where: { id: transaction.walletId },
-        data: { currentBalance: { increment: factor * Number(transaction.amount) } } as any
-      }).catch(() => {});
-    } else if (transaction.type === "EXPENSE") {
-      const factor = newStatus === "COMPLETED" ? -1 : 1;
-      await prisma.wallet.update({
-        where: { id: transaction.walletId },
-        data: { currentBalance: { increment: factor * Number(transaction.amount) } } as any
-      }).catch(() => {});
+      });
+
+      if (wallet) {
+        const isIncome = transaction.type === "INCOME";
+        // Confirmação de receita: incrementa saldo (+). Estorno de receita: subtrai saldo (-).
+        // Confirmação de despesa: subtrai saldo (-). Estorno de despesa: devolve saldo (+).
+        const factor = isConfirming ? (isIncome ? 1 : -1) : (isIncome ? -1 : 1);
+
+        const baseBalance = wallet.currentBalance && Number(wallet.currentBalance) > 0
+          ? Number(wallet.currentBalance)
+          : Number(wallet.initialBalance || 0);
+
+        const newBalance = Math.round((baseBalance + factor * amountNum) * 100) / 100;
+
+        await tx.wallet.update({
+          where: { id: transaction.walletId },
+          data: { currentBalance: newBalance },
+        });
+      }
     }
-  }
+
+    return updatedTx;
+  });
 
   revalidatePath("/receitas");
   revalidatePath("/despesas");
@@ -497,22 +516,37 @@ export async function markBatchRevenuesAsReceivedAction(ids: string[]) {
     where: { id: { in: ids }, type: "INCOME" }
   });
 
+  const now = new Date();
   let updatedCount = 0;
-  for (const t of txs) {
-    if (t.status !== "COMPLETED") {
-      await prisma.transaction.update({
-        where: { id: t.id },
-        data: { status: "COMPLETED" }
-      });
-      if (t.walletId && Number(t.amount) > 0) {
-        await prisma.wallet.update({
-          where: { id: t.walletId },
-          data: { currentBalance: { increment: Number(t.amount) } } as any
-        }).catch(() => {});
+
+  await prisma.$transaction(async (tx) => {
+    for (const t of txs) {
+      if (t.status !== "COMPLETED") {
+        await tx.transaction.update({
+          where: { id: t.id },
+          data: {
+            status: "COMPLETED",
+            paymentDate: now,
+          },
+        });
+
+        if (t.walletId && Number(t.amount) > 0) {
+          const wallet = await tx.wallet.findUnique({ where: { id: t.walletId } });
+          if (wallet) {
+            const baseBalance = wallet.currentBalance && Number(wallet.currentBalance) > 0
+              ? Number(wallet.currentBalance)
+              : Number(wallet.initialBalance || 0);
+            const newBalance = Math.round((baseBalance + Number(t.amount)) * 100) / 100;
+            await tx.wallet.update({
+              where: { id: t.walletId },
+              data: { currentBalance: newBalance },
+            });
+          }
+        }
+        updatedCount++;
       }
-      updatedCount++;
     }
-  }
+  });
 
   revalidatePath("/receitas");
   revalidatePath("/despesas");
@@ -2027,6 +2061,10 @@ export async function calculateAccountBalance(
   const totalEntradasHoje = (allWalletTransactions as any[])
     .filter((t: any) => {
       if (t.type !== "INCOME" || t.status === "PENDING") return false;
+      if (t.paymentDate) {
+        return new Date(t.paymentDate) <= now;
+      }
+      if (t.status === "COMPLETED") return true;
       const cashDate = getTxCashDate(t);
       return cashDate <= now;
     })
@@ -2035,6 +2073,10 @@ export async function calculateAccountBalance(
   const totalSaidasHoje = (allWalletTransactions as any[])
     .filter((t: any) => {
       if (t.type !== "EXPENSE" || t.status === "PENDING") return false;
+      if (t.paymentDate) {
+        return new Date(t.paymentDate) <= now;
+      }
+      if (t.status === "COMPLETED") return true;
       const cashDate = getTxCashDate(t);
       return cashDate <= now;
     })

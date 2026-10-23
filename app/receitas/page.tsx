@@ -446,6 +446,28 @@ export default function ReceitasPage() {
 
   const handleBulkMarkAsReceived = async () => {
     if (selectedIds.length === 0) return;
+    const selectedRevs = revenues.filter(r => selectedIds.includes(r.id) && r.status === "PENDING");
+    
+    // Atualização otimista das receitas
+    setRevenues(prev =>
+      prev.map(r => (selectedIds.includes(r.id) ? { ...r, status: "COMPLETED" } : r))
+    );
+
+    // Atualização otimista do saldo das contas
+    setWallets(prev =>
+      prev.map(w => {
+        const addedAmount = selectedRevs
+          .filter(r => r.walletId === w.id)
+          .reduce((sum, r) => sum + r.amount, 0);
+        if (addedAmount === 0) return w;
+        return {
+          ...w,
+          currentTotal: (w.currentTotal !== undefined ? Number(w.currentTotal) : Number(w.initialBalance || 0)) + addedAmount,
+          currentBalance: Number(w.currentBalance || 0) + addedAmount,
+        };
+      })
+    );
+
     try {
       await markBatchRevenuesAsReceivedAction(selectedIds);
       await loadData();
@@ -453,6 +475,7 @@ export default function ReceitasPage() {
       setSelectedIds([]);
     } catch (err) {
       console.error(err);
+      await loadData();
       showAlert("Erro ao atualizar status em lote.", { variant: "error" });
     }
   };
@@ -476,16 +499,47 @@ export default function ReceitasPage() {
   };
 
   const handleToggleStatus = async (revId: string) => {
+    const targetRev = revenues.find(r => r.id === revId);
+    if (!targetRev) return;
+
+    const isCurrentlyPending = targetRev.status === "PENDING";
+    const nextStatus = isCurrentlyPending ? "COMPLETED" : "PENDING";
+    const factor = isCurrentlyPending ? 1 : -1;
+
+    // 1. Atualização Otimista das Receitas (reflete instantaneamente na linha da tabela e nos cards de resumo)
+    setRevenues(prev =>
+      prev.map(r => (r.id === revId ? { ...r, status: nextStatus } : r))
+    );
+
+    // 2. Atualização Otimista das Contas Bancárias (reflete instantaneamente no saldo da conta)
+    if (targetRev.walletId) {
+      setWallets(prev =>
+        prev.map(w => {
+          if (w.id !== targetRev.walletId) return w;
+          const currentTotal = w.currentTotal !== undefined
+            ? Number(w.currentTotal) + factor * targetRev.amount
+            : Number(w.initialBalance || 0) + factor * targetRev.amount;
+          const currentBalance = Number(w.currentBalance || 0) + factor * targetRev.amount;
+          return {
+            ...w,
+            currentTotal,
+            currentBalance,
+          };
+        })
+      );
+    }
+
     try {
       const res = await toggleTransactionStatusAction(revId);
       await loadData();
       if (res.status === "COMPLETED") {
         showAlert("Receita confirmada com sucesso! Saldo creditado na conta bancária.", { variant: "success" });
       } else {
-        showAlert("Receita reaberta como pendente. Saldo estornado.", { variant: "info" });
+        showAlert("Receita reaberta como pendente. Saldo estornado com sucesso.", { variant: "info" });
       }
     } catch (err) {
       console.error(err);
+      await loadData();
       showAlert("Erro ao alterar status da receita.", { variant: "error" });
     }
   };
