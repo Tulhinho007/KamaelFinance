@@ -819,7 +819,7 @@ const getBankStyle = (name: string = "") => {
 };
 
 export default function GestaoCaixaContasPage() {
-  const { selectedYear, prevYear, nextYear, setYear } = usePeriod();
+  const { selectedYear, prevYear, nextYear, setYear, goToCurrentMonth } = usePeriod();
   const { showAlert } = useModal();
   const router = useRouter();
 
@@ -843,7 +843,7 @@ export default function GestaoCaixaContasPage() {
 
   // Dados consolidados
   const [accounts, setAccounts] = useState<any[]>([]);
-  const [bills, setBills] = useState<BillItem[]>(DEFAULT_INITIAL_BILLS);
+  const [bills, setBills] = useState<BillItem[]>([]);
   const [contasBancarias, setContasBancarias] = useState<any[]>([]);
   const [cartoesCredito, setCartoesCredito] = useState<any[]>([]);
   const [totals, setTotals] = useState({
@@ -977,7 +977,9 @@ export default function GestaoCaixaContasPage() {
       const editedBills = getEditedBills();
 
       // 1. Inicializa com as faturas (Ago-Dez) e contas fixas padrão (filtrando as excluídas pelo usuário)
-      const consolidated: BillItem[] = DEFAULT_INITIAL_BILLS
+      // Apenas para 2026! Para 2027 em diante, não deve carregar dados padrão de 2026.
+      const initialBills = selectedYear === 2026 ? DEFAULT_INITIAL_BILLS : [];
+      const consolidated: BillItem[] = initialBills
         .filter((b) => !isBillDeleted(b.id, deletedIds))
         .map((b) => {
           const item = { ...b };
@@ -1017,9 +1019,11 @@ export default function GestaoCaixaContasPage() {
           if (!cMonth) return;
           const monthKey = `${cYear}-${String(cMonth).padStart(2, "0")}`;
 
-          // Localiza se já existe uma fatura cadastrada para este mesmo mês
+          // Localiza se já existe uma fatura cadastrada para este mesmo mês e ano
           const matchCard = consolidated.find(
-            (c) => (c.isCardInvoice || c.tipo === "FATURA_CARTAO") && (c.competenceMonth === cMonth || c.month === monthKey)
+            (c) =>
+              (c.isCardInvoice || c.tipo === "FATURA_CARTAO") &&
+              (c.month === monthKey || (c.competenceMonth === cMonth && (c.competenceYear === cYear || !c.competenceYear)))
           );
 
           if (matchCard) {
@@ -1033,7 +1037,7 @@ export default function GestaoCaixaContasPage() {
             // Nova fatura vinda do banco de dados
             consolidated.push({
               id: dbItem.id,
-              description: `Fatura HyperCard – ${MONTH_NAMES_LIST[cMonth - 1]}/${cYear}`,
+              description: `Fatura ${dbItem.bank || "Cartão"} – ${MONTH_NAMES_LIST[cMonth - 1]}/${cYear}`,
               amount: Number(dbItem.amount || 0),
               category: "Fatura de Cartão",
               tipoLabel: "Fatura de Cartão",
@@ -1781,7 +1785,8 @@ export default function GestaoCaixaContasPage() {
     // 2. Remove do estado bills estritamente pelo ID do mês selecionado
     setBills((prev) => prev.filter((b) => b.id !== id));
 
-    // 3. Se for UUID real do banco, dispara rota de exclusão (DELETE) no backend
+    // 3. Se for fatura de cartão ou compromisso no banco, dispara rota de exclusão no backend
+    const isCardInvoice = target.isCardInvoice || target.tipo === "FATURA_CARTAO" || target.id.startsWith("invoice-");
     const isDbUuid =
       target &&
       target.id &&
@@ -1789,14 +1794,13 @@ export default function GestaoCaixaContasPage() {
       !target.id.includes("-acc-") &&
       !target.id.startsWith("mock-") &&
       !target.id.startsWith("local-") &&
-      !target.id.startsWith("bill-") &&
-      !target.id.startsWith("invoice-");
+      !target.id.startsWith("bill-");
 
-    if (isDbUuid) {
+    if (isCardInvoice || isDbUuid) {
       try {
         await deleteCommitmentAction(target.id);
       } catch (dbErr) {
-        console.warn("Item removido localmente, falha no delete do banco:", dbErr);
+        console.warn("Item removido localmente:", dbErr);
       }
     }
 
@@ -2145,6 +2149,25 @@ export default function GestaoCaixaContasPage() {
         </Link>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Botão de Retorno Rápido ao Mês Atual */}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMonth(currentMonthNum);
+              if (setYear) setYear(2026);
+              if (goToCurrentMonth) goToCurrentMonth();
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 ${
+              selectedYear !== 2026 || selectedMonth !== currentMonthNum
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white border border-emerald-500 shadow-emerald-600/20 shadow-sm"
+                : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800"
+            }`}
+            title="Voltar para o Mês e Ano Atual"
+          >
+            <RotateCcw size={13} className={selectedYear !== 2026 || selectedMonth !== currentMonthNum ? "text-white" : "text-emerald-500"} />
+            <span>Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})</span>
+          </button>
+
           {/* Seletor Interativo de Ano */}
           <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 p-1 rounded-xl shadow-xs">
             <button
@@ -2357,13 +2380,19 @@ export default function GestaoCaixaContasPage() {
               Ano {selectedYear}
             </span>
 
-            {selectedMonth !== currentMonthNum && (
+            {(selectedMonth !== currentMonthNum || selectedYear !== 2026) && (
               <button
                 type="button"
-                onClick={() => setSelectedMonth(currentMonthNum)}
-                className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                onClick={() => {
+                  setSelectedMonth(currentMonthNum);
+                  if (setYear) setYear(2026);
+                  if (goToCurrentMonth) goToCurrentMonth();
+                }}
+                className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline cursor-pointer transition-colors"
+                title="Voltar para Mês Atual (Outubro/2026)"
               >
-                Ir para Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})
+                <RotateCcw size={12} />
+                <span>Ir para Mês Atual ({MONTH_NAMES_LIST[currentMonthNum - 1]})</span>
               </button>
             )}
           </div>

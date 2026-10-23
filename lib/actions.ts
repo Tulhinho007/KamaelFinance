@@ -11629,11 +11629,49 @@ export async function updateCommitmentAction(input: {
 }
 
 export async function deleteCommitmentAction(commitmentId: string) {
-  if (commitmentId.startsWith("invoice-")) {
-    throw new Error("Faturas de cartão de crédito são gerenciadas pelo módulo de cartões e não podem ser excluídas manualmente aqui.");
-  }
-
   const userId = await getActiveUserId();
+
+  if (commitmentId.startsWith("invoice-")) {
+    const parts = commitmentId.replace("invoice-", "").split("-");
+    const yearStr = parts.pop();
+    const monthStr = parts.pop();
+    const cardId = parts.join("-");
+    const month = Number(monthStr);
+    const year = Number(yearStr);
+
+    if (cardId && !isNaN(month) && !isNaN(year)) {
+      const fromMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
+      const toMonth = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+      await prisma.transaction.deleteMany({
+        where: {
+          wallet: { userId },
+          walletId: cardId,
+          type: "EXPENSE",
+          OR: [
+            { competenceMonth: month, competenceYear: year },
+            { competenceDate: { gte: fromMonth, lte: toMonth } },
+            { purchaseDate: { gte: fromMonth, lte: toMonth } },
+            { date: { gte: fromMonth, lte: toMonth } },
+          ],
+        },
+      });
+
+      try {
+        await (prisma as any).invoicePayment.deleteMany({
+          where: { walletId: cardId, month, year },
+        });
+      } catch {}
+
+      safeRevalidatePath("/contas");
+      safeRevalidatePath("/cartoes");
+      safeRevalidatePath("/dashboard");
+      return { success: true };
+    }
+
+    safeRevalidatePath("/contas");
+    return { success: true };
+  }
 
   const tx = await prisma.transaction.findFirst({
     where: { id: commitmentId, wallet: { userId } },
