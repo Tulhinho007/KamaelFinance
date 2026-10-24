@@ -16,13 +16,10 @@ import { usePeriod } from "@/components/period-context";
 import { NewPurchaseModal } from "@/components/new-purchase-modal";
 import { OFXReconciliationModal } from "@/components/ofx-reconciliation-modal";
 import { MetricInfoModal, MetricKey } from "@/components/metric-info-modal";
-import { PaymentMethodChart } from "@/components/payment-method-chart";
 import { CurrencyValue } from "@/components/currency-value";
 import { CardContaFluxo } from "@/components/card-conta-fluxo";
 import { InjectBalanceModal, BalanceMovementOrigin } from "@/components/inject-balance-modal";
 import { UpcomingDueAlertBanner } from "@/components/upcoming-due-alert-banner";
-import { RecurringCommitmentsWidget, RecurringCommitmentItem } from "@/components/recurring-commitments-widget";
-import { ManageRecurringModal } from "@/components/manage-recurring-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
@@ -81,9 +78,6 @@ export function DashboardOverview() {
   const [historyModalOpen, setHistoryModalOpen]   = useState(false);
   const [selectedGoalId, setSelectedGoalId]       = useState("");
 
-  // Modal de Compromissos Recorrentes (Custo Fixo)
-  const [recurringModalOpen, setRecurringModalOpen] = useState(false);
-  const [editingRecurringItem, setEditingRecurringItem] = useState<RecurringCommitmentItem | null>(null);
 
   // Menu suspenso de Novo Lançamento (ação primária unificada)
   const [newEntryMenuOpen, setNewEntryMenuOpen] = useState(false);
@@ -317,9 +311,9 @@ export function DashboardOverview() {
           <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
         </div>
 
-        {/* 2 KPI cards skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-          {[1, 2].map((i) => (
+        {/* 3 KPI cards skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
+          {[1, 2, 3].map((i) => (
             <div key={i} className="h-36 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-5 space-y-3">
               <div className="h-4 bg-slate-200 dark:bg-zinc-800 rounded w-28" />
               <div className="h-8 bg-slate-200 dark:bg-zinc-800 rounded w-44" />
@@ -577,9 +571,9 @@ export function DashboardOverview() {
         const isPositivo = saldoPrevistoFinal >= 0;
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 my-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -624,7 +618,7 @@ export function DashboardOverview() {
             </div>
 
             {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + CONTAS FIXAS PENDENTES DO MÊS) */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
               <div>
                 {/* Cabeçalho */}
                 <div className="flex items-center justify-between">
@@ -676,7 +670,7 @@ export function DashboardOverview() {
             </div>
 
             {/* CARD 3: SALDO PREVISTO (PROJEÇÃO FINAL DO MÊS) */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between">
+            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
               <div>
                 {/* Cabeçalho */}
                 <div className="flex items-center justify-between">
@@ -760,7 +754,7 @@ export function DashboardOverview() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {(data?.cards || []).map((card: any) => {
             const isCredit = card.walletType === "CREDIT_CARD";
             const isTicket = card.walletType === "TICKET";
@@ -780,7 +774,7 @@ export function DashboardOverview() {
               <Link
                 key={card.id}
                 href={cardHref}
-                className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/60 dark:border-white/[0.08] text-slate-900 dark:text-zinc-100 rounded-2xl p-5 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 hover:border-slate-300 dark:hover:border-white/[0.16] hover:shadow-md transition-all flex flex-col justify-between min-h-[165px] group"
+                className="bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/60 dark:border-white/[0.08] text-slate-900 dark:text-zinc-100 rounded-2xl p-5 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 hover:border-slate-300 dark:hover:border-white/[0.16] hover:shadow-md transition-all flex flex-col justify-between h-full min-h-[165px] group"
               >
                 <div className="flex justify-between items-start">
                   <div>
@@ -862,11 +856,11 @@ export function DashboardOverview() {
         </div>
       </section>
 
-      {/* ── 4. GRÁFICOS & TABELAS SECUNDÁRIAS ────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      {/* ── 4. GRÁFICOS & RESUMO EXECUTIVO ────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* COLUNA ESQUERDA (7 cols - Gráficos Principal) */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
+        {/* COLUNA ESQUERDA (Gráficos Analíticos) */}
+        <div className="flex flex-col gap-6">
           
           {/* BLOCO 1: Linha de Tendência (Evolução Financeira) */}
           <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
@@ -1021,8 +1015,8 @@ export function DashboardOverview() {
 
         </div>
 
-        {/* COLUNA DIREITA (5 cols - Listas Executivas) */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        {/* COLUNA DIREITA (Compromissos & Metas) */}
+        <div className="flex flex-col gap-6">
           
           {/* BLOCO 1: Próximos Vencimentos */}
           <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
@@ -1097,26 +1091,7 @@ export function DashboardOverview() {
             )}
           </div>
 
-          {/* BLOCO 2: Compromissos Recorrentes (Custo Fixo) */}
-          <RecurringCommitmentsWidget
-            data={data?.recurringCommitments}
-            onManageClick={() => {
-              setEditingRecurringItem(null);
-              setRecurringModalOpen(true);
-            }}
-            onEditItem={(item) => {
-              setEditingRecurringItem(item);
-              setRecurringModalOpen(true);
-            }}
-          />
-
-          {/* BLOCO 3: Gastos por Meio de Pagamento */}
-          <PaymentMethodChart
-            data={data?.paymentMethodBreakdown || []}
-            periodLabel={`Divisão dos gastos consolidados do ano de ${selectedDashboardYear}`}
-          />
-
-          {/* BLOCO 3: Resumo de Metas */}
+          {/* BLOCO 2: Resumo de Metas */}
           <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
@@ -1523,20 +1498,6 @@ export function DashboardOverview() {
         />
       )}
 
-      {/* Modal 6: Gerenciar Gastos Fixos & Recorrentes */}
-      <ManageRecurringModal
-        isOpen={recurringModalOpen}
-        onClose={() => {
-          setRecurringModalOpen(false);
-          setEditingRecurringItem(null);
-        }}
-        onSuccess={async () => {
-          await loadDashboardData();
-        }}
-        items={data?.recurringCommitments?.items || []}
-        totalMonthly={data?.recurringCommitments?.totalMonthly || 0}
-        initialEditItem={editingRecurringItem}
-      />
 
     </div>
   );
