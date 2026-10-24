@@ -28,6 +28,7 @@ import {
   getDashboardBundleAction, createRevenueAction, addAporteAction,
   MonthlyCashFlowRollForwardResult
 } from "@/lib/actions";
+import { getConsolidatedMonthBills } from "@/lib/bills-data";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -534,69 +535,30 @@ export function DashboardOverview() {
 
         const hoje = new Date();
         const targetYear = selectedDashboardYear || selectedYear || hoje.getFullYear();
-        const targetMonthIndex = (selectedMonth && selectedMonth > 0 ? selectedMonth - 1 : hoje.getMonth());
+        const targetMonth = (selectedMonth && selectedMonth >= 1 && selectedMonth <= 12) ? selectedMonth : (hoje.getMonth() + 1);
+        const targetMonthIndex = targetMonth - 1;
 
         // Mês selecionado / atual de referência
         const dataAtual = new Date(targetYear, targetMonthIndex, 1);
         const chaveMesAtual = `${targetYear}-${targetMonthIndex}`;
         const nomeMesAtual = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataAtual);
 
-        const cartoesCredito = (data?.cards || []).filter((c: any) => c.walletType === "CREDIT_CARD");
-        const faturasCartoes = cartoesCredito
-          .map((cartao: any) => ({
-            id: cartao.id,
-            nome: cartao.bankName || cartao.title || "Cartão de Crédito",
-            valor: Number(cartao.faturaMesAtual ?? cartao.faturaAtual ?? 0),
-          }))
-          .filter((c: any) => c.valor > 0);
-
-        // Fatura de Cartão de Crédito do Mês Atual
-        const totalGeralCartoesMes = faturasCartoes.reduce((acc: number, c: any) => acc + c.valor, 0);
-
-        // ── Despesas Pendentes (Estritamente do Mês Atual / Selecionado - Sem filtro de 60 dias) ──
+        // ── Despesas e Faturas Consolidadas (Compartilhadas com a tela de Contas / Gestão de Caixa) ──
         const despesasPendentes: any[] = data?.despesasPendentes || data?.pendingCommitments || [];
+        const consolidatedMonthBills = getConsolidatedMonthBills(targetMonth, targetYear, despesasPendentes);
 
-        const getVencKey = (d: any): string => {
-          if (d.competenceYear && d.competenceMonth) {
-            return `${Number(d.competenceYear)}-${Number(d.competenceMonth) - 1}`;
-          }
-          if (d.dataVencimento) {
-            const dt = new Date(d.dataVencimento);
-            if (!isNaN(dt.getTime())) return `${dt.getFullYear()}-${dt.getMonth()}`;
-          }
-          if (d.dueDateInput && typeof d.dueDateInput === "string") {
-            const [y, m] = d.dueDateInput.split("-").map(Number);
-            if (!isNaN(y) && !isNaN(m)) return `${y}-${m - 1}`;
-          }
-          return "";
-        };
+        // Faturas de Cartão do Mês Atual (ex: HyperCard R$ 554,16 em Outubro/2026)
+        const faturasCartoes = consolidatedMonthBills.faturasCartoes;
+        const totalGeralCartoesMes = consolidatedMonthBills.totalFaturasCartao;
 
-        // Contas Fixas Pendentes do Mês Atual (excluindo faturas de cartão para não duplicar com totalGeralCartoesMes)
-        const contasPendentesMes = despesasPendentes.filter((d: any) => {
-          // Isola e exclui qualquer item de fatura de cartão de crédito (já computado em faturasCartoes)
-          const isFatura =
-            d.isCardInvoice === true ||
-            d.tipo === "FATURA_CARTAO" ||
-            Boolean(d.cardWalletId) ||
-            (d.category || "").toLowerCase().includes("fatura") ||
-            (d.description || "").toLowerCase().startsWith("fatura ");
-          if (isFatura) return false;
+        // Contas Fixas Pendentes do Mês Atual (ex: Camila, Tim Celular, Treino, Tim Live, Fonte Bira = R$ 636,55)
+        const contasPendentesMes = consolidatedMonthBills.contasFixasPendentes;
+        const totalContasFixasPendentes = consolidatedMonthBills.totalContasFixasPendentes;
 
-          const chave = getVencKey(d);
-          return chave === chaveMesAtual;
-        });
-
-        const totalContasFixasPendentes = contasPendentesMes.reduce(
-          (acc: number, d: any) => acc + Number(d.valor || d.amount || 0),
-          0
-        );
-
-        // ── 1. Saldo Geral Consolidado (soma de todas as contas bancárias ativas) ──
+        // ── 1. Saldo Geral Consolidado (soma das contas bancárias ativas: Santander R$ 330,62 + PicPay R$ 525,18 = R$ 855,80) ──
         const saldoAtual = Number(saldoConsolidado || totalRealBalanceCalculated || 0);
 
         // ── 2. Receitas Previstas (campo real de entradas/receitas PENDENTES do mês) ──
-        // Para a fórmula do Saldo Previsto, considera APENAS receitas com status PENDENTE (não liquidadas).
-        // Quando a receita é recebida/confirmada em conta, este valor vira R$ 0,00 para evitar duplicidade.
         const receitasPrevistas = Number(
           data?.receitasPendentesMes ??
           data?.receitasPrevistasMes ??
@@ -604,10 +566,11 @@ export function DashboardOverview() {
           0
         );
 
-        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês (sem sobreposição) ──
-        const totalAPagar = Number(totalGeralCartoesMes + totalContasFixasPendentes);
+        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês (R$ 554,16 + R$ 636,55 = R$ 1.190,71) ──
+        const totalAPagar = consolidatedMonthBills.totalAPagar;
+        const totalItensALiquidar = consolidatedMonthBills.totalItensALiquidar;
 
-        // ── 4. Saldo Previsto = Saldo Geral Consolidado + Receitas Previstas - Total a Pagar ──
+        // ── 4. Saldo Previsto = Saldo Geral Consolidado (R$ 855,80) + Receitas Previstas - Total a Pagar (R$ 1.190,71) ──
         const saldoPrevistoFinal = saldoAtual + receitasPrevistas - totalAPagar;
 
         // Verifica se fecha positivo ou negativo
@@ -706,8 +669,8 @@ export function DashboardOverview() {
               <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
                 <span>Faturas + Contas Fixas</span>
                 <span className="font-semibold text-rose-600 dark:text-rose-400">
-                  {contasPendentesMes.length + faturasCartoes.length}{" "}
-                  {contasPendentesMes.length + faturasCartoes.length === 1 ? "item a liquidar" : "itens a liquidar"}
+                  {totalItensALiquidar}{" "}
+                  {totalItensALiquidar === 1 ? "item a liquidar" : "itens a liquidar"}
                 </span>
               </div>
             </div>
