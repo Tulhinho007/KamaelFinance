@@ -217,6 +217,10 @@ export default function CartaoDetailPage() {
         getCardDataById(cardId, selectedMonth, selectedYear),
         getAllCardsOverview(selectedMonth, selectedYear).catch(() => []),
       ]);
+      if (data && data.walletType !== "CREDIT_CARD" && data.walletType !== "TICKET") {
+        router.replace(`/contas/${cardId}`);
+        return;
+      }
       setCardData(data || null);
       if (overview && Array.isArray(overview)) {
         const checking = overview.filter((c: any) => c.walletType === "CONTA_CORRENTE");
@@ -919,7 +923,7 @@ export default function CartaoDetailPage() {
           href={isBank ? "/contas" : "/cartoes"}
           className="inline-flex items-center gap-1.5 text-xs font-extrabold text-indigo-400 hover:text-indigo-300 w-fit transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> {isBank ? "Voltar para Conta Corrente" : "Voltar para Cartões de Crédito"}
+          <ArrowLeft className="w-4 h-4" /> {isBank ? "Voltar para Contas" : "Voltar para Cartões de Crédito"}
         </Link>
         <PeriodHeader
           mode={isBank ? "annual" : "monthly"}
