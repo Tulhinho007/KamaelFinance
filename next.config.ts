@@ -1,6 +1,22 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // ─── Otimização Crítica para Vercel Serverless Function Storage ─────────────
+  // O modo standalone rastreia com precisão apenas as dependências mínimas de cada função,
+  // impedindo o empacotamento redundante de módulos inteiros da pasta node_modules.
+  output: "standalone",
+
+  // ─── Otimização de Pacotes Pesados ──────────────────────────────────────────
+  // Transforma automaticamente imports de bibliotecas pesadas de ícones e gráficos
+  // para carregar somente os componentes específicos utilizados, reduzindo drasticamente o bundle.
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
+
+  // Mantém o Prisma Client externo ao empacotamento JS das funções,
+  // garantindo o compartilhamento seguro e prevenindo duplicação de runtime.
+  serverExternalPackages: ["@prisma/client"],
+
   // ─── Redirects ───────────────────────────────────────────────────────────
   async redirects() {
     return [
@@ -66,8 +82,10 @@ const nextConfig: NextConfig = {
       "node_modules/.prisma/client/libquery_engine-darwin*",
       "node_modules/.prisma/client/libquery_engine-windows*",
       "node_modules/.prisma/client/*.tmp*",
-      // Prisma CLI — só necessário em build time (está em devDependencies)
+      // Prisma CLI e Engines auxiliares — só necessários em build time (estão em devDependencies)
       "node_modules/prisma/**",
+      "node_modules/@prisma/engines/**",
+      "node_modules/@prisma/fetch-engine/**",
       // Binários SWC para plataformas que não são Linux (cada ~30 MB)
       "node_modules/@next/swc-darwin-arm64/**",
       "node_modules/@next/swc-darwin-x64/**",
