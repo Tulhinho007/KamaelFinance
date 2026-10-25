@@ -749,7 +749,7 @@ export function DashboardOverview() {
             const saldoDisp = isCredit
               ? card.limitTotal - card.limitUsed
               : rawSaldo;
-            const cardHref = isCredit ? `/cartoes/${card.id}` : `/contas/${card.id}`;
+            const cardHref = isCredit ? `/cartoes/${card.id}` : `/contas?adjust=${card.id}`;
             const Icon = walletIcon(card.walletType);
             const accountSpentInPeriod = card.totalSpentInPeriod ?? card.accountExpenses ?? 0;
             const entradasNoMes = card.accountIncomes ?? card.monthIncome ?? card.recargaMes ?? 0;

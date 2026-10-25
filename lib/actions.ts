@@ -4527,7 +4527,6 @@ export async function setExactBankAccountBalanceAction(input: {
           initialBalance: newInitial,
         },
       });
-      await syncBankAccountBalance(wallet.id);
     } else {
       // Ajuste contábil formal: cria transação correspondente
       const isEntrada = diff > 0;
@@ -4564,7 +4563,10 @@ export async function setExactBankAccountBalanceAction(input: {
         }
       });
 
-      await syncBankAccountBalance(wallet.id);
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { currentBalance: target },
+      });
     }
   } else {
     await prisma.wallet.update({
@@ -5226,7 +5228,7 @@ export async function getAllCardsOverview(
       ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
       : false;
 
-    const rawBankBal = Number(balanceInfo.currentRealBalance ?? w.currentBalance ?? 0);
+    const rawBankBal = Number(w.currentBalance ?? balanceInfo.currentRealBalance ?? 0);
     const resolvedBankBalance = rawBankBal;
 
     return {
@@ -12549,7 +12551,7 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
         .filter((t) => t.type === "EXPENSE")
         .reduce((s, t) => s + Number(t.amount || 0), 0);
 
-      const bal = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
+      const bal = Number(w.currentBalance ?? bInfo.currentRealBalance ?? 0);
       return {
         id: w.id,
         title: w.title,
@@ -12662,10 +12664,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
           .reduce((s, t) => s + Number(t.amount || 0), 0);
         const balancoAno = entradasAno - saidasAno;
 
-        const rawBal = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
-        if (Number(w.currentBalance) !== rawBal) {
-          prisma.wallet.update({ where: { id: w.id }, data: { currentBalance: rawBal } }).catch(() => {});
-        }
+        const rawBal = Number(w.currentBalance ?? bInfo.currentRealBalance ?? 0);
 
         return {
           id: w.id,

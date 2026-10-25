@@ -814,6 +814,26 @@ export default function GestaoCaixaContasPage() {
     };
   }, [selectedYear]);
 
+  // Abertura automática do modal de Ajustar Saldo via URL (ex: /contas?adjust=ID)
+  useEffect(() => {
+    if (typeof window !== "undefined" && accounts.length > 0 && !managingAccount) {
+      const params = new URLSearchParams(window.location.search);
+      const adjustId = params.get("adjust");
+      if (adjustId) {
+        const target = accounts.find(
+          (a) =>
+            a.id === adjustId ||
+            (a.bankName || a.title || a.name || "").toLowerCase().includes(adjustId.toLowerCase())
+        );
+        if (target) {
+          handleOpenManageModal(target);
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, "", newUrl);
+        }
+      }
+    }
+  }, [accounts, managingAccount]);
+
   // Fechar menus de ação ao clicar fora
   useEffect(() => {
     const handleClickOutside = () => setActiveActionMenuId(null);
@@ -2064,10 +2084,10 @@ export default function GestaoCaixaContasPage() {
                   key={acc.id}
                   className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors select-none group"
                 >
-                  <Link
-                    href={`/contas/${acc.id}`}
+                  <div
+                    onClick={() => handleOpenManageModal(acc)}
                     className="flex items-center gap-3 flex-1 cursor-pointer"
-                    title={`Ver extrato completo de ${bName}`}
+                    title={`Ajustar saldo de ${bName}`}
                   >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${bankStyle.iconBg} shadow-sm shrink-0`}>
                       {bankStyle.initials}
@@ -2085,9 +2105,6 @@ export default function GestaoCaixaContasPage() {
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
                         <span>Titular: {acc.holder || "Túlio Cavalcanti"}</span>
-                        <span className="ml-2 text-indigo-600 dark:text-indigo-400 font-medium group-hover:underline">
-                          • Ver Extrato & Movimentações →
-                        </span>
                         {acc.history && acc.history.length > 0 && (
                           <span className="ml-1.5 text-slate-400 dark:text-slate-500">
                             • {acc.history.length} {acc.history.length === 1 ? "ajuste" : "ajustes"}
@@ -2095,7 +2112,7 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </p>
                     </div>
-                  </Link>
+                  </div>
 
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className={`font-bold text-sm tabular-nums ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
