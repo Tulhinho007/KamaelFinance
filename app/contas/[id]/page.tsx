@@ -421,10 +421,7 @@ export default function ContaCorrenteDetailPage() {
     ? (withBalanceMap.get(sortedAsc[sortedAsc.length - 1].id) ?? running)
     : startingBalance;
 
-  const isSantander = (accountData.bankName || accountData.title || "").toLowerCase().includes("santander");
-  const saldoFinalAuditado = (isSantander && (Math.abs(lastExtratoBalance - 461.24) < 0.1 || Math.abs(lastExtratoBalance - 230.62) < 0.1 || lastExtratoBalance < 330.62))
-    ? 330.62
-    : lastExtratoBalance;
+  const saldoFinalAuditado = lastExtratoBalance;
 
   // Ordenação decrescente (mais recentes primeiro) para exibição clássica
   const sortedDesc = [...bankYearTransactions].sort((a, b) => {

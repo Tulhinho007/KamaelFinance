@@ -1444,11 +1444,8 @@ export async function getWalletsAction(preloadedWallets?: any[], preloadedTransa
     return preloadedWallets.map((w: any) => {
       const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
       const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
-      const isSant = (w.bankName || w.title || "").toLowerCase().includes("santander");
-      let curBal = Number(w.currentBalance || 0);
-      if (isSant && (Math.abs(curBal - 461.24) < 0.1 || Math.abs(curBal - 230.62) < 0.1 || curBal < 330.62)) {
-        curBal = 330.62;
-      }
+      const isCredit = w.walletType === "CREDIT_CARD";
+      const finalBal = isCredit ? Number(w.currentBalance || 0) : currentTotal;
       return {
         ...w,
         id: w.id,
@@ -1456,9 +1453,9 @@ export async function getWalletsAction(preloadedWallets?: any[], preloadedTransa
         bankName: w.bankName || w.title,
         walletType: w.walletType,
         initialBalance: Number(w.initialBalance || 0),
-        currentBalance: curBal,
+        currentBalance: finalBal,
         creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
-        currentTotal: isSant ? 330.62 : currentTotal,
+        currentTotal: currentTotal,
       };
     });
   }
@@ -1498,11 +1495,8 @@ export async function getWalletsAction(preloadedWallets?: any[], preloadedTransa
   return wallets.map((w: any) => {
     const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
     const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
-    const isSant = (w.bankName || w.title || "").toLowerCase().includes("santander");
-    let curBal = Number(w.currentBalance || 0);
-    if (isSant && (Math.abs(curBal - 461.24) < 0.1 || Math.abs(curBal - 230.62) < 0.1 || curBal < 330.62)) {
-      curBal = 330.62;
-    }
+    const isCredit = w.walletType === "CREDIT_CARD";
+    const finalBal = isCredit ? Number(w.currentBalance || 0) : currentTotal;
 
     return {
       ...w,
@@ -1511,9 +1505,9 @@ export async function getWalletsAction(preloadedWallets?: any[], preloadedTransa
       bankName: w.bankName || w.title,
       walletType: w.walletType,
       initialBalance: Number(w.initialBalance || 0),
-      currentBalance: curBal,
+      currentBalance: finalBal,
       creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
-      currentTotal: isSant ? 330.62 : currentTotal,
+      currentTotal: currentTotal,
     };
   });
 }
@@ -2000,6 +1994,59 @@ export async function getCardData() {
   };
 }
 
+// ---------- Sincronização Definitiva de Saldo Bancário (Fonte Única de Verdade) ----------
+
+export async function syncBankAccountBalance(walletId: string): Promise<number> {
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: walletId },
+    select: { id: true, initialBalance: true, walletType: true, currentBalance: true },
+  });
+  if (!wallet || wallet.walletType === "CREDIT_CARD") return 0;
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      walletId,
+      deletedAt: null,
+      status: "COMPLETED",
+      source: { not: "RECURRING_PROJECTION" },
+    },
+    select: {
+      id: true,
+      type: true,
+      amount: true,
+      description: true,
+      tags: true,
+    },
+  });
+
+  const hasOpeningTx = transactions.some(
+    (t) =>
+      t.type === "INCOME" &&
+      ((t.description || "").toLowerCase().includes("saldo inicial") ||
+        (t.description || "").toLowerCase().includes("abertura") ||
+        (t.tags || "").toLowerCase().includes("abertura"))
+  );
+
+  const baseInitial = hasOpeningTx ? 0 : Number(wallet.initialBalance || 0);
+
+  let totalEntradas = 0;
+  let totalSaidas = 0;
+  for (const t of transactions) {
+    const amt = Number(t.amount || 0);
+    if (t.type === "INCOME") totalEntradas += amt;
+    else if (t.type === "EXPENSE") totalSaidas += amt;
+  }
+
+  const calculatedNewBalance = Math.round((baseInitial + totalEntradas - totalSaidas) * 100) / 100;
+
+  await prisma.wallet.update({
+    where: { id: walletId },
+    data: { currentBalance: calculatedNewBalance },
+  });
+
+  return calculatedNewBalance;
+}
+
 // ---------- Cálculo de Saldo Acumulado (Rollover / Carryover) ----------
 
 export async function calculateAccountBalance(
@@ -2121,13 +2168,12 @@ export async function calculateAccountBalance(
     (sortedAscReal.length > 0 ? runningReal : (baseInitial + totalEntradasHoje - totalSaidasHoje)) * 100
   ) / 100;
 
-  // Trava de integridade do Santander: saldo real auditado pós-transações é exatamente R$ 330,62
-  // (Saldo inicial R$ 230,62 + Entrada R$ 100,00)
-  const wTitle = (wallet.title || wallet.bankName || "").toLowerCase();
-  if (wTitle.includes("santander")) {
-    if (Math.abs(currentRealBalance - 461.24) < 0.1 || Math.abs(currentRealBalance - 230.62) < 0.1 || currentRealBalance < 330.62) {
-      currentRealBalance = 330.62;
-    }
+  // Auto-sincronização do saldo real da conta no banco de dados se houver divergência
+  if (wallet.walletType !== "CREDIT_CARD" && Number(wallet.currentBalance) !== currentRealBalance) {
+    prisma.wallet.update({
+      where: { id: wallet.id },
+      data: { currentBalance: currentRealBalance },
+    }).catch(() => {});
   }
 
   // Trava de competência histórica para meses anteriores a Julho de 2026
@@ -2167,12 +2213,6 @@ export async function calculateAccountBalance(
   let finalBalance = Math.round(
     (baseInitial + totalEntradasHistoricas - totalSaidasHistoricas) * 100
   ) / 100;
-
-  if (wTitle.includes("santander")) {
-    if (Math.abs(finalBalance - 461.24) < 0.1 || Math.abs(finalBalance - 230.62) < 0.1 || finalBalance < 330.62) {
-      finalBalance = 330.62;
-    }
-  }
 
   // Transações do mês selecionado por competência
   const monthTransactions = (allWalletTransactions as any[]).filter((t: any) => {
@@ -3289,7 +3329,7 @@ export async function deleteCardPurchase(
       console.log("Transação mantida via Soft Delete devido a dependências históricas:", hardDeleteErr);
     }
 
-    // 4. Se pertencia a uma conta corrente, atualiza o currentBalance
+    // 4. Se pertencia a uma conta corrente, sincroniza o saldo definitivo
     if (tx.walletId && tx.status === "COMPLETED") {
       try {
         const wallet = await prisma.wallet.findUnique({
@@ -3298,22 +3338,7 @@ export async function deleteCardPurchase(
         });
 
         if (wallet && wallet.walletType !== "CREDIT_CARD") {
-          const allDeletedTxs = await prisma.transaction.findMany({
-            where: { id: { in: targetIds } },
-            select: { amount: true, type: true, status: true },
-          });
-          let diff = 0;
-          for (const t of allDeletedTxs) {
-            if (t.status === "COMPLETED") {
-              const amount = Number(t.amount || 0);
-              diff += t.type === "INCOME" ? -amount : amount;
-            }
-          }
-          const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-          await prisma.wallet.update({
-            where: { id: wallet.id },
-            data: { currentBalance: currentVal + diff },
-          });
+          await syncBankAccountBalance(wallet.id);
         }
       } catch (balErr) {
         console.warn("Aviso ao sincronizar currentBalance após exclusão:", balErr);
@@ -3323,6 +3348,7 @@ export async function deleteCardPurchase(
     revalidatePath("/cartoes");
     if (tx.walletId) {
       revalidatePath(`/cartoes/${tx.walletId}`);
+      revalidatePath(`/contas/${tx.walletId}`);
     }
     revalidatePath("/despesas");
     revalidatePath("/dashboard");
@@ -4070,21 +4096,20 @@ export async function createBankAccountMovementAction(input: {
     }
   });
 
-  // Atualiza o saldo real da conta selecionada
-  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-  const updatedBalance = isEntrada ? currentVal + amount : currentVal - amount;
-  await prisma.wallet.update({
-    where: { id: wallet.id },
-    data: { currentBalance: updatedBalance }
-  });
+  // Atualiza e sincroniza o saldo real da conta selecionada (Fonte Única de Verdade)
+  const updatedBalance = await syncBankAccountBalance(wallet.id);
 
+  revalidatePath("/contas");
+  revalidatePath(`/contas/${wallet.id}`);
   revalidatePath("/cartoes");
   revalidatePath(`/cartoes/${wallet.id}`);
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/receitas");
+  revalidatePath("/compromissos");
+  revalidatePath("/historico-pagamentos");
 
-  return tx;
+  return { ...tx, calculatedNewBalance: updatedBalance };
 }
 
 export async function createBatchWeeklyDebitAction(input: {
@@ -4166,15 +4191,11 @@ export async function createBatchWeeklyDebitAction(input: {
     },
   });
 
-  // Debita o saldo real da conta selecionada
-  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-  const updatedBalance = currentVal - amount;
-  await prisma.wallet.update({
-    where: { id: wallet.id },
-    data: { currentBalance: updatedBalance },
-  });
+  // Sincroniza o saldo real definitivo da conta selecionada
+  await syncBankAccountBalance(wallet.id);
 
   revalidatePath("/contas");
+  revalidatePath(`/contas/${wallet.id}`);
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/cartoes");
@@ -4238,7 +4259,6 @@ export async function updateRealizedBankMovementAction(input: {
     updatedTags = input.notes.trim() ? `${baseTags} #OBS: ${input.notes.trim()}`.trim() : baseTags;
   }
 
-  const oldAmount = Number(tx.amount);
   const oldWalletId = tx.walletId;
   const isCompleted = tx.status === "COMPLETED";
 
@@ -4270,39 +4290,15 @@ export async function updateRealizedBankMovementAction(input: {
     },
   });
 
-  // Ajustar saldos reais se pertencer a conta bancária
-  if (isCompleted && targetWallet.walletType !== "CREDIT_CARD") {
-    if (oldWalletId === newWalletId) {
-      // Mesma conta
-      const diff = tx.type === "INCOME" ? (newAmount - oldAmount) : (oldAmount - newAmount);
-      if (diff !== 0) {
-        const curBal = Number(targetWallet.currentBalance ?? targetWallet.initialBalance ?? 0);
-        await prisma.wallet.update({
-          where: { id: newWalletId },
-          data: { currentBalance: curBal + diff },
-        });
-      }
-    } else {
-      // Trocou de conta
-      const oldWallet = await prisma.wallet.findUnique({ where: { id: oldWalletId } });
-      if (oldWallet && oldWallet.walletType !== "CREDIT_CARD") {
-        const oldCurBal = Number(oldWallet.currentBalance ?? oldWallet.initialBalance ?? 0);
-        const oldDiff = tx.type === "INCOME" ? -oldAmount : oldAmount;
-        await prisma.wallet.update({
-          where: { id: oldWalletId },
-          data: { currentBalance: oldCurBal + oldDiff },
-        });
-      }
-      const newCurBal = Number(targetWallet.currentBalance ?? targetWallet.initialBalance ?? 0);
-      const newDiff = tx.type === "INCOME" ? newAmount : -newAmount;
-      await prisma.wallet.update({
-        where: { id: newWalletId },
-        data: { currentBalance: newCurBal + newDiff },
-      });
-    }
+  // Sincroniza os saldos definitivos das contas afetadas
+  if (isCompleted) {
+    if (oldWalletId) await syncBankAccountBalance(oldWalletId);
+    if (newWalletId && newWalletId !== oldWalletId) await syncBankAccountBalance(newWalletId);
   }
 
   revalidatePath("/contas");
+  if (newWalletId) revalidatePath(`/contas/${newWalletId}`);
+  if (oldWalletId) revalidatePath(`/contas/${oldWalletId}`);
   revalidatePath("/dashboard");
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
@@ -4478,15 +4474,11 @@ export async function recordBankAccountMovementAction(input: {
     }
   });
 
-  // 2. Atualiza o saldo real da conta selecionada
-  const currentVal = Number(wallet.currentBalance ?? wallet.initialBalance ?? 0);
-  const finalBalance = isEntrada ? currentVal + valorNumerico : currentVal - valorNumerico;
-  await prisma.wallet.update({
-    where: { id: wallet.id },
-    data: { currentBalance: finalBalance }
-  });
+  // 2. Sincroniza o saldo real definitivo da conta selecionada
+  const finalBalance = await syncBankAccountBalance(wallet.id);
 
   revalidatePath("/contas");
+  revalidatePath(`/contas/${wallet.id}`);
   revalidatePath("/cartoes");
   revalidatePath(`/cartoes/${wallet.id}`);
   revalidatePath("/despesas");
@@ -4501,7 +4493,7 @@ export async function recordBankAccountMovementAction(input: {
     descricao: tx.description,
     tipo: input.tipoOperacao,
     valor: isEntrada ? valorNumerico : -valorNumerico,
-    saldoAtualizado: updatedBalance
+    saldoAtualizado: finalBalance
   };
 }
 
@@ -4535,6 +4527,7 @@ export async function setExactBankAccountBalanceAction(input: {
           initialBalance: newInitial,
         },
       });
+      await syncBankAccountBalance(wallet.id);
     } else {
       // Ajuste contábil formal: cria transação correspondente
       const isEntrada = diff > 0;
@@ -4571,10 +4564,7 @@ export async function setExactBankAccountBalanceAction(input: {
         }
       });
 
-      await prisma.wallet.update({
-        where: { id: wallet.id },
-        data: { currentBalance: target }
-      });
+      await syncBankAccountBalance(wallet.id);
     }
   } else {
     await prisma.wallet.update({
@@ -4584,6 +4574,7 @@ export async function setExactBankAccountBalanceAction(input: {
   }
 
   revalidatePath("/contas");
+  revalidatePath(`/contas/${wallet.id}`);
   revalidatePath("/cartoes");
   revalidatePath(`/cartoes/${wallet.id}`);
   revalidatePath("/despesas");
@@ -4648,10 +4639,12 @@ export async function getBankAccountsListAction() {
   return await Promise.all(
     wallets.map(async (w) => {
       const bInfo = await calculateAccountBalance(w.id, curMonth, curYear);
+      const s = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
       return {
         id: w.id,
         banco: w.bankName || w.title,
-        saldo: bInfo.finalBalance
+        saldo: s,
+        balance: s,
       };
     })
   );
@@ -4708,20 +4701,6 @@ export async function updateBankAccountMovementAction(input: {
     });
   }
 
-  // Ajusta o saldo da carteira com base na diferença de valor / tipo
-  const oldAmount = Number(tx.amount || 0);
-  const oldIsIncome = tx.type === "INCOME";
-  const oldNet = oldIsIncome ? oldAmount : -oldAmount;
-  const newNet = isEntrada ? amount : -amount;
-  const balanceDiff = newNet - oldNet;
-
-  if (balanceDiff !== 0 && tx.walletId) {
-    await prisma.wallet.update({
-      where: { id: tx.walletId },
-      data: { currentBalance: { increment: balanceDiff } } as any
-    }).catch(() => {});
-  }
-
   // Preserva marcadores de compromisso se a transação for vinculada a compromisso pago
   const isComm = tx.source === "COMMITMENT" || (tx.tags && tx.tags.includes("#compromisso"));
   const finalTags = isComm
@@ -4748,10 +4727,17 @@ export async function updateBankAccountMovementAction(input: {
     }
   });
 
-  revalidatePath("/cartoes");
+  // Sincroniza o saldo definitivo da conta
   if (tx.walletId) {
+    await syncBankAccountBalance(tx.walletId);
+  }
+
+  revalidatePath("/contas");
+  if (tx.walletId) {
+    revalidatePath(`/contas/${tx.walletId}`);
     revalidatePath(`/cartoes/${tx.walletId}`);
   }
+  revalidatePath("/cartoes");
   revalidatePath("/despesas");
   revalidatePath("/dashboard");
   revalidatePath("/receitas");
@@ -5240,11 +5226,8 @@ export async function getAllCardsOverview(
       ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
       : false;
 
-    const isSantander = (w.bankName || w.title || "").toLowerCase().includes("santander");
-    const rawBankBal = Number(balanceInfo.currentRealBalance || 0);
-    const resolvedBankBalance = isSantander
-      ? ((Math.abs(rawBankBal - 461.24) < 0.1 || Math.abs(rawBankBal - 230.62) < 0.1 || rawBankBal < 330.62) ? 330.62 : rawBankBal)
-      : rawBankBal;
+    const rawBankBal = Number(balanceInfo.currentRealBalance ?? w.currentBalance ?? 0);
+    const resolvedBankBalance = rawBankBal;
 
     return {
       id:               w.id,
@@ -5254,6 +5237,7 @@ export async function getAllCardsOverview(
       tipo:             w.walletType,
       saldoAtual:       isCredit ? 0 : resolvedBankBalance,
       currentRealBalance: isCredit ? 0 : resolvedBankBalance,
+      balance:          isCredit ? 0 : resolvedBankBalance,
       holder:           (w as any).holder || "",
       agencia:          w.agencia || "",
       conta:            w.conta || "",
@@ -5645,11 +5629,8 @@ export async function payCardInvoiceAction(
       });
       paymentTransactionId = tx.id;
 
-      // Abate imediatamente do saldo da conta bancária
-      await prisma.wallet.update({
-        where: { id: paymentWallet.id },
-        data: { currentBalance: { decrement: amount } } as any,
-      });
+      // Sincroniza imediatamente o saldo da conta bancária
+      await syncBankAccountBalance(paymentWallet.id);
     }
   }
 
@@ -5757,17 +5738,9 @@ export async function undoCardInvoicePaymentAction(
       // Se houve débito em conta bancária, estorna o saldo
       if (specificPayment.paymentWalletId && specificPayment.amount) {
         try {
-          const pWallet = await prisma.wallet.findUnique({
-            where: { id: specificPayment.paymentWalletId },
-          });
-          if (pWallet) {
-            await prisma.wallet.update({
-              where: { id: specificPayment.paymentWalletId },
-              data: { currentBalance: { increment: Number(specificPayment.amount) } } as any,
-            });
-            refundedWalletId = specificPayment.paymentWalletId;
-            refundedAmount = Number(specificPayment.amount || 0);
-          }
+          await syncBankAccountBalance(specificPayment.paymentWalletId);
+          refundedWalletId = specificPayment.paymentWalletId;
+          refundedAmount = Number(specificPayment.amount || 0);
         } catch (e) {
           console.warn("Aviso ao estornar saldo bancário da fatura:", e);
         }
@@ -6769,6 +6742,7 @@ export async function createNewCard(input: {
       vencimento:     Number(input.diaVencimento) || 10,
       diaFechamento:  Number(input.diaFechamento) || 1,
       initialBalance: isCredit ? 0 : (!input.originType || input.originType === "ROLLOVER" ? input.limitOrBalance : 0),
+      currentBalance: isCredit ? 0 : (!input.originType || input.originType === "ROLLOVER" ? input.limitOrBalance : 0),
       creditLimit:    isCredit ? input.limitOrBalance : null,
     } as any,
   });
@@ -6790,6 +6764,8 @@ export async function createNewCard(input: {
 
   revalidatePath("/despesas");
   revalidatePath("/cartoes");
+  revalidatePath("/contas");
+  revalidatePath("/dashboard");
 }
 
 export async function updateCardAccount(
@@ -10774,15 +10750,12 @@ export async function getMonthlyCommitmentsAction(
         .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
         .map(async (w) => {
           const bInfo = await calculateAccountBalance(w.id, curMonthForContas, curYearForContas, w, preloaded.transactions);
-          const bName = (w.bankName || w.title || "").toLowerCase();
-          let saldoAtual = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
-          if (bName.includes("santander") && Math.abs(saldoAtual - 461.24) < 0.1) {
-            saldoAtual = 330.62;
-          }
+          const saldoAtual = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
           return {
             id: w.id,
             banco: w.bankName || w.title,
             saldoAtual,
+            balance: saldoAtual,
           };
         })
     );
@@ -10837,15 +10810,12 @@ export async function getMonthlyCommitmentsAction(
         .filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "TICKET")
         .map(async (w) => {
           const bInfo = await calculateAccountBalance(w.id, curMonthForContas2, curYearForContas2, w);
-          const bName = (w.bankName || w.title || "").toLowerCase();
-          let saldoAtual = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
-          if (bName.includes("santander") && Math.abs(saldoAtual - 461.24) < 0.1) {
-            saldoAtual = 330.62;
-          }
+          const saldoAtual = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
           return {
             id: w.id,
             banco: w.bankName || w.title,
             saldoAtual,
+            balance: saldoAtual,
           };
         })
     );
@@ -11527,17 +11497,17 @@ export async function payCommitmentAction(input: {
     },
   });
 
-  // 2. Se debitado de conta corrente e shouldDeduct for true, abate imediatamente do saldo do banco
-  if (shouldDeduct && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento)) {
-    await prisma.wallet.update({
-      where: { id: targetWalletId },
-      data: { currentBalance: { decrement: tx.amount } } as any,
-    });
+  // 2. Se debitado de conta corrente e shouldDeduct for true, sincroniza o saldo definitivo do banco
+  if (shouldDeduct && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento) && targetWalletId) {
+    await syncBankAccountBalance(targetWalletId);
   }
 
   safeRevalidatePath("/despesas");
   safeRevalidatePath("/cartoes");
-  safeRevalidatePath("/cartoes/" + targetWalletId);
+  if (targetWalletId) {
+    safeRevalidatePath("/cartoes/" + targetWalletId);
+    safeRevalidatePath("/contas/" + targetWalletId);
+  }
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/contas");
   safeRevalidatePath("/compromissos");
@@ -11665,15 +11635,16 @@ export async function payBatchCommitmentsAction(input: {
     }
 
     if (targetWalletId && ["SALDO_CONTA", "DEBITO_AUTOMATICO", "PIX"].includes(input.formaPagamento) && totalAmount > 0) {
-      await prisma.wallet.update({
-        where: { id: targetWalletId },
-        data: { currentBalance: { decrement: totalAmount } } as any,
-      });
+      await syncBankAccountBalance(targetWalletId);
     }
   }
 
   safeRevalidatePath("/despesas");
   safeRevalidatePath("/cartoes");
+  if (input.contaBancariaId) {
+    safeRevalidatePath("/cartoes/" + input.contaBancariaId);
+    safeRevalidatePath("/contas/" + input.contaBancariaId);
+  }
   safeRevalidatePath("/dashboard");
   safeRevalidatePath("/contas");
   safeRevalidatePath("/compromissos");
@@ -11721,23 +11692,6 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
     let refundedWalletId: string | null = null;
     let refundedAmount: number = 0;
 
-    // Estorna o saldo na conta bancária de forma segura
-    if (wasCheckingDebit && tx.walletId) {
-      try {
-        const w = await prisma.wallet.findUnique({ where: { id: tx.walletId } });
-        if (w) {
-          await prisma.wallet.update({
-            where: { id: tx.walletId },
-            data: { currentBalance: { increment: tx.amount } } as any,
-          });
-          refundedWalletId = tx.walletId;
-          refundedAmount = Number(tx.amount || 0);
-        }
-      } catch (err) {
-        console.warn("Aviso ao estornar saldo de conta bancária:", err);
-      }
-    }
-
     let cleanDesc = tx.description;
     if (cleanDesc.startsWith("Pagamento Boleto: ")) cleanDesc = cleanDesc.replace("Pagamento Boleto: ", "");
     if (cleanDesc.startsWith("Pagamento: ")) cleanDesc = cleanDesc.replace("Pagamento: ", "");
@@ -11758,9 +11712,23 @@ export async function undoCommitmentPaymentAction(commitmentId: string) {
       },
     });
 
+    // Sincroniza o saldo definitivo após reverter o pagamento
+    if (wasCheckingDebit && tx.walletId) {
+      try {
+        await syncBankAccountBalance(tx.walletId);
+        refundedWalletId = tx.walletId;
+        refundedAmount = Number(tx.amount || 0);
+      } catch (err) {
+        console.warn("Aviso ao estornar saldo de conta bancária:", err);
+      }
+    }
+
     safeRevalidatePath("/despesas");
     safeRevalidatePath("/cartoes");
-    if (tx.walletId) safeRevalidatePath("/cartoes/" + tx.walletId);
+    if (tx.walletId) {
+      safeRevalidatePath("/cartoes/" + tx.walletId);
+      safeRevalidatePath("/contas/" + tx.walletId);
+    }
     safeRevalidatePath("/dashboard");
     safeRevalidatePath("/contas");
     safeRevalidatePath("/compromissos");
@@ -11903,6 +11871,8 @@ export async function deleteCommitmentAction(commitmentId: string) {
       where: { id: tx.walletId },
       data: { currentBalance: { increment: tx.amount } } as any,
     });
+    await syncBankAccountBalance(tx.walletId);
+    safeRevalidatePath(`/contas/${tx.walletId}`);
   }
 
   await prisma.transaction.delete({
@@ -12579,12 +12549,14 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
         .filter((t) => t.type === "EXPENSE")
         .reduce((s, t) => s + Number(t.amount || 0), 0);
 
+      const bal = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
       return {
         id: w.id,
         title: w.title,
         bankName: w.bankName || w.title,
         walletType: w.walletType,
-        saldoAtual: bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0),
+        balance: bal,
+        saldoAtual: bal,
         entradasAno,
         saidasAno,
         balancoAno: entradasAno - saidasAno,
@@ -12690,11 +12662,9 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
           .reduce((s, t) => s + Number(t.amount || 0), 0);
         const balancoAno = entradasAno - saidasAno;
 
-        const isSant = (w.bankName || w.title || "").toLowerCase().includes("santander");
-        let rawBal = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
-        if (isSant && (Math.abs(rawBal - 461.24) < 0.1 || Math.abs(rawBal - 230.62) < 0.1 || rawBal < 330.62)) {
-          rawBal = 330.62;
-          prisma.wallet.update({ where: { id: w.id }, data: { currentBalance: 330.62 } }).catch(() => {});
+        const rawBal = bInfo.currentRealBalance ?? bInfo.finalBalance ?? Number(w.currentBalance || 0);
+        if (Number(w.currentBalance) !== rawBal) {
+          prisma.wallet.update({ where: { id: w.id }, data: { currentBalance: rawBal } }).catch(() => {});
         }
 
         return {
@@ -12816,6 +12786,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       contasBancarias: accounts.map((a) => ({
         id: a.id,
         banco: a.bankName || a.title,
+        balance: a.balance ?? a.saldoAtual,
         saldoAtual: a.saldoAtual,
         holder: a.holder,
       })),
