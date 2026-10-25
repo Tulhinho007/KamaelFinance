@@ -814,25 +814,6 @@ export default function GestaoCaixaContasPage() {
     };
   }, [selectedYear]);
 
-  // Abertura automática do modal de Ajustar Saldo via URL (ex: /contas?adjust=ID)
-  useEffect(() => {
-    if (typeof window !== "undefined" && accounts.length > 0 && !managingAccount) {
-      const params = new URLSearchParams(window.location.search);
-      const adjustId = params.get("adjust");
-      if (adjustId) {
-        const target = accounts.find(
-          (a) =>
-            a.id === adjustId ||
-            (a.bankName || a.title || a.name || "").toLowerCase().includes(adjustId.toLowerCase())
-        );
-        if (target) {
-          handleOpenManageModal(target);
-          const newUrl = window.location.pathname;
-          window.history.replaceState({}, "", newUrl);
-        }
-      }
-    }
-  }, [accounts, managingAccount]);
 
   // Fechar menus de ação ao clicar fora
   useEffect(() => {

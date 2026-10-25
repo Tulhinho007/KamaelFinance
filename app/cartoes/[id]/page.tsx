@@ -218,7 +218,7 @@ export default function CartaoDetailPage() {
         getAllCardsOverview(selectedMonth, selectedYear).catch(() => []),
       ]);
       if (data && data.walletType !== "CREDIT_CARD" && data.walletType !== "TICKET") {
-        router.replace(`/contas?adjust=${cardId}`);
+        router.replace("/contas");
         return;
       }
       setCardData(data || null);

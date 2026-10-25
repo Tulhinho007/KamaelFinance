@@ -8,13 +8,8 @@ export default function BankAccountPageRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const id = params?.id;
-    if (id) {
-      router.replace(`/contas?adjust=${id}`);
-    } else {
-      router.replace("/contas");
-    }
-  }, [params, router]);
+    router.replace("/contas");
+  }, [router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#0b0f19]">
