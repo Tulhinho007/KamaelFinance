@@ -7373,22 +7373,31 @@ export async function getDashboardOverviewData(
   const totalObjetivoMetas = activeGoals.reduce((s, g) => s + g.objetivo, 0);
   const metasGlobaisPct = totalObjetivoMetas > 0 ? Math.min(100, Math.round((totalAcumuladoMetas / totalObjetivoMetas) * 100)) : 0;
 
-  // 2. Breakdown de Gastos por Categoria no Período Filtrado
-  // Alinhado ao Regime de Caixa Efetivado: saídas liquidadas na conta bancária
-  const monthExpenses = rangeTransactions.filter((e) => {
+  // 2. Breakdown de Gastos por Categoria - Foco no Cartão de Crédito
+  // Filtra as compras do Cartão de Crédito (onde residem as categorias reais: Mercado, Farmácia, Restaurante, etc.)
+  const creditCardExpenses = rangeTransactions.filter((e) => {
     if (e.type !== "EXPENSE") return false;
-    const isRealized = e.status === "COMPLETED" || e.status === "PAID";
-    if (!isRealized) return false;
     const wType = (e.wallet?.walletType || "").toUpperCase();
-    if (wType === "CREDIT_CARD" || ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+    if (wType !== "CREDIT_CARD") return false;
+    if (isInvoicePaymentTransaction(e)) return false;
     return true;
   });
 
-  console.log(`[getDashboardOverviewData] Despesas para Distribuição por Categoria: ${monthExpenses.length}`);
+  // Se houver compras de cartão de crédito no período, usa-as; caso contrário, busca despesas com categorias
+  const targetCategoryExpenses = creditCardExpenses.length > 0
+    ? creditCardExpenses
+    : rangeTransactions.filter((e) => {
+        if (e.type !== "EXPENSE") return false;
+        if (isInvoicePaymentTransaction(e)) return false;
+        const wType = (e.wallet?.walletType || "").toUpperCase();
+        return !["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
+      });
+
+  console.log(`[getDashboardOverviewData] Despesas para Distribuição por Categoria (Cartão de Crédito): ${targetCategoryExpenses.length}`);
 
   const categoryMap: Record<string, { name: string; color: string; total: number }> = {};
 
-  monthExpenses.forEach((exp) => {
+  targetCategoryExpenses.forEach((exp) => {
     const rawAmt = Number(exp.amount || 0);
     const amt = isNaN(rawAmt) ? 0 : Math.max(0, rawAmt);
     if (amt <= 0) return;
@@ -7407,7 +7416,7 @@ export async function getDashboardOverviewData(
     categoryBreakdown.push({ name: "Sem gastos", color: "#94A3B8", total: 0 });
   }
 
-  // 2.1 Distribuição por Meio de Pagamento
+  // 2.1 Distribuição por Meio de Pagamento (Considera todas as despesas realizadas do período)
   const paymentMethodMap: Record<string, { method: string; name: string; color: string; total: number }> = {
     PIX:     { method: "PIX", name: "PIX", color: "#0d9488", total: 0 },
     CREDITO: { method: "CREDITO", name: "Cartão de Crédito", color: "#6366f1", total: 0 },
@@ -7416,7 +7425,13 @@ export async function getDashboardOverviewData(
     DINHEIRO:{ method: "DINHEIRO", name: "Dinheiro", color: "#10b981", total: 0 },
   };
 
-  monthExpenses.forEach((exp) => {
+  const allRealizedExpenses = rangeTransactions.filter((e) => {
+    if (e.type !== "EXPENSE") return false;
+    if (isInvoicePaymentTransaction(e)) return false;
+    return true;
+  });
+
+  allRealizedExpenses.forEach((exp) => {
     const rawAmt = Number(exp.amount || 0);
     const amt = isNaN(rawAmt) ? 0 : Math.max(0, rawAmt);
     if (amt <= 0) return;
@@ -7427,9 +7442,11 @@ export async function getDashboardOverviewData(
       pm = exp.wallet?.walletType === "CREDIT_CARD" ? "CREDITO" : "DEBITO";
     }
     if (!paymentMethodMap[pm]) {
-      pm = "DEBITO";
+      pm = exp.wallet?.walletType === "CREDIT_CARD" ? "CREDITO" : "DEBITO";
     }
-    paymentMethodMap[pm].total = Math.round((paymentMethodMap[pm].total + amt) * 100) / 100;
+    if (paymentMethodMap[pm]) {
+      paymentMethodMap[pm].total = Math.round((paymentMethodMap[pm].total + amt) * 100) / 100;
+    }
   });
 
   const paymentMethodBreakdown = Object.values(paymentMethodMap)

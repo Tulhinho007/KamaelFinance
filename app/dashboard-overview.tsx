@@ -919,9 +919,14 @@ export function DashboardOverview() {
           <div className="bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 shadow-sm shadow-slate-200/50 dark:shadow-lg dark:shadow-black/20 flex flex-col gap-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-white/[0.06] pb-3">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight">Distribuição por Categoria</h3>
-                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal">
-                  Divisão dos gastos consolidados do ano de {selectedDashboardYear}
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100 tracking-tight">Gastos por Categoria</h3>
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-500/30">
+                    Cartão de Crédito
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-zinc-400 font-normal mt-0.5">
+                  Divisão das compras no cartão consolidadas do ano de {selectedDashboardYear}
                 </p>
               </div>
             </div>
@@ -967,7 +972,7 @@ export function DashboardOverview() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
                     {activeCategories.length === 0 ? (
                       <div className="col-span-1 sm:col-span-2 text-center py-4 text-xs font-medium text-slate-400 dark:text-zinc-500 bg-slate-50 dark:bg-zinc-950/40 rounded-xl border border-dashed border-slate-200 dark:border-white/[0.06]">
-                        Nenhum gasto registrado para o período selecionado.
+                        Nenhuma compra de cartão de crédito registrada no período selecionado.
                       </div>
                     ) : (
                       activeCategories.map((c: any) => {
