@@ -1439,96 +1439,113 @@ export default function InvestimentosPage() {
             </div>
 
             {/* Gráfico 2: Evolução Patrimonial Mensal com Marcador de Mês Selecionado */}
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                    <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({selectedYear})
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-                    Curva contínua com histórico consolidado e projeção futura.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 text-[10px] font-bold">
-                  <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Realizado
-                  </span>
-                  <span className="flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
-                    <span className="w-3.5 border-t-2 border-dashed border-indigo-500 inline-block" /> Projeção
-                  </span>
-                  <span className="hidden sm:inline-flex items-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
-                    Período: {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/{selectedYear}
-                  </span>
-                </div>
-              </div>
+            {(() => {
+              const hasInvestmentsHistory = Boolean(
+                ((overview?.patrimonioBruto || 0) > 0) ||
+                ((overview?.patrimonioLiquido || 0) > 0) ||
+                ((overview?.totalInvestido || 0) > 0) ||
+                (netWorthEvolution && netWorthEvolution.some((d: any) => (d.realizado && d.realizado > 0) || (d.patrimonioLiquido && d.patrimonioLiquido > 0) || (d.patrimonioBruto && d.patrimonioBruto > 0)))
+              );
 
-              <div className="w-full h-64">
-                {netWorthEvolution.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={netWorthEvolution} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorRealizado" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.15} vertical={false} />
-                      <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }}
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(v) => isPrivate ? "••••" : (Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
-                      />
-                      <RechartsTooltip
-                        formatter={(val: any, name: any) => [
-                          brl(Number(val)),
-                          name === "realizado" ? "Patrimônio Consolidado" : "Projeção Futura (CDI)"
-                        ]}
-                      />
-                      {/* Linha vertical que demarca o Mês Selecionado */}
-                      <ReferenceLine
-                        x={["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}
-                        stroke="#6366f1"
-                        strokeDasharray="3 3"
-                        strokeWidth={1.5}
-                        label={{
-                          value: selectedMonth === (new Date().getMonth() + 1) && selectedYear === new Date().getFullYear() ? "Hoje" : `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/${selectedYear}`,
-                          position: "top",
-                          fill: "#6366f1",
-                          fontSize: 10,
-                          fontWeight: 800,
-                        }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="realizado"
-                        name="realizado"
-                        stroke="#10b981"
-                        strokeWidth={2.5}
-                        fillOpacity={1}
-                        fill="url(#colorRealizado)"
-                        connectNulls={false}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="projetado"
-                        name="projetado"
-                        stroke="#6366f1"
-                        strokeWidth={2}
-                        strokeDasharray="4 4"
-                        dot={{ r: 3, fill: "#6366f1" }}
-                        connectNulls={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-xs font-bold text-slate-400 animate-pulse">
-                    Carregando evolução patrimonial...
+              return (
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+                  <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                        <LineChart className="w-4 h-4 text-emerald-500" /> Evolução Patrimonial ({selectedYear})
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                        Curva contínua com histórico consolidado e projeção futura.
+                      </p>
+                    </div>
+                    {hasInvestmentsHistory && (
+                      <div className="flex items-center gap-3 text-[10px] font-bold">
+                        <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" /> Realizado
+                        </span>
+                        <span className="flex items-center gap-1.5 text-indigo-500 dark:text-indigo-400">
+                          <span className="w-3.5 border-t-2 border-dashed border-indigo-500 inline-block" /> Projeção
+                        </span>
+                        <span className="hidden sm:inline-flex items-center text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-full border border-indigo-200/50 dark:border-indigo-800/40">
+                          Período: {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/{selectedYear}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+
+                  <div className="w-full h-64">
+                    {loading ? (
+                      <div className="h-full flex items-center justify-center text-xs font-bold text-slate-400 animate-pulse">
+                        Carregando evolução patrimonial...
+                      </div>
+                    ) : hasInvestmentsHistory ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={netWorthEvolution} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorRealizado" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                              <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" strokeOpacity={0.15} vertical={false} />
+                          <XAxis dataKey="monthLabel" tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }} axisLine={false} tickLine={false} />
+                          <YAxis
+                            tick={{ fontSize: 10, fill: "#64748b", fontWeight: 600 }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(v) => isPrivate ? "••••" : (Math.abs(v) >= 1000 ? `R$ ${(v / 1000).toFixed(0)}k` : `R$ ${v}`)}
+                          />
+                          <RechartsTooltip
+                            formatter={(val: any, name: any) => [
+                              brl(Number(val)),
+                              name === "realizado" ? "Patrimônio Consolidado" : "Projeção Futura (CDI)"
+                            ]}
+                          />
+                          {/* Linha vertical que demarca o Mês Selecionado */}
+                          <ReferenceLine
+                            x={["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}
+                            stroke="#6366f1"
+                            strokeDasharray="3 3"
+                            strokeWidth={1.5}
+                            label={{
+                              value: selectedMonth === (new Date().getMonth() + 1) && selectedYear === new Date().getFullYear() ? "Hoje" : `${["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][selectedMonth - 1]}/${selectedYear}`,
+                              position: "top",
+                              fill: "#6366f1",
+                              fontSize: 10,
+                              fontWeight: 800,
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="realizado"
+                            name="realizado"
+                            stroke="#10b981"
+                            strokeWidth={2.5}
+                            fillOpacity={1}
+                            fill="url(#colorRealizado)"
+                            connectNulls={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="projetado"
+                            name="projetado"
+                            stroke="#6366f1"
+                            strokeWidth={2}
+                            strokeDasharray="4 4"
+                            dot={{ r: 3, fill: "#6366f1" }}
+                            connectNulls={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-xs font-bold text-slate-400">
+                        Nenhum histórico registrado para exibir a evolução patrimonial.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
           </div>
 

@@ -9421,9 +9421,7 @@ export async function getConsolidatedInvestmentsOverview(month?: number, year?: 
 }
 
 export async function getMonthlyNetWorthEvolution(year: number = new Date().getFullYear()) {
-  const userId = await getActiveUserId();
-  const overview = await getConsolidatedInvestmentsOverview();
-  const totalInvestmentsNow = overview.patrimonioLiquido;
+  await getActiveUserId();
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -9438,100 +9436,202 @@ export async function getMonthlyNetWorthEvolution(year: number = new Date().getF
     investimentos: number;
     passivos: number;
     patrimonioLiquido: number;
+    patrimonioBruto: number;
     realizado: number | null;
     projetado: number | null;
     isProjected: boolean;
   }> = [];
 
-  const wallets = await prisma.wallet.findMany({ where: { userId } });
-  const nonCreditWallets = wallets.filter(w => w.walletType !== "CREDIT_CARD");
+  // Buscar dados reais de todas as classes de investimentos
+  const [rfList, rvList, cryptoList, betList, outrosList] = await Promise.all([
+    db.investment.findMany({
+      orderBy: { createdAt: "desc" }
+    }),
+    db.variableAsset.findMany({
+      include: { transacoes: { orderBy: { data: "asc" } } },
+      orderBy: { createdAt: "desc" }
+    }),
+    db.cryptoAsset.findMany({
+      include: { transacoes: { orderBy: { data: "asc" } } },
+      orderBy: { createdAt: "desc" }
+    }),
+    db.bettingAccount.findMany({
+      include: { movimentacoes: { orderBy: { data: "desc" } } },
+      orderBy: { createdAt: "desc" }
+    }),
+    db.otherInvestment.findMany({
+      orderBy: { createdAt: "desc" }
+    })
+  ]);
 
-  // Calcula o patrimônio atual de referência para o mês corrente
+  const hasAnyInvestment =
+    rfList.length > 0 ||
+    rvList.length > 0 ||
+    cryptoList.length > 0 ||
+    betList.length > 0 ||
+    outrosList.length > 0;
+
+  // Se o usuário não possui nenhum ativo cadastrado em nenhuma classe
+  if (!hasAnyInvestment) {
+    for (let m = 1; m <= 12; m++) {
+      timeline.push({
+        monthLabel: monthNames[m - 1],
+        month: m,
+        year,
+        contas: 0,
+        investimentos: 0,
+        passivos: 0,
+        patrimonioLiquido: 0,
+        patrimonioBruto: 0,
+        realizado: m <= currentMonth ? 0 : null,
+        projetado: null,
+        isProjected: m > currentMonth,
+      });
+    }
+    return timeline;
+  }
+
   let currentMonthNetWorth = 0;
 
   for (let m = 1; m <= 12; m++) {
     const endOfMonthDate = new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
     const isPastOrCurrent = m <= currentMonth;
-    const isProjected = m > currentMonth;
 
     if (isPastOrCurrent) {
-      // Saldo acumulado em Contas Correntes até o final do mês m
-      let contasBalance = nonCreditWallets.reduce((acc, w) => acc + Number(w.initialBalance || 0), 0);
-      const txUntilMonth = await prisma.transaction.findMany({
-        where: {
-          wallet: { userId, walletType: { not: "CREDIT_CARD" } },
-          date: { lte: endOfMonthDate },
-          status: "COMPLETED",
-          deletedAt: null
+      // 1. Renda Fixa: títulos criados até o fim deste mês com status ATIVO
+      let rfBruto = 0;
+      let rfLiquido = 0;
+      rfList.forEach((inv: any) => {
+        const d = new Date(inv.dataInicial || inv.createdAt);
+        if (d <= endOfMonthDate && inv.status === "ATIVO") {
+          const bruto = Number(inv.valorAtualBruto || 0);
+          const imposto = Number(inv.impostoEstimado || 0);
+          const taxas = Number(inv.taxasAcumuladas || 0);
+          rfBruto += bruto;
+          rfLiquido += Math.max(0, bruto - imposto - taxas);
         }
       });
 
-      for (const t of txUntilMonth) {
-        if (t.type === "INCOME") contasBalance += Number(t.amount);
-        else if (t.type === "EXPENSE") contasBalance -= Number(t.amount);
-      }
-
-      // Faturas pendentes/passivos no final do mês m
-      const pendingExpensesMonth = await prisma.transaction.findMany({
-        where: {
-          wallet: { userId },
-          type: "EXPENSE",
-          status: "PENDING",
-          deletedAt: null,
-          date: { lte: endOfMonthDate }
+      // 2. Renda Variável: transações ocorridas até o fim deste mês
+      let rvBruto = 0;
+      rvList.forEach((asset: any) => {
+        const txs = (asset.transacoes || []).filter((t: any) => new Date(t.data) <= endOfMonthDate);
+        let posQtd = 0;
+        let custoTotal = 0;
+        txs.forEach((t: any) => {
+          const qtd = Number(t.quantidade || 0);
+          const preco = Number(t.precoUnitario || 0);
+          if (t.tipo === "COMPRA") {
+            posQtd += qtd;
+            custoTotal += qtd * preco;
+          } else if (t.tipo === "VENDA") {
+            posQtd = Math.max(0, posQtd - qtd);
+          }
+        });
+        if (posQtd > 0) {
+          const cotacao = Number(asset.cotacaoAtual || 0);
+          rvBruto += posQtd * (cotacao > 0 ? cotacao : (custoTotal / posQtd));
         }
       });
-      const passivos = pendingExpensesMonth.reduce((s, t) => s + Number(t.amount), 0);
 
-      // Evolução gradual dos investimentos até atingir o patamar atual
-      // Nos meses anteriores a competência atual, a carteira constrói a curva real ascendente
-      let invMonth = totalInvestmentsNow;
-      if (currentMonth > 1 && m < currentMonth) {
-        // Escala proporcional realista entre 60% no início do ano e 100% no mês atual
-        const progress = m / currentMonth;
-        const baselineFactor = 0.65 + 0.35 * progress;
-        invMonth = totalInvestmentsNow * baselineFactor;
-      }
+      // 3. Criptomoedas: transações ocorridas até o fim deste mês
+      let criptoBruto = 0;
+      cryptoList.forEach((asset: any) => {
+        const txs = (asset.transacoes || []).filter((t: any) => new Date(t.data) <= endOfMonthDate);
+        let posQtd = 0;
+        let custoTotal = 0;
+        txs.forEach((t: any) => {
+          const qtd = Number(t.quantidade || 0);
+          const preco = Number(t.precoUnitario || 0);
+          if (t.tipo === "COMPRA") {
+            posQtd += qtd;
+            custoTotal += qtd * preco;
+          } else if (t.tipo === "VENDA") {
+            posQtd = Math.max(0, posQtd - qtd);
+          }
+        });
+        if (posQtd > 0) {
+          const cotacao = Number(asset.cotacaoAtual || 0);
+          criptoBruto += posQtd * (cotacao > 0 ? cotacao : (custoTotal / posQtd));
+        }
+      });
 
-      const netWorthMonth = Math.max(0, contasBalance + invMonth - passivos);
-      const roundedNetWorth = Math.round(netWorthMonth * 100) / 100;
+      // 4. Apostas / Bancas: saldo até o fim deste mês
+      let apostasBruto = 0;
+      betList.forEach((acc: any) => {
+        const movs = (acc.movimentacoes || []).filter((mov: any) => new Date(mov.data) <= endOfMonthDate);
+        if (movs.length > 0) {
+          apostasBruto += Number(acc.saldoAtualBruto || 0);
+        }
+      });
+
+      // 5. Outros investimentos: cadastrados até o fim deste mês
+      let outrosBruto = 0;
+      outrosList.forEach((item: any) => {
+        const d = item.data ? new Date(item.data) : new Date(item.createdAt);
+        if (d <= endOfMonthDate) {
+          const investido = Number(item.totalInvestido || 0);
+          const saque = Number(item.totalSaque || 0);
+          outrosBruto += saque > 0 ? saque : investido;
+        }
+      });
+
+      const totalMesBruto = Math.round((rfBruto + rvBruto + criptoBruto + apostasBruto + outrosBruto) * 100) / 100;
+      const totalMesLiquido = Math.round((rfLiquido + rvBruto + criptoBruto + apostasBruto + outrosBruto) * 100) / 100;
 
       if (m === currentMonth) {
-        currentMonthNetWorth = roundedNetWorth;
+        currentMonthNetWorth = totalMesBruto;
       }
 
       timeline.push({
-        monthLabel: `${monthNames[m - 1]}/${String(year).slice(-2)}`,
-        month: m,
-        year,
-        contas: Math.max(0, Math.round(contasBalance * 100) / 100),
-        investimentos: Math.max(0, Math.round(invMonth * 100) / 100),
-        passivos: Math.max(0, Math.round(passivos * 100) / 100),
-        patrimonioLiquido: roundedNetWorth,
-        realizado: roundedNetWorth,
-        // No mês atual, conecta o ponto final do realizado com o início da linha projetada
-        projetado: m === currentMonth ? roundedNetWorth : null,
-        isProjected: false,
-      });
-    } else {
-      // Meses futuros: projeção de rendimento composto estimada (taxa CDI média de 0,85% a.m.)
-      const monthsAhead = m - currentMonth;
-      const growthFactor = Math.pow(1 + 0.0085, monthsAhead);
-      const baseNetWorth = currentMonthNetWorth > 0 ? currentMonthNetWorth : totalInvestmentsNow;
-      const projectedNetWorth = Math.round(baseNetWorth * growthFactor * 100) / 100;
-
-      timeline.push({
-        monthLabel: `${monthNames[m - 1]}/${String(year).slice(-2)}`,
+        monthLabel: monthNames[m - 1],
         month: m,
         year,
         contas: 0,
-        investimentos: projectedNetWorth,
+        investimentos: totalMesBruto,
         passivos: 0,
-        patrimonioLiquido: projectedNetWorth,
-        realizado: null,
-        projetado: projectedNetWorth,
-        isProjected: true,
+        patrimonioLiquido: totalMesLiquido,
+        patrimonioBruto: totalMesBruto,
+        realizado: totalMesBruto,
+        // No mês atual, conecta com a projeção futura somente se houver patrimônio positivo
+        projetado: m === currentMonth && totalMesBruto > 0 ? totalMesBruto : null,
+        isProjected: false,
       });
+    } else {
+      // Meses futuros: projeção de rendimento apenas se houver saldo positivo real no mês atual
+      if (currentMonthNetWorth > 0) {
+        const monthsAhead = m - currentMonth;
+        const growthFactor = Math.pow(1 + 0.0085, monthsAhead);
+        const projectedNetWorth = Math.round(currentMonthNetWorth * growthFactor * 100) / 100;
+
+        timeline.push({
+          monthLabel: monthNames[m - 1],
+          month: m,
+          year,
+          contas: 0,
+          investimentos: projectedNetWorth,
+          passivos: 0,
+          patrimonioLiquido: projectedNetWorth,
+          patrimonioBruto: projectedNetWorth,
+          realizado: null,
+          projetado: projectedNetWorth,
+          isProjected: true,
+        });
+      } else {
+        timeline.push({
+          monthLabel: monthNames[m - 1],
+          month: m,
+          year,
+          contas: 0,
+          investimentos: 0,
+          passivos: 0,
+          patrimonioLiquido: 0,
+          patrimonioBruto: 0,
+          realizado: null,
+          projetado: null,
+          isProjected: true,
+        });
+      }
     }
   }
 
