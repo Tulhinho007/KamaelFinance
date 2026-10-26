@@ -8,10 +8,7 @@ import {
   Trash2,
   Edit2,
   CheckCircle2,
-  Circle,
   ExternalLink,
-  ArrowUpRight,
-  TrendingDown,
   TrendingUp,
   DollarSign,
   FileText,
@@ -22,12 +19,10 @@ import {
   Clock,
   X,
   ListTodo,
-  CheckSquare,
-  Square,
   RotateCcw,
-  Sparkles,
   Luggage,
-  Compass
+  Compass,
+  ArrowUpRight
 } from "lucide-react";
 import {
   getEventProjects,
@@ -87,31 +82,31 @@ const CATEGORY_ORDER = [
 const CATEGORY_META: Record<string, { icon: string; title: string; colorClass: string; badgeBg: string }> = {
   "Hospedagem": {
     icon: "🏨",
-    title: "Hospedagem (Hotel, Pousada, Airbnb)",
+    title: "Hospedagem",
     colorClass: "text-blue-600 dark:text-blue-400",
     badgeBg: "bg-blue-50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300"
   },
   "Transporte": {
     icon: "🚌",
-    title: "Transporte (Passagem de Ônibus, Voo, Transfer)",
+    title: "Transporte",
     colorClass: "text-amber-600 dark:text-amber-400",
     badgeBg: "bg-amber-50 dark:bg-amber-500/15 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300"
   },
   "Ingressos / Eventos": {
     icon: "🎟️",
-    title: "Ingressos / Eventos (Passaporte Imagine Legend, Shows)",
+    title: "Ingressos / Eventos",
     colorClass: "text-purple-600 dark:text-purple-400",
     badgeBg: "bg-purple-50 dark:bg-purple-500/15 border-purple-200 dark:border-purple-500/30 text-purple-700 dark:text-purple-300"
   },
   "Gastos no Local": {
     icon: "🍔",
-    title: "Gastos no Local (Alimentação, Lazer)",
+    title: "Gastos no Local",
     colorClass: "text-rose-600 dark:text-rose-400",
     badgeBg: "bg-rose-50 dark:bg-rose-500/15 border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300"
   },
   "Outros Gastos": {
     icon: "🎒",
-    title: "Outros Gastos / Diversos",
+    title: "Outros Gastos",
     colorClass: "text-slate-600 dark:text-slate-400",
     badgeBg: "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
   }
@@ -232,19 +227,22 @@ export default function PlanningPage() {
   const [newProjectEndDate, setNewProjectEndDate]         = useState("");
   const [newProjectStatus, setNewProjectStatus]           = useState("Em Planejamento");
 
-  // Novo Item Form State
-  const [newItemDesc, setNewItemDesc]         = useState("");
-  const [newItemMin, setNewItemMin]           = useState<number | "">("");
-  const [newItemMax, setNewItemMax]           = useState<number | "">("");
-  const [newItemNotes, setNewItemNotes]       = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("Gastos no Local");
-  const [isAddingItem, setIsAddingItem]       = useState(false);
+  // Modal de Novo Item (Substitui o formulário aberto fixo)
+  const [isNewItemModalOpen, setIsNewItemModalOpen]       = useState(false);
+  const [newItemDesc, setNewItemDesc]                     = useState("");
+  const [newItemEstimated, setNewItemEstimated]           = useState<number | "">("");
+  const [newItemNotes, setNewItemNotes]                   = useState("");
+  const [newItemCategory, setNewItemCategory]             = useState("Gastos no Local");
+  const [isAddingItem, setIsAddingItem]                   = useState(false);
 
-  // Edição de Item Inline
-  const [editingItemId, setEditingItemId]         = useState<string | null>(null);
-  const [editItemDesc, setEditItemDesc]           = useState("");
-  const [editItemNotes, setEditItemNotes]         = useState("");
-  const [editItemCategory, setEditItemCategory]   = useState("Gastos no Local");
+  // Modal de Edição de Item
+  const [editingItem, setEditingItem]                     = useState<EventItem | null>(null);
+  const [editItemDesc, setEditItemDesc]                   = useState("");
+  const [editItemEstimated, setEditItemEstimated]         = useState<number | "">("");
+  const [editItemPaid, setEditItemPaid]                   = useState(false);
+  const [editItemPaidAmount, setEditItemPaidAmount]       = useState<number | "">("");
+  const [editItemNotes, setEditItemNotes]                 = useState("");
+  const [editItemCategory, setEditItemCategory]           = useState("Gastos no Local");
 
   // Modal de Conversão em Despesa (Lançar)
   const [convertModalItem, setConvertModalItem] = useState<EventItem | null>(null);
@@ -452,8 +450,8 @@ export default function PlanningPage() {
   // Excluir Projeto
   const handleDeleteProject = async () => {
     if (!activeProject) return;
-    const confirmed = await showConfirm(`Tem certeza que deseja excluir o projeto "${activeProject.title}"?`, {
-      title: "Excluir Projeto",
+    const confirmed = await showConfirm(`Tem certeza que deseja excluir a viagem "${activeProject.title}"?`, {
+      title: "Excluir Viagem",
       variant: "danger",
       confirmText: "Excluir",
     });
@@ -465,46 +463,46 @@ export default function PlanningPage() {
       await loadData();
     } catch (err) {
       console.error(err);
-      showAlert("Erro ao excluir projeto.", { variant: "error" });
+      showAlert("Erro ao excluir viagem.", { variant: "error" });
     }
   };
 
-  // Adicionar Item ao Orçamento
+  // Adicionar Item ao Orçamento via Modal
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProject || !newItemDesc.trim() || !newItemMax) return;
+    if (!activeProject || !newItemDesc.trim() || !newItemEstimated) return;
 
     setIsAddingItem(true);
     try {
       await createEventItemAction(activeProject.id, {
         description: newItemDesc.trim(),
-        minAmount: newItemMin === "" ? null : Number(newItemMin),
-        maxAmount: Number(newItemMax),
+        minAmount: null,
+        maxAmount: Number(newItemEstimated),
         notes: newItemNotes.trim(),
         category: newItemCategory,
       });
 
       setNewItemDesc("");
-      setNewItemMin("");
-      setNewItemMax("");
+      setNewItemEstimated("");
       setNewItemNotes("");
       setNewItemCategory("Gastos no Local");
+      setIsNewItemModalOpen(false);
       await loadData();
     } catch (err) {
       console.error(err);
-      showAlert("Erro ao adicionar item.", { variant: "error" });
+      showAlert("Erro ao adicionar despesa.", { variant: "error" });
     } finally {
       setIsAddingItem(false);
     }
   };
 
-  // Alternar Status de Pago
+  // Alternar Status de Pago diretamente no Checkbox
   const handleTogglePaid = async (item: EventItem) => {
     const newIsPaid = !item.isPaid;
-    // Se marcou como pago e não tinha valor, adota o valor máximo como base
+    // Se marcou como pago e não tinha valor, adota o valor estimado automaticamente
     const newPaidAmount = newIsPaid
       ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount)
-      : item.paidAmount;
+      : 0;
 
     setProjects(prev =>
       prev.map((p: EventProject) => {
@@ -528,7 +526,7 @@ export default function PlanningPage() {
   // Atualização direta de valores numéricos na tabela
   const handleItemValueChange = async (
     itemId: string,
-    field: "minAmount" | "maxAmount" | "paidAmount",
+    field: "maxAmount" | "paidAmount",
     valueStr: string
   ) => {
     const numericVal = valueStr === "" ? 0 : Number(valueStr);
@@ -540,38 +538,54 @@ export default function PlanningPage() {
           ...p,
           items: p.items.map((i: EventItem) => {
             if (i.id !== itemId) return i;
-            return { ...i, [field]: field === "minAmount" && valueStr === "" ? null : numericVal };
+            const updated = { ...i, [field]: numericVal };
+            if (field === "paidAmount" && numericVal > 0) {
+              updated.isPaid = true;
+            }
+            return updated;
           })
         };
       })
     );
 
     try {
-      await updateEventItemAction(itemId, {
-        [field]: field === "minAmount" && valueStr === "" ? null : numericVal,
-      });
+      const payload: any = { [field]: numericVal };
+      if (field === "paidAmount" && numericVal > 0) {
+        payload.isPaid = true;
+      }
+      await updateEventItemAction(itemId, payload);
     } catch (err) {
       console.error("Erro ao atualizar valor do item:", err);
     }
   };
 
-  // Iniciar Edição Inline do Item
-  const startEditingItem = (item: EventItem) => {
-    setEditingItemId(item.id);
+  // Abrir Modal de Edição do Item
+  const openEditItemModal = (item: EventItem) => {
+    setEditingItem(item);
     setEditItemDesc(item.description);
+    setEditItemEstimated(item.maxAmount);
+    setEditItemPaid(item.isPaid);
+    setEditItemPaidAmount(item.isPaid ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : "");
     setEditItemNotes(item.notes);
     setEditItemCategory(item.category || detectCategory(item.description, item.notes));
   };
 
   // Salvar Edição do Item
-  const handleSaveItemEdit = async (itemId: string) => {
+  const handleSaveItemEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem || !editItemDesc.trim() || !editItemEstimated) return;
     try {
-      await updateEventItemAction(itemId, {
+      const paidVal = editItemPaid ? Number(editItemPaidAmount || editItemEstimated) : 0;
+      await updateEventItemAction(editingItem.id, {
         description: editItemDesc.trim(),
+        maxAmount: Number(editItemEstimated),
+        minAmount: null,
+        paidAmount: paidVal,
+        isPaid: editItemPaid,
         notes: editItemNotes.trim(),
         category: editItemCategory,
       });
-      setEditingItemId(null);
+      setEditingItem(null);
       await loadData();
     } catch (err) {
       console.error(err);
@@ -615,7 +629,7 @@ export default function PlanningPage() {
     }
   };
 
-  // Handlers para Checklist Interativo com suporte a colunas
+  // Handlers para Checklist Interativo
   const handleAddChecklistTask = async (e: React.FormEvent, section: "before" | "during") => {
     e.preventDefault();
     const taskText = section === "before" ? newBeforeTaskText : newDuringTaskText;
@@ -705,38 +719,27 @@ export default function PlanningPage() {
     }
   };
 
-  // ── REGRAS DE NEGÓCIO E CÁLCULOS MATEMÁTICOS CORRIGIDOS ──────────────
+  // ── REGRAS DE NEGÓCIO E CÁLCULOS MATEMÁTICOS SIMPLIFICADOS ──────────
   const items = activeProject?.items || [];
   
-  // Total Mínimo Otimista (soma dos menores valores)
-  const totalMinimoOtimista = items.reduce(
-    (sum, i) => sum + (i.minAmount !== null && i.minAmount > 0 ? i.minAmount : i.maxAmount),
-    0
-  );
+  // 1. Custo Total Previsto: soma dos valores estimados
+  const custoTotalPrevisto = items.reduce((sum, i) => sum + Number(i.maxAmount || 0), 0);
 
-  // Cenário Realista Inicial (Teto Máximo orçado)
-  const totalMaximoRealista = items.reduce((sum, i) => sum + i.maxAmount, 0);
-
-  // Total Já Pago (Real): soma estritamente dos itens marcados como pagos
-  const totalJaPagoReal = items
+  // 2. Total Já Pago: soma estritamente dos valores liquidados
+  const totalJaPago = items
     .filter((i: EventItem) => i.isPaid)
-    .reduce((sum, i) => sum + (i.paidAmount > 0 ? i.paidAmount : i.maxAmount), 0);
+    .reduce((sum, i) => sum + Number(i.paidAmount > 0 ? i.paidAmount : i.maxAmount), 0);
 
-  // Restante a Pagar Estimado: teto dos itens AINDA NÃO LIQUIDADOS (isPaid === false)
-  const restanteAPagarEstimado = items
-    .filter((i: EventItem) => !i.isPaid)
-    .reduce((sum, i) => sum + i.maxAmount, 0);
+  // 3. Restante a Pagar: Total Previsto - Total Já Pago
+  const restanteAPagar = Math.max(0, custoTotalPrevisto - totalJaPago);
 
-  // Custo Total Previsto Atualizado (Custo Projetado) = Já Pago + Pendente Estimado
-  const custoTotalProjetado = totalJaPagoReal + restanteAPagarEstimado;
-
-  // Economia Projetada frente ao Teto Inicial
-  const economiaProjetada = totalMaximoRealista - custoTotalProjetado;
-
-  // Progresso do Orçamento (Percentual pago)
-  const percentualPago = totalMaximoRealista > 0
-    ? Math.min(100, Math.round((totalJaPagoReal / totalMaximoRealista) * 100))
+  // Percentual Pago para mini-barra de progresso embutida no card
+  const percentualPago = custoTotalPrevisto > 0
+    ? Math.min(100, Math.round((totalJaPago / custoTotalPrevisto) * 100))
     : 0;
+
+  const totalItens = items.length;
+  const itensPagos = items.filter(i => i.isPaid).length;
 
   // Filtros de Itens da Tabela
   const filteredItems = items.filter(item => {
@@ -773,36 +776,38 @@ export default function PlanningPage() {
   return (
     <div className="min-h-screen p-4 sm:p-6 lg:p-8 space-y-6 select-none text-slate-900 dark:text-slate-100">
       
-      {/* ── 1. HEADER DA PÁGINA ──────────────────────────────────────────────── */}
-      <div className="card-glow p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shadow-xs">
-            <Plane className="w-6 h-6" />
+      {/* ── 1. HEADER DA PÁGINA & SELEÇÃO DE VIAGEM ─────────────────────────── */}
+      <div className="card-glow p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-400/30 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0 shadow-xs">
+            <Plane className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-lg sm:text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 Planejamento de Viagens & Eventos
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-full shadow-2xs">
-                Orçamentos Futuros
-              </span>
+              {activeProject && (
+                <span className="px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-full shadow-2xs">
+                  {activeProject.title}
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-              Simule cenários de custos, organize itens da viagem e lance despesas com débito automático.
+              Controle direto de custos previstos, pagamentos realizados e pendências.
             </p>
           </div>
         </div>
 
-        {/* Seleção de Projetos e Novo Projeto */}
-        <div className="flex items-center gap-3">
-          <div className="relative min-w-[220px]">
+        {/* Seleção de Projetos e Ações */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative min-w-[200px] flex-1 sm:flex-initial">
             <select
               value={selectedProjectId}
               onChange={e => handleSelectProject(e.target.value)}
-              className="w-full appearance-none rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-2.5 pr-8 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
+              className="w-full appearance-none rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 pr-8 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-xs"
             >
-              <option value="" className="bg-white dark:bg-slate-900 text-slate-500">Selecione um Projeto...</option>
+              <option value="" className="bg-white dark:bg-slate-900 text-slate-500">Selecione uma Viagem...</option>
               {projects.map(p => (
                 <option key={p.id} value={p.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
                   {p.title} ({p.status === "COMPLETED" || p.status === "Concluído" ? "✓ Concluído" : p.status})
@@ -814,11 +819,22 @@ export default function PlanningPage() {
 
           <button
             onClick={() => setIsNewProjectModalOpen(true)}
-            className="btn-primary-glow py-2.5 px-4 text-xs"
+            className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+            title="Cadastrar nova viagem"
           >
-            <Plus className="w-4 h-4 text-white" />
-            <span>Novo Projeto</span>
+            <Plus className="w-4 h-4 text-indigo-500" />
+            <span className="hidden sm:inline">Nova Viagem</span>
           </button>
+
+          {activeProject && (
+            <button
+              onClick={() => setIsNewItemModalOpen(true)}
+              className="btn-primary-glow py-2.5 px-4 text-xs font-black flex items-center gap-1.5 shrink-0"
+            >
+              <Plus className="w-4 h-4 text-white" />
+              <span>+ Adicionar Despesa</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -829,9 +845,9 @@ export default function PlanningPage() {
             <Plane className="w-8 h-8" />
           </div>
           <div>
-            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">Selecione ou Crie um Projeto</h3>
+            <h3 className="text-base font-black text-slate-900 dark:text-white uppercase tracking-wider">Selecione ou Crie uma Viagem</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1 max-w-md">
-              Escolha um projeto de viagem no menu acima para visualizar o orçamento ou clique no botão abaixo para cadastrar um novo projeto.
+              Escolha uma viagem no menu acima para gerenciar os custos ou clique no botão abaixo para planejar um novo destino.
             </p>
           </div>
           <button
@@ -839,7 +855,7 @@ export default function PlanningPage() {
             className="btn-primary-glow py-2.5 px-5 text-xs mt-2"
           >
             <Plus className="w-4 h-4 text-white" />
-            <span>+ Novo Projeto</span>
+            <span>+ Nova Viagem</span>
           </button>
         </div>
       )}
@@ -848,20 +864,20 @@ export default function PlanningPage() {
       {activeProject && (
         <div className="space-y-6">
           
-          {/* Header do Projeto Selecionado */}
-          <div className="card-glow p-6 space-y-4">
+          {/* Header Unificado do Projeto Selecionado */}
+          <div className="card-glow p-5 sm:p-6 space-y-4">
             
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-800">
               
-              {/* Título & Status */}
-              <div className="flex-1 space-y-3">
+              {/* Título, Status e Datas */}
+              <div className="flex-1 space-y-2.5">
                 <div className="flex items-center gap-3 flex-wrap">
                   <input
                     type="text"
                     value={editTitle}
                     onChange={e => setEditTitle(e.target.value)}
                     onBlur={e => handleUpdateProjectHeader("title", e.target.value)}
-                    placeholder="Nome do Projeto / Viagem"
+                    placeholder="Nome da Viagem"
                     className="text-lg sm:text-xl font-black bg-transparent text-slate-900 dark:text-white border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-colors px-1 py-0.5 rounded"
                   />
 
@@ -886,11 +902,11 @@ export default function PlanningPage() {
                   </select>
                 </div>
 
-                {/* Date Range & Duração */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
-                    <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-                    <span className="font-bold">Início:</span>
+                {/* Período e Duração */}
+                <div className="flex items-center gap-2.5 flex-wrap text-xs">
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/90 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 font-bold">
+                    <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <span>Início:</span>
                     <input
                       type="date"
                       value={editStartDate}
@@ -900,8 +916,8 @@ export default function PlanningPage() {
                       }}
                       className="bg-transparent border-none text-xs font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
-                    <span className="font-bold mx-1 text-slate-400">até</span>
-                    <span className="font-bold">Fim:</span>
+                    <span className="text-slate-400">até</span>
+                    <span>Fim:</span>
                     <input
                       type="date"
                       value={editEndDate}
@@ -914,349 +930,218 @@ export default function PlanningPage() {
                   </div>
 
                   {tripDays !== null && tripDays > 0 && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-xl text-xs font-extrabold shadow-2xs">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 rounded-xl font-extrabold shadow-2xs">
                       <Clock className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-                      <span>Duração: {tripDays} {tripDays === 1 ? "dia" : "dias"}</span>
+                      <span>{tripDays} {tripDays === 1 ? "dia" : "dias"}</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Ações do Projeto */}
+              {/* Ações da Viagem */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={handleDeleteProject}
-                  className="p-2.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
-                  title="Excluir Projeto"
+                  onClick={() => setIsNewItemModalOpen(true)}
+                  className="btn-primary-glow py-2 px-3.5 text-xs font-bold flex items-center gap-1.5"
                 >
-                  <Trash2 className="w-4.5 h-4.5" />
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                  <span>Nova Despesa</span>
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+                  title="Excluir Viagem"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
-            {/* ── 3. CARDS KPIS PADRONIZADOS EM .CARD-GLOW (4 COLUNAS) ─────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* ── 3 CARDS RESUMO OBJETIVOS (SEM DUPLICAÇÕES) ───────────────────── */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
               
-              {/* Card 1: Cenário Otimista (Total Mínimo) */}
-              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
+              {/* Card 1: CUSTO TOTAL PREVISTO */}
+              <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-3 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
-                    Cenário Otimista
+                    Custo Total Previsto
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/30">
-                    <TrendingDown className="w-4 h-4" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum">
-                    {formatCurrency(totalMinimoOtimista)}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">Soma dos menores valores</p>
-                </div>
-              </div>
-
-              {/* Card 2: Custo Total Previsto Atualizado (Custo Projetado) */}
-              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-500" />
-                    Custo Total Projetado
-                  </span>
-                  <div className="w-7 h-7 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-500/30">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
                     <TrendingUp className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-amber-600 dark:text-amber-400 tracking-tight font-tnum">
-                    {formatCurrency(custoTotalProjetado)}
+                  <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">
+                    {formatCurrency(custoTotalPrevisto)}
                   </p>
-                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                      Pago ({formatCurrency(totalJaPagoReal)}) + Pendente ({formatCurrency(restanteAPagarEstimado)})
-                    </span>
-                    {economiaProjetada > 0 && (
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-md bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30">
-                        Economia: {formatCurrency(economiaProjetada)}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1">
+                    Soma de todas as despesas estimadas ({totalItens} {totalItens === 1 ? "item" : "itens"})
+                  </p>
                 </div>
               </div>
 
-              {/* Card 3: TOTAL JÁ PAGO (Azul/Índigo - Card-glow) */}
-              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
+              {/* Card 2: TOTAL JÁ PAGO com mini-barra de progresso embutida */}
+              <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-3 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
-                    Total Já Pago (Real)
+                    Total Já Pago
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-200 dark:border-emerald-500/30">
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                 </div>
-                <div>
-                  <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">
-                    {formatCurrency(totalJaPagoReal)}
-                  </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
-                    Soma dos itens liquidados ({items.filter(i => i.isPaid).length} de {items.length})
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight font-tnum">
+                      {formatCurrency(totalJaPago)}
+                    </p>
+                    <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-500/30">
+                      {percentualPago}% pago
+                    </span>
+                  </div>
+                  {/* Mini-barra de progresso embutida */}
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500 bg-emerald-500"
+                      style={{ width: `${percentualPago}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    {itensPagos} de {totalItens} {totalItens === 1 ? "item quitado" : "itens quitados"}
                   </p>
                 </div>
               </div>
 
-              {/* Card 4: RESTANTE A PAGAR (Rosa/Vermelho - Card-glow) */}
-              <div className="card-glow p-4 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-2 rounded-2xl">
+              {/* Card 3: RESTANTE A PAGAR */}
+              <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-3 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Restante a Pagar
                   </span>
-                  <div className="w-7 h-7 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-500/30">
+                  <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-500/30">
                     <DollarSign className="w-4 h-4" />
                   </div>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">
-                    {formatCurrency(restanteAPagarEstimado)}
+                  <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">
+                    {formatCurrency(restanteAPagar)}
                   </p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
-                    Soma estimada dos pendentes ({items.filter(i => !i.isPaid).length} itens)
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1">
+                    Falta quitar {totalItens - itensPagos} {totalItens - itensPagos === 1 ? "despesa" : "despesas"} até a viagem
                   </p>
                 </div>
               </div>
 
-            </div>
-
-            {/* ── BARRA DE PROGRESSO FINANCEIRO (TERMÔMETRO DO ORÇAMENTO) ─────── */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-900/90 p-4 text-slate-800 dark:text-white space-y-2.5 shadow-2xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    📊 Progresso do Orçamento
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-400/30 shadow-2xs">
-                    {percentualPago}% pago
-                  </span>
-                </div>
-                <div className="text-right text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                  <span className="text-indigo-600 dark:text-indigo-400 font-extrabold font-tnum">
-                    {formatCurrency(totalJaPagoReal)}
-                  </span>
-                  {" de "}
-                  <span className="text-slate-900 dark:text-white font-extrabold font-tnum">
-                    {formatCurrency(totalMaximoRealista)}
-                  </span>
-                  {" máx"}
-                  {restanteAPagarEstimado > 0 && (
-                    <span className="text-rose-500 dark:text-rose-400 ml-1.5 font-bold">
-                      (Restante: {formatCurrency(restanteAPagarEstimado)})
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Barra com Gradiente */}
-              <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-300 dark:border-slate-700 relative">
-                <div
-                  className="h-full rounded-full transition-all duration-700 bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 shadow-sm"
-                  style={{ width: `${percentualPago}%` }}
-                />
-              </div>
             </div>
 
           </div>
 
-          {/* ── 4. FORMULÁRIO DE INSERÇÃO RÁPIDA DE ITENS ─────────────────────── */}
-          <div className="card-glow p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
-                <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                Adicionar Novo Item ao Orçamento
-              </h2>
-              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300">
-                {items.length} {items.length === 1 ? "item cadastrado" : "itens cadastrados"}
-              </span>
-            </div>
-
-            <form onSubmit={handleAddItem} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end bg-slate-50/80 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-              {/* Categoria */}
-              <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Categoria</label>
-                <select
-                  value={newItemCategory}
-                  onChange={e => setNewItemCategory(e.target.value)}
-                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 cursor-pointer"
-                >
-                  <option value="Hospedagem">🏨 Hospedagem</option>
-                  <option value="Transporte">🚌 Transporte</option>
-                  <option value="Ingressos / Eventos">🎟️ Ingressos / Eventos</option>
-                  <option value="Gastos no Local">🍔 Gastos no Local</option>
-                  <option value="Outros Gastos">🎒 Outros Gastos</option>
-                </select>
-              </div>
-
-              {/* Descrição */}
-              <div className="lg:col-span-3 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Item / Descrição *</label>
-                <input
-                  type="text"
-                  required
-                  value={newItemDesc}
-                  onChange={e => setNewItemDesc(e.target.value)}
-                  placeholder="Ex: Hotel Ibis, Passagem aérea, Ingresso VIP..."
-                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-                />
-              </div>
-
-              {/* Valor Mínimo */}
-              <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Valor Mínimo (R$)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newItemMin}
-                  onChange={e => setNewItemMin(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0,00 (Opcional)"
-                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-                />
-              </div>
-
-              {/* Valor Máximo */}
-              <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Valor Máximo *</label>
-                <input
-                  type="number"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  value={newItemMax}
-                  onChange={e => setNewItemMax(e.target.value === "" ? "" : Number(e.target.value))}
-                  placeholder="0,00"
-                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-                />
-              </div>
-
-              {/* Anotações */}
-              <div className="lg:col-span-2 flex flex-col gap-1">
-                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase">Anotações / Links</label>
-                <input
-                  type="text"
-                  value={newItemNotes}
-                  onChange={e => setNewItemNotes(e.target.value)}
-                  placeholder="Link ou observação"
-                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
-                />
-              </div>
-
-              {/* Botão Salvar */}
-              <div className="lg:col-span-1">
-                <button
-                  type="submit"
-                  disabled={isAddingItem}
-                  className="btn-primary-glow w-full py-2 text-xs font-black h-[38px] disabled:opacity-60 flex items-center justify-center gap-1"
-                >
-                  {isAddingItem ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <Plus className="w-3.5 h-3.5 text-white" />
-                      <span>Add</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* ── 5. TABELA DE ORÇAMENTO DETALHADO POR ITEM COM CATEGORIAS E FILTROS ─ */}
-          <div className="card-glow p-6 space-y-4">
+          {/* ── 3. TABELA DE ORÇAMENTO ENXUTA E OBJETIVA ─────────────────────────── */}
+          <div className="card-glow p-5 sm:p-6 space-y-4">
             
-            {/* Header da Tabela com Abas de Filtros Rápidos */}
+            {/* Header da Tabela com Abas de Filtros Rápidos e Botão + Adicionar Despesa */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h2 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                  Orçamento Detalhado por Item
+                  Despesas da Viagem
                 </h2>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                  Itens agrupados por categoria com controle financeiro em tempo real
+                  Marque o check para registrar como pago ou edite valores com um clique
                 </p>
               </div>
 
-              {/* Abas Rápidas: Todos / Pendentes / Pagos */}
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setFilterTab("todos")}
-                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    filterTab === "todos"
-                      ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <span>Todos</span>
-                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-200 dark:bg-slate-700 font-black">
-                    {items.length}
-                  </span>
-                </button>
+              <div className="flex items-center gap-3">
+                {/* Abas Rápidas: Todos / Pendentes / Pagos */}
+                <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-900/90 rounded-xl border border-slate-200 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setFilterTab("todos")}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                      filterTab === "todos"
+                        ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <span>Todos</span>
+                    <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-slate-200 dark:bg-slate-700 font-black">
+                      {items.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterTab("pendentes")}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                      filterTab === "pendentes"
+                        ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <span>Pendentes</span>
+                    <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-black">
+                      {items.filter(i => !i.isPaid).length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFilterTab("pagos")}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                      filterTab === "pagos"
+                        ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    <span>Pagos</span>
+                    <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-black">
+                      {items.filter(i => i.isPaid).length}
+                    </span>
+                  </button>
+                </div>
 
                 <button
-                  type="button"
-                  onClick={() => setFilterTab("pendentes")}
-                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    filterTab === "pendentes"
-                      ? "bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }`}
+                  onClick={() => setIsNewItemModalOpen(true)}
+                  className="btn-primary-glow py-1.5 px-3 text-xs font-black flex items-center gap-1"
                 >
-                  <span>Pendentes</span>
-                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-black">
-                    {items.filter(i => !i.isPaid).length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFilterTab("pagos")}
-                  className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
-                    filterTab === "pagos"
-                      ? "bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-xs border border-slate-200/80 dark:border-slate-700"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <span>Pagos</span>
-                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 font-black">
-                    {items.filter(i => i.isPaid).length}
-                  </span>
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                  <span>Novo Item</span>
                 </button>
               </div>
             </div>
 
-            {/* Tabela Formatada */}
+            {/* Tabela Direta e Limpa (5 Colunas) */}
             <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="bg-slate-100/80 dark:bg-slate-900 text-slate-600 dark:text-slate-300 uppercase font-black tracking-wider text-[10px] border-b border-slate-200 dark:border-slate-800">
-                    <th className="py-3.5 px-3 w-14 text-center">Status</th>
-                    <th className="py-3.5 px-4">Item / Descrição</th>
-                    <th className="py-3.5 px-4 text-right w-36 text-emerald-700 dark:text-emerald-400">Valor Mínimo</th>
-                    <th className="py-3.5 px-4 text-right w-36 text-amber-700 dark:text-amber-400">Valor Máximo</th>
-                    <th className="py-3.5 px-4 text-right w-36 text-indigo-700 dark:text-indigo-300">Valor Pago</th>
-                    <th className="py-3.5 px-4">Anotações / Links</th>
-                    <th className="py-3.5 px-4 text-center w-28">Ações</th>
+                    <th className="py-3 px-3 w-12 text-center">Status</th>
+                    <th className="py-3 px-4">Item / Descrição</th>
+                    <th className="py-3 px-4 text-right w-40 text-indigo-700 dark:text-indigo-400">Valor Estimado</th>
+                    <th className="py-3 px-4 text-right w-40 text-emerald-700 dark:text-emerald-400">Valor Pago</th>
+                    <th className="py-3 px-4 text-center w-32">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-medium">
                   {filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-10 text-center text-slate-400 text-xs">
-                        Nenhum item encontrado no filtro &quot;{filterTab}&quot;.
+                      <td colSpan={5} className="py-12 text-center text-slate-400 text-xs">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <p>Nenhuma despesa encontrada no filtro &quot;{filterTab}&quot;.</p>
+                          <button
+                            onClick={() => setIsNewItemModalOpen(true)}
+                            className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer"
+                          >
+                            + Adicionar primeira despesa
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     itemsByCategory.map(group => (
                       <React.Fragment key={group.category}>
-                        {/* Subtítulo Separador de Categoria */}
-                        <tr className="bg-slate-50 dark:bg-slate-900/90 border-t-2 border-b border-slate-200 dark:border-slate-800">
-                          <td colSpan={7} className="py-2 px-4">
+                        {/* Subtítulo da Categoria */}
+                        <tr className="bg-slate-50/80 dark:bg-slate-900/90 border-t-2 border-b border-slate-200 dark:border-slate-800">
+                          <td colSpan={5} className="py-2 px-4">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm">{group.meta.icon}</span>
@@ -1268,7 +1153,7 @@ export default function PlanningPage() {
                                 </span>
                               </div>
                               <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                Subtotal Teto:{" "}
+                                Subtotal Previsto:{" "}
                                 <span className="font-black text-slate-800 dark:text-slate-200 font-tnum">
                                   {formatCurrency(group.items.reduce((s, i) => s + i.maxAmount, 0))}
                                 </span>
@@ -1277,198 +1162,131 @@ export default function PlanningPage() {
                           </td>
                         </tr>
 
-                        {/* Linhas da Categoria */}
-                        {group.items.map((item: EventItem) => {
-                          const isEditing = editingItemId === item.id;
+                        {/* Linhas dos Itens */}
+                        {group.items.map((item: EventItem) => (
+                          <tr
+                            key={item.id}
+                            className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
+                              item.isPaid ? "bg-emerald-50/30 dark:bg-emerald-500/5" : ""
+                            }`}
+                          >
+                            {/* Status de Pagamento (Check) */}
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePaid(item)}
+                                className={`inline-flex items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
+                                  item.isPaid
+                                    ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/50 shadow-2xs"
+                                    : "bg-slate-100 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400"
+                                }`}
+                                title={item.isPaid ? "Desmarcar Pago (voltar para pendente)" : "Marcar como Pago"}
+                              >
+                                <CheckCircle2 className={`w-4 h-4 ${item.isPaid ? "text-emerald-600 dark:text-emerald-300" : "text-slate-400"}`} />
+                              </button>
+                            </td>
 
-                          return (
-                            <tr
-                              key={item.id}
-                              className={`transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40 ${
-                                item.isPaid ? "bg-emerald-50/40 dark:bg-emerald-500/5" : ""
-                              }`}
-                            >
-                              {/* Status de Pagamento (Switch) */}
-                              <td className="py-3 px-3 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => handleTogglePaid(item)}
-                                  className={`inline-flex items-center justify-center p-1.5 rounded-xl border transition-all cursor-pointer ${
-                                    item.isPaid
-                                      ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-400/50 shadow-2xs"
-                                      : "bg-slate-100 dark:bg-slate-800/60 text-slate-400 border-slate-200 dark:border-slate-700 hover:text-emerald-600 dark:hover:text-emerald-400"
-                                  }`}
-                                  title={item.isPaid ? "Desmarcar Pago" : "Marcar como Pago"}
-                                >
-                                  <CheckCircle2 className={`w-4 h-4 ${item.isPaid ? "text-emerald-600 dark:text-emerald-300" : "text-slate-400"}`} />
-                                </button>
-                              </td>
+                            {/* Item / Descrição com ícone e notas */}
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                                    {item.description}
+                                  </span>
 
-                              {/* Descrição com legibilidade nítida (SEM texto riscado cinza) */}
-                              <td className="py-3 px-4">
-                                {isEditing ? (
-                                  <div className="flex flex-col gap-1.5">
-                                    <input
-                                      type="text"
-                                      value={editItemDesc}
-                                      onChange={e => setEditItemDesc(e.target.value)}
-                                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white font-bold"
-                                    />
-                                    <select
-                                      value={editItemCategory}
-                                      onChange={e => setEditItemCategory(e.target.value)}
-                                      className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
-                                    >
-                                      <option value="Hospedagem">🏨 Hospedagem</option>
-                                      <option value="Transporte">🚌 Transporte</option>
-                                      <option value="Ingressos / Eventos">🎟️ Ingressos / Eventos</option>
-                                      <option value="Gastos no Local">🍔 Gastos no Local</option>
-                                      <option value="Outros Gastos">🎒 Outros Gastos</option>
-                                    </select>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {/* Texto em traço normal com contraste de alta legibilidade */}
-                                    <span className="font-semibold text-slate-900 dark:text-slate-100 text-xs">
-                                      {item.description}
+                                  {/* Badges de Status */}
+                                  {item.transactionId ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-400/30">
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                      No Extrato
                                     </span>
+                                  ) : item.isPaid ? (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-500/30">
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                      Pago
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                      <Clock className="w-2.5 h-2.5" />
+                                      Pendente
+                                    </span>
+                                  )}
+                                </div>
 
-                                    {/* Badges de sinalização limpa de status */}
-                                    {item.transactionId ? (
-                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-400/30">
-                                        <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                        Lançado no Extrato
-                                      </span>
-                                    ) : item.isPaid ? (
-                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-500/30">
-                                        <Check className="w-2.5 h-2.5 stroke-[3]" />
-                                        Pago
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                                        <Clock className="w-2.5 h-2.5" />
-                                        Pendente
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* VALOR MÍNIMO FORMATADO COM PREFIXO R$ E CENTAVOS */}
-                              <td className="py-3 px-4 text-right">
-                                <EditableCurrencyCell
-                                  value={item.minAmount}
-                                  onChange={valStr => handleItemValueChange(item.id, "minAmount", valStr)}
-                                  colorClass="text-emerald-600 dark:text-emerald-400"
-                                  placeholder="0,00"
-                                  emptyText="—"
-                                />
-                              </td>
-
-                              {/* VALOR MÁXIMO FORMATADO COM PREFIXO R$ E CENTAVOS */}
-                              <td className="py-3 px-4 text-right">
-                                <EditableCurrencyCell
-                                  value={item.maxAmount}
-                                  onChange={valStr => handleItemValueChange(item.id, "maxAmount", valStr)}
-                                  colorClass="text-amber-600 dark:text-amber-400"
-                                  placeholder="0,00"
-                                />
-                              </td>
-
-                              {/* VALOR PAGO: SE NÃO PAGO, EXIBE TRAÇO (—) SEM CONTRADIÇÃO */}
-                              <td className="py-3 px-4 text-right">
-                                <EditableCurrencyCell
-                                  value={item.isPaid ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : null}
-                                  onChange={valStr => handleItemValueChange(item.id, "paidAmount", valStr)}
-                                  colorClass="text-indigo-600 dark:text-indigo-400"
-                                  placeholder="0,00"
-                                  disabled={!item.isPaid}
-                                  emptyText="—"
-                                />
-                              </td>
-
-                              {/* Anotações / Links */}
-                              <td className="py-3 px-4">
-                                {isEditing ? (
-                                  <input
-                                    type="text"
-                                    value={editItemNotes}
-                                    onChange={e => setEditItemNotes(e.target.value)}
-                                    className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-900 dark:text-white"
-                                  />
-                                ) : item.notes ? (
-                                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 max-w-xs truncate font-normal">
+                                {item.notes && (
+                                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 max-w-md truncate">
                                     <span className="truncate">{item.notes}</span>
                                     {item.notes.startsWith("http") && (
                                       <a
                                         href={item.notes}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 transition-colors"
+                                        className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 inline-flex items-center gap-0.5 shrink-0"
                                         title="Abrir Link"
                                       >
-                                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                                        <ExternalLink className="w-3 h-3" />
                                       </a>
                                     )}
                                   </div>
-                                ) : (
-                                  <span className="text-slate-400 font-normal">-</span>
                                 )}
-                              </td>
+                              </div>
+                            </td>
 
-                              {/* Ações por Linha */}
-                              <td className="py-3 px-4 text-center whitespace-nowrap">
-                                {isEditing ? (
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => handleSaveItemEdit(item.id)}
-                                      className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 transition-colors cursor-pointer"
-                                      title="Salvar"
-                                    >
-                                      <Check className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingItemId(null)}
-                                      className="p-1.5 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors cursor-pointer"
-                                      title="Cancelar"
-                                    >
-                                      <X className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    {!item.transactionId && (
-                                      <button
-                                        onClick={() => setConvertModalItem(item)}
-                                        className="px-2 py-1 bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-400/30 rounded-lg transition-all text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
-                                        title="Lançar com débito automático no extrato ou cartão"
-                                      >
-                                        <ArrowUpRight className="w-3.5 h-3.5" />
-                                        <span>Lançar</span>
-                                      </button>
-                                    )}
+                            {/* VALOR ESTIMADO */}
+                            <td className="py-3 px-4 text-right">
+                              <EditableCurrencyCell
+                                value={item.maxAmount}
+                                onChange={valStr => handleItemValueChange(item.id, "maxAmount", valStr)}
+                                colorClass="text-indigo-600 dark:text-indigo-400"
+                                placeholder="0,00"
+                              />
+                            </td>
 
-                                    <button
-                                      onClick={() => startEditingItem(item)}
-                                      className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-                                      title="Editar"
-                                    >
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                    </button>
+                            {/* VALOR PAGO: Se pago, exibe o valor; se pendente, traço (—) */}
+                            <td className="py-3 px-4 text-right">
+                              <EditableCurrencyCell
+                                value={item.isPaid ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : null}
+                                onChange={valStr => handleItemValueChange(item.id, "paidAmount", valStr)}
+                                colorClass="text-emerald-600 dark:text-emerald-400"
+                                placeholder="0,00"
+                                disabled={!item.isPaid}
+                                emptyText="—"
+                              />
+                            </td>
 
-                                    <button
-                                      onClick={() => handleDeleteItem(item.id)}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
-                                      title="Excluir"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
+                            {/* AÇÕES (Lançar, Editar, Excluir) */}
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {!item.transactionId && (
+                                  <button
+                                    onClick={() => setConvertModalItem(item)}
+                                    className="px-2 py-1 bg-indigo-50 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white border border-indigo-300/40 dark:border-indigo-400/30 rounded-lg transition-all text-[10px] font-bold flex items-center gap-1 cursor-pointer shadow-2xs"
+                                    title="Lançar com débito automático no extrato ou cartão"
+                                  >
+                                    <ArrowUpRight className="w-3.5 h-3.5" />
+                                    <span>Lançar</span>
+                                  </button>
                                 )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+
+                                <button
+                                  onClick={() => openEditItemModal(item)}
+                                  className="p-1.5 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                  title="Editar Despesa"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                                  title="Excluir Despesa"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </React.Fragment>
                     ))
                   )}
@@ -1478,19 +1296,16 @@ export default function PlanningPage() {
                   <tfoot>
                     <tr className="bg-slate-100 dark:bg-slate-900 font-extrabold text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
                       <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-600 dark:text-slate-400">
-                        Totais do Orçamento ({items.length} itens)
+                        Totais ({items.length} {items.length === 1 ? "item" : "itens"})
                       </td>
-                      <td className="py-3.5 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black font-tnum">
-                        {formatCurrency(totalMinimoOtimista)}
+                      <td className="py-3.5 px-4 text-right text-indigo-600 dark:text-indigo-400 font-black font-tnum text-sm">
+                        {formatCurrency(custoTotalPrevisto)}
                       </td>
-                      <td className="py-3.5 px-4 text-right text-amber-600 dark:text-amber-400 font-black font-tnum">
-                        {formatCurrency(totalMaximoRealista)}
+                      <td className="py-3.5 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black font-tnum text-sm">
+                        {formatCurrency(totalJaPago)}
                       </td>
-                      <td className="py-3.5 px-4 text-right text-indigo-600 dark:text-indigo-400 font-black font-tnum">
-                        {formatCurrency(totalJaPagoReal)}
-                      </td>
-                      <td colSpan={2} className="py-3.5 px-4 text-right text-xs text-rose-600 dark:text-rose-400 font-black font-tnum">
-                        Restante a Pagar: {formatCurrency(restanteAPagarEstimado)}
+                      <td className="py-3.5 px-4 text-center text-xs text-rose-600 dark:text-rose-400 font-black font-tnum">
+                        Falta: {formatCurrency(restanteAPagar)}
                       </td>
                     </tr>
                   </tfoot>
@@ -1499,8 +1314,8 @@ export default function PlanningPage() {
             </div>
           </div>
 
-          {/* ── 6. CHECKLIST INTERATIVO DIVIDIDO (ANTES DE SAIR VS ROTEIRO) ───── */}
-          <div className="card-glow p-6 space-y-6">
+          {/* ── 4. CHECKLIST INTERATIVO (ANTES DE SAIR VS ROTEIRO) ───────────── */}
+          <div className="card-glow p-5 sm:p-6 space-y-6">
             
             {/* Cabeçalho da Seção de Notas & Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -1518,7 +1333,7 @@ export default function PlanningPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-300 font-semibold">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
                     Organize mala, documentos e programação horária de forma categorizada
                   </p>
                 </div>
@@ -1693,7 +1508,7 @@ export default function PlanningPage() {
                         Roteiro / Programação & Horários
                       </h4>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-                        Horários de check-in (14h), saída do ônibus (dia 26), horários de shows
+                        Horários de check-in (14h), saída do ônibus, eventos e passeios
                       </p>
                     </div>
                   </div>
@@ -1708,7 +1523,7 @@ export default function PlanningPage() {
                     type="text"
                     value={newDuringTaskText}
                     onChange={e => setNewDuringTaskText(e.target.value)}
-                    placeholder="Adicionar programação (ex: Check-in Hotel 14h, Saída Ônibus dia 26)..."
+                    placeholder="Adicionar programação (ex: Check-in Hotel 14h, Saída Ônibus)..."
                     className="flex-1 rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
                   />
                   <button
@@ -1800,11 +1615,11 @@ export default function PlanningPage() {
                 Observações do Roteiro & Vouchers
               </label>
               <textarea
-                rows={5}
+                rows={4}
                 value={editNotes}
                 onChange={e => setEditNotes(e.target.value)}
                 placeholder="Digite aqui observações do roteiro, horários de voo, códigos de reserva, dicas de passeios ou lembretes importantes..."
-                className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all leading-relaxed"
+                className="w-full rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-4 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all leading-relaxed"
               />
             </div>
 
@@ -1813,7 +1628,259 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* ── 7. MODAL NOVO PROJETO ────────────────────────────────────────────── */}
+      {/* ── MODAL ADICIONAR DESPESA ─────────────────────────────────────────── */}
+      {isNewItemModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-white">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Adicionar Despesa</h3>
+              </div>
+              <button 
+                onClick={() => setIsNewItemModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddItem} className="space-y-4">
+              {/* Categoria */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={newItemCategory}
+                  onChange={e => setNewItemCategory(e.target.value)}
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="Hospedagem">🏨 Hospedagem</option>
+                  <option value="Transporte">🚌 Transporte</option>
+                  <option value="Ingressos / Eventos">🎟️ Ingressos / Eventos</option>
+                  <option value="Gastos no Local">🍔 Gastos no Local</option>
+                  <option value="Outros Gastos">🎒 Outros Gastos</option>
+                </select>
+              </div>
+
+              {/* Descrição */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Descrição do Item *
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={newItemDesc}
+                  onChange={e => setNewItemDesc(e.target.value)}
+                  placeholder="Ex: Hotel Ibis, Passagem aérea, Ingresso VIP..."
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {/* Valor Estimado */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Valor Estimado (R$) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0.01"
+                  step="0.01"
+                  value={newItemEstimated}
+                  onChange={e => setNewItemEstimated(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="0,00"
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
+                />
+              </div>
+
+              {/* Anotações / Link */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Anotações / Link (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={newItemNotes}
+                  onChange={e => setNewItemNotes(e.target.value)}
+                  placeholder="Link da reserva, observação ou código..."
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewItemModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingItem}
+                  className="btn-primary-glow flex-1 py-2.5 text-xs font-black disabled:opacity-60 flex items-center justify-center gap-1.5"
+                >
+                  {isAddingItem ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-white" />
+                      <span>Adicionar Despesa</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL EDITAR DESPESA ───────────────────────────────────────────── */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-white">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Editar Despesa</h3>
+              </div>
+              <button 
+                onClick={() => setEditingItem(null)} 
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveItemEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Categoria
+                </label>
+                <select
+                  value={editItemCategory}
+                  onChange={e => setEditItemCategory(e.target.value)}
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  <option value="Hospedagem">🏨 Hospedagem</option>
+                  <option value="Transporte">🚌 Transporte</option>
+                  <option value="Ingressos / Eventos">🎟️ Ingressos / Eventos</option>
+                  <option value="Gastos no Local">🍔 Gastos no Local</option>
+                  <option value="Outros Gastos">🎒 Outros Gastos</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Descrição *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editItemDesc}
+                  onChange={e => setEditItemDesc(e.target.value)}
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                    Valor Estimado (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0.01"
+                    step="0.01"
+                    value={editItemEstimated}
+                    onChange={e => setEditItemEstimated(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                    Valor Pago (R$)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editItemPaidAmount}
+                    onChange={e => {
+                      const val = e.target.value === "" ? "" : Number(e.target.value);
+                      setEditItemPaidAmount(val);
+                      if (Number(val) > 0) setEditItemPaid(true);
+                    }}
+                    placeholder="0,00"
+                    className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
+                  />
+                </div>
+              </div>
+
+              {/* Status de Pago */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="editItemPaidCheckbox"
+                  checked={editItemPaid}
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setEditItemPaid(checked);
+                    if (checked && (!editItemPaidAmount || Number(editItemPaidAmount) === 0)) {
+                      setEditItemPaidAmount(editItemEstimated);
+                    }
+                  }}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <label htmlFor="editItemPaidCheckbox" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                  Marcar como Pago (quitado)
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 dark:text-slate-300 mb-1">
+                  Anotações / Link
+                </label>
+                <input
+                  type="text"
+                  value={editItemNotes}
+                  onChange={e => setEditItemNotes(e.target.value)}
+                  placeholder="Link da reserva ou observação..."
+                  className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingItem(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary-glow flex-1 py-2.5 text-xs font-black flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-4 h-4 text-white" />
+                  <span>Salvar Alterações</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL NOVO PROJETO ─────────────────────────────────────────────── */}
       {isNewProjectModalOpen && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md p-6 space-y-5 text-slate-900 dark:text-white">
@@ -1832,6 +1899,7 @@ export default function PlanningPage() {
                 <input
                   type="text"
                   required
+                  autoFocus
                   value={newProjectTitle}
                   onChange={e => setNewProjectTitle(e.target.value)}
                   placeholder="Ex: Viagem Imagine Legend, Férias de Verão"
@@ -1890,7 +1958,7 @@ export default function PlanningPage() {
         </div>
       )}
 
-      {/* ── 8. MODAL DE CONVERSÃO EM DESPESA (LANÇAR COM DÉBITO AUTOMÁTICO) ─── */}
+      {/* ── MODAL DE CONVERSÃO EM DESPESA (LANÇAR COM DÉBITO AUTOMÁTICO) ─── */}
       <ConvertToExpenseModal
         isOpen={!!convertModalItem}
         onClose={() => setConvertModalItem(null)}
