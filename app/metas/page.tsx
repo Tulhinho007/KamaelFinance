@@ -8,8 +8,9 @@ import { GoalGamificationBadges } from "@/components/goal-gamification-badges";
 import { GoalCelebrationModal } from "@/components/goal-celebration-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import { EmergencyFundCalculator } from "@/components/emergency-fund-calculator";
+import { ReceivablesManager } from "@/components/receivables-manager";
 import {
-  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw, ShieldCheck, GraduationCap, Laptop, Heart, ShoppingBag, MoreHorizontal
+  Search, Plus, Plane, Car, Home, History, Sparkles, Target, X, Edit2, Trash2, Coins, Calendar, Wallet as WalletIcon, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowUpRight, Trophy, RotateCcw, ShieldCheck, GraduationCap, Laptop, Heart, ShoppingBag, MoreHorizontal, HandCoins
 } from "lucide-react";
 
 import { parseCurrencyInput } from "@/lib/constants";
@@ -264,8 +265,8 @@ export default function MetasPage() {
     };
   }, []);
 
-  // Seletor de Abas (Metas Ativas vs Conquistas Batidas vs Calculadora de Reserva)
-  const [activeTab, setActiveTab] = useState<"active" | "completed" | "reserva">("active");
+  // Seletor de Abas (Metas Ativas vs Conquistas Batidas vs Calculadora de Reserva vs Valores a Receber)
+  const [activeTab, setActiveTab] = useState<"active" | "completed" | "reserva" | "receber">("active");
 
   // Separação entre metas ativas e concluídas
   const activeMetas = metas.filter(m => m.status !== "COMPLETED" && m.pct < 100);
@@ -548,116 +549,9 @@ export default function MetasPage() {
         badge="Reservas & Metas" 
       />
 
-      {/* ── 2. BUSCA LOCAL E BOTÃO NOVA META ─────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-        
-        {/* Busca por Palavra-chave */}
-        <div className="relative flex items-center w-full sm:w-auto">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar metas..."
-            className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs text-slate-800 dark:text-slate-200 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
-          />
-        </div>
-
-        <button 
-          onClick={openCreateModal}
-          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 hover:scale-[1.02] transition-all font-extrabold text-xs tracking-wider flex items-center justify-center gap-1.5 border border-white/20 cursor-pointer w-full sm:w-auto"
-        >
-          <Plus className="w-4.5 h-4.5 text-white" />
-          <span>NOVA META</span>
-        </button>
-      </div>
-
-      {/* ── 3. BANNER PRINCIPAL COM GLOW & GLASSMORPHISM ("HORIZONTE DE CONQUISTAS") ── */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 rounded-[32px] border border-indigo-500/30 p-4 sm:p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
-        
-        {/* Efeito Glow no Fundo */}
-        <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
-
-        {/* Gráfico Radial de Progresso Global */}
-        <div className="relative w-28 h-28 flex items-center justify-center bg-slate-900/90 rounded-2xl border border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
-          <svg className="w-22 h-22 transform -rotate-90">
-            <circle
-              cx="44"
-              cy="44"
-              r={radius}
-              className="stroke-slate-800 fill-none"
-              strokeWidth="7"
-            />
-            <circle
-              cx="44"
-              cy="44"
-              r={radius}
-              className="stroke-indigo-400 fill-none transition-all duration-700"
-              strokeWidth="7"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-lg font-black text-white leading-none drop-shadow-sm">{globalPct}%</span>
-            <span className="text-[8px] font-extrabold text-indigo-300 uppercase tracking-widest mt-1">Global</span>
-          </div>
-        </div>
-
-        {/* Informações Centrais & 3 KPIs Consolidados */}
-        <div className="flex-1 flex flex-col justify-between items-center sm:items-start w-full gap-4 z-10">
-          
-          <div className="text-center sm:text-left w-full">
-            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span className="rounded-full bg-indigo-950/60 border border-indigo-800/50 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-300 uppercase shadow-xs">
-                Visão Consolidada
-              </span>
-              <span className="text-[10px] font-black text-purple-300 bg-purple-950/60 border border-purple-800/50 px-3 py-1 rounded-full uppercase">
-                {activeMetasCount} Meta{activeMetasCount !== 1 ? "s" : ""} Ativa{activeMetasCount !== 1 ? "s" : ""}
-              </span>
-              {completedMetas.length > 0 && (
-                <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-xs">
-                  <Trophy className="w-3 h-3 text-emerald-400" />
-                  {completedMetas.length} Conquista{completedMetas.length > 1 ? "s" : ""} Batida{completedMetas.length > 1 ? "s" : ""} 🎉
-                </span>
-              )}
-            </div>
-            
-            <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
-
-            {/* 3 KPIs: Total Acumulado, Objetivo Final e Falta Aportar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-950/70 p-4 rounded-2xl border border-white/10">
-              
-              {/* KPI 1 — Total Acumulado */}
-              <div className="flex flex-col">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Acumulado</span>
-                <span className="text-base font-black text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
-              </div>
-
-              {/* KPI 2 — Objetivo Final */}
-              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Objetivo Final</span>
-                <span className="text-base font-black text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
-              </div>
-
-              {/* KPI 3 — Falta Aportar */}
-              <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
-                <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Falta Aportar</span>
-                <span className="text-base font-black text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
-              </div>
-
-            </div>
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* ── 4. SELETOR DE ABAS (METAS ATIVAS VS MURAL DE CONQUISTAS) ───────────────── */}
+      {/* ── 2. SELETOR DE ABAS PRINCIPAIS ──────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("active")}
@@ -703,22 +597,150 @@ export default function MetasPage() {
               SIMULADOR
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("receber")}
+            className={`px-4.5 py-2.5 rounded-2xl text-xs font-black tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "receber"
+                ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            }`}
+          >
+            <HandCoins className="w-4 h-4" />
+            <span>A RECEBER / COBRANÇAS</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === "receber" ? "bg-white/20 text-white" : "bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300"}`}>
+              PARCELAS
+            </span>
+          </button>
         </div>
 
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest hidden sm:inline-block">
           {activeTab === "reserva"
             ? "Simulador de Blindagem & Liquidez Diária"
+            : activeTab === "receber"
+            ? "Gestão de Parcelas & Vendas a Receber"
             : activeTab === "active"
             ? `Objetivos em Andamento (${filteredMetas.length})`
             : `Mural de Conquistas Alcançadas (${filteredMetas.length})`}
         </span>
       </div>
 
-      {/* ── 5. CONTEÚDO DA ABA (GRID DE OBJETIVOS OU SIMULADOR DE RESERVA) ───── */}
+      {/* ── 3. CONTEÚDO PRINCIPAL ───────────────────────────────────────────────── */}
       {activeTab === "reserva" ? (
         <EmergencyFundCalculator onApplyAsGoal={handleApplyEmergencyFundAsGoal} />
+      ) : activeTab === "receber" ? (
+        <ReceivablesManager />
       ) : (
-        <section className="flex flex-col gap-4">
+        <>
+          {/* ── BUSCA LOCAL E BOTÃO NOVA META ─────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+            
+            {/* Busca por Palavra-chave */}
+            <div className="relative flex items-center w-full sm:w-auto">
+              <Search className="w-4 h-4 text-slate-400 absolute left-4" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar metas..."
+                className="pl-11 pr-4 py-2.5 text-xs font-semibold bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs text-slate-800 dark:text-slate-200 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 transition-all placeholder-slate-400"
+              />
+            </div>
+
+            <button 
+              onClick={openCreateModal}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white px-5 py-3 rounded-2xl shadow-lg shadow-indigo-600/30 hover:scale-[1.02] transition-all font-extrabold text-xs tracking-wider flex items-center justify-center gap-1.5 border border-white/20 cursor-pointer w-full sm:w-auto"
+            >
+              <Plus className="w-4.5 h-4.5 text-white" />
+              <span>NOVA META</span>
+            </button>
+          </div>
+
+          {/* ── BANNER PRINCIPAL COM GLOW & GLASSMORPHISM ("HORIZONTE DE CONQUISTAS") ── */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950/70 to-slate-900 rounded-[32px] border border-indigo-500/30 p-4 sm:p-6 md:p-8 shadow-[0_0_35px_rgba(99,102,241,0.18)] flex flex-col md:flex-row items-center gap-6 md:gap-10 relative overflow-hidden backdrop-blur-md">
+            
+            {/* Efeito Glow no Fundo */}
+            <div className="absolute -top-24 -left-24 w-60 h-60 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Gráfico Radial de Progresso Global */}
+            <div className="relative w-28 h-28 flex items-center justify-center bg-slate-900/90 rounded-2xl border border-indigo-500/30 shadow-[0_0_20px_rgba(99,102,241,0.2)] flex-shrink-0 z-10">
+              <svg className="w-22 h-22 transform -rotate-90">
+                <circle
+                  cx="44"
+                  cy="44"
+                  r={radius}
+                  className="stroke-slate-800 fill-none"
+                  strokeWidth="7"
+                />
+                <circle
+                  cx="44"
+                  cy="44"
+                  r={radius}
+                  className="stroke-indigo-400 fill-none transition-all duration-700"
+                  strokeWidth="7"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-lg font-black text-white leading-none drop-shadow-sm">{globalPct}%</span>
+                <span className="text-[8px] font-extrabold text-indigo-300 uppercase tracking-widest mt-1">Global</span>
+              </div>
+            </div>
+
+            {/* Informações Centrais & 3 KPIs Consolidados */}
+            <div className="flex-1 flex flex-col justify-between items-center sm:items-start w-full gap-4 z-10">
+              
+              <div className="text-center sm:text-left w-full">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                  <span className="rounded-full bg-indigo-950/60 border border-indigo-800/50 px-3 py-1 text-[10px] font-black tracking-wider text-indigo-300 uppercase shadow-xs">
+                    Visão Consolidada
+                  </span>
+                  <span className="text-[10px] font-black text-purple-300 bg-purple-950/60 border border-purple-800/50 px-3 py-1 rounded-full uppercase">
+                    {activeMetasCount} Meta{activeMetasCount !== 1 ? "s" : ""} Ativa{activeMetasCount !== 1 ? "s" : ""}
+                  </span>
+                  {completedMetas.length > 0 && (
+                    <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/60 border border-emerald-800/50 px-3 py-1 rounded-full uppercase flex items-center gap-1 shadow-xs">
+                      <Trophy className="w-3 h-3 text-emerald-400" />
+                      {completedMetas.length} Conquista{completedMetas.length > 1 ? "s" : ""} Batida{completedMetas.length > 1 ? "s" : ""} 🎉
+                    </span>
+                  )}
+                </div>
+                
+                <h2 className="text-2xl font-black text-white tracking-tight mt-2.5">Horizonte de Conquistas</h2>
+
+                {/* 3 KPIs: Total Acumulado, Objetivo Final e Falta Aportar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 w-full bg-slate-950/70 p-4 rounded-2xl border border-white/10">
+                  
+                  {/* KPI 1 — Total Acumulado */}
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Total Acumulado</span>
+                    <span className="text-base font-black text-emerald-400 mt-1 block">{brl(totalAcumulado)}</span>
+                  </div>
+
+                  {/* KPI 2 — Objetivo Final */}
+                  <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Objetivo Final</span>
+                    <span className="text-base font-black text-slate-100 mt-1 block">{brl(objetivoFinal)}</span>
+                  </div>
+
+                  {/* KPI 3 — Falta Aportar */}
+                  <div className="flex flex-col sm:border-l sm:border-slate-800 sm:pl-4">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Falta Aportar</span>
+                    <span className="text-base font-black text-amber-400 mt-1 block">{brl(faltaAportar)}</span>
+                  </div>
+
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <section className="flex flex-col gap-4">
         
         {/* Lista de Metas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -975,7 +997,8 @@ export default function MetasPage() {
         </div>
 
       </section>
-      )}
+    </>
+  )}
 
       {/* ── MODAIS INTERATIVOS ───────────────────────────────────────────────── */}
       {modalType && (

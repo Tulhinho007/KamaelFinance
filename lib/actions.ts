@@ -993,7 +993,10 @@ export async function getGoals(customUserId?: string, preloadedGoals?: any[]) {
     if (!goals) {
       const userId = customUserId || await getActiveUserId();
       goals = await prisma.goal.findMany({
-        where: { userId },
+        where: {
+          userId,
+          tipo: { not: "RECEIVABLE" },
+        },
         include: {
           history: {
             orderBy: { date: "asc" },
@@ -13043,6 +13046,285 @@ export async function duplicateCommitmentToNextMonthAction(commitmentId: string)
     targetYear: nextCompYear,
     formattedTarget: `${targetMonthName}/${nextCompYear}`,
   };
+}
+
+// ─── VALORES A RECEBER / COBRANÇAS PARCELADAS ──────────────────────────
+
+export async function getReceivablesAction() {
+  const userId = await getActiveUserId();
+
+  const goals = await prisma.goal.findMany({
+    where: {
+      userId,
+      tipo: "RECEIVABLE",
+    },
+    include: {
+      history: {
+        include: {
+          wallet: true,
+        },
+        orderBy: { date: "desc" },
+      },
+    } as any,
+    orderBy: { dataInicio: "desc" }
+  });
+
+  return (goals as any[]).map((g: any) => {
+    const total = Number(g.objetivo);
+    const recebido = Number(g.acumulado);
+    const restante = Math.max(0, total - recebido);
+    const pct = total > 0 ? Math.min(100, Math.round((recebido / total) * 100)) : 0;
+
+    return {
+      id: g.id,
+      title: g.title,
+      startDate: g.dataInicio ? new Date(g.dataInicio).toISOString().split("T")[0] : "",
+      dueDate: g.dataFim ? new Date(g.dataFim).toISOString().split("T")[0] : null,
+      totalAmount: total,
+      receivedAmount: recebido,
+      remainingAmount: restante,
+      pct,
+      status: g.status, // "ACTIVE" | "COMPLETED"
+      completedAt: g.completedAt ? new Date(g.completedAt).toISOString().split("T")[0] : null,
+      history: ((g.history as any[]) || []).map((h: any) => ({
+        id: h.id,
+        date: h.date ? new Date(h.date).toISOString().split("T")[0] : "",
+        amount: Number(h.amount),
+        walletId: h.walletId,
+        walletTitle: h.wallet?.title || "Conta Bancária",
+        transactionId: h.transactionId,
+      })),
+    };
+  });
+}
+
+export async function createReceivableAction(data: {
+  description: string;
+  debtor?: string;
+  totalAmount: number;
+  startDate?: string;
+  dueDate?: string;
+}) {
+  const userId = await getActiveUserId();
+
+  const title = data.debtor && data.debtor.trim()
+    ? `${data.description.trim()} • ${data.debtor.trim()}`
+    : data.description.trim();
+
+  let start = new Date();
+  if (data.startDate) {
+    const [y, m, d] = data.startDate.split("-").map(Number);
+    start = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  }
+
+  let due = new Date(start);
+  due.setFullYear(due.getFullYear() + 1);
+  if (data.dueDate) {
+    const [y, m, d] = data.dueDate.split("-").map(Number);
+    due = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  }
+
+  const created = await prisma.goal.create({
+    data: {
+      userId,
+      title,
+      objetivo: data.totalAmount,
+      acumulado: 0,
+      dataInicio: start,
+      dataFim: due,
+      tipo: "RECEIVABLE",
+      status: "ACTIVE",
+      iconName: "HandCoins",
+    }
+  });
+
+  safeRevalidatePath("/metas");
+  safeRevalidatePath("/dashboard");
+  return created;
+}
+
+export async function receiveReceivableInstallmentAction(data: {
+  receivableId: string;
+  amount: number;
+  date?: string;
+  walletId: string;
+  notes?: string;
+}) {
+  const userId = await getActiveUserId();
+
+  const receivable = await prisma.goal.findUnique({
+    where: { id: data.receivableId }
+  });
+
+  if (!receivable || receivable.userId !== userId) {
+    throw new Error("Registro de valor a receber não encontrado.");
+  }
+
+  const wallet = await prisma.wallet.findUnique({
+    where: { id: data.walletId }
+  });
+
+  if (!wallet || wallet.userId !== userId) {
+    throw new Error("Conta bancária de destino não encontrada.");
+  }
+
+  let paymentDate = new Date();
+  if (data.date) {
+    const [y, m, d] = data.date.split("-").map(Number);
+    paymentDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  }
+
+  const historyId = crypto.randomUUID();
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Localiza ou cria a categoria "Valores a Receber"
+    let category = await tx.category.findFirst({
+      where: { name: { equals: "Valores a Receber", mode: "insensitive" } }
+    });
+    if (!category) {
+      category = await tx.category.create({
+        data: { name: "Valores a Receber", color: "#10B981" }
+      });
+    }
+
+    // 2. Cria a transação de entrada real (INCOME) na conta bancária selecionada
+    const newTx = await tx.transaction.create({
+      data: {
+        walletId: data.walletId,
+        categoryId: category.id,
+        type: "INCOME",
+        amount: data.amount,
+        date: paymentDate,
+        competenceDate: paymentDate,
+        description: `Recebimento: ${receivable.title}${data.notes ? ` (${data.notes})` : ""}`,
+        status: "COMPLETED",
+        tags: "#a-receber #cobranca",
+        source: "RECEIVABLE",
+        goalId: receivable.id,
+        goalContributionId: historyId,
+      } as any
+    });
+
+    // 3. Injeta automaticamente o valor no saldo real da conta bancária
+    await tx.wallet.update({
+      where: { id: data.walletId },
+      data: {
+        currentBalance: { increment: data.amount }
+      }
+    });
+
+    // 4. Cria o registro no histórico de parcelas
+    await tx.goalHistory.create({
+      data: {
+        id: historyId,
+        goalId: receivable.id,
+        date: paymentDate,
+        amount: data.amount,
+        walletId: data.walletId,
+        transactionId: newTx.id,
+      }
+    });
+
+    // 5. Atualiza o saldo restante a receber da dívida
+    const newAcumulado = Number(receivable.acumulado) + data.amount;
+    const isNowCompleted = newAcumulado >= Number(receivable.objetivo);
+
+    await tx.goal.update({
+      where: { id: receivable.id },
+      data: {
+        acumulado: newAcumulado,
+        status: isNowCompleted ? "COMPLETED" : "ACTIVE",
+        completedAt: isNowCompleted ? new Date() : null,
+      }
+    });
+  });
+
+  safeRevalidatePath("/metas");
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/");
+
+  return { success: true };
+}
+
+export async function deleteReceivableInstallmentAction(historyId: string) {
+  const userId = await getActiveUserId();
+
+  const history = await prisma.goalHistory.findUnique({
+    where: { id: historyId },
+    include: { goal: true }
+  });
+
+  if (!history || history.goal.userId !== userId) {
+    throw new Error("Parcela não encontrada.");
+  }
+
+  const amount = Number(history.amount);
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Reverte o saldo na conta bancária e remove a transação vinculada
+    if (history.transactionId && history.walletId) {
+      await tx.wallet.update({
+        where: { id: history.walletId },
+        data: {
+          currentBalance: { decrement: amount }
+        }
+      }).catch(() => {});
+
+      await tx.transaction.delete({
+        where: { id: history.transactionId }
+      }).catch(() => {});
+    }
+
+    // 2. Remove o registro do histórico
+    await tx.goalHistory.delete({
+      where: { id: historyId }
+    });
+
+    // 3. Atualiza o acumulado e status da cobrança
+    const newAcumulado = Math.max(0, Number(history.goal.acumulado) - amount);
+    const isCompleted = newAcumulado >= Number(history.goal.objetivo) && Number(history.goal.objetivo) > 0;
+
+    await tx.goal.update({
+      where: { id: history.goalId },
+      data: {
+        acumulado: newAcumulado,
+        status: isCompleted ? "COMPLETED" : "ACTIVE",
+        completedAt: isCompleted ? history.goal.completedAt : null,
+      }
+    });
+  });
+
+  safeRevalidatePath("/metas");
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/");
+
+  return { success: true };
+}
+
+export async function deleteReceivableAction(id: string) {
+  const userId = await getActiveUserId();
+
+  const receivable = await prisma.goal.findUnique({
+    where: { id },
+    include: { history: true }
+  });
+
+  if (!receivable || receivable.userId !== userId) {
+    throw new Error("Registro não encontrado.");
+  }
+
+  await prisma.goal.delete({
+    where: { id }
+  });
+
+  safeRevalidatePath("/metas");
+  safeRevalidatePath("/contas");
+  safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/");
+
+  return { success: true };
 }
 
 
