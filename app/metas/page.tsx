@@ -630,7 +630,7 @@ export default function MetasPage() {
       {activeTab === "reserva" ? (
         <EmergencyFundCalculator onApplyAsGoal={handleApplyEmergencyFundAsGoal} />
       ) : activeTab === "receber" ? (
-        <ReceivablesManager />
+        <ReceivablesManager initialWallets={wallets} onBalanceUpdate={loadAllData} />
       ) : (
         <>
           {/* ── BUSCA LOCAL E BOTÃO NOVA META ─────────────────────────────────── */}

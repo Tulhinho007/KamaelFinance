@@ -13259,6 +13259,8 @@ export async function receiveReceivableInstallmentAction(data: {
   safeRevalidatePath("/metas");
   safeRevalidatePath("/contas");
   safeRevalidatePath("/dashboard");
+  safeRevalidatePath("/receitas");
+  safeRevalidatePath("/extrato");
   safeRevalidatePath("/");
 
   return { success: true };

@@ -59,10 +59,20 @@ export type ReceivableItem = {
   }[];
 };
 
-export function ReceivablesManager() {
+interface ReceivablesManagerProps {
+  initialWallets?: any[];
+  onBalanceUpdate?: () => void;
+}
+
+export function ReceivablesManager({ initialWallets, onBalanceUpdate }: ReceivablesManagerProps = {}) {
   const { showAlert, showConfirm } = useModal();
   const [receivables, setReceivables] = useState<ReceivableItem[]>([]);
-  const [wallets, setWallets] = useState<any[]>([]);
+  const [wallets, setWallets] = useState<any[]>(() => {
+    if (initialWallets && initialWallets.length > 0) {
+      return initialWallets.filter((w: any) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<"ativos" | "quitados" | "todos">("ativos");
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,6 +97,14 @@ export function ReceivablesManager() {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
+  // Sincroniza carteiras se passadas ou atualizadas externamente via props
+  useEffect(() => {
+    if (initialWallets && initialWallets.length > 0) {
+      const nonCredit = initialWallets.filter((w: any) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
+      setWallets(nonCredit);
+    }
+  }, [initialWallets]);
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -95,11 +113,8 @@ export function ReceivablesManager() {
         getWalletsAction()
       ]);
       setReceivables(recs);
-      const nonCredit = (wls || []).filter((w: any) => w.walletType !== "CREDIT_CARD");
+      const nonCredit = (wls || []).filter((w: any) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
       setWallets(nonCredit);
-      if (nonCredit.length > 0 && !paymentWalletId) {
-        setPaymentWalletId(nonCredit[0].id);
-      }
     } catch (err) {
       console.error("Erro ao carregar valores a receber:", err);
     } finally {
@@ -151,14 +166,21 @@ export function ReceivablesManager() {
   };
 
   // Abrir Modal de Pagamento
-  const openPaymentModal = (item: ReceivableItem) => {
+  const openPaymentModal = async (item: ReceivableItem) => {
     setSelectedReceivable(item);
     setPaymentAmount(item.remainingAmount > 0 ? item.remainingAmount : "");
     setPaymentDate(new Date().toISOString().split("T")[0]);
-    if (wallets.length > 0) {
-      setPaymentWalletId(wallets[0].id);
-    }
     setPaymentNotes("");
+    setPaymentWalletId("");
+
+    // Carrega contas bancárias frescas do banco em tempo real
+    try {
+      const freshWallets = await getWalletsAction();
+      const nonCredit = (freshWallets || []).filter((w: any) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
+      setWallets(nonCredit);
+    } catch (e) {
+      console.error("Erro ao carregar contas bancárias:", e);
+    }
   };
 
   // Confirmar Recebimento de Parcela
@@ -187,11 +209,19 @@ export function ReceivablesManager() {
       });
 
       const selectedWallet = wallets.find(w => w.id === paymentWalletId);
+      const accName = selectedWallet?.bankName || selectedWallet?.title || "Conta";
+      
       setSelectedReceivable(null);
-      showAlert(`Parcela de ${brl(val)} registrada com sucesso e creditada em "${selectedWallet?.title || "Conta"}".`, {
+      setPaymentWalletId("");
+      
+      showAlert(`Parcela de ${brl(val)} registrada com sucesso e creditada em "${accName}".`, {
         variant: "success"
       });
+
       await loadData();
+      if (onBalanceUpdate) {
+        onBalanceUpdate();
+      }
     } catch (err) {
       console.error(err);
       showAlert("Erro ao registrar parcela recebida.", { variant: "error" });
@@ -826,11 +856,15 @@ export function ReceivablesManager() {
                   className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="">Selecione a conta bancária...</option>
-                  {wallets.map(w => (
-                    <option key={w.id} value={w.id}>
-                      {w.title} ({brl(Number(w.currentBalance || 0))})
-                    </option>
-                  ))}
+                  {wallets.map((account: any) => {
+                    const accountName = account.bankName || account.title || "Conta";
+                    const accountBalance = Number(account.currentTotal ?? account.currentBalance ?? 0);
+                    return (
+                      <option key={account.id} value={account.id}>
+                        {accountName} (R$ {accountBalance.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                      </option>
+                    );
+                  })}
                 </select>
                 <p className="text-[10px] text-slate-400 mt-1">
                   Este valor será injetado automaticamente como entrada (+ Receita) no extrato desta conta.
