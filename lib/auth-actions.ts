@@ -24,6 +24,12 @@ export interface SessionUser {
   email: string;
   role: string;
   tokenVersion?: number;
+  impersonatedBy?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
 }
 
 const COOKIE_NAME = "kamael_session";
@@ -49,10 +55,22 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
     if (!parsed?.id) return null;
 
     try {
-      const isValidToken = await verifyTokenVersion(parsed.id, parsed.tokenVersion || 1);
-      if (!isValidToken) {
-        try { cookieStore.delete(COOKIE_NAME); } catch {}
-        return null;
+      if (parsed.impersonatedBy?.id) {
+        // Valida se a sessão do administrador MASTER que iniciou o gerenciamento continua ativa
+        const master = await prisma.user.findUnique({
+          where: { id: parsed.impersonatedBy.id },
+          select: { id: true, role: true, status: true },
+        });
+        if (!master || master.role !== "MASTER" || master.status === "INATIVO") {
+          try { cookieStore.delete(COOKIE_NAME); } catch {}
+          return null;
+        }
+      } else {
+        const isValidToken = await verifyTokenVersion(parsed.id, parsed.tokenVersion || 1);
+        if (!isValidToken) {
+          try { cookieStore.delete(COOKIE_NAME); } catch {}
+          return null;
+        }
       }
 
       const user = await prisma.user.findUnique({
@@ -72,6 +90,7 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
           email: user.email || parsed.email || "",
           role: user.role || parsed.role || "MEMBRO",
           tokenVersion: user.tokenVersion || parsed.tokenVersion || 1,
+          impersonatedBy: parsed.impersonatedBy,
         };
       }
     } catch (dbErr) {
@@ -85,6 +104,7 @@ export async function getCurrentUserAction(): Promise<SessionUser | null> {
       email: parsed.email || "",
       role: parsed.role || "MEMBRO",
       tokenVersion: parsed.tokenVersion || 1,
+      impersonatedBy: parsed.impersonatedBy,
     };
   } catch (error: any) {
     if (error?.digest === "DYNAMIC_SERVER_USAGE" || error?.message?.includes("DYNAMIC_SERVER_USAGE") || error?.description?.includes("DYNAMIC_SERVER_USAGE")) {
@@ -507,6 +527,144 @@ export async function recoverMasterPasswordAction(data: {
   } catch (error: any) {
     console.error("Erro ao recuperar senha master:", error);
     return { success: false, error: error.message || "Erro ao recuperar senha master." };
+  }
+}
+
+export interface ImpersonationResult {
+  success: boolean;
+  error?: string;
+  targetUser?: { id: string; name: string | null; email: string | null };
+  masterUser?: SessionUser;
+}
+
+/**
+ * Permite ao usuário com perfil MASTER gerenciar a conta de qualquer outro usuário
+ * sem precisar da senha dele, assumindo a visão completa e podendo navegar/alterar dados.
+ */
+export async function startImpersonationAction(targetUserId: string): Promise<ImpersonationResult> {
+  try {
+    const currentUser = await getCurrentUserAction();
+    if (!currentUser) {
+      return { success: false, error: "Usuário não autenticado." };
+    }
+
+    const isMaster = currentUser.role === "MASTER" || currentUser.impersonatedBy?.role === "MASTER";
+    if (!isMaster) {
+      return { success: false, error: "Acesso negado: Apenas administradores MASTER podem gerenciar outras contas." };
+    }
+
+    const masterId = currentUser.impersonatedBy ? currentUser.impersonatedBy.id : currentUser.id;
+    const masterUser = await prisma.user.findUnique({
+      where: { id: masterId },
+      select: { id: true, name: true, email: true, role: true, status: true },
+    });
+
+    if (!masterUser || masterUser.role !== "MASTER" || masterUser.status === "INATIVO") {
+      return { success: false, error: "Usuário MASTER não autorizado." };
+    }
+
+    if (targetUserId === masterUser.id) {
+      return stopImpersonationAction();
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, name: true, email: true, role: true, status: true, tokenVersion: true },
+    });
+
+    if (!targetUser) {
+      return { success: false, error: "Usuário não encontrado." };
+    }
+
+    if (targetUser.status === "INATIVO") {
+      return { success: false, error: "Esta conta está inativa e não pode ser acessada." };
+    }
+
+    const sessionData: SessionUser = {
+      id: targetUser.id,
+      name: targetUser.name || "Usuário",
+      email: targetUser.email || "",
+      role: targetUser.role || "MEMBRO",
+      tokenVersion: targetUser.tokenVersion || 1,
+      impersonatedBy: {
+        id: masterUser.id,
+        name: masterUser.name || "Master",
+        email: masterUser.email || "",
+        role: "MASTER",
+      },
+    };
+
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, JSON.stringify(sessionData), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30, // 30 dias
+      path: "/",
+    });
+
+    await recordAuditLog({
+      userId: masterUser.id,
+      action: "IMPERSONATION_STARTED",
+      details: `Administrador MASTER ${masterUser.name} (${masterUser.email}) iniciou gerenciamento da conta de ${targetUser.name} (${targetUser.email}).`,
+    });
+
+    return { success: true, targetUser: { id: targetUser.id, name: targetUser.name, email: targetUser.email } };
+  } catch (error: any) {
+    console.error("Erro em startImpersonationAction:", error);
+    return { success: false, error: error.message || "Erro ao iniciar gerenciamento da conta." };
+  }
+}
+
+/**
+ * Encerra o gerenciamento da conta de outro usuário e restaura a sessão original do MASTER.
+ */
+export async function stopImpersonationAction(): Promise<ImpersonationResult> {
+  try {
+    const currentUser = await getCurrentUserAction();
+    if (!currentUser || !currentUser.impersonatedBy) {
+      return { success: false, error: "Nenhum gerenciamento ativo no momento." };
+    }
+
+    const masterId = currentUser.impersonatedBy.id;
+    const masterUser = await prisma.user.findUnique({
+      where: { id: masterId },
+      select: { id: true, name: true, email: true, role: true, status: true, tokenVersion: true },
+    });
+
+    if (!masterUser || masterUser.role !== "MASTER" || masterUser.status === "INATIVO") {
+      const cookieStore = await cookies();
+      cookieStore.delete(COOKIE_NAME);
+      return { success: false, error: "Sessão MASTER expirada. Faça login novamente." };
+    }
+
+    const sessionData: SessionUser = {
+      id: masterUser.id,
+      name: masterUser.name || "Master",
+      email: masterUser.email || "",
+      role: masterUser.role || "MASTER",
+      tokenVersion: masterUser.tokenVersion || 1,
+    };
+
+    const cookieStore = await cookies();
+    cookieStore.set(COOKIE_NAME, JSON.stringify(sessionData), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 30,
+      path: "/",
+    });
+
+    await recordAuditLog({
+      userId: masterUser.id,
+      action: "IMPERSONATION_ENDED",
+      details: `Administrador MASTER ${masterUser.name} encerrou o gerenciamento da conta de ${currentUser.name}.`,
+    });
+
+    return { success: true, masterUser: sessionData };
+  } catch (error: any) {
+    console.error("Erro em stopImpersonationAction:", error);
+    return { success: false, error: error.message || "Erro ao encerrar gerenciamento." };
   }
 }
 

@@ -7801,12 +7801,27 @@ export async function exportTransactionsCSVAction() {
 
 export async function getUserProfile() {
   let user = null;
+  let impersonatedBy = null;
 
   try {
+    const cookieStore = await cookies();
+    const sessionVal = cookieStore.get("kamael_session")?.value;
+    if (sessionVal) {
+      try {
+        const parsed = JSON.parse(sessionVal);
+        if (parsed?.impersonatedBy) {
+          impersonatedBy = parsed.impersonatedBy;
+        }
+      } catch {}
+    }
+
     const userId = await getActiveUserId();
-    user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    if (userId) {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, role: true },
+      });
+    }
   } catch {
     // Nenhum usuário no banco ainda
   }
@@ -7815,6 +7830,8 @@ export async function getUserProfile() {
     id: user?.id,
     name: user?.name || "Usuário",
     email: user?.email || "",
+    role: user?.role || "MEMBRO",
+    impersonatedBy,
   };
 }
 

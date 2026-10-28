@@ -16,8 +16,10 @@ import {
   Archive,
   User,
   ShieldAlert,
-  Send
+  Send,
+  LogIn
 } from "lucide-react";
+import { startImpersonationAction } from "@/lib/auth-actions";
 import {
   getUsers,
   createUserAction,
@@ -78,6 +80,12 @@ export default function UsuariosPage() {
   // Sessão do Usuário Conectado
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [isMaster, setIsMaster] = useState(false);
+
+  // Impersonation State
+  const [impersonatingTarget, setImpersonatingTarget] = useState<UserItem | null>(null);
+  const [impersonatingLoading, setImpersonatingLoading] = useState(false);
+  const [impersonateError, setImpersonateError] = useState("");
 
   const [isPending, startTransition] = useTransition();
 
@@ -131,11 +139,31 @@ export default function UsuariosPage() {
   };
 
   useEffect(() => {
-    getUserProfile().then((u) => {
+    getUserProfile().then((u: any) => {
       if (u?.id) setCurrentUserId(u.id);
       if (u?.email) setCurrentUserEmail(u.email);
+      const master = u?.role === "MASTER" || u?.impersonatedBy?.role === "MASTER";
+      setIsMaster(Boolean(master));
     });
   }, []);
+
+  const handleExecuteImpersonate = async () => {
+    if (!impersonatingTarget) return;
+    setImpersonatingLoading(true);
+    setImpersonateError("");
+    try {
+      const res = await startImpersonationAction(impersonatingTarget.id);
+      if (res.success) {
+        window.location.href = "/";
+      } else {
+        setImpersonateError(res.error || "Erro ao acessar conta de usuário.");
+        setImpersonatingLoading(false);
+      }
+    } catch (err: any) {
+      setImpersonateError(err.message || "Erro inesperado.");
+      setImpersonatingLoading(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -430,6 +458,21 @@ export default function UsuariosPage() {
                       {/* AÇÕES COM PROTEÇÃO MASTER */}
                       <td className="py-4 px-6">
                         <div className="flex items-center justify-center gap-2">
+                          {/* Botão de Gerenciar (Exclusivo MASTER, exceto na própria conta) */}
+                          {isMaster && user.id !== currentUserId && (
+                            <button
+                              onClick={() => {
+                                setImpersonatingTarget(user);
+                                setImpersonateError("");
+                              }}
+                              title={`Gerenciar conta de ${user.name}`}
+                              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] transition-all cursor-pointer shadow-2xs border border-indigo-200/60 dark:border-indigo-800/60 group"
+                            >
+                              <LogIn className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 group-hover:text-white transition-colors" />
+                              <span>Gerenciar</span>
+                            </button>
+                          )}
+
                           {/* Botão de Editar */}
                           <button
                             onClick={() => handleOpenEdit(user)}
@@ -551,6 +594,20 @@ export default function UsuariosPage() {
                   </span>
 
                   <div className="flex items-center gap-2">
+                    {isMaster && user.id !== currentUserId && (
+                      <button
+                        onClick={() => {
+                          setImpersonatingTarget(user);
+                          setImpersonateError("");
+                        }}
+                        title={`Gerenciar conta de ${user.name}`}
+                        className="min-h-[38px] px-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 text-indigo-700 dark:text-indigo-300 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border border-indigo-200/60 dark:border-indigo-800/60"
+                      >
+                        <LogIn className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span>Gerenciar</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => handleOpenEdit(user)}
                       className="min-h-[38px] px-3.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-900 hover:text-white dark:hover:bg-indigo-600 text-slate-700 dark:text-slate-300 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
@@ -767,6 +824,77 @@ export default function UsuariosPage() {
                 className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
                 {isPending ? "Excluindo..." : "Excluir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação para Gerenciar Conta (Exclusivo MASTER) */}
+      {impersonatingTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60">
+                <LogIn className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  Gerenciar Conta de Usuário
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Acesso administrativo MASTER direto
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Usuário:</span>
+                <span className="font-bold text-slate-900 dark:text-white">{impersonatingTarget.name}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">E-mail:</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">{impersonatingTarget.email}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Cargo:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider text-[11px]">
+                  {impersonatingTarget.role}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+              Você entrará na visão completa deste usuário. Poderá navegar pelo Dashboard, Extrato, Cartões, Contas e realizar lançamentos ou alterações em nome dele, sem precisar da senha.
+            </p>
+
+            {impersonateError && (
+              <div className="p-3 rounded-lg bg-rose-50 text-rose-600 text-xs font-semibold">
+                {impersonateError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setImpersonatingTarget(null);
+                  setImpersonateError("");
+                }}
+                disabled={impersonatingLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteImpersonate}
+                disabled={impersonatingLoading}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>{impersonatingLoading ? "Entrando..." : "Acessar Conta Agora"}</span>
               </button>
             </div>
           </div>
