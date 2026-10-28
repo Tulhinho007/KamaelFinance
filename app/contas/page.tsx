@@ -627,7 +627,7 @@ export default function GestaoCaixaContasPage() {
               saldoAtual: bal,
               color: bankStyle.iconBg,
               initials: bankStyle.initials,
-              holder: a.holder || existing?.holder || "Túlio Cavalcanti",
+              holder: a.holder || existing?.holder || a.user?.name || "Titular",
               walletType: a.walletType || "CONTA_CORRENTE",
               history: hist,
             };
@@ -767,12 +767,7 @@ export default function GestaoCaixaContasPage() {
       setBills(consolidated);
 
       // Sincroniza status de pagamento
-      const freshPaid: Record<string, boolean> = {
-        "invoice-hypercard-2026-08": true,
-        "invoice-hypercard-2026-08_8": true,
-        "invoice-hypercard-2026-09": true,
-        "invoice-hypercard-2026-09_9": true,
-      };
+      const freshPaid: Record<string, boolean> = {};
       consolidated.forEach((b) => {
         const m = b.competenceMonth || (b.month ? Number(b.month.split("-")[1]) : 10);
         if (b.status === "COMPLETED" || b.status === "PAID" || b.status === "PAGO") {
@@ -800,7 +795,7 @@ export default function GestaoCaixaContasPage() {
     } catch (err) {
       console.error("Erro ao carregar Gestão de Caixa & Contas:", err);
       setAccounts((prev) => prev);
-      setBills((prev) => prev.length > 0 ? prev : DEFAULT_INITIAL_BILLS);
+      setBills((prev) => prev.length > 0 ? prev : []);
     } finally {
       if (active) setLoading(false);
     }
@@ -2085,7 +2080,7 @@ export default function GestaoCaixaContasPage() {
                         )}
                       </div>
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                        <span>Titular: {acc.holder || "Túlio Cavalcanti"}</span>
+                        <span>Titular: {acc.holder || "Titular"}</span>
                         {acc.history && acc.history.length > 0 && (
                           <span className="ml-1.5 text-slate-400 dark:text-slate-500">
                             • {acc.history.length} {acc.history.length === 1 ? "ajuste" : "ajustes"}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateCreditCardTransactionAction } from "@/lib/actions";
+import { updateCreditCardTransactionAction, getActiveUserId } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +8,11 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const userId = await getActiveUserId();
+    if (!userId) {
+      return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    }
+
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json({ error: "ID não fornecido." }, { status: 400 });

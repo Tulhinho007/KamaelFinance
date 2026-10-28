@@ -32,6 +32,14 @@ model User {
   userBadges         UserBadge[]
   healthScoreHistory HealthScoreHistory[]
   creditPixOperations CreditPixOperation[]
+  investments        Investment[]
+  variableAssets     VariableAsset[]
+  cryptoAssets       CryptoAsset[]
+  bettingAccounts    BettingAccount[]
+  otherInvestments   OtherInvestment[]
+  subscriptions      Subscription[]
+  transactions       Transaction[]
+  invoicePayments    InvoicePayment[]
 }
 
 model Wallet {
@@ -109,12 +117,15 @@ model Transaction {
   installmentsCount  Int?            // Quantidade total de parcelas se for compra parcelada
   currentInstallment Int?            // Número da parcela atual (ex: 1, 2, 3)
   installmentGroupId String?         // ID do grupo de parcelas para vinculação
+  userId            String?
+  user              User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
   goalId             String?
   goal               Goal?           @relation(fields: [goalId], references: [id], onDelete: SetNull)
   goalContributionId String?
   pixCreditOperationId String?
   pixCreditOperation   CreditPixOperation? @relation(fields: [pixCreditOperationId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([walletId, deletedAt])
   @@index([deletedAt, competenceYear, competenceMonth])
   @@index([deletedAt, date])
@@ -158,6 +169,8 @@ model GoalHistory {
 
 model Investment {
   id              String   @id @default(uuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   titulo          String
   categoria       String   @default("Renda Fixa")
   dataInicial     DateTime
@@ -168,10 +181,14 @@ model Investment {
   status          String   @default("ATIVO")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model VariableAsset {
   id                  String                @id @default(uuid())
+  userId              String?
+  user                User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   titulo              String
   categoria           String                @default("Ação")
   cotacaoAtual        Decimal
@@ -180,6 +197,8 @@ model VariableAsset {
   createdAt           DateTime              @default(now())
   updatedAt           DateTime              @updatedAt
   transacoes          VariableTransaction[]
+
+  @@index([userId])
 }
 
 model VariableTransaction {
@@ -197,6 +216,8 @@ model VariableTransaction {
 
 model CryptoAsset {
   id             String              @id @default(uuid())
+  userId         String?
+  user           User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
   token          String
   nome           String
   cotacaoAtual   Decimal
@@ -204,6 +225,8 @@ model CryptoAsset {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   transacoes     CryptoTransaction[]
+
+  @@index([userId])
 }
 
 model CryptoTransaction {
@@ -221,11 +244,15 @@ model CryptoTransaction {
 
 model BettingAccount {
   id              String               @id @default(uuid())
+  userId          String?
+  user            User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
   nomePlataforma  String
   saldoAtualBruto Decimal
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   movimentacoes   BettingTransaction[]
+
+  @@index([userId])
 }
 
 model BettingTransaction {
@@ -240,6 +267,8 @@ model BettingTransaction {
 
 model OtherInvestment {
   id             String    @id @default(uuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
   nome           String
   data           DateTime?
   totalInvestido Decimal   @default(0)
@@ -247,6 +276,8 @@ model OtherInvestment {
   totalSaque     Decimal   @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 model EventProject {
@@ -303,6 +334,8 @@ model AllowedEmail {
 
 model InvoicePayment {
   id                   String   @id @default(uuid())
+  userId               String?
+  user                 User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   walletId             String
   wallet               Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   month                Int
@@ -313,11 +346,13 @@ model InvoicePayment {
   paymentTransactionId String?
 
   @@unique([walletId, month, year])
+  @@index([userId])
 }
 
 model Subscription {
   id              String                @id @default(uuid())
   userId          String?
+  user            User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   name            String
   amount          Decimal
   dueDay          Int

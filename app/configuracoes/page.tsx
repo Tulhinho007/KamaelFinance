@@ -50,8 +50,8 @@ export default function ConfiguracoesPage() {
   const [activeTab, setActiveTab] = useState<"profile" | "preferences" | "categories" | "export">("profile");
 
   // ── ABA 1: Perfil & Conta State ──
-  const [userName, setUserName] = useState("Túlio Cavalcanti");
-  const [userEmail, setUserEmail] = useState("tulio.cavalcanti@kamael.com");
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 

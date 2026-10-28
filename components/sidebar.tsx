@@ -73,17 +73,13 @@ export function Sidebar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { isPrivate, togglePrivacy } = usePrivacyMode();
-  const [userName, setUserName] = useState("Túlio Cavalcanti");
+  const [userName, setUserName] = useState("Usuário");
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
-    const savedName = localStorage.getItem("kamael-user-name");
-    if (savedName) setUserName(savedName);
-
     getUserProfile().then((user) => {
       if (user?.name) {
         setUserName(user.name);
-        localStorage.setItem("kamael-user-name", user.name);
       }
     });
 

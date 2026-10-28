@@ -145,38 +145,46 @@ export async function getActiveUserId(): Promise<string> {
     // Ignora erro de leitura de cookie em contexto estático/build
   }
 
-  // 2. Resolução secundária: DEV_USER_ID do ambiente
-  const devId = process.env.DEV_USER_ID;
-  if (devId && devId !== "00000000-0000-0000-0000-000000000000") {
-    try {
-      const user = await prisma.user.findUnique({ where: { id: devId }, select: { id: true } });
-      if (user?.id) return user.id;
-    } catch {}
+  // 2. Resolução secundária: DEV_USER_ID apenas em desenvolvimento local explícito
+  if (process.env.NODE_ENV === "development") {
+    const devId = process.env.DEV_USER_ID;
+    if (devId && devId !== "00000000-0000-0000-0000-000000000000") {
+      try {
+        const user = await prisma.user.findUnique({ where: { id: devId }, select: { id: true } });
+        if (user?.id) return user.id;
+      } catch {}
+    }
   }
 
-  // 3. Fallback de resiliência: primeiro usuário cadastrado no banco (protegido contra quedas do pooler)
-  try {
-    const user =
-      (await prisma.user.findFirst({ where: { email: "kamaelcontatos@gmail.com" }, select: { id: true } })) ||
-      (await prisma.user.findFirst({ where: { role: "MASTER" }, select: { id: true }, orderBy: { createdAt: "asc" } })) ||
-      (await prisma.user.findFirst({ select: { id: true }, orderBy: { createdAt: "asc" } }));
-
-    if (user?.id) return user.id;
-  } catch (err) {
-    console.warn("Aviso: Falha ao obter usuário fallback no banco de dados:", err);
-  }
-
-  // Retorna string vazia para queries seguras (evita throw unhandled 500 no Server Component)
+  // NUNCA fazer fallback para outro usuário no banco (proteção estrita de isolamento multi-tenant)
   return "";
+}
+
+export async function requireActiveUserId(): Promise<string> {
+  const userId = await getActiveUserId();
+  if (!userId) {
+    throw new Error("Não autorizado: Sessão de usuário inválida ou ausente.");
+  }
+  return userId;
 }
 
 // ---------- Actions ----------
 
 export async function createTransaction(input: z.infer<typeof createTransactionSchema>) {
+  const userId = await requireActiveUserId();
   const data = createTransactionSchema.parse(input);
+
+  // Valida que a carteira pertence ao usuário autenticado
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: data.walletId, userId },
+  });
+  if (!wallet) {
+    throw new Error("Carteira não encontrada ou não pertence ao usuário autenticado.");
+  }
 
   const transaction = await prisma.transaction.create({
     data: {
+      userId,
       walletId: data.walletId,
       categoryId: data.categoryId,
       description: data.description,
@@ -196,9 +204,28 @@ export async function updateTransaction(
   id: string,
   input: Partial<z.infer<typeof createTransactionSchema>>
 ) {
+  const userId = await requireActiveUserId();
+
+  // Garante que o registro pertence ao usuário autenticado
+  const existing = await prisma.transaction.findFirst({
+    where: { id, wallet: { userId } },
+  });
+  if (!existing) {
+    throw new Error("Lançamento não encontrado ou não pertence ao usuário autenticado.");
+  }
+
+  if (input.walletId && input.walletId !== existing.walletId) {
+    const targetWallet = await prisma.wallet.findFirst({
+      where: { id: input.walletId, userId },
+    });
+    if (!targetWallet) {
+      throw new Error("Carteira de destino não pertence ao usuário autenticado.");
+    }
+  }
+
   const transaction = await prisma.transaction.update({
     where: { id },
-    data: input,
+    data: { ...input, userId },
   });
 
   revalidatePath("/dashboard");
@@ -215,11 +242,12 @@ export async function deleteExpense(id: string) {
 }
 
 export async function createWallet(input: z.infer<typeof createWalletSchema>) {
+  const activeUserId = await requireActiveUserId();
   const data = createWalletSchema.parse(input);
 
   const wallet = await prisma.wallet.create({
     data: {
-      userId: data.userId,
+      userId: activeUserId,
       title: data.title,
       walletType: data.walletType,
       initialBalance: data.initialBalance,
@@ -238,6 +266,7 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 
     await prisma.transaction.create({
       data: {
+        userId: activeUserId,
         walletId: wallet.id,
         description: "Saldo Inicial de Abertura",
         amount: data.initialBalance,
@@ -512,8 +541,10 @@ export async function toggleTransactionStatusAction(id: string) {
 export async function markBatchRevenuesAsReceivedAction(ids: string[]) {
   if (!ids || ids.length === 0) return { count: 0 };
 
+  const userId = await requireActiveUserId();
+
   const txs = await prisma.transaction.findMany({
-    where: { id: { in: ids }, type: "INCOME" }
+    where: { id: { in: ids }, type: "INCOME", wallet: { userId } }
   });
 
   const now = new Date();
@@ -531,7 +562,7 @@ export async function markBatchRevenuesAsReceivedAction(ids: string[]) {
         });
 
         if (t.walletId && Number(t.amount) > 0) {
-          const wallet = await tx.wallet.findUnique({ where: { id: t.walletId } });
+          const wallet = await tx.wallet.findFirst({ where: { id: t.walletId, userId } });
           if (wallet) {
             const baseBalance = wallet.currentBalance && Number(wallet.currentBalance) > 0
               ? Number(wallet.currentBalance)
@@ -565,10 +596,11 @@ export async function duplicateRevenueToNextMonthAction(
   baseMonth?: number,
   baseYear?: number
 ) {
-  const original = await prisma.transaction.findUnique({
-    where: { id: revenueId }
+  const userId = await requireActiveUserId();
+  const original = await prisma.transaction.findFirst({
+    where: { id: revenueId, wallet: { userId } }
   });
-  if (!original) throw new Error("Receita não encontrada.");
+  if (!original) throw new Error("Receita não encontrada ou não autorizada.");
 
   // Data base da receita de origem
   const origDate = new Date(
@@ -611,6 +643,7 @@ export async function duplicateRevenueToNextMonthAction(
   // Idempotência
   const existing = await prisma.transaction.findFirst({
     where: {
+      userId,
       walletId: original.walletId,
       description: original.description,
       deletedAt: null,
@@ -624,6 +657,7 @@ export async function duplicateRevenueToNextMonthAction(
 
   const newTx = await prisma.transaction.create({
     data: {
+      userId,
       walletId: original.walletId,
       categoryId: original.categoryId,
       description: original.description,
@@ -726,6 +760,7 @@ export async function createRevenueAction(
   const effectiveStatus = status || "COMPLETED";
   const transaction: any = await prisma.transaction.create({
     data: {
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       categoryId: dbCategory.id,
       description,
@@ -1963,6 +1998,7 @@ export async function getCardData() {
   const purchases = await prisma.transaction.findMany({
     where: {
       walletId: wallet.id,
+      wallet: { userId },
       type: "EXPENSE",
       deletedAt: null
     },
@@ -2000,8 +2036,9 @@ export async function getCardData() {
 // ---------- Sincronização Definitiva de Saldo Bancário (Fonte Única de Verdade) ----------
 
 export async function syncBankAccountBalance(walletId: string): Promise<number> {
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: walletId },
+  const userId = await getActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, ...(userId ? { userId } : {}) },
     select: { id: true, initialBalance: true, walletType: true, currentBalance: true },
   });
   if (!wallet || wallet.walletType === "CREDIT_CARD") return 0;
@@ -2009,6 +2046,7 @@ export async function syncBankAccountBalance(walletId: string): Promise<number> 
   const transactions = await prisma.transaction.findMany({
     where: {
       walletId,
+      ...(userId ? { wallet: { userId } } : {}),
       deletedAt: null,
       status: "COMPLETED",
       source: { not: "RECURRING_PROJECTION" },
@@ -2285,6 +2323,12 @@ export async function addCapitalInjectionAction(input: {
   year: number;
   customDescription?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.walletId, userId }
+  });
+  if (!wallet) throw new Error("Carteira não encontrada ou não autorizada.");
+
   const originLabels: Record<string, string> = {
     SALARIO: "[Salário]",
     RECARGA: "[Recarga de Saldo]",
@@ -2303,6 +2347,7 @@ export async function addCapitalInjectionAction(input: {
 
   const transaction = await prisma.transaction.create({
     data: {
+      userId,
       walletId: input.walletId,
       description: desc,
       type: "INCOME",
@@ -2344,16 +2389,13 @@ export async function ensureRecurringExpensesForMonth(
 export async function getCardDataById(id: string, month?: number, year?: number) {
   try {
     const userId = await getActiveUserId();
+    if (!userId) {
+      return null;
+    }
 
-    let wallet = await prisma.wallet.findFirst({
+    const wallet = await prisma.wallet.findFirst({
       where: { id, userId }
     });
-
-    if (!wallet) {
-      wallet = await prisma.wallet.findUnique({
-        where: { id }
-      });
-    }
 
     if (!wallet) {
       return null;
@@ -2368,6 +2410,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     const allTransactions = await prisma.transaction.findMany({
       where: {
         walletId: wallet.id,
+        wallet: { userId },
         deletedAt: null,
         source: { not: "RECURRING_PROJECTION" }
       },
@@ -2392,6 +2435,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         }
         const newOpeningTx = await prisma.transaction.create({
           data: {
+            userId: wallet.userId || userId,
             walletId: wallet.id,
             description: "Saldo Inicial de Abertura",
             amount: wallet.initialBalance,
@@ -2966,20 +3010,22 @@ export async function updateCreditCardTransactionAction(
       return { success: false, error: "Cartão vinculado é obrigatório." };
     }
 
-    const tx = await prisma.transaction.findUnique({
-      where: { id },
+    const userId = await requireActiveUserId();
+
+    const tx = await prisma.transaction.findFirst({
+      where: { id, wallet: { userId } },
       include: { wallet: true },
     });
 
     if (!tx || tx.deletedAt) {
-      return { success: false, error: "Lançamento não encontrado." };
+      return { success: false, error: "Lançamento não encontrado ou não autorizado." };
     }
 
-    const targetWallet = await prisma.wallet.findUnique({
-      where: { id: walletId },
+    const targetWallet = await prisma.wallet.findFirst({
+      where: { id: walletId, userId },
     });
     if (!targetWallet) {
-      return { success: false, error: "Cartão de destino não encontrado." };
+      return { success: false, error: "Cartão de destino não encontrado ou não autorizado." };
     }
 
     let dbCategory = await prisma.category.findFirst({
@@ -3029,6 +3075,7 @@ export async function updateCreditCardTransactionAction(
         const groupTxs = await prisma.transaction.findMany({
           where: {
             walletId: tx.walletId,
+            wallet: { userId },
             installmentGroupId: tx.installmentGroupId,
             deletedAt: null,
           },
@@ -3054,6 +3101,7 @@ export async function updateCreditCardTransactionAction(
           const matchingTxs = await prisma.transaction.findMany({
             where: {
               walletId: tx.walletId,
+              wallet: { userId },
               deletedAt: null,
               installmentsCount: tx.installmentsCount,
               description: { startsWith: cleanDesc },
@@ -3208,8 +3256,10 @@ export async function deleteCardPurchase(
       return { success: false, error: "ID do lançamento inválido." };
     }
 
-    const tx = await prisma.transaction.findUnique({
-      where: { id },
+    const userId = await requireActiveUserId();
+
+    const tx = await prisma.transaction.findFirst({
+      where: { id, wallet: { userId } },
       select: {
         id: true,
         walletId: true,
@@ -3225,7 +3275,7 @@ export async function deleteCardPurchase(
     });
 
     if (!tx || tx.deletedAt) {
-      return { success: true, deletedCount: 0 };
+      return { success: false, error: "Lançamento não encontrado ou não autorizado." };
     }
 
     // Identifica transações a serem excluídas (única ou cascata de parcelas)
@@ -3238,6 +3288,7 @@ export async function deleteCardPurchase(
         const groupTxs = await prisma.transaction.findMany({
           where: {
             walletId: tx.walletId,
+            wallet: { userId },
             installmentGroupId: tx.installmentGroupId,
             deletedAt: null,
           },
@@ -3258,6 +3309,7 @@ export async function deleteCardPurchase(
           const matchingTxs = await prisma.transaction.findMany({
             where: {
               walletId: tx.walletId,
+              wallet: { userId },
               deletedAt: null,
               installmentsCount: tx.installmentsCount,
               description: { startsWith: cleanDesc },
@@ -3308,17 +3360,16 @@ export async function deleteCardPurchase(
       });
     } catch (e) {}
 
-    // 2. Soft Delete garantido (padrão de segurança financeira)
-    // Marca deletedAt para que suma imediatamente de todas as consultas e cálculos
+    // 2. Soft Delete garantido (padrão de segurança financeira com isolamento de tenant)
     await prisma.transaction.updateMany({
-      where: { id: { in: targetIds } },
+      where: { id: { in: targetIds }, wallet: { userId } },
       data: { deletedAt: new Date() },
     });
 
     // Tenta desvincular pixCreditOperationId se a coluna existir no banco
     try {
       await (prisma.transaction as any).updateMany({
-        where: { id: { in: targetIds } },
+        where: { id: { in: targetIds }, wallet: { userId } },
         data: { pixCreditOperationId: null },
       });
     } catch (e) {}
@@ -3326,7 +3377,7 @@ export async function deleteCardPurchase(
     // 3. Tenta exclusão física (Hard Delete) caso não haja restrição externa
     try {
       await prisma.transaction.deleteMany({
-        where: { id: { in: targetIds } },
+        where: { id: { in: targetIds }, wallet: { userId } },
       });
     } catch (hardDeleteErr) {
       console.log("Transação mantida via Soft Delete devido a dependências históricas:", hardDeleteErr);
@@ -3377,8 +3428,9 @@ export async function deleteCascadePurchaseAction(
 export async function deleteBatchPurchasesAction(ids: string[]): Promise<{ success: boolean; error?: string }> {
   if (!ids || ids.length === 0) return { success: true };
   try {
+    const userId = await requireActiveUserId();
     const txs = await prisma.transaction.findMany({
-      where: { id: { in: ids }, deletedAt: null },
+      where: { id: { in: ids }, deletedAt: null, wallet: { userId } },
       select: { id: true, walletId: true, type: true, amount: true, status: true },
     });
 
@@ -3422,15 +3474,15 @@ export async function deleteBatchPurchasesAction(ids: string[]): Promise<{ succe
       });
     } catch (e) {}
 
-    // 2. Soft delete garantido primeiro
+    // 2. Soft delete garantido primeiro com isolamento por usuário
     await prisma.transaction.updateMany({
-      where: { id: { in: validIds } },
+      where: { id: { in: validIds }, wallet: { userId } },
       data: { deletedAt: new Date() },
     });
 
     try {
       await (prisma.transaction as any).updateMany({
-        where: { id: { in: validIds } },
+        where: { id: { in: validIds }, wallet: { userId } },
         data: { pixCreditOperationId: null },
       });
     } catch (e) {}
@@ -3438,7 +3490,7 @@ export async function deleteBatchPurchasesAction(ids: string[]): Promise<{ succe
     // 3. Tenta hard delete
     try {
       await prisma.transaction.deleteMany({
-        where: { id: { in: validIds } },
+        where: { id: { in: validIds }, wallet: { userId } },
       });
     } catch (hardDeleteErr) {
       console.log("Transações em lote mantidas via Soft Delete:", hardDeleteErr);
@@ -3551,10 +3603,11 @@ export async function duplicateExpenseToNextMonthAction(
   baseMonth?: number,
   baseYear?: number
 ) {
-  const original = await prisma.transaction.findUnique({
-    where: { id: expenseId }
+  const userId = await requireActiveUserId();
+  const original = await prisma.transaction.findFirst({
+    where: { id: expenseId, wallet: { userId } }
   });
-  if (!original) throw new Error("Lançamento não encontrado.");
+  if (!original) throw new Error("Lançamento não encontrado ou não autorizado.");
 
   // 1. Data base da compra/pagamento de origem
   const origDate = new Date(
@@ -3594,6 +3647,7 @@ export async function duplicateExpenseToNextMonthAction(
   // Idempotência: Se já existir lançamento idêntico para o mês alvo, não duplica novamente
   const existing = await prisma.transaction.findFirst({
     where: {
+      userId,
       walletId: original.walletId,
       description: original.description,
       deletedAt: null,
@@ -3607,6 +3661,7 @@ export async function duplicateExpenseToNextMonthAction(
 
   const newTx = await prisma.transaction.create({
     data: {
+      userId,
       walletId: original.walletId,
       categoryId: original.categoryId,
       description: original.description,
@@ -3650,8 +3705,10 @@ export async function duplicateBatchExpensesToNextMonthAction(
 ) {
   if (!expenseIds || expenseIds.length === 0) return { success: true, count: 0, newMonthLabel: "" };
 
+  const userId = await requireActiveUserId();
+
   const originals = await prisma.transaction.findMany({
-    where: { id: { in: expenseIds }, deletedAt: null }
+    where: { id: { in: expenseIds }, deletedAt: null, wallet: { userId } }
   });
 
   let createdCount = 0;
@@ -3688,6 +3745,7 @@ export async function duplicateBatchExpensesToNextMonthAction(
     // Evitar duplicações se já existe para este mês
     const existing = await prisma.transaction.findFirst({
       where: {
+        userId,
         walletId: original.walletId,
         description: original.description,
         deletedAt: null,
@@ -3702,6 +3760,7 @@ export async function duplicateBatchExpensesToNextMonthAction(
 
     await prisma.transaction.create({
       data: {
+        userId,
         walletId: original.walletId,
         categoryId: original.categoryId,
         description: original.description,
@@ -3819,6 +3878,7 @@ export async function getTicketData(month: number, year: number) {
   const expenses = await prisma.transaction.findMany({
     where: {
       walletId: wallet.id,
+      wallet: { userId },
       type: "EXPENSE",
       date: {
         gte: from,
@@ -3847,6 +3907,12 @@ export async function getTicketData(month: number, year: number) {
 }
 
 export async function saveTicketCarga(walletId: string, carga: number) {
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
+  });
+  if (!wallet) throw new Error("Carteira não encontrada ou não autorizada.");
+
   await prisma.wallet.update({
     where: { id: walletId },
     data: { initialBalance: carga }
@@ -3857,10 +3923,11 @@ export async function saveTicketCarga(walletId: string, carga: number) {
 }
 
 export async function addTicketCarga(walletId: string, value: number, month?: number, year?: number, categoryName: string = "Recarga de Saldo") {
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: walletId }
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
   });
-  if (!wallet) throw new Error("Wallet not found");
+  if (!wallet) throw new Error("Carteira não encontrada ou não autorizada.");
 
   let category = await prisma.category.findFirst({
     where: { name: categoryName }
@@ -3875,6 +3942,7 @@ export async function addTicketCarga(walletId: string, value: number, month?: nu
 
   await prisma.transaction.create({
     data: {
+      userId,
       walletId,
       description: "Recarga de Saldo",
       amount: value,
@@ -3892,10 +3960,11 @@ export async function addTicketCarga(walletId: string, value: number, month?: nu
 }
 
 export async function removeTicketCarga(walletId: string, value: number, month?: number, year?: number) {
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: walletId }
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
   });
-  if (!wallet) throw new Error("Wallet not found");
+  if (!wallet) throw new Error("Carteira não encontrada ou não autorizada.");
 
   let category = await prisma.category.findFirst({
     where: { name: "Ajuste / Retirada de Saldo" }
@@ -3910,6 +3979,7 @@ export async function removeTicketCarga(walletId: string, value: number, month?:
 
   await prisma.transaction.create({
     data: {
+      userId,
       walletId,
       description: "Ajuste / Retirada de Saldo",
       amount: value,
@@ -3972,6 +4042,7 @@ export async function recordBalanceMovementAction(
     const txDate = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 12, 0, 0));
     const tx = await prisma.transaction.create({
       data: {
+        userId: wallet.userId || userId,
         walletId: wallet.id,
         categoryId: category.id,
         description: labelText,
@@ -4037,11 +4108,11 @@ export async function createBankAccountMovementAction(input: {
   dateStr: string;
   movementType: "SALARIO" | "PIX_RECEBIDO" | "INJECAO" | "BOLETO" | "FATURA_CARTAO" | "PIX_ENVIADO" | "SAQUE" | "DEBITO_AUTOMATICO" | string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.walletId, ...(userId ? { userId } : {}) }
+    where: { id: input.walletId, userId }
   });
-  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+  if (!wallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
   const amount = Math.abs(Number(input.amount));
   if (!amount || isNaN(amount)) throw new Error("Valor inválido.");
@@ -4080,6 +4151,7 @@ export async function createBankAccountMovementAction(input: {
 
   const tx = await prisma.transaction.create({
     data: {
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       categoryId: category.id,
       description: input.description.trim() || categoryName,
@@ -4126,11 +4198,11 @@ export async function createBatchWeeklyDebitAction(input: {
   description?: string;
   notes?: string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.walletId, ...(userId ? { userId } : {}) },
+    where: { id: input.walletId, userId },
   });
-  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+  if (!wallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
   const amount = Math.abs(Number(input.amount));
   if (!amount || isNaN(amount) || amount <= 0) {
@@ -4175,6 +4247,7 @@ export async function createBatchWeeklyDebitAction(input: {
 
   const tx = await prisma.transaction.create({
     data: {
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       categoryId: category.id,
       description: formattedDesc,
@@ -4217,12 +4290,12 @@ export async function updateRealizedBankMovementAction(input: {
   paymentMethod?: string;
   notes?: string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const tx = await prisma.transaction.findFirst({
-    where: { id: input.id, ...(userId ? { wallet: { userId } } : {}) },
+    where: { id: input.id, wallet: { userId } },
     include: { wallet: true, category: true },
   });
-  if (!tx) throw new Error("Lançamento não encontrado.");
+  if (!tx) throw new Error("Lançamento não encontrado ou não autorizado.");
 
   const newAmount = Math.abs(Number(input.amount));
   if (!newAmount || isNaN(newAmount) || newAmount <= 0) {
@@ -4231,9 +4304,9 @@ export async function updateRealizedBankMovementAction(input: {
 
   const newWalletId = input.walletId || tx.walletId;
   const targetWallet = await prisma.wallet.findFirst({
-    where: { id: newWalletId, ...(userId ? { userId } : {}) },
+    where: { id: newWalletId, userId },
   });
-  if (!targetWallet) throw new Error("Conta Bancária não encontrada.");
+  if (!targetWallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
   const dateParts = input.dateStr.split("-");
   const year = Number(dateParts[0]);
@@ -4396,11 +4469,11 @@ export async function recordBankAccountMovementAction(input: {
   tipoOperacao: "ENTRADA" | "SAIDA";
   isVisualOnly?: boolean;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.contaId, ...(userId ? { userId } : {}) }
+    where: { id: input.contaId, userId }
   });
-  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+  if (!wallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
   const valorNumerico = Math.abs(parseFloat(String(input.valor)));
   if (!valorNumerico || isNaN(valorNumerico) || valorNumerico <= 0) {
@@ -4458,6 +4531,7 @@ export async function recordBankAccountMovementAction(input: {
   // 1. Cria a transação oficial no extrato daquela conta
   const tx = await prisma.transaction.create({
     data: {
+      userId: wallet.userId || userId,
       walletId: wallet.id,
       categoryId: category.id,
       description: input.descricao.trim() || (isEntrada ? "Depósito em Conta" : "Saque / Retirada"),
@@ -4506,11 +4580,11 @@ export async function setExactBankAccountBalanceAction(input: {
   descricao?: string;
   isVisualOnly?: boolean;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.contaId, ...(userId ? { userId } : {}) }
+    where: { id: input.contaId, userId }
   });
-  if (!wallet) throw new Error("Conta Bancária não encontrada.");
+  if (!wallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
   const now = new Date();
   const bInfo = await calculateAccountBalance(wallet.id, now.getUTCMonth() + 1, now.getUTCFullYear());
@@ -4547,6 +4621,7 @@ export async function setExactBankAccountBalanceAction(input: {
 
       await prisma.transaction.create({
         data: {
+          userId: wallet.userId || userId,
           walletId: wallet.id,
           categoryId: category.id,
           description: input.descricao?.trim() || `Ajuste para saldo exato (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
@@ -4774,6 +4849,12 @@ export async function createTicketExpense(
   amount: number,
   dateStr: string
 ) {
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
+  });
+  if (!wallet) throw new Error("Carteira não encontrada ou não autorizada.");
+
   let dbCategory = await prisma.category.findFirst({
     where: { name: { equals: category, mode: "insensitive" } }
   }) || await prisma.category.findFirst({
@@ -4790,6 +4871,7 @@ export async function createTicketExpense(
 
   await prisma.transaction.create({
     data: {
+      userId,
       walletId,
       description,
       categoryId: dbCategory?.id,
@@ -4809,6 +4891,12 @@ export async function updateTicketExpense(
   amount: number,
   dateStr: string
 ) {
+  const userId = await requireActiveUserId();
+  const tx = await prisma.transaction.findFirst({
+    where: { id, wallet: { userId } }
+  });
+  if (!tx) throw new Error("Despesa não encontrada ou não autorizada.");
+
   let dbCategory = await prisma.category.findFirst({
     where: { name: { equals: category, mode: "insensitive" } }
   }) || await prisma.category.findFirst({
@@ -4836,6 +4924,12 @@ export async function updateTicketExpense(
 }
 
 export async function deleteTicketExpense(id: string) {
+  const userId = await requireActiveUserId();
+  const tx = await prisma.transaction.findFirst({
+    where: { id, wallet: { userId } }
+  });
+  if (!tx) throw new Error("Despesa não encontrada ou não autorizada.");
+
   await prisma.transaction.update({
     where: { id },
     data: { deletedAt: new Date() }
@@ -4850,13 +4944,14 @@ export async function getAllCardsOverview(
   year: number = 2026,
   preloaded?: { wallets?: any[]; transactions?: any[]; paidInvoices?: any[] }
 ) {
+  const userId = await requireActiveUserId();
   let wallets: any[] = [];
   if (preloaded?.wallets) {
     wallets = preloaded.wallets.filter((w: any) =>
+      (!w.userId || w.userId === userId) &&
       ["CREDIT_CARD", "TICKET", "CONTA_CORRENTE"].includes(w.walletType)
     );
   } else {
-    const userId = await getActiveUserId();
     wallets = await prisma.wallet.findMany({
       where: {
         userId,
@@ -4923,6 +5018,7 @@ export async function getAllCardsOverview(
       (prisma.transaction as any).findMany({
         where: {
           walletId: { in: walletIds },
+          wallet: { userId },
           type: "EXPENSE",
           source: { not: "RECURRING_PROJECTION" },
           OR: [
@@ -4943,6 +5039,7 @@ export async function getAllCardsOverview(
       prisma.transaction.findMany({
         where: {
           walletId: { in: walletIds },
+          wallet: { userId },
           type: "EXPENSE",
           deletedAt: null,
           source: { not: "RECURRING_PROJECTION" }
@@ -4962,13 +5059,14 @@ export async function getAllCardsOverview(
 
       // 3. Pagamentos de faturas para todas as carteiras em 1 query única
       (prisma as any).invoicePayment.findMany({
-        where: { walletId: { in: walletIds } }
+        where: { walletId: { in: walletIds }, wallet: { userId } }
       }),
 
       // 4. Entradas no período para todas as carteiras em 1 query única
       prisma.transaction.findMany({
         where: {
           walletId: { in: walletIds },
+          wallet: { userId },
           type: "INCOME",
           OR: [
             ...(!isAnnualView ? [{ competenceMonth: Number(month), competenceYear: year }] : [{ competenceYear: year }]),
@@ -5589,12 +5687,12 @@ export async function payCardInvoiceAction(
   paymentDateStr?: string,
   deductFromBalance: boolean = true
 ) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
 
   const card = await prisma.wallet.findUnique({
     where: { id: cardWalletId, userId },
   });
-  if (!card) throw new Error("Cartão não encontrado.");
+  if (!card) throw new Error("Cartão não encontrado ou não autorizado.");
 
   const payDate = paymentDateStr ? parseInputDate(paymentDateStr) : new Date();
   let paymentTransactionId: string | null = null;
@@ -5620,6 +5718,7 @@ export async function payCardInvoiceAction(
       const monthName = getMonthName(month);
       const tx = await prisma.transaction.create({
         data: {
+          userId: paymentWallet.userId || userId,
           walletId: paymentWallet.id,
           categoryId: invoiceCat.id,
           description: `Pagamento de Fatura - ${card.title || card.bankName} (${monthName}/${year})`,
@@ -5648,6 +5747,7 @@ export async function payCardInvoiceAction(
       },
     },
     create: {
+      userId: card.userId || userId,
       walletId: cardWalletId,
       month,
       year,
@@ -5657,6 +5757,7 @@ export async function payCardInvoiceAction(
       paidAt: payDate,
     },
     update: {
+      userId: card.userId || userId,
       amount: amount,
       paymentWalletId: (deductFromBalance && paymentWalletId && paymentWalletId !== "NONE") ? paymentWalletId : null,
       paymentTransactionId: deductFromBalance ? paymentTransactionId : null,
@@ -5922,6 +6023,7 @@ export async function getUpcomingBillsWindowAction(
         ? (prisma as any).invoicePayment.findMany({
             where: {
               walletId: { in: cardIds },
+              wallet: { userId },
               year: curYear,
               ...(!isAnnualView && targetMonth ? { month: targetMonth } : {})
             }
@@ -5931,6 +6033,7 @@ export async function getUpcomingBillsWindowAction(
         ? prisma.transaction.findMany({
             where: {
               walletId: { in: cardIds },
+              wallet: { userId },
               type: "EXPENSE",
               deletedAt: null,
               source: { not: "RECURRING_PROJECTION" },
@@ -6285,6 +6388,7 @@ export async function getMonthlyCashFlowRollForwardAction(
     const txsList = await prisma.transaction.findMany({
       where: {
         walletId: { in: bankWallets.map(w => w.id) },
+        wallet: { userId },
         deletedAt: null,
         status: { not: "PENDING" },
         date: { lte: now }
@@ -6787,6 +6891,14 @@ export async function updateCardAccount(
     diaVencimento:  number;
   }
 ) {
+  const userId = await requireActiveUserId();
+  const existing = await prisma.wallet.findFirst({
+    where: { id: walletId, userId },
+  });
+  if (!existing) {
+    throw new Error("Carteira não encontrada ou não autorizada.");
+  }
+
   const normalizedType = input.walletType === "CREDITO" ? "CREDIT_CARD" : input.walletType;
   const isCredit = normalizedType === "CREDIT_CARD";
 
@@ -6812,25 +6924,18 @@ export async function updateCardAccount(
 
 export async function deleteCardAccount(walletId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const userId = await getActiveUserId();
+    const userId = await requireActiveUserId();
     if (!walletId || typeof walletId !== "string") {
       return { success: false, error: "ID do cartão ou conta bancária inválido." };
     }
 
-    const wallet = await prisma.wallet.findUnique({
-      where: { id: walletId },
+    const wallet = await prisma.wallet.findFirst({
+      where: { id: walletId, userId },
       select: { id: true, userId: true, title: true, walletType: true },
     });
 
     if (!wallet) {
-      return { success: false, error: "Cartão ou conta bancária não encontrado(a)." };
-    }
-
-    if (userId && wallet.userId !== userId) {
-      const activeUser = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-      if (activeUser?.role !== "MASTER") {
-        return { success: false, error: "Você não tem permissão para excluir este registro." };
-      }
+      return { success: false, error: "Cartão ou conta bancária não encontrado(a) ou não autorizado(a)." };
     }
 
     await prisma.$transaction(async (tx) => {
@@ -7027,6 +7132,7 @@ export async function getUpcomingCreditCardBills(
     transactions = await prisma.transaction.findMany({
       where: {
         walletId: { in: cardIds },
+        wallet: { userId },
         type: "EXPENSE",
         deletedAt: null,
       },
@@ -7667,8 +7773,9 @@ export async function deleteCategoryAction(id: string) {
 }
 
 export async function exportTransactionsCSVAction() {
+  const userId = await requireActiveUserId();
   const transactions = await prisma.transaction.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, wallet: { userId } },
     include: { wallet: true, category: true },
     orderBy: { date: "desc" },
   });
@@ -7702,8 +7809,8 @@ export async function getUserProfile() {
 
   return {
     id: user?.id,
-    name: user?.name || "Túlio Cavalcanti",
-    email: user?.email || "kamaelcontatos@gmail.com",
+    name: user?.name || "Usuário",
+    email: user?.email || "",
   };
 }
 
@@ -7767,11 +7874,13 @@ export type InvestmentItem = {
 };
 
 export async function getInvestmentsData(month?: number, year?: number) {
+  const userId = await getActiveUserId();
   const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.investment.findMany({
-    where: endOfMonthDate ? {
-      dataInicial: { lte: endOfMonthDate }
-    } : undefined,
+    where: {
+      userId,
+      ...(endOfMonthDate ? { dataInicial: { lte: endOfMonthDate } } : {}),
+    },
     orderBy: { createdAt: "desc" }
   });
 
@@ -7888,8 +7997,10 @@ export async function createInvestmentAction(data: {
   taxas_acumuladas?: number;
   imposto_estimado?: number;
 }) {
+  const userId = await requireActiveUserId();
   await db.investment.create({
     data: {
+      userId,
       titulo: data.titulo,
       categoria: data.categoria || "Renda Fixa",
       dataInicial: new Date(data.data_inicial),
@@ -7914,6 +8025,10 @@ export async function updateInvestmentAction(id: string, data: {
   imposto_estimado?: number;
   status?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const existing = await db.investment.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Investimento não encontrado ou não autorizado.");
+
   await db.investment.update({
     where: { id },
     data: {
@@ -7933,6 +8048,10 @@ export async function updateInvestmentAction(id: string, data: {
 
 export async function deleteInvestmentAction(id: string) {
   try {
+    const userId = await requireActiveUserId();
+    const existing = await db.investment.findFirst({ where: { id, userId } });
+    if (!existing) throw new Error("Investimento não encontrado ou não autorizado.");
+
     await db.investment.delete({ where: { id } });
     revalidatePath("/investimentos");
     revalidatePath("/");
@@ -7944,6 +8063,10 @@ export async function deleteInvestmentAction(id: string) {
 }
 
 export async function toggleInvestmentStatusAction(id: string, currentStatus: string) {
+  const userId = await requireActiveUserId();
+  const existing = await db.investment.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Investimento não encontrado ou não autorizado.");
+
   const newStatus = currentStatus === "ATIVO" ? "RESGATADO" : "ATIVO";
   await db.investment.update({
     where: { id },
@@ -7994,11 +8117,13 @@ export type VariableAssetItem = {
 };
 
 export async function getVariableAssetsData(month?: number, year?: number) {
+  const userId = await getActiveUserId();
   const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.variableAsset.findMany({
-    where: endOfMonthDate ? {
-      createdAt: { lte: endOfMonthDate }
-    } : undefined,
+    where: {
+      userId,
+      ...(endOfMonthDate ? { createdAt: { lte: endOfMonthDate } } : {}),
+    },
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -8186,8 +8311,10 @@ export async function createVariableAssetAction(data: {
   precoInicial?: number;
   dataInicial?: string;
 }) {
+  const userId = await requireActiveUserId();
   const asset = await db.variableAsset.create({
     data: {
+      userId,
       titulo: data.titulo.toUpperCase(),
       categoria: data.categoria || "Ação",
       cotacaoAtual: data.cotacaoAtual,
@@ -8220,6 +8347,13 @@ export async function addVariableTransactionAction(assetId: string, data: {
   taxas?: number;
   loteOrigemId?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const asset = await db.variableAsset.findFirst({
+    where: { id: assetId, userId },
+    include: { transacoes: true }
+  });
+  if (!asset) throw new Error("Ativo não encontrado ou não autorizado.");
+
   await db.variableTransaction.create({
     data: {
       assetId,
@@ -8233,14 +8367,14 @@ export async function addVariableTransactionAction(assetId: string, data: {
   });
 
   // Verificar se após esta transação a quantidade zerou para atualizar o status do ciclo
-  const asset = await db.variableAsset.findUnique({
+  const updatedAsset = await db.variableAsset.findUnique({
     where: { id: assetId },
     include: { transacoes: true }
   });
 
-  if (asset) {
+  if (updatedAsset) {
     let qtd = 0;
-    asset.transacoes.forEach((t: any) => {
+    updatedAsset.transacoes.forEach((t: any) => {
       if (t.tipo === "COMPRA") qtd += t.quantidade;
       else if (t.tipo === "VENDA") qtd -= t.quantidade;
     });
@@ -8250,7 +8384,7 @@ export async function addVariableTransactionAction(assetId: string, data: {
         where: { id: assetId },
         data: { status: "ENCERRADO" }
       });
-    } else if (asset.status === "ENCERRADO" && qtd > 0) {
+    } else if (updatedAsset.status === "ENCERRADO" && qtd > 0) {
       await db.variableAsset.update({
         where: { id: assetId },
         data: { status: "ABERTO" }
@@ -8269,6 +8403,15 @@ export async function updateVariableTransactionAction(txId: string, data: {
   taxas?: number;
   loteOrigemId?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const existingTx = await db.variableTransaction.findUnique({
+    where: { id: txId },
+    include: { asset: true }
+  });
+  if (!existingTx || (existingTx.asset.userId && existingTx.asset.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
   const tx = await db.variableTransaction.update({
     where: { id: txId },
     data: {
@@ -8310,6 +8453,10 @@ export async function updateFullVariableAssetAction(id: string, data: {
   dividendosRecebidos: number;
   status?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const existing = await db.variableAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   await db.variableAsset.update({
     where: { id },
     data: {
@@ -8324,6 +8471,10 @@ export async function updateFullVariableAssetAction(id: string, data: {
 }
 
 export async function updateVariableAssetCotacaoAction(id: string, cotacaoAtual: number, dividendosRecebidos?: number) {
+  const userId = await requireActiveUserId();
+  const existing = await db.variableAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   await db.variableAsset.update({
     where: { id },
     data: {
@@ -8334,9 +8485,17 @@ export async function updateVariableAssetCotacaoAction(id: string, cotacaoAtual:
   revalidatePath("/investimentos");
 }
 
-
 export async function deleteVariableTransactionAction(txId: string) {
-  const tx = await db.variableTransaction.delete({
+  const userId = await requireActiveUserId();
+  const tx = await db.variableTransaction.findUnique({
+    where: { id: txId },
+    include: { asset: true }
+  });
+  if (!tx || (tx.asset.userId && tx.asset.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
+  await db.variableTransaction.delete({
     where: { id: txId }
   });
 
@@ -8363,6 +8522,10 @@ export async function deleteVariableTransactionAction(txId: string) {
 }
 
 export async function toggleVariableAssetStatusAction(id: string, currentStatus: string) {
+  const userId = await requireActiveUserId();
+  const existing = await db.variableAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   const newStatus = currentStatus === "ABERTO" ? "ENCERRADO" : "ABERTO";
   await db.variableAsset.update({
     where: { id },
@@ -8372,6 +8535,10 @@ export async function toggleVariableAssetStatusAction(id: string, currentStatus:
 }
 
 export async function deleteVariableAssetAction(id: string) {
+  const userId = await requireActiveUserId();
+  const existing = await db.variableAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   try {
     await db.$transaction([
       db.variableTransaction.deleteMany({ where: { assetId: id } }),
@@ -8426,11 +8593,13 @@ export type CryptoAssetItem = {
 };
 
 export async function getCryptoAssetsData(month?: number, year?: number) {
+  const userId = await requireActiveUserId();
   const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.cryptoAsset.findMany({
-    where: endOfMonthDate ? {
-      createdAt: { lte: endOfMonthDate }
-    } : undefined,
+    where: {
+      userId,
+      ...(endOfMonthDate ? { createdAt: { lte: endOfMonthDate } } : {})
+    },
     include: { transacoes: { orderBy: { data: "asc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -8610,8 +8779,10 @@ export async function createCryptoAssetAction(data: {
   precoInicial?: number;
   dataInicial?: string;
 }) {
+  const userId = await requireActiveUserId();
   const crypto = await db.cryptoAsset.create({
     data: {
+      userId,
       token: data.token.toUpperCase(),
       nome: data.nome,
       cotacaoAtual: data.cotacaoAtual,
@@ -8643,6 +8814,13 @@ export async function addCryptoTransactionAction(cryptoId: string, data: {
   taxas?: number;
   loteOrigemId?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const crypto = await db.cryptoAsset.findFirst({
+    where: { id: cryptoId, userId },
+    include: { transacoes: true }
+  });
+  if (!crypto) throw new Error("Ativo de criptomoeda não encontrado ou não autorizado.");
+
   await db.cryptoTransaction.create({
     data: {
       cryptoId,
@@ -8655,21 +8833,21 @@ export async function addCryptoTransactionAction(cryptoId: string, data: {
     }
   });
 
-  const crypto = await db.cryptoAsset.findUnique({
+  const updatedCrypto = await db.cryptoAsset.findUnique({
     where: { id: cryptoId },
     include: { transacoes: true }
   });
 
-  if (crypto) {
+  if (updatedCrypto) {
     let qtd = 0;
-    crypto.transacoes.forEach((t: any) => {
+    updatedCrypto.transacoes.forEach((t: any) => {
       if (t.tipo === "COMPRA") qtd += Number(t.quantidade);
       else if (t.tipo === "VENDA") qtd -= Number(t.quantidade);
     });
 
     if (qtd <= 0) {
       await db.cryptoAsset.update({ where: { id: cryptoId }, data: { status: "ENCERRADO" } });
-    } else if (crypto.status === "ENCERRADO" && qtd > 0) {
+    } else if (updatedCrypto.status === "ENCERRADO" && qtd > 0) {
       await db.cryptoAsset.update({ where: { id: cryptoId }, data: { status: "ABERTO" } });
     }
   }
@@ -8685,6 +8863,15 @@ export async function updateCryptoTransactionAction(txId: string, data: {
   taxas?: number;
   loteOrigemId?: string;
 }) {
+  const userId = await requireActiveUserId();
+  const existingTx = await db.cryptoTransaction.findUnique({
+    where: { id: txId },
+    include: { crypto: true }
+  });
+  if (!existingTx || (existingTx.crypto.userId && existingTx.crypto.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
   const tx = await db.cryptoTransaction.update({
     where: { id: txId },
     data: {
@@ -8720,6 +8907,15 @@ export async function updateCryptoTransactionAction(txId: string, data: {
 }
 
 export async function deleteCryptoTransactionAction(txId: string) {
+  const userId = await requireActiveUserId();
+  const existingTx = await db.cryptoTransaction.findUnique({
+    where: { id: txId },
+    include: { crypto: true }
+  });
+  if (!existingTx || (existingTx.crypto.userId && existingTx.crypto.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
   const tx = await db.cryptoTransaction.delete({ where: { id: txId } });
 
   if (tx.cryptoId) {
@@ -8752,6 +8948,10 @@ export async function updateFullCryptoAssetAction(id: string, data: {
   quantidadeAjustada?: number;
   custoTotalAjustado?: number;
 }) {
+  const userId = await requireActiveUserId();
+  const existing = await db.cryptoAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   // Update core asset fields
   await db.cryptoAsset.update({
     where: { id },
@@ -8795,6 +8995,10 @@ export async function updateFullCryptoAssetAction(id: string, data: {
 }
 
 export async function updateCryptoAssetCotacaoAction(id: string, cotacaoAtual: number) {
+  const userId = await requireActiveUserId();
+  const existing = await db.cryptoAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   await db.cryptoAsset.update({
     where: { id },
     data: { cotacaoAtual }
@@ -8803,6 +9007,10 @@ export async function updateCryptoAssetCotacaoAction(id: string, cotacaoAtual: n
 }
 
 export async function deleteCryptoAssetAction(id: string) {
+  const userId = await requireActiveUserId();
+  const existing = await db.cryptoAsset.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Ativo não encontrado ou não autorizado.");
+
   try {
     await db.$transaction([
       db.cryptoTransaction.deleteMany({ where: { cryptoId: id } }),
@@ -8836,11 +9044,13 @@ export type BettingAccountItem = {
 };
 
 export async function getBettingAccountsData(month?: number, year?: number) {
+  const userId = await requireActiveUserId();
   const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
   const list = await db.bettingAccount.findMany({
-    where: endOfMonthDate ? {
-      createdAt: { lte: endOfMonthDate }
-    } : undefined,
+    where: {
+      userId,
+      ...(endOfMonthDate ? { createdAt: { lte: endOfMonthDate } } : {})
+    },
     include: { movimentacoes: { orderBy: { data: "desc" } } },
     orderBy: { createdAt: "desc" }
   });
@@ -8886,8 +9096,10 @@ export async function createBettingAccountAction(data: {
   saldoAtualBruto: number;
   depositoInicial?: number;
 }) {
+  const userId = await requireActiveUserId();
   const acc = await db.bettingAccount.create({
     data: {
+      userId,
       nomePlataforma: data.nomePlataforma,
       saldoAtualBruto: data.saldoAtualBruto
     }
@@ -8913,6 +9125,10 @@ export async function addBettingTransactionAction(accountId: string, data: {
   data: string;
   atualizarSaldoBanca?: boolean;
 }) {
+  const userId = await requireActiveUserId();
+  const acc = await db.bettingAccount.findFirst({ where: { id: accountId, userId } });
+  if (!acc) throw new Error("Banca de apostas não encontrada ou não autorizada.");
+
   await db.bettingTransaction.create({
     data: {
       accountId,
@@ -8923,21 +9139,22 @@ export async function addBettingTransactionAction(accountId: string, data: {
   });
 
   if (data.atualizarSaldoBanca) {
-    const acc = await db.bettingAccount.findUnique({ where: { id: accountId } });
-    if (acc) {
-      const current = Number(acc.saldoAtualBruto);
-      const nextSaldo = data.tipo === "DEPOSITO" ? current + data.valor : Math.max(0, current - data.valor);
-      await db.bettingAccount.update({
-        where: { id: accountId },
-        data: { saldoAtualBruto: nextSaldo }
-      });
-    }
+    const current = Number(acc.saldoAtualBruto);
+    const nextSaldo = data.tipo === "DEPOSITO" ? current + data.valor : Math.max(0, current - data.valor);
+    await db.bettingAccount.update({
+      where: { id: accountId },
+      data: { saldoAtualBruto: nextSaldo }
+    });
   }
 
   revalidatePath("/investimentos");
 }
 
 export async function updateBettingAccountSaldoAction(id: string, saldoAtualBruto: number) {
+  const userId = await requireActiveUserId();
+  const acc = await db.bettingAccount.findFirst({ where: { id, userId } });
+  if (!acc) throw new Error("Banca de apostas não encontrada ou não autorizada.");
+
   await db.bettingAccount.update({
     where: { id },
     data: { saldoAtualBruto }
@@ -8946,6 +9163,10 @@ export async function updateBettingAccountSaldoAction(id: string, saldoAtualBrut
 }
 
 export async function deleteBettingAccountAction(id: string) {
+  const userId = await requireActiveUserId();
+  const acc = await db.bettingAccount.findFirst({ where: { id, userId } });
+  if (!acc) throw new Error("Banca de apostas não encontrada ou não autorizada.");
+
   try {
     await db.$transaction([
       db.bettingTransaction.deleteMany({ where: { accountId: id } }),
@@ -8961,6 +9182,15 @@ export async function deleteBettingAccountAction(id: string) {
 }
 
 export async function deleteBettingTransactionAction(txId: string) {
+  const userId = await requireActiveUserId();
+  const tx = await db.bettingTransaction.findUnique({
+    where: { id: txId },
+    include: { account: true }
+  });
+  if (!tx || (tx.account.userId && tx.account.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
   await db.bettingTransaction.delete({ where: { id: txId } });
   revalidatePath("/investimentos");
 }
@@ -8970,6 +9200,15 @@ export async function updateBettingTransactionAction(txId: string, data: {
   valor: number;
   data: string;
 }) {
+  const userId = await requireActiveUserId();
+  const tx = await db.bettingTransaction.findUnique({
+    where: { id: txId },
+    include: { account: true }
+  });
+  if (!tx || (tx.account.userId && tx.account.userId !== userId)) {
+    throw new Error("Transação não encontrada ou não autorizada.");
+  }
+
   await db.bettingTransaction.update({
     where: { id: txId },
     data: {
@@ -8995,13 +9234,17 @@ export type OtherInvestmentItem = {
 };
 
 export async function getOtherInvestmentsData(month?: number, year?: number): Promise<OtherInvestmentItem[]> {
+  const userId = await requireActiveUserId();
   const endOfMonthDate = (month && year) ? new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)) : null;
-  const whereClause = endOfMonthDate ? {
-    OR: [
-      { data: { lte: endOfMonthDate } },
-      { data: null, createdAt: { lte: endOfMonthDate } }
-    ]
-  } : {};
+  const whereClause = {
+    userId,
+    ...(endOfMonthDate ? {
+      OR: [
+        { data: { lte: endOfMonthDate } },
+        { data: null, createdAt: { lte: endOfMonthDate } }
+      ]
+    } : {})
+  };
   const list = await db.otherInvestment.findMany({
     where: whereClause,
     orderBy: { createdAt: "desc" }
@@ -9037,8 +9280,10 @@ export async function createOtherInvestmentAction(data: {
   taxaImposto?: number;
   totalSaque?: number;
 }) {
+  const userId = await requireActiveUserId();
   await db.otherInvestment.create({
     data: {
+      userId,
       nome: data.nome || "Novo Investimento",
       data: data.data ? new Date(data.data) : null,
       totalInvestido: data.totalInvestido || 0,
@@ -9057,6 +9302,10 @@ export async function updateOtherInvestmentAction(id: string, data: {
   taxaImposto?: number;
   totalSaque?: number;
 }) {
+  const userId = await requireActiveUserId();
+  const existing = await db.otherInvestment.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Investimento não encontrado ou não autorizado.");
+
   await db.otherInvestment.update({
     where: { id },
     data: {
@@ -9072,6 +9321,10 @@ export async function updateOtherInvestmentAction(id: string, data: {
 }
 
 export async function deleteOtherInvestmentAction(id: string) {
+  const userId = await requireActiveUserId();
+  const existing = await db.otherInvestment.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Investimento não encontrado ou não autorizado.");
+
   await db.otherInvestment.delete({ where: { id } });
   revalidatePath("/investimentos");
 }
@@ -9090,7 +9343,7 @@ export async function createQuickInvestmentAporteAction(data: {
   rvQuantidade?: number;
   cryptoToken?: string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const valorNum = Math.abs(Number(data.valor) || 0);
   if (valorNum <= 0) {
     throw new Error("O valor do aporte deve ser maior que zero.");
@@ -9099,8 +9352,8 @@ export async function createQuickInvestmentAporteAction(data: {
 
   // 1. Integração Automática com Conta Corrente (Débito da conta de saída)
   if (data.debitedWalletId && data.debitedWalletId.trim() !== "") {
-    const wallet = await prisma.wallet.findUnique({
-      where: { id: data.debitedWalletId }
+    const wallet = await prisma.wallet.findFirst({
+      where: { id: data.debitedWalletId, userId }
     });
 
     if (wallet) {
@@ -9110,6 +9363,7 @@ export async function createQuickInvestmentAporteAction(data: {
 
       await prisma.transaction.create({
         data: {
+          userId,
           walletId: data.debitedWalletId,
           description: `Aporte Investimento: ${data.titulo}`,
           amount: valorNum,
@@ -9136,6 +9390,7 @@ export async function createQuickInvestmentAporteAction(data: {
   if (data.classe === "RENDA_FIXA") {
     await db.investment.create({
       data: {
+        userId,
         titulo: data.titulo,
         categoria: data.rfCategoria || "CDB",
         dataInicial: dateObj,
@@ -9152,6 +9407,7 @@ export async function createQuickInvestmentAporteAction(data: {
 
     const asset = await db.variableAsset.create({
       data: {
+        userId,
         titulo: data.titulo.toUpperCase(),
         categoria: data.rvCategoria || "Ação",
         cotacaoAtual: precoUnitario,
@@ -9174,6 +9430,7 @@ export async function createQuickInvestmentAporteAction(data: {
     const token = (data.cryptoToken || data.titulo.split(" ")[0] || "TOKEN").toUpperCase();
     const asset = await db.cryptoAsset.create({
       data: {
+        userId,
         token,
         nome: data.titulo,
         cotacaoAtual: valorNum,
@@ -9193,7 +9450,7 @@ export async function createQuickInvestmentAporteAction(data: {
     });
   } else if (data.classe === "APOSTAS") {
     const existingBet = await db.bettingAccount.findFirst({
-      where: { nomePlataforma: { equals: data.titulo, mode: "insensitive" } }
+      where: { userId, nomePlataforma: { equals: data.titulo, mode: "insensitive" } }
     });
 
     if (existingBet) {
@@ -9216,6 +9473,7 @@ export async function createQuickInvestmentAporteAction(data: {
     } else {
       const newAccount = await db.bettingAccount.create({
         data: {
+          userId,
           nomePlataforma: data.titulo,
           saldoAtualBruto: valorNum
         }
@@ -9441,7 +9699,7 @@ export async function getConsolidatedInvestmentsOverview(month?: number, year?: 
 }
 
 export async function getMonthlyNetWorthEvolution(year: number = new Date().getFullYear()) {
-  await getActiveUserId();
+  const userId = await requireActiveUserId();
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -9462,24 +9720,29 @@ export async function getMonthlyNetWorthEvolution(year: number = new Date().getF
     isProjected: boolean;
   }> = [];
 
-  // Buscar dados reais de todas as classes de investimentos
+  // Buscar dados reais de todas as classes de investimentos do usuário
   const [rfList, rvList, cryptoList, betList, outrosList] = await Promise.all([
     db.investment.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" }
     }),
     db.variableAsset.findMany({
+      where: { userId },
       include: { transacoes: { orderBy: { data: "asc" } } },
       orderBy: { createdAt: "desc" }
     }),
     db.cryptoAsset.findMany({
+      where: { userId },
       include: { transacoes: { orderBy: { data: "asc" } } },
       orderBy: { createdAt: "desc" }
     }),
     db.bettingAccount.findMany({
+      where: { userId },
       include: { movimentacoes: { orderBy: { data: "desc" } } },
       orderBy: { createdAt: "desc" }
     }),
     db.otherInvestment.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" }
     })
   ]);
@@ -9806,6 +10069,12 @@ export type OFXItem = {
 };
 
 export async function processOFXImport(walletId: string, ofxContent: string): Promise<OFXItem[]> {
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
+  });
+  if (!wallet) throw new Error("Conta não encontrada ou acesso negado.");
+
   const trnRegex = /<STMTTRN>([\s\S]*?)(?:<\/STMTTRN>|(?=<STMTTRN>)|$)/gi;
   let match;
   const rawItems: Array<{ trntype: string; dtposted: string; trnamt: number; memo: string; fitid: string }> = [];
@@ -9836,6 +10105,7 @@ export async function processOFXImport(walletId: string, ofxContent: string): Pr
   const dbTransactions = await prisma.transaction.findMany({
     where: {
       walletId,
+      wallet: { userId },
       deletedAt: null
     }
   });
@@ -9886,8 +10156,12 @@ export async function processOFXImport(walletId: string, ofxContent: string): Pr
 
 export async function bulkClearTransactions(transactionIds: string[]) {
   if (!transactionIds.length) return;
+  const userId = await requireActiveUserId();
   await prisma.transaction.updateMany({
-    where: { id: { in: transactionIds } },
+    where: {
+      id: { in: transactionIds },
+      wallet: { userId }
+    },
     data: { status: "COMPLETED" }
   });
   revalidatePath("/dashboard");
@@ -9904,6 +10178,12 @@ export async function createTransactionFromOFX(
   categoryName?: string,
   tags?: string
 ) {
+  const userId = await requireActiveUserId();
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId }
+  });
+  if (!wallet) throw new Error("Conta não encontrada ou acesso negado.");
+
   let categoryId: string | undefined = undefined;
   if (categoryName) {
     let cat = await prisma.category.findFirst({ where: { name: categoryName } });
@@ -9915,6 +10195,7 @@ export async function createTransactionFromOFX(
 
   const newTx = await prisma.transaction.create({
     data: {
+      userId,
       walletId,
       categoryId,
       description,
@@ -10988,6 +11269,7 @@ export async function getMonthlyCommitmentsAction(
       ? await (prisma as any).invoicePayment.findMany({
           where: {
             walletId: { in: creditCardIds },
+            wallet: { userId },
             year,
             ...(!isAnnualView && numMonth ? { month: numMonth } : {}),
           },
@@ -10998,6 +11280,7 @@ export async function getMonthlyCommitmentsAction(
       ? await prisma.transaction.findMany({
           where: {
             walletId: { in: creditCardIds },
+            wallet: { userId },
             type: "EXPENSE",
             deletedAt: null,
             source: { not: "RECURRING_PROJECTION" },
@@ -11437,6 +11720,7 @@ export async function createCommitmentAction(input: {
 
   const created = await prisma.transaction.create({
     data: {
+      userId: targetWallet.userId || userId,
       walletId: targetWallet.id,
       categoryId: catId,
       description,
@@ -11524,6 +11808,7 @@ export async function payCommitmentAction(input: {
     const cardPurchases = await prisma.transaction.findMany({
       where: {
         walletId: cardWalletId,
+        wallet: { userId },
         type: "EXPENSE",
         deletedAt: null,
         source: { not: "RECURRING_PROJECTION" },
@@ -11669,6 +11954,7 @@ export async function payBatchCommitmentsAction(input: {
       const cardPurchases = await prisma.transaction.findMany({
         where: {
           walletId: cardWalletId,
+          wallet: { userId },
           type: "EXPENSE",
           deletedAt: null,
           source: { not: "RECURRING_PROJECTION" },
@@ -12553,6 +12839,7 @@ export async function getCreditCardsPageDataAction(
   const txs = await prisma.transaction.findMany({
     where: {
       walletId: { in: walletIds },
+      wallet: { userId },
       type: "EXPENSE",
       deletedAt: null,
       source: { not: "RECURRING_PROJECTION" },
@@ -12636,6 +12923,7 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
   const txs = await prisma.transaction.findMany({
     where: {
       walletId: { in: walletIds },
+      wallet: { userId },
       deletedAt: null,
       source: { not: "RECURRING_PROJECTION" },
       AND: [
@@ -12724,6 +13012,27 @@ export async function getBankAccountsPageDataAction(year: number = 2026) {
 export async function getGestaoCaixaPageDataAction(year: number = 2026) {
   try {
     const userId = await getActiveUserId();
+    if (!userId) {
+      return {
+        accounts: [],
+        realizedTransactions: [],
+        pendingCommitments: [],
+        allCommitments: [],
+        contasBancarias: [],
+        cartoesCredito: [],
+        totals: {
+          totalRealBalance: 0,
+          totalReceitasAno: 0,
+          totalRealizedIncome: 0,
+          totalPendingIncome: 0,
+          receitasParaProjecao: 0,
+          totalPendentesAno: 0,
+          saldoProjetado: 0,
+          pendingCount: 0,
+          realizedCount: 0,
+        },
+      };
+    }
 
     const wallets = await prisma.wallet.findMany({
       where: {
@@ -12754,6 +13063,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       ? await prisma.transaction.findMany({
           where: {
             walletId: { in: walletIds },
+            wallet: { userId },
             deletedAt: null,
             source: { not: "RECURRING_PROJECTION" },
             OR: [
@@ -12791,7 +13101,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
           title: w.title,
           bankName: w.bankName || w.title,
           walletType: w.walletType,
-          holder: w.holder || w.user?.name || "Túlio da Silva Cavalcanti",
+          holder: w.holder || w.user?.name || "Titular",
           balance: rawBal,
           saldoAtual: rawBal,
           entradasAno,
@@ -12809,6 +13119,7 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
       ? await prisma.transaction.findMany({
           where: {
             walletId: { in: walletIds },
+            wallet: { userId },
             deletedAt: null,
             source: { not: "RECURRING_PROJECTION" },
             status: { not: "PENDING" },
@@ -13026,6 +13337,7 @@ export async function duplicateCommitmentToNextMonthAction(commitmentId: string)
   // 5. Salvar o novo registro com status SEMPRE PENDENTE
   const duplicated = await prisma.transaction.create({
     data: {
+      userId: orig.userId || userId,
       walletId: orig.walletId,
       description: cleanDesc,
       type: "EXPENSE",
