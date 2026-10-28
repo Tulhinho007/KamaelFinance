@@ -143,19 +143,13 @@ export const getBillMonth = (bill: any): string => {
 };
 
 export function normalizeBillTitle(desc: string): string {
-  const d = (desc || "").toLowerCase().trim();
-  if (d.includes("treino") && (d.includes("futev") || d.includes("futvolei"))) return "Treino – Futevôlei";
-  if (d.includes("tim") && (d.includes("celular") || d.includes("telefone"))) return "Tim Celular";
-  if (d.includes("tim") && d.includes("live")) return "Internet Tim Live";
-  if (d.includes("bira") || d.includes("fonte bira")) return "2 Parcela Fonte Bira";
-  if (d.includes("camila")) return "Pagamento Camila";
-  if (d.includes("hypercard") || d.includes("hipercard")) return "Fatura HyperCard";
-  return desc.trim();
+  return (desc || "").trim();
 }
 
 /**
  * Retorna as despesas e faturas consolidadas de determinado mês e ano,
  * unificando a fonte de dados entre a tela de Contas e o Dashboard.
+ * 100% dinâmica via banco de dados, sem vazamento de dados ou mocks entre usuários.
  */
 export function getConsolidatedMonthBills(
   targetMonth: number,
@@ -168,10 +162,8 @@ export function getConsolidatedMonthBills(
 
   const monthKey = `${targetYear}-${String(targetMonth).padStart(2, "0")}`;
 
-  // 1. Contas Padrão filtradas e atualizadas
-  const baseList = (targetYear === 2026 ? DEFAULT_INITIAL_BILLS : []).filter(
-    (b) => !isBillDeleted(b.id, deletedIds)
-  );
+  // 1. Contas Padrão: 100% vazias para novos usuários
+  const baseList: BillItem[] = [];
 
   const consolidatedMap = new Map<string, BillItem>();
 
@@ -203,8 +195,7 @@ export function getConsolidatedMonthBills(
     const isCard = Boolean(
       dbItem.isCardInvoice ||
       dbItem.tipo === "FATURA_CARTAO" ||
-      (dbItem.category || "").toLowerCase().includes("fatura") ||
-      (dbItem.description || "").toLowerCase().includes("hypercard")
+      (dbItem.category || "").toLowerCase().includes("fatura")
     );
 
     const cMonth = Number(
@@ -238,7 +229,7 @@ export function getConsolidatedMonthBills(
         id: dbItem.id,
         description: dbItem.description,
         category: dbItem.category || (isCard ? "Fatura de Cartão" : "Boleto / Conta Fixa"),
-        bank: dbItem.bank || (isCard ? "HyperCard" : ""),
+        bank: dbItem.bank || (isCard ? "Cartão" : ""),
         amount: Number(dbItem.amount || dbItem.valor || 0),
         tipoLabel: isCard ? "Fatura de Cartão" : "Boleto / Conta Fixa",
         tipo: isCard ? "FATURA_CARTAO" : "BOLETO",
@@ -264,14 +255,13 @@ export function getConsolidatedMonthBills(
       item.isCardInvoice ||
       item.tipo === "FATURA_CARTAO" ||
       (item.category || "").toLowerCase().includes("fatura") ||
-      (item.description || "").toLowerCase().includes("fatura") ||
-      (item.description || "").toLowerCase().includes("hypercard")
+      (item.description || "").toLowerCase().includes("fatura")
     );
 
     if (isCard) {
       faturasCartoes.push({
         id: item.id,
-        nome: item.description || "Fatura HyperCard",
+        nome: item.description || `Fatura ${item.bank || "Cartão"}`,
         valor: Number(item.amount || 0),
       });
     } else {

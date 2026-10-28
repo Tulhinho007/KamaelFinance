@@ -358,25 +358,10 @@ export async function changeCurrentUserPasswordAction(data: {
 }) {
   try {
     const currentUser = await getCurrentUserAction();
-    let targetUserId = currentUser?.id;
+    const targetUserId = currentUser?.id;
 
     if (!targetUserId) {
-      const firstUser = await prisma.user.findFirst({
-        where: { role: "MASTER" },
-        select: { id: true, password: true, email: true },
-      });
-      if (firstUser) {
-        targetUserId = firstUser.id;
-      } else {
-        const anyUser = await prisma.user.findFirst({
-          select: { id: true, password: true, email: true },
-        });
-        targetUserId = anyUser?.id;
-      }
-    }
-
-    if (!targetUserId) {
-      return { success: false, error: "Usuário não autenticado." };
+      return { success: false, error: "Não autorizado: Sessão de usuário inválida ou ausente." };
     }
 
     const user = await prisma.user.findUnique({

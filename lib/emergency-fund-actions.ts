@@ -84,16 +84,18 @@ export async function addEmergencyFundAporteAction(input: {
   description?: string;
 }) {
   const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
   const date = new Date(input.dateStr);
 
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: input.walletId }
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: input.walletId, userId }
   });
 
-  if (!wallet) throw new Error("Conta não encontrada");
+  if (!wallet) throw new Error("Conta não encontrada ou não pertence ao usuário");
 
   await prisma.transaction.create({
     data: {
+      userId,
       walletId: input.walletId,
       type: "INCOME",
       amount: input.amount,

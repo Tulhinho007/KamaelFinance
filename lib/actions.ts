@@ -3801,10 +3801,12 @@ export async function duplicateBatchExpensesToNextMonthAction(
  * e 'Internet - Tim Live' fique apenas em Setembro e Outubro/2026.
  */
 export async function cleanupPollutedFutureExpensesAction() {
+  const userId = await requireActiveUserId();
   // 1. Deletar 'Energia - Celpe' e 'Seguro energia solar' a partir de Outubro/2026 (>= 2026-10-01)
   const cutOffOct = new Date(Date.UTC(2026, 9, 1, 0, 0, 0));
   const delCelpeSolar = await prisma.transaction.deleteMany({
     where: {
+      wallet: { userId },
       date: { gte: cutOffOct },
       OR: [
         { description: { contains: "Celpe", mode: "insensitive" } },
@@ -3817,6 +3819,7 @@ export async function cleanupPollutedFutureExpensesAction() {
   const cutOffNov = new Date(Date.UTC(2026, 10, 1, 0, 0, 0));
   const delTim = await prisma.transaction.deleteMany({
     where: {
+      wallet: { userId },
       date: { gte: cutOffNov },
       description: { contains: "Tim Live", mode: "insensitive" },
     },
@@ -3825,6 +3828,7 @@ export async function cleanupPollutedFutureExpensesAction() {
   // 3. Desativar flags isRecurring residuais para evitar repetições automáticas contínuas
   const updatedRec = await prisma.transaction.updateMany({
     where: {
+      wallet: { userId },
       isRecurring: true,
       OR: [
         { description: { contains: "Celpe", mode: "insensitive" } },
@@ -10250,6 +10254,7 @@ export async function getAllTags() {
 // ─── 5. EXPURGO / LIMPEZA DE ASSINATURAS DO BANCO DE DADOS ───────────────────
 
 export async function purgeSubscriptionsDataAction() {
+  const userId = await requireActiveUserId();
   const terms = ["Futvolei", "Internet", "Google IA"];
 
   let totalDeletedTx = 0;
@@ -10258,6 +10263,7 @@ export async function purgeSubscriptionsDataAction() {
   for (const term of terms) {
     const deletedTx = await prisma.transaction.deleteMany({
       where: {
+        wallet: { userId },
         description: {
           contains: term,
           mode: "insensitive"
@@ -10268,6 +10274,7 @@ export async function purgeSubscriptionsDataAction() {
 
     const deletedSubs = await (prisma as any).subscription.deleteMany({
       where: {
+        userId,
         name: {
           contains: term,
           mode: "insensitive"
@@ -11656,7 +11663,7 @@ export async function createCommitmentAction(input: {
   bank?: string;
   categoryName?: string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
 
   let targetWallet: any = null;
   if (input.walletId) {
@@ -11720,7 +11727,7 @@ export async function createCommitmentAction(input: {
 
   const created = await prisma.transaction.create({
     data: {
-      userId: targetWallet.userId || userId,
+      userId,
       walletId: targetWallet.id,
       categoryId: catId,
       description,
@@ -11894,6 +11901,7 @@ export async function payCommitmentAction(input: {
   await prisma.transaction.update({
     where: { id: tx.id },
     data: {
+      userId,
       walletId: targetWalletId,
       description: newDesc,
       status: "COMPLETED",
@@ -12031,6 +12039,7 @@ export async function payBatchCommitmentsAction(input: {
       await prisma.transaction.update({
         where: { id: tx.id },
         data: {
+          userId,
           walletId: targetWalletId || tx.walletId,
           description: newDesc,
           status: "COMPLETED",
@@ -12305,7 +12314,7 @@ export async function saveRecurringCommitmentAction(input: {
   tipo: "BOLETO" | "ASSINATURA";
   walletId?: string;
 }) {
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
   const desc = input.description.trim();
   const amount = Number(input.amount);
   const dueDay = Math.min(31, Math.max(1, Number(input.recurringDay || 10)));
@@ -13274,7 +13283,7 @@ export async function duplicateCommitmentToNextMonthAction(commitmentId: string)
     throw new Error("Faturas de cartão de crédito são geradas automaticamente e não podem ser duplicadas manualmente.");
   }
 
-  const userId = await getActiveUserId();
+  const userId = await requireActiveUserId();
 
   const orig = await prisma.transaction.findFirst({
     where: {
@@ -13337,7 +13346,7 @@ export async function duplicateCommitmentToNextMonthAction(commitmentId: string)
   // 5. Salvar o novo registro com status SEMPRE PENDENTE
   const duplicated = await prisma.transaction.create({
     data: {
-      userId: orig.userId || userId,
+      userId,
       walletId: orig.walletId,
       description: cleanDesc,
       type: "EXPENSE",

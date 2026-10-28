@@ -11,8 +11,9 @@ import { getActiveUserId } from "@/lib/actions";
 
 export async function getEventProjects() {
   const userId = await getActiveUserId();
+  if (!userId) return [];
 
-  let projects = await db.eventProject.findMany({
+  const projects = await db.eventProject.findMany({
     where: { userId },
     include: {
       items: {
@@ -21,64 +22,6 @@ export async function getEventProjects() {
     },
     orderBy: { createdAt: "desc" }
   });
-
-  // Se o usuário não tiver nenhum projeto de planejamento, criamos um projeto demonstrativo
-  if (projects.length === 0) {
-    const sampleProject = await db.eventProject.create({
-      data: {
-        userId,
-        title: "Viagem Imaginelegend",
-        dateStr: "26/10/2026 a 28/10/2026",
-        startDate: new Date("2026-10-26T00:00:00Z"),
-        endDate: new Date("2026-10-28T00:00:00Z"),
-        status: "Em Planejamento",
-        notes: "Roteiro de viagem para o festival Imaginelegend 2026.\n\n- Passagens de ônibus leito garantidas\n- Check-in no hotel a partir das 14h\n- Documentos necessários: RG ou CNH atualizada e voucher de reserva",
-        items: {
-          create: [
-            {
-              description: "Ingresso do Festival (Pass VIP)",
-              minAmount: 350.00,
-              maxAmount: 450.00,
-              paidAmount: 450.00,
-              isPaid: true,
-              notes: "Ingresso antecipado garantido"
-            },
-            {
-              description: "Passagem de Ônibus (Ida e Volta)",
-              minAmount: 120.00,
-              maxAmount: 180.00,
-              paidAmount: 0,
-              isPaid: false,
-              notes: "Empresa Cometa - Saída da Rodoviária"
-            },
-            {
-              description: "Hotel 3 Diárias (Quarto Duplo)",
-              minAmount: 400.00,
-              maxAmount: 550.00,
-              paidAmount: 0,
-              isPaid: false,
-              notes: "Reserva com cancelamento grátis até 5 dias antes"
-            },
-            {
-              description: "Alimentação & Gastos Locais",
-              minAmount: 200.00,
-              maxAmount: 300.00,
-              paidAmount: 0,
-              isPaid: false,
-              notes: "Estimativa de R$ 100/dia para alimentação"
-            }
-          ]
-        }
-      },
-      include: {
-        items: {
-          orderBy: { createdAt: "asc" }
-        }
-      }
-    });
-
-    projects = [sampleProject];
-  }
 
   return projects.map((p: any) => ({
     id: p.id,
@@ -332,12 +275,18 @@ export async function convertItemToExpenseAction(
   actualPaidAmount?: number,
   installmentsCount?: number
 ) {
-  const item = await db.eventItem.findUnique({
-    where: { id: itemId },
+  const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
+
+  const item = await db.eventItem.findFirst({
+    where: { id: itemId, project: { userId } },
     include: { project: true }
   });
 
-  if (!item) throw new Error("Item de planejamento não encontrado");
+  if (!item) throw new Error("Item de planejamento não encontrado ou não pertence ao usuário");
+
+  const targetWallet = await prisma.wallet.findFirst({ where: { id: walletId, userId } });
+  if (!targetWallet) throw new Error("Carteira não encontrada ou não pertence ao usuário autenticado.");
 
   let categoryId: string | undefined = undefined;
 
@@ -374,6 +323,7 @@ export async function convertItemToExpenseAction(
       const instDesc = `${baseDescription} (${i}/${numInstallments})`;
 
       transactionsData.push({
+        userId,
         walletId,
         categoryId,
         description: instDesc,
@@ -396,6 +346,7 @@ export async function convertItemToExpenseAction(
   } else {
     const transaction = await (prisma.transaction as any).create({
       data: {
+        userId,
         walletId,
         categoryId,
         description: baseDescription,
@@ -412,7 +363,6 @@ export async function convertItemToExpenseAction(
   }
 
   // Se a carteira for conta bancária corrente / débito / investimento / ticket (não cartão de crédito), debita automaticamente do saldo
-  const targetWallet = await prisma.wallet.findUnique({ where: { id: walletId } });
   if (targetWallet && targetWallet.walletType !== "CREDIT_CARD") {
     await prisma.wallet.update({
       where: { id: walletId },

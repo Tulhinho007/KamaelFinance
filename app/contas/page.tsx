@@ -477,17 +477,9 @@ export default function GestaoCaixaContasPage() {
   const currentMonthNum = new Date().getMonth() + 1;
   const [selectedMonth, setSelectedMonth] = useState<number | "ALL">(currentMonthNum);
 
-  // Controle de status de pagamento
-  const [paidBills, setPaidBills] = useState<Record<string, boolean>>({
-    "invoice-hypercard-2026-08": true,
-    "invoice-hypercard-2026-08_8": true,
-    "invoice-hypercard-2026-09": true,
-    "invoice-hypercard-2026-09_9": true,
-  });
-  const [paidByMonth, setPaidByMonth] = useState<Record<string, boolean>>({
-    "invoice-hypercard-2026-08_8": true,
-    "invoice-hypercard-2026-09_9": true,
-  });
+  // Controle de status de pagamento (100% dinâmico por usuário)
+  const [paidBills, setPaidBills] = useState<Record<string, boolean>>({});
+  const [paidByMonth, setPaidByMonth] = useState<Record<string, boolean>>({});
 
   // Dados consolidados
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -645,24 +637,8 @@ export default function GestaoCaixaContasPage() {
       const deletedIds = getDeletedBillIds();
       const editedBills = getEditedBills();
 
-      // 1. Inicializa com as faturas (Ago-Dez) e contas fixas padrão (filtrando as excluídas pelo usuário)
-      // Apenas para 2026! Para 2027 em diante, não deve carregar dados padrão de 2026.
-      const initialBills = selectedYear === 2026 ? DEFAULT_INITIAL_BILLS : [];
-      const consolidated: BillItem[] = initialBills
-        .filter((b) => !isBillDeleted(b.id, deletedIds))
-        .map((b) => {
-          const item = { ...b };
-          // Aplica edições salvas
-          const edit = editedBills[item.id] || editedBills[normalizeBillTitle(item.description)];
-          if (edit) {
-            if (edit.description) item.description = edit.description;
-            if (edit.amount !== undefined) item.amount = Number(edit.amount);
-            if (edit.category) item.category = edit.category;
-            if (edit.bank) item.bank = edit.bank;
-            if (edit.walletId) item.walletId = edit.walletId;
-          }
-          return item;
-        });
+      // 1. Inicializa vazia (sem mocks nem dados compartilhados entre contas)
+      const consolidated: BillItem[] = [];
 
       // 2. Mescla os compromissos e faturas reais retornados do banco de dados para o selectedYear
       allList.forEach((dbItem: any) => {
@@ -711,7 +687,7 @@ export default function GestaoCaixaContasPage() {
               category: "Fatura de Cartão",
               tipoLabel: "Fatura de Cartão",
               tipo: "FATURA_CARTAO",
-              bank: dbItem.bank || "HyperCard",
+              bank: dbItem.bank || "Cartão",
               dueDay: Number(dbItem.dueDay || 10),
               status: (dbItem.status === "COMPLETED" || dbItem.status === "PAID" || dbItem.status === "PAGO") ? "PAID" : "PENDING",
               isCardInvoice: true,
@@ -2365,7 +2341,7 @@ export default function GestaoCaixaContasPage() {
                               }`}
                             >
                               {bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
-                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                ? (bill.description?.includes("Fatura") ? bill.description : `Fatura ${bill.bank || "Cartão"} – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`)
                                 : bill.description}
                             </span>
                             {isPaid ? (
@@ -2384,7 +2360,7 @@ export default function GestaoCaixaContasPage() {
                                 <CreditCard size={11} className="text-slate-400 shrink-0" />
                                 <span className="truncate italic">
                                   {bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
-                                    ? "Fatura HyperCard"
+                                    ? `Fatura ${bill.bank || "Cartão"}`
                                     : "A definir no pagamento"}
                                 </span>
                               </div>
@@ -2418,7 +2394,7 @@ export default function GestaoCaixaContasPage() {
                             type="button"
                             onClick={() => {
                               const descToEdit = bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
-                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                ? (bill.description?.includes("Fatura") ? bill.description : `Fatura ${bill.bank || "Cartão"} – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`)
                                 : bill.description;
                               setEditItem({ ...bill, description: descToEdit });
                               setEditDesc(descToEdit);
@@ -2435,7 +2411,7 @@ export default function GestaoCaixaContasPage() {
                             type="button"
                             onClick={() => {
                               const descToDelete = bill.isCardInvoice || bill.tipo === "FATURA_CARTAO"
-                                ? `Fatura HyperCard – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`
+                                ? (bill.description?.includes("Fatura") ? bill.description : `Fatura ${bill.bank || "Cartão"} – ${MONTH_NAMES_LIST[(bill.competenceMonth || activeMonth) - 1]}/${bill.competenceYear || selectedYear}`)
                                 : bill.description;
                               setItemToDelete({ ...bill, description: descToDelete });
                             }}

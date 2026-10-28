@@ -49,11 +49,21 @@ export async function getSubscriptionsWithMonthlyStatusAction(
     paymentWhere.month = Number(month);
   }
 
-  // Buscar todas as assinaturas do usuário (ou sistema)
+  if (!userId) {
+    return {
+      subscriptions: [],
+      summary: {
+        totalSubscriptionsCount: 0,
+        totalMonthlyAmount: 0,
+        totalPaidAmount: 0,
+        totalPendingAmount: 0,
+      }
+    };
+  }
+
+  // Buscar todas as assinaturas estritamente vinculadas ao userId
   const subscriptions = await db.subscription.findMany({
-    where: {
-      OR: [{ userId }, { userId: null }]
-    },
+    where: { userId },
     include: {
       defaultWallet: {
         select: { id: true, title: true, bankName: true }
@@ -163,6 +173,7 @@ export async function createSubscriptionAction(data: {
   defaultWalletId?: string;
 }) {
   const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
 
   const created = await db.subscription.create({
     data: {
@@ -190,6 +201,12 @@ export async function updateSubscriptionAction(
     defaultWalletId?: string;
   }
 ) {
+  const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
+
+  const existing = await db.subscription.findFirst({ where: { id, userId } });
+  if (!existing) throw new Error("Assinatura não encontrada ou não pertence ao usuário.");
+
   const updated = await db.subscription.update({
     where: { id },
     data: {
@@ -207,8 +224,11 @@ export async function updateSubscriptionAction(
 
 // 4. Excluir assinatura
 export async function deleteSubscriptionAction(id: string) {
-  await db.subscription.delete({
-    where: { id }
+  const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
+
+  await db.subscription.deleteMany({
+    where: { id, userId }
   });
 
   revalidatePath("/assinaturas");
@@ -229,21 +249,24 @@ export async function paySubscriptionAction(
   paidAtDateStr?: string,
   skipBalanceDeduction?: boolean
 ) {
-  const sub = await db.subscription.findUnique({
-    where: { id: subscriptionId }
+  const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
+
+  const sub = await db.subscription.findFirst({
+    where: { id: subscriptionId, userId }
   });
 
   if (!sub) {
-    throw new Error("Assinatura não encontrada.");
+    throw new Error("Assinatura não encontrada ou não pertence ao usuário.");
   }
 
-  const wallet = await prisma.wallet.findUnique({
-    where: { id: walletId },
+  const wallet = await prisma.wallet.findFirst({
+    where: { id: walletId, userId },
     select: { id: true, title: true, bankName: true, walletType: true }
   });
 
   if (!wallet) {
-    throw new Error("Conta/Carteira selecionada não foi encontrada.");
+    throw new Error("Conta/Carteira selecionada não pertence ao usuário.");
   }
 
   const walletName = wallet.bankName || wallet.title;
@@ -285,6 +308,7 @@ export async function paySubscriptionAction(
     // 1. Criar transação de débito no histórico da conta com a data REAL do pagamento e a referência na descrição
     const transaction = await prisma.transaction.create({
       data: {
+        userId,
         walletId,
         categoryId: cat.id,
         description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${refYear} (Pago via ${walletName})`,
@@ -383,12 +407,15 @@ export async function batchPaySubscriptionsAction(data: {
   walletId?: string;
   skipBalanceDeduction?: boolean;
 }) {
-  const sub = await db.subscription.findUnique({
-    where: { id: data.subscriptionId }
+  const userId = await getActiveUserId();
+  if (!userId) throw new Error("Não autorizado: Sessão de usuário inválida.");
+
+  const sub = await db.subscription.findFirst({
+    where: { id: data.subscriptionId, userId }
   });
 
   if (!sub) {
-    throw new Error("Assinatura não encontrada.");
+    throw new Error("Assinatura não encontrada ou não pertence ao usuário.");
   }
 
   const amt = Number(sub.amount);
@@ -441,6 +468,7 @@ export async function batchPaySubscriptionsAction(data: {
 
       const tx = await prisma.transaction.create({
         data: {
+          userId,
           walletId,
           categoryId: cat.id,
           description: `Assinatura ${sub.name} - Ref: ${refMonthName}/${item.year} (Pago via ${walletName})`,
