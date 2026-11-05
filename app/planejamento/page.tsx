@@ -771,27 +771,40 @@ export default function PlanningPage() {
     }
   };
 
-  // ── REGRAS DE NEGÓCIO E CÁLCULOS MATEMÁTICOS SIMPLIFICADOS ──────────
+  // ── REGRAS DE NEGÓCIO E CÁLCULOS FINANCEIROS CORRETOS ──────────
   const items = activeProject?.items || [];
   
-  // 1. Custo Total Previsto: soma dos valores estimados
-  const custoTotalPrevisto = items.reduce((sum, i) => sum + Number(i.maxAmount || 0), 0);
-
-  // 2. Total Já Pago: soma estritamente dos valores liquidados
+  // 1. Total Já Pago: soma estritamente dos valores que foram pagos até agora
   const totalJaPago = items
     .filter((i: EventItem) => i.isPaid)
-    .reduce((sum, i) => sum + Number(i.paidAmount > 0 ? i.paidAmount : i.maxAmount), 0);
+    .reduce((sum, i) => sum + Number(i.paidAmount !== undefined && i.paidAmount !== null && Number(i.paidAmount) > 0 ? i.paidAmount : (i.maxAmount || 0)), 0);
 
-  // 3. Restante a Pagar: Total Previsto - Total Já Pago
-  const restanteAPagar = Math.max(0, custoTotalPrevisto - totalJaPago);
+  // 2. Restante a Pagar: soma dos itens que AINDA NÃO foram pagos (pendentes)
+  const itensPendentes = items.filter((i: EventItem) => !i.isPaid);
+  const restanteAPagar = itensPendentes.reduce((sum, i) => sum + Number(i.maxAmount || 0), 0);
 
-  // Percentual Pago para mini-barra de progresso embutida no card
-  const percentualPago = custoTotalPrevisto > 0
-    ? Math.min(100, Math.round((totalJaPago / custoTotalPrevisto) * 100))
-    : 0;
+  // 3. Custo Total Real da Viagem (O Total Real Mesmo):
+  // O que já foi gasto de fato com os pagos + o que ainda falta pagar com os pendentes
+  const custoTotalReal = totalJaPago + restanteAPagar;
+
+  // 4. Previsão Inicial (Orçamento planejado original): soma de todas as estimativas
+  const custoTotalPrevisto = items.reduce((sum, i) => sum + Number(i.maxAmount || 0), 0);
+
+  // 5. Diferença em relação à previsão (Positivo = Economia, Negativo = Acima do planejado)
+  const diferencaPrevisto = custoTotalPrevisto - custoTotalReal;
 
   const totalItens = items.length;
   const itensPagos = items.filter(i => i.isPaid).length;
+  const totalFaltaQuitar = totalItens - itensPagos;
+
+  // Percentual Pago: baseado no custo total real da viagem
+  const percentualPago = totalItens === 0
+    ? 0
+    : totalFaltaQuitar === 0
+    ? 100
+    : custoTotalReal > 0
+    ? Math.min(100, Math.round((totalJaPago / custoTotalReal) * 100))
+    : 0;
 
   // Filtros de Itens da Tabela
   const filteredItems = items.filter(item => {
@@ -1012,11 +1025,11 @@ export default function PlanningPage() {
             {/* ── 3 CARDS RESUMO OBJETIVOS (SEM DUPLICAÇÕES) ───────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
               
-              {/* Card 1: CUSTO TOTAL PREVISTO */}
+              {/* Card 1: CUSTO TOTAL DA VIAGEM (TOTAL REAL CONSOLIDADO) */}
               <div className="card-glow p-5 bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-slate-200/80 dark:border-white/[0.08] shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between space-y-3 rounded-2xl">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
-                    Custo Total Previsto
+                    Custo Total da Viagem
                   </span>
                   <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200 dark:border-indigo-500/30">
                     <TrendingUp className="w-4 h-4" />
@@ -1024,10 +1037,21 @@ export default function PlanningPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight font-tnum">
-                    {formatCurrency(custoTotalPrevisto)}
+                    {formatCurrency(custoTotalReal)}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1">
-                    Soma de todas as despesas estimadas ({totalItens} {totalItens === 1 ? "item" : "itens"})
+                    {diferencaPrevisto > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">
+                        Economia de {formatCurrency(diferencaPrevisto)}
+                      </span>
+                    ) : diferencaPrevisto < 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-extrabold">
+                        +{formatCurrency(Math.abs(diferencaPrevisto))} acima do previsto
+                      </span>
+                    ) : (
+                      <span>Dentro da estimativa</span>
+                    )}
+                    <span className="text-slate-400 font-normal"> (Previsto: {formatCurrency(custoTotalPrevisto)})</span>
                   </p>
                 </div>
               </div>
@@ -1070,16 +1094,30 @@ export default function PlanningPage() {
                   <span className="text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest">
                     Restante a Pagar
                   </span>
-                  <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-200 dark:border-rose-500/30">
-                    <DollarSign className="w-4 h-4" />
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
+                    restanteAPagar === 0
+                      ? "bg-emerald-50 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/30"
+                      : "bg-rose-50 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-500/30"
+                  }`}>
+                    {restanteAPagar === 0 ? <Check className="w-4 h-4 stroke-[3]" /> : <DollarSign className="w-4 h-4" />}
                   </div>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-rose-600 dark:text-rose-400 tracking-tight font-tnum">
+                  <p className={`text-2xl font-black tracking-tight font-tnum ${
+                    restanteAPagar === 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                  }`}>
                     {formatCurrency(restanteAPagar)}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1">
-                    Falta quitar {totalItens - itensPagos} {totalItens - itensPagos === 1 ? "despesa" : "despesas"} até a viagem
+                    {restanteAPagar === 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        ✓ Tudo quitado! Nenhuma despesa pendente
+                      </span>
+                    ) : (
+                      <span>
+                        Falta quitar {totalFaltaQuitar} {totalFaltaQuitar === 1 ? "despesa" : "despesas"} até a viagem
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -1349,15 +1387,29 @@ export default function PlanningPage() {
                     <tr className="bg-slate-100 dark:bg-slate-900 font-extrabold text-slate-900 dark:text-white border-t-2 border-slate-200 dark:border-slate-800">
                       <td colSpan={2} className="py-3.5 px-4 uppercase text-[10px] tracking-wider text-slate-600 dark:text-slate-400">
                         Totais ({items.length} {items.length === 1 ? "item" : "itens"})
+                        <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 normal-case">
+                          Custo Real Consolidado: <strong className="text-indigo-600 dark:text-indigo-400">{formatCurrency(custoTotalReal)}</strong>
+                        </span>
                       </td>
                       <td className="py-3.5 px-4 text-right text-indigo-600 dark:text-indigo-400 font-black font-tnum text-sm">
                         {formatCurrency(custoTotalPrevisto)}
+                        <span className="block text-[9px] font-semibold text-slate-400 normal-case">Previsto</span>
                       </td>
                       <td className="py-3.5 px-4 text-right text-emerald-600 dark:text-emerald-400 font-black font-tnum text-sm">
                         {formatCurrency(totalJaPago)}
+                        <span className="block text-[9px] font-semibold text-slate-400 normal-case">Total Pago</span>
                       </td>
-                      <td className="py-3.5 px-4 text-center text-xs text-rose-600 dark:text-rose-400 font-black font-tnum">
-                        Falta: {formatCurrency(restanteAPagar)}
+                      <td className="py-3.5 px-4 text-center">
+                        {restanteAPagar === 0 ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/20 px-2.5 py-1 rounded-lg border border-emerald-300 dark:border-emerald-500/30">
+                            <Check className="w-3 h-3 stroke-[3]" />
+                            <span>{diferencaPrevisto > 0 ? `Economia: ${formatCurrency(diferencaPrevisto)}` : "Tudo Quitado"}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-rose-600 dark:text-rose-400 font-black font-tnum bg-rose-50 dark:bg-rose-500/15 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-500/30">
+                            Falta: {formatCurrency(restanteAPagar)}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   </tfoot>
