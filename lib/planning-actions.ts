@@ -209,19 +209,29 @@ export async function updateEventItemAction(
     updateData.notes = baseNotes;
   }
 
+  // Tratamento de paidAmount e isPaid
+  if (data.paidAmount !== undefined) {
+    const pAmt = data.paidAmount !== null && !isNaN(Number(data.paidAmount)) ? Number(data.paidAmount) : 0;
+    updateData.paidAmount = pAmt;
+  }
+
   if (data.isPaid !== undefined) {
     updateData.isPaid = data.isPaid;
-    // Ao MARCAR como pago: define paidAmount se ainda não tiver valor
-    if (data.isPaid && data.paidAmount === undefined) {
-      const currentPaid = Number(item.paidAmount);
+    // Ao MARCAR como pago: se não informou paidAmount e nem há paidAmount salvo:
+    if (data.isPaid && updateData.paidAmount === undefined) {
+      const currentPaid = Number(item.paidAmount || 0);
       if (currentPaid <= 0) {
-        updateData.paidAmount = Number(item.maxAmount);
+        updateData.paidAmount = Number(item.maxAmount || 0);
       }
-      // Se já há paidAmount salvo, preserva-o
     }
-    // Ao DESMARCAR como pago: paidAmount é PRESERVADO (não zeramos)
-  } else if (data.paidAmount !== undefined) {
-    updateData.paidAmount = data.paidAmount;
+    // Ao DESMARCAR como pago: se não informou paidAmount explicitamente, zera o valor pago
+    if (!data.isPaid && updateData.paidAmount === undefined) {
+      updateData.paidAmount = 0;
+    }
+  } else if (updateData.paidAmount !== undefined) {
+    // Se atualizou paidAmount sem passar isPaid explicitamente:
+    // Se o valor pago for > 0, marca automaticamente como pago; senão desmarca
+    updateData.isPaid = Number(updateData.paidAmount) > 0;
   }
 
   const updated = await db.eventItem.update({
@@ -252,10 +262,11 @@ export async function toggleItemPaidAction(id: string) {
   const nextPaidState = !current.isPaid;
   const updateData: any = { isPaid: nextPaidState };
 
-  // Ao MARCAR como pago: se não houver paidAmount, usa o maxAmount como padrão
-  // Ao DESMARCAR como pago: paidAmount é PRESERVADO (não zeramos)
-  if (nextPaidState && Number(current.paidAmount) <= 0) {
-    updateData.paidAmount = Number(current.maxAmount);
+  if (nextPaidState) {
+    const curPaid = Number(current.paidAmount || 0);
+    updateData.paidAmount = curPaid > 0 ? curPaid : Number(current.maxAmount);
+  } else {
+    updateData.paidAmount = 0;
   }
 
   const updated = await db.eventItem.update({

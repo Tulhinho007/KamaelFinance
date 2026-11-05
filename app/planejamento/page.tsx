@@ -35,6 +35,7 @@ import {
   deleteEventItemAction
 } from "@/lib/planning-actions";
 import { detectCategory } from "@/lib/planning-utils";
+import { parseCurrencyInput } from "@/lib/constants";
 import { ConvertToExpenseModal } from "@/components/convert-to-expense-modal";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 
@@ -154,10 +155,10 @@ function EditableCurrencyCell({
         <span className="text-[10px] font-black text-slate-400 select-none">R$</span>
         <input
           autoFocus
-          type="number"
-          step="0.01"
+          type="text"
+          inputMode="decimal"
           value={tempVal}
-          onChange={e => setTempVal(e.target.value)}
+          onChange={e => setTempVal(e.target.value.replace(/[^0-9.,]/g, ""))}
           onBlur={() => {
             setIsEditing(false);
             onChange(tempVal);
@@ -230,7 +231,7 @@ export default function PlanningPage() {
   // Modal de Novo Item (Substitui o formulário aberto fixo)
   const [isNewItemModalOpen, setIsNewItemModalOpen]       = useState(false);
   const [newItemDesc, setNewItemDesc]                     = useState("");
-  const [newItemEstimated, setNewItemEstimated]           = useState<number | "">("");
+  const [newItemEstimated, setNewItemEstimated]           = useState<string | number>("");
   const [newItemNotes, setNewItemNotes]                   = useState("");
   const [newItemCategory, setNewItemCategory]             = useState("Gastos no Local");
   const [isAddingItem, setIsAddingItem]                   = useState(false);
@@ -238,9 +239,9 @@ export default function PlanningPage() {
   // Modal de Edição de Item
   const [editingItem, setEditingItem]                     = useState<EventItem | null>(null);
   const [editItemDesc, setEditItemDesc]                   = useState("");
-  const [editItemEstimated, setEditItemEstimated]         = useState<number | "">("");
+  const [editItemEstimated, setEditItemEstimated]         = useState<string | number>("");
   const [editItemPaid, setEditItemPaid]                   = useState(false);
-  const [editItemPaidAmount, setEditItemPaidAmount]       = useState<number | "">("");
+  const [editItemPaidAmount, setEditItemPaidAmount]       = useState<string | number>("");
   const [editItemNotes, setEditItemNotes]                 = useState("");
   const [editItemCategory, setEditItemCategory]           = useState("Gastos no Local");
 
@@ -470,14 +471,18 @@ export default function PlanningPage() {
   // Adicionar Item ao Orçamento via Modal
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProject || !newItemDesc.trim() || !newItemEstimated) return;
+    const estVal = parseCurrencyInput(newItemEstimated);
+    if (!activeProject || !newItemDesc.trim() || estVal <= 0) {
+      showAlert("Informe uma descrição e um valor estimado válido.", { variant: "warning" });
+      return;
+    }
 
     setIsAddingItem(true);
     try {
       await createEventItemAction(activeProject.id, {
         description: newItemDesc.trim(),
         minAmount: null,
-        maxAmount: Number(newItemEstimated),
+        maxAmount: estVal,
         notes: newItemNotes.trim(),
         category: newItemCategory,
       });
@@ -501,7 +506,7 @@ export default function PlanningPage() {
     const newIsPaid = !item.isPaid;
     // Se marcou como pago e não tinha valor, adota o valor estimado automaticamente
     const newPaidAmount = newIsPaid
-      ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount)
+      ? (Number(item.paidAmount) > 0 ? Number(item.paidAmount) : Number(item.maxAmount))
       : 0;
 
     setProjects(prev =>
@@ -529,7 +534,7 @@ export default function PlanningPage() {
     field: "maxAmount" | "paidAmount",
     valueStr: string
   ) => {
-    const numericVal = valueStr === "" ? 0 : Number(valueStr);
+    const numericVal = parseCurrencyInput(valueStr);
 
     setProjects(prev =>
       prev.map((p: EventProject) => {
@@ -539,8 +544,8 @@ export default function PlanningPage() {
           items: p.items.map((i: EventItem) => {
             if (i.id !== itemId) return i;
             const updated = { ...i, [field]: numericVal };
-            if (field === "paidAmount" && numericVal > 0) {
-              updated.isPaid = true;
+            if (field === "paidAmount") {
+              updated.isPaid = numericVal > 0;
             }
             return updated;
           })
@@ -550,12 +555,13 @@ export default function PlanningPage() {
 
     try {
       const payload: any = { [field]: numericVal };
-      if (field === "paidAmount" && numericVal > 0) {
-        payload.isPaid = true;
+      if (field === "paidAmount") {
+        payload.isPaid = numericVal > 0;
       }
       await updateEventItemAction(itemId, payload);
     } catch (err) {
       console.error("Erro ao atualizar valor do item:", err);
+      await loadData();
     }
   };
 
@@ -563,9 +569,16 @@ export default function PlanningPage() {
   const openEditItemModal = (item: EventItem) => {
     setEditingItem(item);
     setEditItemDesc(item.description);
-    setEditItemEstimated(item.maxAmount);
+    setEditItemEstimated(String(item.maxAmount || ""));
     setEditItemPaid(item.isPaid);
-    setEditItemPaidAmount(item.isPaid ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : "");
+    const pAmt = Number(item.paidAmount || 0);
+    if (pAmt > 0) {
+      setEditItemPaidAmount(String(pAmt));
+    } else if (item.isPaid) {
+      setEditItemPaidAmount(String(item.maxAmount || ""));
+    } else {
+      setEditItemPaidAmount("");
+    }
     setEditItemNotes(item.notes);
     setEditItemCategory(item.category || detectCategory(item.description, item.notes));
   };
@@ -573,20 +586,59 @@ export default function PlanningPage() {
   // Salvar Edição do Item
   const handleSaveItemEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem || !editItemDesc.trim() || !editItemEstimated) return;
+    if (!editingItem || !editItemDesc.trim()) return;
+
+    const estimatedVal = parseCurrencyInput(editItemEstimated);
+    if (estimatedVal <= 0) {
+      showAlert("Informe um valor estimado válido.", { variant: "warning" });
+      return;
+    }
+
+    const parsedPaid = parseCurrencyInput(editItemPaidAmount);
+    // Se o usuário digitou valor pago > 0 OU se marcou o checkbox como pago
+    const isPaid = editItemPaid || parsedPaid > 0;
+    // Se digitou valor pago, USA EXATAMENTE O VALOR PAGO DIGITADO!
+    const finalPaidAmount = isPaid
+      ? (parsedPaid > 0 ? parsedPaid : estimatedVal)
+      : 0;
+
     try {
-      const paidVal = editItemPaid ? Number(editItemPaidAmount || editItemEstimated) : 0;
       await updateEventItemAction(editingItem.id, {
         description: editItemDesc.trim(),
-        maxAmount: Number(editItemEstimated),
+        maxAmount: estimatedVal,
         minAmount: null,
-        paidAmount: paidVal,
-        isPaid: editItemPaid,
+        paidAmount: finalPaidAmount,
+        isPaid: isPaid,
         notes: editItemNotes.trim(),
         category: editItemCategory,
       });
+
+      // Atualização otimista imediata no estado local
+      setProjects(prev =>
+        prev.map(p => {
+          if (p.id !== activeProject?.id) return p;
+          return {
+            ...p,
+            items: p.items.map(i =>
+              i.id === editingItem.id
+                ? {
+                    ...i,
+                    description: editItemDesc.trim(),
+                    maxAmount: estimatedVal,
+                    paidAmount: finalPaidAmount,
+                    isPaid: isPaid,
+                    notes: editItemNotes.trim(),
+                    category: editItemCategory,
+                  }
+                : i
+            ),
+          };
+        })
+      );
+
       setEditingItem(null);
       await loadData();
+      showAlert("Despesa atualizada com sucesso!", { variant: "success" });
     } catch (err) {
       console.error(err);
       showAlert("Erro ao salvar alterações no item.", { variant: "error" });
@@ -1242,14 +1294,14 @@ export default function PlanningPage() {
                               />
                             </td>
 
-                            {/* VALOR PAGO: Se pago, exibe o valor; se pendente, traço (—) */}
+                            {/* VALOR PAGO: Se pago, exibe o valor; se pendente, traço (—) com edição direta */}
                             <td className="py-3 px-4 text-right">
                               <EditableCurrencyCell
-                                value={item.isPaid ? (item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : null}
+                                value={item.isPaid ? Number(item.paidAmount > 0 ? item.paidAmount : item.maxAmount) : (Number(item.paidAmount) > 0 ? Number(item.paidAmount) : null)}
                                 onChange={valStr => handleItemValueChange(item.id, "paidAmount", valStr)}
                                 colorClass="text-emerald-600 dark:text-emerald-400"
                                 placeholder="0,00"
-                                disabled={!item.isPaid}
+                                disabled={false}
                                 emptyText="—"
                               />
                             </td>
@@ -1688,12 +1740,11 @@ export default function PlanningPage() {
                   Valor Estimado (R$) *
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   required
-                  min="0.01"
-                  step="0.01"
                   value={newItemEstimated}
-                  onChange={e => setNewItemEstimated(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={e => setNewItemEstimated(e.target.value.replace(/[^0-9.,]/g, ""))}
                   placeholder="0,00"
                   className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
                 />
@@ -1797,12 +1848,12 @@ export default function PlanningPage() {
                     Valor Estimado (R$) *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     required
-                    min="0.01"
-                    step="0.01"
                     value={editItemEstimated}
-                    onChange={e => setEditItemEstimated(e.target.value === "" ? "" : Number(e.target.value))}
+                    onChange={e => setEditItemEstimated(e.target.value.replace(/[^0-9.,]/g, ""))}
+                    placeholder="0,00"
                     className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
                   />
                 </div>
@@ -1811,14 +1862,16 @@ export default function PlanningPage() {
                     Valor Pago (R$)
                   </label>
                   <input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={editItemPaidAmount}
                     onChange={e => {
-                      const val = e.target.value === "" ? "" : Number(e.target.value);
-                      setEditItemPaidAmount(val);
-                      if (Number(val) > 0) setEditItemPaid(true);
+                      const valStr = e.target.value.replace(/[^0-9.,]/g, "");
+                      setEditItemPaidAmount(valStr);
+                      const parsed = parseCurrencyInput(valStr);
+                      if (parsed > 0) {
+                        setEditItemPaid(true);
+                      }
                     }}
                     placeholder="0,00"
                     className="w-full rounded-xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-tnum"
@@ -1835,8 +1888,13 @@ export default function PlanningPage() {
                   onChange={e => {
                     const checked = e.target.checked;
                     setEditItemPaid(checked);
-                    if (checked && (!editItemPaidAmount || Number(editItemPaidAmount) === 0)) {
-                      setEditItemPaidAmount(editItemEstimated);
+                    if (checked) {
+                      const parsed = parseCurrencyInput(editItemPaidAmount);
+                      if (parsed <= 0) {
+                        setEditItemPaidAmount(String(editItemEstimated));
+                      }
+                    } else {
+                      setEditItemPaidAmount("");
                     }
                   }}
                   className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
