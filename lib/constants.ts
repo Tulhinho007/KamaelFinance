@@ -16,8 +16,11 @@ export function getMonthName(month: number): string {
 export function parseCurrencyInput(value: string | number | undefined | null): number {
   if (value === undefined || value === null || value === "") return 0;
   if (typeof value === "number") return isNaN(value) ? 0 : value;
-  const sanitized = String(value).trim().replace(",", ".");
-  const num = parseFloat(sanitized);
+  const sanitized = String(value).trim();
+  const normalized = sanitized.includes(".") && sanitized.includes(",")
+    ? sanitized.replace(/\./g, "").replace(",", ".")
+    : sanitized.replace(",", ".");
+  const num = parseFloat(normalized);
   return isNaN(num) ? 0 : num;
 }
 
