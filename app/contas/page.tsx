@@ -1546,8 +1546,20 @@ export default function GestaoCaixaContasPage() {
         description: `Ajuste para saldo real (${formatBRL(targetExact)})`,
         previousBalance: currentBal,
         resultingBalance: targetExact,
-        isVisualOnly: true,
+        isVisualOnly: false,
       };
+
+      if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
+        const res = await setExactBankAccountBalanceAction({
+          contaId: managingAccount.id,
+          novoSaldo: targetExact,
+          descricao: newRecord.description,
+          isVisualOnly: false,
+        });
+        if (!res?.success) {
+          throw new Error("Não foi possível salvar o ajuste de saldo no banco de dados.");
+        }
+      }
 
       const updatedHistory = [newRecord, ...(managingAccount.history || [])];
       saveAccountHistory(managingAccount.id, updatedHistory);
@@ -1570,17 +1582,11 @@ export default function GestaoCaixaContasPage() {
 
       showAlert(`Saldo de ${managingAccount.bankName || managingAccount.title || managingAccount.name} atualizado para ${formatBRL(targetExact)}!`, { variant: "success" });
 
-      if (!managingAccount.id.startsWith("mock-") && !managingAccount.id.startsWith("local-")) {
-        await setExactBankAccountBalanceAction({
-          contaId: managingAccount.id,
-          novoSaldo: targetExact,
-          descricao: newRecord.description,
-          isVisualOnly: true,
-        }).catch((err) => console.error("Erro ao sincronizar saldo no banco:", err));
-      }
+      // Recarrega os dados completos para sincronização 100% com o backend
+      await loadData();
     } catch (err: any) {
-      console.error(err);
-      showAlert(err?.message || "Erro ao atualizar saldo.", { variant: "error" });
+      console.error("Erro ao atualizar saldo:", err);
+      showAlert(err?.message || "Erro ao atualizar saldo no banco de dados.", { variant: "error" });
     } finally {
       setSavingAdjustment(false);
     }

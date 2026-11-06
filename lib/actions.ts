@@ -2211,10 +2211,13 @@ export async function calculateAccountBalance(
 
   // Auto-sincronização do saldo real da conta no banco de dados se houver divergência
   if (wallet.walletType !== "CREDIT_CARD" && Number(wallet.currentBalance) !== currentRealBalance) {
-    prisma.wallet.update({
-      where: { id: wallet.id },
-      data: { currentBalance: currentRealBalance },
-    }).catch(() => {});
+    try {
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { currentBalance: currentRealBalance },
+      });
+      wallet.currentBalance = currentRealBalance;
+    } catch {}
   }
 
   // Trava de competência histórica para meses anteriores a Julho de 2026
@@ -4585,8 +4588,14 @@ export async function setExactBankAccountBalanceAction(input: {
   isVisualOnly?: boolean;
 }) {
   const userId = await requireActiveUserId();
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, role: true }
+  });
+  const isMaster = currentUser?.role === "MASTER";
+
   const wallet = await prisma.wallet.findFirst({
-    where: { id: input.contaId, userId }
+    where: isMaster ? { id: input.contaId } : { id: input.contaId, userId }
   });
   if (!wallet) throw new Error("Conta Bancária não encontrada ou não autorizada.");
 
@@ -4601,6 +4610,30 @@ export async function setExactBankAccountBalanceAction(input: {
       // Ajuste puramente visual: atualiza o saldo diretamente sem criar lançamentos em Receitas/Despesas
       const netTxs = Number(bInfo.totalEntradasHoje ?? 0) - Number(bInfo.totalSaidasHoje ?? 0);
       const newInitial = Math.round((target - netTxs) * 100) / 100;
+
+      // Se houver transação formal de abertura/saldo inicial, atualiza o valor dela também para manter sincronizado com calculateAccountBalance
+      const openingTx = await prisma.transaction.findFirst({
+        where: {
+          walletId: wallet.id,
+          type: "INCOME",
+          deletedAt: null,
+          OR: [
+            { description: { contains: "saldo inicial", mode: "insensitive" } },
+            { description: { contains: "abertura", mode: "insensitive" } },
+            { tags: { contains: "abertura", mode: "insensitive" } },
+          ],
+        },
+      });
+
+      if (openingTx) {
+        const otherIncomes = Number(bInfo.totalEntradasHoje ?? 0) - Number(openingTx.amount || 0);
+        const adjustedOpening = Math.round((target + Number(bInfo.totalSaidasHoje ?? 0) - otherIncomes) * 100) / 100;
+        await prisma.transaction.update({
+          where: { id: openingTx.id },
+          data: { amount: adjustedOpening },
+        });
+      }
+
       await prisma.wallet.update({
         where: { id: wallet.id },
         data: {
@@ -4609,7 +4642,7 @@ export async function setExactBankAccountBalanceAction(input: {
         },
       });
     } else {
-      // Ajuste contábil formal: cria transação correspondente
+      // Ajuste contábil formal: cria transação correspondente com tag AJUSTE_SALDO
       const isEntrada = diff > 0;
       const valorNumerico = Math.abs(diff);
 
@@ -4628,7 +4661,7 @@ export async function setExactBankAccountBalanceAction(input: {
           userId: wallet.userId || userId,
           walletId: wallet.id,
           categoryId: category.id,
-          description: input.descricao?.trim() || `Ajuste para saldo exato (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+          description: input.descricao?.trim() || `Ajuste para saldo real (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
           type: isEntrada ? "INCOME" : "EXPENSE",
           amount: valorNumerico,
           status: "COMPLETED",
@@ -4656,6 +4689,9 @@ export async function setExactBankAccountBalanceAction(input: {
       data: { currentBalance: target }
     });
   }
+
+  // Sincroniza saldo final da conta
+  await syncBankAccountBalance(wallet.id);
 
   revalidatePath("/contas");
   revalidatePath(`/contas/${wallet.id}`);
@@ -13120,7 +13156,9 @@ export async function getGestaoCaixaPageDataAction(year: number = 2026) {
           .reduce((s, t) => s + Number(t.amount || 0), 0);
         const balancoAno = entradasAno - saidasAno;
 
-        const rawBal = Number(w.currentBalance ?? bInfo.currentRealBalance ?? 0);
+        const rawBal = bInfo.currentRealBalance != null
+          ? (Number(bInfo.currentRealBalance) === 0 ? 0 : Number(bInfo.currentRealBalance))
+          : Number(w.currentBalance || 0);
 
         return {
           id: w.id,
