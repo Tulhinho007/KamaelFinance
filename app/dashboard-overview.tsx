@@ -101,12 +101,19 @@ export function DashboardOverview() {
   const [revCategory, setRevCategory] = useState("Salário");
   const [revAmount, setRevAmount]     = useState<number | "">("");
   const [revDate, setRevDate]         = useState(new Date().toISOString().split("T")[0]);
-  const [revCompetenceMonth, setRevCompetenceMonth] = useState<number>(() => selectedMonth || (new Date().getMonth() + 1));
+  const [revCompetenceMonth, setRevCompetenceMonth] = useState<number>(() => new Date().getMonth() + 1);
   const [revCompetenceYear, setRevCompetenceYear]   = useState<number>(() => selectedYear || new Date().getFullYear());
   const [revCompetenceSuggested, setRevCompetenceSuggested] = useState(false);
   const [savingRev, setSavingRev]     = useState(false);
   const [dashboardWallets, setDashboardWallets] = useState<any[]>([]);
   const [revWalletId, setRevWalletId] = useState<string>("");
+
+  // Garante que, ao retornar de qualquer outra página para o Dashboard, o contexto sempre volte ao mês atual corrente
+  useEffect(() => {
+    if (goToCurrentMonth) {
+      goToCurrentMonth();
+    }
+  }, []);
 
   const checkAndSuggestSalaryCompetence = (dateStr: string, desc: string, cat?: string) => {
     if (!dateStr) return;
@@ -515,7 +522,14 @@ export function DashboardOverview() {
 
         const hoje = new Date();
         const targetYear = selectedDashboardYear || selectedYear || hoje.getFullYear();
-        const targetMonth = (selectedMonth && selectedMonth >= 1 && selectedMonth <= 12) ? selectedMonth : (hoje.getMonth() + 1);
+        const isCurrentYear = targetYear === hoje.getFullYear();
+        const currentMonthReal = hoje.getMonth() + 1;
+
+        // No Dashboard principal, os cards de liquidação (Total a Pagar e Saldo Previsto)
+        // sempre devem refletir o mês atual corrente em tempo real no ano vigente
+        const targetMonth = isCurrentYear
+          ? currentMonthReal
+          : (selectedMonth && selectedMonth >= 1 && selectedMonth <= 12 ? selectedMonth : currentMonthReal);
         const targetMonthIndex = targetMonth - 1;
 
         // Mês selecionado / atual de referência
