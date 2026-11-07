@@ -18,6 +18,7 @@ import {
   Check,
   Pencil,
   Trash2,
+  CopyPlus,
   MoreVertical,
   RotateCcw,
   RotateCw,
@@ -2131,6 +2132,17 @@ export default function GestaoCaixaContasPage() {
                       {/* 5. Ações (Botões Diretos na Linha - Sem Menu Dropdown) */}
                       <td className="w-20 px-3 py-3.5 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
+                          {!isInvoiceItem(bill) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateToNextMonth(bill)}
+                              disabled={duplicatingId === bill.id}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer disabled:opacity-50"
+                              title="Duplicar para o próximo mês"
+                            >
+                              <CopyPlus size={15} />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {

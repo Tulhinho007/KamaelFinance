@@ -9,7 +9,7 @@ import {
   duplicateExpenseToNextMonthAction, duplicateBatchExpensesToNextMonthAction,
   addTicketCarga, saveTicketCarga, removeTicketCarga, toggleTransactionStatusAction,
   createRevenueAction, payCardInvoiceAction, undoCardInvoicePaymentAction, getAllCardsOverview,
-  createBankAccountMovementAction, updateBankAccountMovementAction
+  createBankAccountMovementAction, updateBankAccountMovementAction, duplicateBankMovementToNextMonthAction
 } from "@/lib/actions";
 import {
   Trash2, X, Edit2, DollarSign, Clock, TrendingDown, TrendingUp, Settings, Plus, Sparkles,
@@ -192,6 +192,7 @@ export default function CartaoDetailPage() {
   const [bankMovTipoLancamento, setBankMovTipoLancamento] = useState<string>("SALARIO");
   const [bankMovEditingId, setBankMovEditingId] = useState<string | null>(null);
   const [bankMovSaving, setBankMovSaving] = useState(false);
+  const [duplicatingMovementId, setDuplicatingMovementId] = useState<string | null>(null);
   const [isDeletingPurchase, setIsDeletingPurchase] = useState(false);
 
   // Cálculo da soma total das despesas selecionadas (Hook posicionado no topo, ANTES de retornos condicionais)
@@ -401,6 +402,24 @@ export default function CartaoDetailPage() {
       showAlert("Erro ao salvar movimentação na conta.", { variant: "error" });
     } finally {
       setBankMovSaving(false);
+    }
+  };
+
+  const handleDuplicateBankMovement = async (tx: any) => {
+    setDuplicatingMovementId(tx.id);
+    try {
+      const res = await duplicateBankMovementToNextMonthAction(tx.id);
+      await loadData();
+      if (res.alreadyExists) {
+        showAlert(`Esta despesa já havia sido duplicada para ${res.newMonthLabel}.`, { variant: "info" });
+      } else {
+        showAlert(`Despesa "${tx.description}" duplicada para ${res.newMonthLabel}!`, { variant: "success" });
+      }
+    } catch (err: any) {
+      console.error("Erro ao duplicar lançamento:", err);
+      showAlert(err?.message || "Erro ao duplicar despesa para o próximo mês.", { variant: "error" });
+    } finally {
+      setDuplicatingMovementId(null);
     }
   };
 
@@ -1583,6 +1602,17 @@ export default function CartaoDetailPage() {
                                 </td>
                                 <td className="py-3 px-4 text-center whitespace-nowrap">
                                   <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center gap-1">
+                                    {t.type === "EXPENSE" && (
+                                      <button
+                                        type="button"
+                                        title="Duplicar despesa para o próximo mês"
+                                        disabled={duplicatingMovementId === t.id}
+                                        onClick={() => handleDuplicateBankMovement(t)}
+                                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50"
+                                      >
+                                        <CopyPlus className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       title="Editar lançamento"

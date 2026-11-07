@@ -3740,6 +3740,84 @@ export async function duplicateExpenseToNextMonthAction(
   return { success: true, newMonthLabel, id: newTx.id };
 }
 
+// Duplica uma saída de conta corrente para o mês seguinte, como compromisso PENDENTE
+// (não altera o saldo até ser paga; aparece em "Contas Fixas & Despesas do Mês" do mês seguinte).
+export async function duplicateBankMovementToNextMonthAction(movementId: string) {
+  const userId = await requireActiveUserId();
+  const original = await prisma.transaction.findFirst({
+    where: { id: movementId, deletedAt: null, wallet: { userId } },
+  });
+  if (!original) throw new Error("Lançamento não encontrado ou não autorizado.");
+  if (original.type !== "EXPENSE") throw new Error("Apenas despesas podem ser duplicadas para o mês seguinte.");
+
+  const origDate = new Date(
+    (original as any).purchaseDate || original.date || (original as any).paymentDate || (original as any).dueDate
+  );
+  const sourceYear = origDate.getUTCFullYear();
+  const sourceMonth = origDate.getUTCMonth() + 1;
+  const sourceDay = origDate.getUTCDate();
+
+  const targetMonth = sourceMonth === 12 ? 1 : sourceMonth + 1;
+  const targetYear = sourceMonth === 12 ? sourceYear + 1 : sourceYear;
+  const maxDays = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+  const safeDay = Math.min(Math.max(1, sourceDay), maxDays);
+  const nextDate = new Date(Date.UTC(targetYear, targetMonth - 1, safeDay, 12, 0, 0));
+
+  const monthShorts = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+  const newMonthLabel = `${monthShorts[targetMonth - 1]}/${targetYear}`;
+
+  const dayStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+  const existing = await prisma.transaction.findFirst({
+    where: {
+      walletId: original.walletId,
+      description: original.description,
+      deletedAt: null,
+      type: "EXPENSE",
+      date: { gte: dayStart, lte: dayEnd },
+    },
+  });
+  if (existing) {
+    return { success: true, alreadyExists: true, newMonthLabel, id: existing.id };
+  }
+
+  const baseTags = (original.tags || "").trim();
+  const tags = baseTags.toUpperCase().includes("#COMPROMISSO") ? baseTags : `${baseTags} #compromisso`.trim();
+
+  const newTx = await prisma.transaction.create({
+    data: {
+      userId,
+      walletId: original.walletId,
+      categoryId: original.categoryId,
+      description: original.description,
+      type: "EXPENSE",
+      amount: original.amount,
+      date: nextDate,
+      purchaseDate: nextDate,
+      dueDate: nextDate,
+      paymentDate: null,
+      competenceDate: nextDate,
+      competenceMonth: targetMonth,
+      competenceYear: targetYear,
+      status: "PENDING",
+      paymentMethod: (original as any).paymentMethod || null,
+      source: "COMMITMENT",
+      tags,
+      isRecurring: false,
+      recurringDay: safeDay,
+    } as any,
+  });
+
+  revalidatePath("/contas");
+  revalidatePath(`/contas/${original.walletId}`);
+  revalidatePath(`/cartoes/${original.walletId}`);
+  revalidatePath("/despesas");
+  revalidatePath("/dashboard");
+  revalidatePath("/compromissos");
+
+  return { success: true, alreadyExists: false, newMonthLabel, id: newTx.id };
+}
+
 export async function duplicateBatchExpensesToNextMonthAction(
   expenseIds: string[],
   baseMonth?: number,
