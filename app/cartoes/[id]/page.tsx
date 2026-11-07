@@ -24,7 +24,7 @@ import { CreditCardLimitBreakdown } from "@/components/credit-card-limit-breakdo
 import { CurrencyValue } from "@/components/currency-value";
 import { CATEGORIES, getMonthName } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
-import { getInvoiceStatusInfo, getTransactionInvoiceDueDate } from "@/lib/invoice-utils";
+import { getInvoiceStatusInfo, getTransactionCompetence } from "@/lib/invoice-utils";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -630,8 +630,7 @@ export default function CartaoDetailPage() {
   const getTransactionDisplayYearMonth = (item: any) => {
     if (!item) return { year: 0, month: 0 };
     if (isCredit) {
-      const invDueDate = getTransactionInvoiceDueDate(item, cardData?.diaFechamento ?? 1, cardData?.vencimento ?? 10);
-      return { year: invDueDate.getFullYear(), month: invDueDate.getMonth() + 1 };
+      return getTransactionCompetence(item, cardData?.diaFechamento ?? 1, cardData?.vencimento ?? 10);
     }
     const ref = item.purchaseDate || item.date || item.competenceDate;
     return getYearMonth(ref);
@@ -640,8 +639,7 @@ export default function CartaoDetailPage() {
   const getCompetenceYearMonth = (item: any) => {
     if (!item) return { year: 0, month: 0 };
     if (isCredit) {
-      const invDueDate = getTransactionInvoiceDueDate(item, cardData?.diaFechamento ?? 1, cardData?.vencimento ?? 10);
-      return { year: invDueDate.getFullYear(), month: invDueDate.getMonth() + 1 };
+      return getTransactionCompetence(item, cardData?.diaFechamento ?? 1, cardData?.vencimento ?? 10);
     }
     const ref = item.purchaseDate || item.date || item.competenceDate;
     return getYearMonth(ref);

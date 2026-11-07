@@ -7,7 +7,7 @@ import { prisma, PRISMA_TX_OPTIONS } from "./prisma";
 import { z } from "zod";
 import { PaymentMethod, type Goal, type GoalHistory, type Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
-import { getInvoiceDueDateInfo, getFaturaVencimento, getInvoiceCycleDates, isTransactionInInvoice, getTransactionInvoiceDueDate } from "./invoice-utils";
+import { getInvoiceDueDateInfo, getFaturaVencimento, getInvoiceCycleDates, isTransactionInInvoice, getTransactionInvoiceDueDate, getTransactionCompetence } from "./invoice-utils";
 import { getExpenseEmoji } from "./formatters";
 
 // ---------- Validação de entrada (DTOs) ----------
@@ -286,6 +286,12 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 // ---------- Helper: critério único de período (Dashboard, Receitas, Conta Corrente) ----------
 // Uma transação pertence ao período se sua COMPETÊNCIA ou sua DATA (fuso Brasília e UTC)
 // cair no mês/ano. Evita sumir lançamentos de 01/mês ou 31/mês por fuso e competências divergentes.
+// Converte a data de vencimento da fatura na competência (mês das compras = vencimento - 1 mês)
+function invComp(due: Date): { month: number; year: number } {
+  const m = due.getMonth() + 1;
+  return m === 1 ? { month: 12, year: due.getFullYear() - 1 } : { month: m - 1, year: due.getFullYear() };
+}
+
 function isTxInPeriod(t: any, year: number, month?: number | null): boolean {
   const hasMonth = !!month && month >= 1 && month <= 12;
 
@@ -296,8 +302,8 @@ function isTxInPeriod(t: any, year: number, month?: number | null): boolean {
     if (hasMonth) {
       return isTransactionInInvoice(t, month!, year, fechamento, vencimento);
     }
-    const invDueDate = getTransactionInvoiceDueDate(t, fechamento, vencimento);
-    return invDueDate.getFullYear() === year;
+    const invDueDate = getTransactionCompetence(t, fechamento, vencimento);
+    return invDueDate.year === year;
   }
 
   // Competência definida = única fonte de verdade (cada lançamento pertence a UM só mês)
@@ -2489,10 +2495,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     const paidRecord = await (prisma as any).invoicePayment.findFirst({
       where: {
         walletId: wallet.id,
-        OR: [
-          { month: targetMonth, year: targetYear },
-          { month: dueDateInfo.billingMonth, year: dueDateInfo.billingYear }
-        ]
+        month: targetMonth,
+        year: targetYear,
       }
     });
 
@@ -2557,8 +2561,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
           recurringDay: (p as any).recurringDay || undefined,
           date: safeIsoDate(p.date),
           competenceDate: safeIsoDate((p as any).competenceDate || (invDue ? invDue : p.date)),
-          competenceMonth: invDue ? (invDue.getMonth() + 1) : ((p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined)),
-          competenceYear: invDue ? invDue.getFullYear() : ((p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined)),
+          competenceMonth: invDue ? invComp(invDue).month : ((p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined)),
+          competenceYear: invDue ? invComp(invDue).year : ((p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined)),
           purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
           paymentDate: (p as any).paymentDate ? safeIsoDate((p as any).paymentDate) : null,
           dueDate: (p as any).dueDate ? safeIsoDate((p as any).dueDate) : (invDue ? safeIsoDate(invDue) : null),
@@ -2599,8 +2603,8 @@ export async function getCardDataById(id: string, month?: number, year?: number)
           recurringDay: (t as any).recurringDay || undefined,
           date: safeIsoDate(t.date),
           competenceDate: safeIsoDate((t as any).competenceDate || (invDue ? invDue : t.date)),
-          competenceMonth: invDue ? (invDue.getMonth() + 1) : ((t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined)),
-          competenceYear: invDue ? invDue.getFullYear() : ((t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined)),
+          competenceMonth: invDue ? invComp(invDue).month : ((t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined)),
+          competenceYear: invDue ? invComp(invDue).year : ((t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined)),
           purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
           paymentDate: (t as any).paymentDate ? safeIsoDate((t as any).paymentDate) : null,
           dueDate: (t as any).dueDate ? safeIsoDate((t as any).dueDate) : (invDue ? safeIsoDate(invDue) : null),
@@ -5328,10 +5332,8 @@ export async function getAllCardsOverview(
 
       limitUsed = allExpenses
         .filter(t => {
-          const invDue = getTransactionInvoiceDueDate(t, (w as any).diaFechamento ?? 1, w.vencimento ?? 10);
-          const m = invDue.getMonth() + 1;
-          const y = invDue.getFullYear();
-          const isPaid = paidKeys.has(`${m}-${y}`);
+          const comp = getTransactionCompetence(t, (w as any).diaFechamento ?? 1, w.vencimento ?? 10);
+          const isPaid = paidKeys.has(`${comp.month}-${comp.year}`);
           return !isPaid;
         })
         .reduce((s, t) => s + Number(t.amount), 0);
@@ -5376,7 +5378,7 @@ export async function getAllCardsOverview(
     const paidRecord = walletPaidInvoices.find((p: any) => {
       if (p.year !== year) return false;
       if (!isAnnualView) {
-        return p.month === Number(month) || p.month === dueDateInfo.billingMonth;
+        return p.month === Number(month);
       }
       return true;
     });
@@ -7260,13 +7262,14 @@ export async function getUpcomingCreditCardBills(
     const card = creditCards.find((c) => c.id === tx.walletId);
     if (!card) return;
 
-    const due = getTransactionInvoiceDueDate(
+    const due = getTransactionCompetence(
       tx,
       (card as any).diaFechamento ?? 1,
       card.vencimento ?? 10
     );
-    const m = due.getMonth() + 1;
-    const y = due.getFullYear();
+    // month/year = competência (mês das compras); o vencimento real é M+1
+    const m = due.month;
+    const y = due.year;
     const groupKey = `${tx.walletId}-${m}-${y}`;
 
     const isTxPaid = tx.status === "COMPLETED" || tx.status === "PAID" || tx.status === "pago" || tx.status === "confirmado";
@@ -7308,19 +7311,14 @@ export async function getUpcomingCreditCardBills(
       year
     );
 
-    // Verifica se essa fatura foi paga (pela competência OU pelo mês de vencimento OU mês anterior)
+    // Verifica se essa fatura foi paga (pagamentos são gravados pela competência M)
     const paidByComp = paidMap.get(`${card.id}-${month}-${year}`) || 0;
-    const paidByVenc = paidMap.get(`${card.id}-${dueDateInfo.billingMonth}-${dueDateInfo.billingYear}`) || 0;
     const prevMonth = month === 1 ? 12 : month - 1;
     const prevYear = month === 1 ? year - 1 : year;
-    const paidByPrev = paidMap.get(`${card.id}-${prevMonth}-${prevYear}`) || 0;
-    const totalPaid = Math.max(paidByComp, paidByVenc, paidByPrev);
+    const totalPaid = paidByComp;
 
-    const cardPaidRecords = (paidInvoices || []).filter(
-      (p: any) => p.walletId === card.id && (p.year === year || p.year === prevYear)
-    );
-    const matchedPayment = cardPaidRecords.find(
-      (p: any) => p.month === month || p.month === dueDateInfo.billingMonth || p.month === prevMonth
+    const matchedPayment = (paidInvoices || []).find(
+      (p: any) => p.walletId === card.id && p.month === month && p.year === year
     );
 
     // Também verifica se há despesa bancária com tag ou categoria de pagamento de fatura
@@ -7330,7 +7328,7 @@ export async function getUpcomingCreditCardBills(
       const d = new Date(t.paymentDate || t.date);
       const payM = d.getUTCMonth() + 1;
       const payY = d.getUTCFullYear();
-      return (payM === month || payM === dueDateInfo.billingMonth || payM === prevMonth) && (payY === year || payY === prevYear);
+      return payM === dueDateInfo.billingMonth && payY === dueDateInfo.billingYear;
     });
     const totalBankPaid = bankPaymentTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
@@ -11660,10 +11658,8 @@ export async function getMonthlyCommitmentsAction(
       const dueDate = new Date(Date.UTC(targetVencYear, targetVencMonth - 1, dueDay, 12, 0, 0));
       const dueFormatted = dueDateInfo.dateStr;
 
-      const prevM = m === 1 ? 12 : m - 1;
-      const prevY = m === 1 ? year - 1 : year;
       const paidRecord = (allPaidInvoices || []).find(
-        (p: any) => p.walletId === card.id && (p.month === m || p.month === targetVencMonth || p.month === prevM) && (p.year === year || p.year === prevY)
+        (p: any) => p.walletId === card.id && p.month === m && p.year === year
       );
 
       const hasPendingPurchases = monthTxs.some(
@@ -13001,8 +12997,8 @@ export async function getCreditCardsPageDataAction(
 
   const filteredTxs = isAnnualView || !numMonth
     ? txs.filter((t) => {
-        const d = new Date(t.dueDate || t.purchaseDate || t.date);
-        return d.getFullYear() === year;
+        const cardDef = cardMap.get(t.walletId);
+        return getTransactionCompetence(t, cardDef?.diaFechamento ?? 1, cardDef?.vencimento ?? 10).year === year;
       })
     : txs.filter((t) => {
         const cardDef = cardMap.get(t.walletId);

@@ -75,8 +75,11 @@ export function getInvoiceDueDateInfo(
   selectedYear: number,
   _latestTransactionDate?: string | Date | null
 ): InvoiceDueDateInfo {
-  const safeMonth = Math.max(1, Math.min(12, Number(selectedMonth) || 1));
-  const safeYear = Number(selectedYear) || new Date().getFullYear();
+  const compMonth = Math.max(1, Math.min(12, Number(selectedMonth) || 1));
+  const compYear = Number(selectedYear) || new Date().getFullYear();
+  // Competência (mês das compras) = M → vencimento da fatura em M+1
+  const safeMonth = compMonth === 12 ? 1 : compMonth + 1;
+  const safeYear = compMonth === 12 ? compYear + 1 : compYear;
   const maxDays = new Date(safeYear, safeMonth, 0).getDate();
   const safeDay = Math.min(Math.max(1, Number(diaVencimento) || 10), maxDays);
   const dueDate = new Date(safeYear, safeMonth - 1, safeDay, 12, 0, 0);
@@ -312,15 +315,28 @@ export function isTransactionInInvoice(
     installmentsCount?: number | null;
     description?: string | null;
   },
-  billingMonth: number,
-  billingYear: number,
+  competenceMonth: number,
+  competenceYear: number,
   diaFechamento: number = 1,
   diaVencimento: number = 10
 ): boolean {
-  const invDueDate = getTransactionInvoiceDueDate(tx, diaFechamento, diaVencimento);
-  return (
-    invDueDate.getFullYear() === Number(billingYear) &&
-    invDueDate.getMonth() + 1 === Number(billingMonth)
-  );
+  const comp = getTransactionCompetence(tx, diaFechamento, diaVencimento);
+  return comp.year === Number(competenceYear) && comp.month === Number(competenceMonth);
+}
+
+/**
+ * Competência (mês exibido no seletor) da transação no cartão: é o mês anterior
+ * ao vencimento da fatura à qual ela pertence (competência M → vencimento M+1).
+ */
+export function getTransactionCompetence(
+  tx: Parameters<typeof getTransactionInvoiceDueDate>[0],
+  diaFechamento: number = 1,
+  diaVencimento: number = 10
+): { month: number; year: number } {
+  const due = getTransactionInvoiceDueDate(tx, diaFechamento, diaVencimento);
+  const m = due.getMonth() + 1;
+  return m === 1
+    ? { month: 12, year: due.getFullYear() - 1 }
+    : { month: m - 1, year: due.getFullYear() };
 }
 
