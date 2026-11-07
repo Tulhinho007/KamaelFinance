@@ -338,7 +338,7 @@ export function DashboardOverview() {
 
   const today = new Date();
 
-  const upcomingBills: any[] = data?.upcomingBills ?? (data?.cards || [])
+  const rawUpcoming: any[] = data?.upcomingBills ?? (data?.cards || [])
     .filter((c: any) => c.walletType === "CREDIT_CARD" && c.faturaAtual > 0 && !c.isPaid)
     .map((c: any) => ({
       id: c.id,
@@ -349,6 +349,10 @@ export function DashboardOverview() {
       statusLabel: c.isPast ? "VENCIDA" : "PENDENTE",
       statusBadgeVariant: c.isPast ? "overdue" : "pending",
     }));
+
+  const upcomingBills: any[] = (rawUpcoming || []).filter(
+    (b: any) => !b.isPaid && b.statusLabel !== "PAGO" && b.statusLabel !== "PAGA" && Number(b.valor || 0) > 0
+  );
 
   return (
     <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">

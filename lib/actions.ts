@@ -5242,13 +5242,33 @@ export async function getAllCardsOverview(
       ? transactions
       : transactions.filter((t: any) => !isInvoicePaymentTransaction(t) && !isSubscriptionPaymentTransaction(t));
 
-    const faturaAtual = filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount), 0);
-    const faturaPaga = filteredTransactions
-      .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
-      .reduce((s: number, t: any) => s + Number(t.amount), 0);
-    const faturaPendente = filteredTransactions
-      .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
-      .reduce((s: number, t: any) => s + Number(t.amount), 0);
+    // Para cartão de crédito: faturaAtual é SEMPRE a fatura do mês de referência (effectiveMonth),
+    // e NUNCA a soma anual de todas as faturas do histórico
+    const currentMonthCreditTxs = isCredit
+      ? rawTransactions.filter((t: any) =>
+          isTransactionInInvoice(t, effectiveMonth, year, (w as any).diaFechamento ?? 1, w.vencimento ?? 10)
+        )
+      : [];
+
+    const faturaAtual = isCredit
+      ? currentMonthCreditTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
+      : filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    const faturaPaga = isCredit
+      ? currentMonthCreditTxs
+          .filter((t: any) => t.status === "COMPLETED" || t.status === "PAID" || t.status === "pago" || t.status === "confirmado")
+          .reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
+      : filteredTransactions
+          .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
+          .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    const faturaPendente = isCredit
+      ? currentMonthCreditTxs
+          .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado"))
+          .reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
+      : filteredTransactions
+          .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
+          .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
     // Para cartão de crédito: limitTotal é o limite de crédito.
     // Para conta corrente e ticket: limitTotal é o SALDO FINAL ACUMULADO.
@@ -5374,7 +5394,7 @@ export async function getAllCardsOverview(
           .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
     const isCardFullyPaid = isCredit
-      ? (!isAnnualView ? !!paidRecord : (faturaPendente <= 0 && limitUsed <= 0 && !!paidRecord))
+      ? (Boolean(paidRecord) || (currentMonthCreditTxs.length > 0 && faturaPendente <= 0))
       : false;
 
     const rawBankBal = Number(w.currentBalance ?? balanceInfo.currentRealBalance ?? 0);
@@ -7201,12 +7221,14 @@ export async function getUpcomingCreditCardBills(
     paidMap.set(key, (paidMap.get(key) || 0) + Number(p.amount));
   });
 
-  // 4. Agrupa transações por cartão e competência (mês e ano da despesa)
+  // 4. Agrupa transações por cartão e competência de vencimento da fatura
   const invoiceGroups = new Map<string, {
     card: typeof creditCards[0];
     month: number;
     year: number;
     totalAmount: number;
+    pendingAmount: number;
+    hasPendingTxs: boolean;
   }>();
 
   transactions.forEach((tx) => {
@@ -7222,17 +7244,24 @@ export async function getUpcomingCreditCardBills(
     const y = due.getFullYear();
     const groupKey = `${tx.walletId}-${m}-${y}`;
 
-    const existing = invoiceGroups.get(groupKey);
-    const amt = Number(tx.amount);
+    const isTxPaid = tx.status === "COMPLETED" || tx.status === "PAID" || tx.status === "pago" || tx.status === "confirmado";
+    const amt = Number(tx.amount || 0);
 
+    const existing = invoiceGroups.get(groupKey);
     if (existing) {
       existing.totalAmount += amt;
+      if (!isTxPaid) {
+        existing.pendingAmount += amt;
+        existing.hasPendingTxs = true;
+      }
     } else {
       invoiceGroups.set(groupKey, {
         card,
         month: m,
         year: y,
         totalAmount: amt,
+        pendingAmount: isTxPaid ? 0 : amt,
+        hasPendingTxs: !isTxPaid,
       });
     }
   });
@@ -7243,7 +7272,7 @@ export async function getUpcomingCreditCardBills(
   const pendingBills = [];
 
   for (const group of Array.from(invoiceGroups.values())) {
-    const { card, month, year, totalAmount } = group;
+    const { card, month, year, totalAmount, pendingAmount, hasPendingTxs } = group;
     if (totalAmount <= 0) continue;
 
     // Calcula a data de vencimento da fatura deste mês de competência
@@ -7254,15 +7283,43 @@ export async function getUpcomingCreditCardBills(
       year
     );
 
-    // Verifica se essa fatura foi paga (pela competência OU pelo mês de vencimento)
+    // Verifica se essa fatura foi paga (pela competência OU pelo mês de vencimento OU mês anterior)
     const paidByComp = paidMap.get(`${card.id}-${month}-${year}`) || 0;
     const paidByVenc = paidMap.get(`${card.id}-${dueDateInfo.billingMonth}-${dueDateInfo.billingYear}`) || 0;
-    const totalPaid = Math.max(paidByComp, paidByVenc);
+    const prevMonth = month === 1 ? 12 : month - 1;
+    const prevYear = month === 1 ? year - 1 : year;
+    const paidByPrev = paidMap.get(`${card.id}-${prevMonth}-${prevYear}`) || 0;
+    const totalPaid = Math.max(paidByComp, paidByVenc, paidByPrev);
 
-    // Se o valor pago for maior ou igual ao total, consideramos quitada
-    if (totalPaid >= totalAmount) continue;
+    const cardPaidRecords = (paidInvoices || []).filter(
+      (p: any) => p.walletId === card.id && (p.year === year || p.year === prevYear)
+    );
+    const matchedPayment = cardPaidRecords.find(
+      (p: any) => p.month === month || p.month === dueDateInfo.billingMonth || p.month === prevMonth
+    );
 
-    const remainingAmount = Math.max(0, totalAmount - totalPaid);
+    // Também verifica se há despesa bancária com tag ou categoria de pagamento de fatura
+    const bankPaymentTxs = (existingTransactions || []).filter((t: any) => {
+      if (t.type !== "EXPENSE" || t.deletedAt) return false;
+      if (!isInvoicePaymentTransaction(t)) return false;
+      const d = new Date(t.paymentDate || t.date);
+      const payM = d.getUTCMonth() + 1;
+      const payY = d.getUTCFullYear();
+      return (payM === month || payM === dueDateInfo.billingMonth || payM === prevMonth) && (payY === year || payY === prevYear);
+    });
+    const totalBankPaid = bankPaymentTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
+
+    const effectiveTotalPaid = Math.max(
+      totalPaid,
+      totalBankPaid,
+      matchedPayment ? Number(matchedPayment.amount || 0) : 0
+    );
+
+    // Regra 1: Se a fatura foi marcada como PAGA via quitação OU não possui nenhuma transação pendente, ela NÃO entra como pendência
+    const isPaid = effectiveTotalPaid >= totalAmount || (!hasPendingTxs && totalAmount > 0);
+    if (isPaid) continue;
+
+    const remainingAmount = Math.max(0, pendingAmount > 0 ? pendingAmount : (totalAmount - effectiveTotalPaid));
     if (remainingAmount <= 0) continue;
 
     const dueDate = new Date(dueDateInfo.dueDate);
@@ -11557,17 +11614,13 @@ export async function getMonthlyCommitmentsAction(
     const cardPurchases = (allCardPurchases || []).filter((t: any) => t.walletId === card.id);
 
     for (const m of monthsToCheck) {
-      const monthTxs = cardPurchases.filter((t: any) => {
-        if (t.competenceMonth != null && t.competenceYear != null) {
-          return t.competenceMonth === m && t.competenceYear === year;
-        }
-        const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-        return (d.getUTCMonth() + 1) === m && d.getUTCFullYear() === year;
-      });
+      const monthTxs = cardPurchases.filter((t: any) =>
+        isTransactionInInvoice(t, m, year, (card as any).diaFechamento ?? 1, card.vencimento ?? 10)
+      );
 
       const totalAmount = monthTxs.reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
 
-      // Calcula o vencimento correto no mês subsequente (M+1) respeitando o dia configurado no cartão
+      // Calcula o vencimento correto da fatura respeitando o dia configurado no cartão
       const dueDateInfo = getInvoiceDueDateInfo(
         (card as any).diaFechamento ?? 1,
         card.vencimento ?? 10,
@@ -11582,14 +11635,20 @@ export async function getMonthlyCommitmentsAction(
       const dueDate = new Date(Date.UTC(targetVencYear, targetVencMonth - 1, dueDay, 12, 0, 0));
       const dueFormatted = dueDateInfo.dateStr;
 
+      const prevM = m === 1 ? 12 : m - 1;
+      const prevY = m === 1 ? year - 1 : year;
       const paidRecord = (allPaidInvoices || []).find(
-        (p: any) => p.walletId === card.id && p.month === m && p.year === year
+        (p: any) => p.walletId === card.id && (p.month === m || p.month === targetVencMonth || p.month === prevM) && (p.year === year || p.year === prevY)
+      );
+
+      const hasPendingPurchases = monthTxs.some(
+        (t: any) => t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado"
       );
 
       // Se não há pagamento registrado e o valor consolidado é zero, não gera compromisso
       if (!paidRecord && totalAmount <= 0) continue;
 
-      const isPaid = Boolean(paidRecord);
+      const isPaid = Boolean(paidRecord) || (monthTxs.length > 0 && !hasPendingPurchases);
       const invoiceAmount = paidRecord ? Number(paidRecord.amount) : totalAmount;
 
       const dMid = new Date(targetVencYear, targetVencMonth - 1, dueDay);
@@ -12529,6 +12588,8 @@ export async function getDashboardBundleAction(
               currentBalance: true,
               creditLimit: true,
               bankName: true,
+              diaFechamento: true,
+              vencimento: true,
             },
           },
         },
