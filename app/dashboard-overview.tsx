@@ -541,15 +541,23 @@ export function DashboardOverview() {
         const despesasPendentes: any[] = data?.despesasPendentes || data?.pendingCommitments || [];
         const consolidatedMonthBills = getConsolidatedMonthBills(targetMonth, targetYear, despesasPendentes);
 
-        // Faturas de Cartão do Mês Atual (ex: HyperCard R$ 554,16 em Outubro/2026)
-        const faturasCartoes = consolidatedMonthBills.faturasCartoes;
-        const totalGeralCartoesMes = consolidatedMonthBills.totalFaturasCartao;
+        // Passo 3: Consolidar no Total a Pagar do Mês apenas as faturas cujo vencimento ocorra no mês selecionado
+        const creditCardInvoices = (data?.cards || [])
+          .filter((c: any) => c.walletType === "CREDIT_CARD" && Number(c.faturaAtual || 0) > 0 && !c.isPaid)
+          .map((c: any) => ({
+            id: c.id,
+            nome: c.title || c.bankName || "Cartão",
+            valor: Number(c.faturaAtual || 0),
+          }));
 
-        // Contas Fixas Pendentes do Mês Atual (ex: Camila, Tim Celular, Treino, Tim Live, Fonte Bira = R$ 636,55)
+        const faturasCartoes = creditCardInvoices.length > 0 ? creditCardInvoices : consolidatedMonthBills.faturasCartoes;
+        const totalGeralCartoesMes = faturasCartoes.reduce((s: number, f: any) => s + Number(f.valor || 0), 0);
+
+        // Contas Fixas Pendentes do Mês Atual (ex: Camila, Tim Celular, Treino, Tim Live, Fonte Bira)
         const contasPendentesMes = consolidatedMonthBills.contasFixasPendentes;
         const totalContasFixasPendentes = consolidatedMonthBills.totalContasFixasPendentes;
 
-        // ── 1. Saldo Geral Consolidado (soma das contas bancárias ativas: Santander R$ 330,62 + PicPay R$ 525,18 = R$ 855,80) ──
+        // ── 1. Saldo Geral Consolidado (soma das contas bancárias ativas) ──
         const saldoAtual = Number(saldoConsolidado || totalRealBalanceCalculated || 0);
 
         // ── 2. Receitas Previstas (campo real de entradas/receitas PENDENTES do mês) ──
@@ -560,9 +568,9 @@ export function DashboardOverview() {
           0
         );
 
-        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês (R$ 554,16 + R$ 636,55 = R$ 1.190,71) ──
-        const totalAPagar = consolidatedMonthBills.totalAPagar;
-        const totalItensALiquidar = consolidatedMonthBills.totalItensALiquidar;
+        // ── 3. Total a Pagar = Faturas de Cartão do Mês + Contas Fixas Pendentes do Mês ──
+        const totalAPagar = Math.round((totalGeralCartoesMes + totalContasFixasPendentes) * 100) / 100;
+        const totalItensALiquidar = faturasCartoes.length + contasPendentesMes.length;
 
         // ── 4. Saldo Previsto = Saldo Geral Consolidado (R$ 855,80) + Receitas Previstas - Total a Pagar (R$ 1.190,71) ──
         const saldoPrevistoFinal = saldoAtual + receitasPrevistas - totalAPagar;

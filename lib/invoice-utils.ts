@@ -75,18 +75,24 @@ export function getInvoiceDueDateInfo(
   selectedYear: number,
   _latestTransactionDate?: string | Date | null
 ): InvoiceDueDateInfo {
-  const calc = calculateInvoiceDueDateFromCompetence(selectedMonth, selectedYear, diaVencimento || 10);
+  const safeMonth = Math.max(1, Math.min(12, Number(selectedMonth) || 1));
+  const safeYear = Number(selectedYear) || new Date().getFullYear();
+  const maxDays = new Date(safeYear, safeMonth, 0).getDate();
+  const safeDay = Math.min(Math.max(1, Number(diaVencimento) || 10), maxDays);
+  const dueDate = new Date(safeYear, safeMonth - 1, safeDay, 12, 0, 0);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const isPast = calc.dueDate < today;
+  const isPast = dueDate < today;
+  const dateStr = `${String(safeDay).padStart(2, "0")}/${String(safeMonth).padStart(2, "0")}/${safeYear}`;
 
   return {
-    dateStr: calc.dateStr,
-    dueDate: calc.dueDate,
+    dateStr,
+    dueDate,
     isPast,
-    billingMonth: calc.dueMonth,
-    billingYear: calc.dueYear,
+    billingMonth: safeMonth,
+    billingYear: safeYear,
   };
 }
 
@@ -145,3 +151,146 @@ export function getInvoiceStatusInfo(
     isPaid: false,
   };
 }
+
+/**
+ * Passo 1: Determina a data exata de vencimento da fatura à qual uma compra pertence,
+ * com base na data da transação/compra, no dia de fechamento e no dia de vencimento.
+ */
+export function getFaturaVencimento(
+  dataCompra: Date | string,
+  diaFechamento: number = 1,
+  diaVencimento: number = 10
+): Date {
+  let dia: number;
+  let mes: number; // 0 a 11
+  let ano: number;
+
+  if (typeof dataCompra === "string") {
+    const clean = dataCompra.split("T")[0];
+    const parts = clean.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      ano = parts[0];
+      mes = parts[1] - 1;
+      dia = parts[2];
+    } else {
+      const d = new Date(dataCompra);
+      ano = d.getFullYear();
+      mes = d.getMonth();
+      dia = d.getDate();
+    }
+  } else {
+    ano = dataCompra.getFullYear();
+    mes = dataCompra.getMonth();
+    dia = dataCompra.getDate();
+  }
+
+  const safeFechamento = Math.max(1, Math.min(31, Number(diaFechamento) || 1));
+  const safeVencimento = Math.max(1, Math.min(31, Number(diaVencimento) || 10));
+
+  // Se a compra foi feita DEPOIS do dia do fechamento, vai para a fatura seguinte
+  if (dia > safeFechamento) {
+    mes += 1;
+  }
+
+  // Ajuste se o dia de vencimento for menor que o de fechamento (ex: fecha dia 28 e vence dia 05)
+  if (safeVencimento < safeFechamento) {
+    mes += 1;
+  }
+
+  while (mes > 11) {
+    mes -= 12;
+    ano += 1;
+  }
+
+  const maxDaysInMonth = new Date(ano, mes + 1, 0).getDate();
+  const safeDueDay = Math.min(safeVencimento, maxDaysInMonth);
+
+  return new Date(ano, mes, safeDueDay, 12, 0, 0);
+}
+
+/**
+ * Retorna as datas de corte do ciclo de faturamento para um determinado mês/ano de vencimento.
+ */
+export function getInvoiceCycleDates(
+  billingMonth: number, // 1-12 (Mês do vencimento da fatura)
+  billingYear: number,  // Ano do vencimento da fatura
+  diaFechamento: number = 1,
+  diaVencimento: number = 10
+): {
+  closingDate: Date;
+  previousClosingDate: Date;
+  dueDate: Date;
+} {
+  const safeFechamento = Math.max(1, Math.min(31, Number(diaFechamento) || 1));
+  const safeVencimento = Math.max(1, Math.min(31, Number(diaVencimento) || 10));
+
+  let closingMonth = billingMonth;
+  let closingYear = billingYear;
+  if (safeVencimento < safeFechamento) {
+    closingMonth = billingMonth === 1 ? 12 : billingMonth - 1;
+    closingYear = billingMonth === 1 ? billingYear - 1 : billingYear;
+  }
+
+  const maxClosingDays = new Date(closingYear, closingMonth, 0).getDate();
+  const safeClosingDay = Math.min(safeFechamento, maxClosingDays);
+  const closingDate = new Date(closingYear, closingMonth - 1, safeClosingDay, 23, 59, 59, 999);
+
+  let prevClosingMonth = closingMonth === 1 ? 12 : closingMonth - 1;
+  let prevClosingYear = closingMonth === 1 ? closingYear - 1 : closingYear;
+  const maxPrevDays = new Date(prevClosingYear, prevClosingMonth, 0).getDate();
+  const safePrevDay = Math.min(safeFechamento, maxPrevDays);
+  const previousClosingDate = new Date(prevClosingYear, prevClosingMonth - 1, safePrevDay, 23, 59, 59, 999);
+
+  const maxDueDays = new Date(billingYear, billingMonth, 0).getDate();
+  const safeDueDay = Math.min(safeVencimento, maxDueDays);
+  const dueDate = new Date(billingYear, billingMonth - 1, safeDueDay, 12, 0, 0);
+
+  return {
+    closingDate,
+    previousClosingDate,
+    dueDate,
+  };
+}
+
+/**
+ * Verifica com precisão se uma transação pertence ao ciclo de faturamento especificado.
+ */
+export function isTransactionInInvoice(
+  tx: {
+    date?: Date | string | null;
+    purchaseDate?: Date | string | null;
+    dueDate?: Date | string | null;
+    competenceMonth?: number | null;
+    competenceYear?: number | null;
+  },
+  billingMonth: number,
+  billingYear: number,
+  diaFechamento: number = 1,
+  diaVencimento: number = 10
+): boolean {
+  const rawDate = tx.purchaseDate || tx.date;
+  if (!rawDate) return false;
+
+  const { closingDate, previousClosingDate } = getInvoiceCycleDates(
+    billingMonth,
+    billingYear,
+    diaFechamento,
+    diaVencimento
+  );
+
+  let txDate: Date;
+  if (typeof rawDate === "string") {
+    const clean = rawDate.split("T")[0];
+    const parts = clean.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      txDate = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
+    } else {
+      txDate = new Date(rawDate);
+    }
+  } else {
+    txDate = new Date(rawDate);
+  }
+
+  return txDate > previousClosingDate && txDate <= closingDate;
+}
+
