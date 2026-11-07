@@ -292,16 +292,9 @@ export function getTransactionInvoiceDueDate(
     }
   }
 
-  // Caso contrário, projeta (currentInst - 1) meses à frente do baseDueDate
-  let targetMonth = baseDueDate.getMonth() + (currentInst - 1);
-  let targetYear = baseDueDate.getFullYear();
-  while (targetMonth > 11) {
-    targetMonth -= 12;
-    targetYear += 1;
-  }
-  const maxDaysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-  const safeDueDay = Math.min(baseDueDate.getDate(), maxDaysInMonth);
-  return new Date(targetYear, targetMonth, safeDueDay, 12, 0, 0);
+  // Sem dueDate gravado: o purchaseDate de cada parcela já é deslocado (i-1) meses
+  // na criação, então o vencimento calculado pelo ciclo já é o correto (sem somar de novo).
+  return baseDueDate;
 }
 
 /**
