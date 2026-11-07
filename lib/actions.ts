@@ -7,7 +7,7 @@ import { prisma, PRISMA_TX_OPTIONS } from "./prisma";
 import { z } from "zod";
 import { PaymentMethod, type Goal, type GoalHistory, type Prisma } from "@prisma/client";
 import { cookies } from "next/headers";
-import { getInvoiceDueDateInfo, getFaturaVencimento, getInvoiceCycleDates, isTransactionInInvoice } from "./invoice-utils";
+import { getInvoiceDueDateInfo, getFaturaVencimento, getInvoiceCycleDates, isTransactionInInvoice, getTransactionInvoiceDueDate } from "./invoice-utils";
 import { getExpenseEmoji } from "./formatters";
 
 // ---------- Validação de entrada (DTOs) ----------
@@ -288,6 +288,17 @@ export async function createWallet(input: z.infer<typeof createWalletSchema>) {
 // cair no mês/ano. Evita sumir lançamentos de 01/mês ou 31/mês por fuso e competências divergentes.
 function isTxInPeriod(t: any, year: number, month?: number | null): boolean {
   const hasMonth = !!month && month >= 1 && month <= 12;
+
+  // Se for cartão de crédito e a carteira estiver vinculada:
+  if (t.wallet?.walletType === "CREDIT_CARD") {
+    const fechamento = t.wallet.diaFechamento ?? 1;
+    const vencimento = t.wallet.vencimento ?? 10;
+    if (hasMonth) {
+      return isTransactionInInvoice(t, month!, year, fechamento, vencimento);
+    }
+    const invDueDate = getTransactionInvoiceDueDate(t, fechamento, vencimento);
+    return invDueDate.getFullYear() === year;
+  }
 
   // Competência definida = única fonte de verdade (cada lançamento pertence a UM só mês)
   if (t.competenceYear != null) {
@@ -2490,6 +2501,16 @@ export async function getCardDataById(id: string, month?: number, year?: number)
     });
     const totalPaidAmount = allPaidInvoices.reduce((s: number, p: any) => s + Number(p.amount), 0);
 
+    const currentInvoicePurchases = wallet.walletType === "CREDIT_CARD"
+      ? purchases.filter(p =>
+          isTransactionInInvoice(p, targetMonth, targetYear, (wallet as any).diaFechamento ?? 1, wallet.vencimento ?? 10)
+        )
+      : [];
+    const hasPendingPurchases = currentInvoicePurchases.some(
+      p => p.status === "PENDING" || (p.status !== "COMPLETED" && p.status !== "PAID" && p.status !== "pago" && p.status !== "confirmado")
+    );
+    const isPaid = !!paidRecord || (currentInvoicePurchases.length > 0 && !hasPendingPurchases);
+
     return {
       walletId: wallet.id,
       title: wallet.title || "Conta sem nome",
@@ -2508,7 +2529,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
       isPast:           dueDateInfo.isPast,
       billingMonth:     dueDateInfo.billingMonth,
       billingYear:      dueDateInfo.billingYear,
-      isPaid:           !!paidRecord,
+      isPaid,
       paidAmount:       paidRecord ? Number(paidRecord.amount) : 0,
       paidAt:           paidRecord?.paidAt ? safeIsoDate(paidRecord.paidAt) : null,
       allPaidInvoices:  allPaidInvoices.map((p: any) => ({
@@ -2518,28 +2539,33 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         paidAt: p.paidAt ? safeIsoDate(p.paidAt) : null
       })),
       balanceInfo,
-      purchases: purchases.map(p => ({
-        id: p.id,
-        type: (p.installmentsCount && p.installmentsCount > 1) ? ("parcelado" as const) : ("vista" as const),
-        description: p.description || "Lançamento",
-        category: p.category?.name || "Outros",
-        amount: Number(p.amount || 0),
-        installmentsCount: p.installmentsCount || undefined,
-        currentInstallment: (p as any).currentInstallment || undefined,
-        installmentGroupId: (p as any).installmentGroupId || undefined,
-        tags: (p as any).tags || undefined,
-        isRecurring: Boolean((p as any).isRecurring),
-        recurringDay: (p as any).recurringDay || undefined,
-        date: safeIsoDate(p.date),
-        competenceDate: safeIsoDate((p as any).competenceDate || p.date),
-        competenceMonth: (p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined),
-        competenceYear: (p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined),
-        purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
-        paymentDate: (p as any).paymentDate ? safeIsoDate((p as any).paymentDate) : null,
-        dueDate: (p as any).dueDate ? safeIsoDate((p as any).dueDate) : null,
-        status: p.status || "COMPLETED",
-        paymentMethod: (p as any).paymentMethod || null,
-      })),
+      purchases: purchases.map(p => {
+        const invDue = wallet.walletType === "CREDIT_CARD"
+          ? getTransactionInvoiceDueDate(p, (wallet as any).diaFechamento ?? 1, wallet.vencimento ?? 10)
+          : null;
+        return {
+          id: p.id,
+          type: (p.installmentsCount && p.installmentsCount > 1) ? ("parcelado" as const) : ("vista" as const),
+          description: p.description || "Lançamento",
+          category: p.category?.name || "Outros",
+          amount: Number(p.amount || 0),
+          installmentsCount: p.installmentsCount || undefined,
+          currentInstallment: (p as any).currentInstallment || undefined,
+          installmentGroupId: (p as any).installmentGroupId || undefined,
+          tags: (p as any).tags || undefined,
+          isRecurring: Boolean((p as any).isRecurring),
+          recurringDay: (p as any).recurringDay || undefined,
+          date: safeIsoDate(p.date),
+          competenceDate: safeIsoDate((p as any).competenceDate || (invDue ? invDue : p.date)),
+          competenceMonth: invDue ? (invDue.getMonth() + 1) : ((p as any).competenceMonth || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCMonth() + 1 : undefined)),
+          competenceYear: invDue ? invDue.getFullYear() : ((p as any).competenceYear || ((p as any).competenceDate ? new Date((p as any).competenceDate).getUTCFullYear() : undefined)),
+          purchaseDate: safeIsoDate((p as any).purchaseDate || (p as any).competenceDate || p.date),
+          paymentDate: (p as any).paymentDate ? safeIsoDate((p as any).paymentDate) : null,
+          dueDate: (p as any).dueDate ? safeIsoDate((p as any).dueDate) : (invDue ? safeIsoDate(invDue) : null),
+          status: p.status || "COMPLETED",
+          paymentMethod: (p as any).paymentMethod || null,
+        };
+      }),
       injections: injections.map(i => ({
         id: i.id,
         description: i.description || "Injeção",
@@ -2554,29 +2580,34 @@ export async function getCardDataById(id: string, month?: number, year?: number)
         purchaseDate: safeIsoDate((i as any).purchaseDate || (i as any).competenceDate || i.date),
         paymentDate: (i as any).paymentDate ? safeIsoDate((i as any).paymentDate) : null
       })),
-      allTransactions: allTransactions.map(t => ({
-        id: t.id,
-        type: t.type,
-        description: t.description || "Transação",
-        category: t.category?.name || (t.type === "INCOME" ? "Injeção de Capital" : "Outros"),
-        amount: Number(t.amount || 0),
-        status: t.status || "COMPLETED",
-        installmentsCount: t.installmentsCount || undefined,
-        currentInstallment: (t as any).currentInstallment || undefined,
-        installmentGroupId: (t as any).installmentGroupId || undefined,
-        tags: (t as any).tags || undefined,
-        isRecurring: Boolean((t as any).isRecurring),
-        recurringDay: (t as any).recurringDay || undefined,
-        date: safeIsoDate(t.date),
-        competenceDate: safeIsoDate((t as any).competenceDate || t.date),
-        competenceMonth: (t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined),
-        competenceYear: (t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined),
-        purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
-        paymentDate: (t as any).paymentDate ? safeIsoDate((t as any).paymentDate) : null,
-        dueDate: (t as any).dueDate ? safeIsoDate((t as any).dueDate) : null,
-        paymentMethod: (t as any).paymentMethod || null,
-        source: t.source,
-      })),
+      allTransactions: allTransactions.map(t => {
+        const invDue = wallet.walletType === "CREDIT_CARD" && t.type === "EXPENSE"
+          ? getTransactionInvoiceDueDate(t, (wallet as any).diaFechamento ?? 1, wallet.vencimento ?? 10)
+          : null;
+        return {
+          id: t.id,
+          type: t.type,
+          description: t.description || "Transação",
+          category: t.category?.name || (t.type === "INCOME" ? "Injeção de Capital" : "Outros"),
+          amount: Number(t.amount || 0),
+          status: t.status || "COMPLETED",
+          installmentsCount: t.installmentsCount || undefined,
+          currentInstallment: (t as any).currentInstallment || undefined,
+          installmentGroupId: (t as any).installmentGroupId || undefined,
+          tags: (t as any).tags || undefined,
+          isRecurring: Boolean((t as any).isRecurring),
+          recurringDay: (t as any).recurringDay || undefined,
+          date: safeIsoDate(t.date),
+          competenceDate: safeIsoDate((t as any).competenceDate || (invDue ? invDue : t.date)),
+          competenceMonth: invDue ? (invDue.getMonth() + 1) : ((t as any).competenceMonth || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCMonth() + 1 : undefined)),
+          competenceYear: invDue ? invDue.getFullYear() : ((t as any).competenceYear || ((t as any).competenceDate ? new Date((t as any).competenceDate).getUTCFullYear() : undefined)),
+          purchaseDate: safeIsoDate((t as any).purchaseDate || (t as any).competenceDate || t.date),
+          paymentDate: (t as any).paymentDate ? safeIsoDate((t as any).paymentDate) : null,
+          dueDate: (t as any).dueDate ? safeIsoDate((t as any).dueDate) : (invDue ? safeIsoDate(invDue) : null),
+          paymentMethod: (t as any).paymentMethod || null,
+          source: t.source,
+        };
+      }),
     };
   } catch (err) {
     console.error("Erro interno em getCardDataById:", err);
@@ -5282,15 +5313,9 @@ export async function getAllCardsOverview(
     const curMonthNow = nowCur.getMonth() + 1;
     const curYearNow = nowCur.getFullYear();
     const curMonthCreditTxs = isCredit
-      ? allExpenses.filter((t: any) => {
-          if (t.competenceMonth != null && t.competenceYear != null) {
-            return t.competenceMonth === curMonthNow && t.competenceYear === curYearNow;
-          }
-          const d = new Date(t.competenceDate || t.purchaseDate || t.date);
-          const tm = d.getUTCMonth() + 1;
-          const ty = d.getUTCFullYear();
-          return tm === curMonthNow && ty === curYearNow;
-        })
+      ? allExpenses.filter((t: any) =>
+          isTransactionInInvoice(t, curMonthNow, curYearNow, (w as any).diaFechamento ?? 1, w.vencimento ?? 10)
+        )
       : [];
     const faturaMesAtual = isCredit
       ? curMonthCreditTxs.reduce((s: number, t: any) => s + Number(t.amount || 0), 0)
@@ -5303,9 +5328,9 @@ export async function getAllCardsOverview(
 
       limitUsed = allExpenses
         .filter(t => {
-          const dt = new Date(t.date);
-          const m = dt.getUTCMonth() + 1;
-          const y = dt.getUTCFullYear();
+          const invDue = getTransactionInvoiceDueDate(t, (w as any).diaFechamento ?? 1, w.vencimento ?? 10);
+          const m = invDue.getMonth() + 1;
+          const y = invDue.getFullYear();
           const isPaid = paidKeys.has(`${m}-${y}`);
           return !isPaid;
         })
@@ -7235,8 +7260,8 @@ export async function getUpcomingCreditCardBills(
     const card = creditCards.find((c) => c.id === tx.walletId);
     if (!card) return;
 
-    const due = getFaturaVencimento(
-      tx.purchaseDate || tx.date,
+    const due = getTransactionInvoiceDueDate(
+      tx,
       (card as any).diaFechamento ?? 1,
       card.vencimento ?? 10
     );
@@ -7477,7 +7502,7 @@ export async function getDashboardOverviewData(
         } as any,
         include: {
           category: true,
-          wallet: { select: { walletType: true, title: true } }
+          wallet: { select: { walletType: true, title: true, diaFechamento: true, vencimento: true } }
         },
         orderBy: { date: "desc" }
       }),

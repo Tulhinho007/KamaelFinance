@@ -253,6 +253,58 @@ export function getInvoiceCycleDates(
 }
 
 /**
+ * Determina a data exata de vencimento da fatura à qual uma transação pertence,
+ * considerando data de compra, dia de fechamento, dia de vencimento e parcelas.
+ */
+export function getTransactionInvoiceDueDate(
+  tx: {
+    date?: Date | string | null;
+    purchaseDate?: Date | string | null;
+    dueDate?: Date | string | null;
+    competenceDate?: Date | string | null;
+    currentInstallment?: number | null;
+    installmentsCount?: number | null;
+    description?: string | null;
+  },
+  diaFechamento: number = 1,
+  diaVencimento: number = 10
+): Date {
+  const rawDate = tx.purchaseDate || tx.competenceDate || tx.date;
+  if (!rawDate) {
+    return new Date();
+  }
+
+  const instMatch = tx.description ? tx.description.match(/\((\d+)\/(\d+)\)/) : null;
+  const currentInst = tx.currentInstallment || (instMatch ? Number(instMatch[1]) : 1);
+
+  const baseDueDate = getFaturaVencimento(rawDate, diaFechamento, diaVencimento);
+
+  if (currentInst <= 1) {
+    return baseDueDate;
+  }
+
+  // Para parcelas subsequentes (2/X, 3/X...):
+  // Se a transação já possui dueDate explícito no banco:
+  if (tx.dueDate) {
+    const parsedDue = new Date(tx.dueDate);
+    if (!isNaN(parsedDue.getTime())) {
+      return parsedDue;
+    }
+  }
+
+  // Caso contrário, projeta (currentInst - 1) meses à frente do baseDueDate
+  let targetMonth = baseDueDate.getMonth() + (currentInst - 1);
+  let targetYear = baseDueDate.getFullYear();
+  while (targetMonth > 11) {
+    targetMonth -= 12;
+    targetYear += 1;
+  }
+  const maxDaysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const safeDueDay = Math.min(baseDueDate.getDate(), maxDaysInMonth);
+  return new Date(targetYear, targetMonth, safeDueDay, 12, 0, 0);
+}
+
+/**
  * Verifica com precisão se uma transação pertence ao ciclo de faturamento especificado.
  */
 export function isTransactionInInvoice(
@@ -260,37 +312,22 @@ export function isTransactionInInvoice(
     date?: Date | string | null;
     purchaseDate?: Date | string | null;
     dueDate?: Date | string | null;
+    competenceDate?: Date | string | null;
     competenceMonth?: number | null;
     competenceYear?: number | null;
+    currentInstallment?: number | null;
+    installmentsCount?: number | null;
+    description?: string | null;
   },
   billingMonth: number,
   billingYear: number,
   diaFechamento: number = 1,
   diaVencimento: number = 10
 ): boolean {
-  const rawDate = tx.purchaseDate || tx.date;
-  if (!rawDate) return false;
-
-  const { closingDate, previousClosingDate } = getInvoiceCycleDates(
-    billingMonth,
-    billingYear,
-    diaFechamento,
-    diaVencimento
+  const invDueDate = getTransactionInvoiceDueDate(tx, diaFechamento, diaVencimento);
+  return (
+    invDueDate.getFullYear() === Number(billingYear) &&
+    invDueDate.getMonth() + 1 === Number(billingMonth)
   );
-
-  let txDate: Date;
-  if (typeof rawDate === "string") {
-    const clean = rawDate.split("T")[0];
-    const parts = clean.split("-").map(Number);
-    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
-      txDate = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0);
-    } else {
-      txDate = new Date(rawDate);
-    }
-  } else {
-    txDate = new Date(rawDate);
-  }
-
-  return txDate > previousClosingDate && txDate <= closingDate;
 }
 
