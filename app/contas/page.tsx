@@ -49,10 +49,27 @@ import {
   updateCommitmentAction,
   deleteCommitmentAction,
   undoCommitmentPaymentAction,
+  undoCardInvoicePaymentAction,
   duplicateCommitmentToNextMonthAction,
   setExactBankAccountBalanceAction,
   deleteBankAccountAction,
 } from "@/lib/actions";
+
+// Fatura de cartão gerada dinamicamente: id no formato `invoice-<cartaoId>-<mes>-<ano>`
+const isInvoiceItem = (item: any): boolean =>
+  Boolean(item && (item.isCardInvoice || item.tipo === "FATURA_CARTAO" || String(item.id || "").startsWith("invoice-")));
+
+const parseInvoiceItem = (item: any): { cardWalletId: string; month: number; year: number } | null => {
+  const raw = String(item?.id || "").replace(/^invoice-/, "");
+  const lastDash = raw.lastIndexOf("-");
+  const secondLastDash = raw.lastIndexOf("-", lastDash - 1);
+  if (lastDash === -1 || secondLastDash === -1) return null;
+  const cardWalletId = raw.substring(0, secondLastDash);
+  const month = Number(raw.substring(secondLastDash + 1, lastDash));
+  const year = Number(raw.substring(lastDash + 1));
+  if (!cardWalletId || !month || !year) return null;
+  return { cardWalletId, month, year };
+};
 
 const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -1053,6 +1070,20 @@ export default function GestaoCaixaContasPage() {
       } catch (err: any) {
         console.warn("Aviso ao desfazer baixa no backend:", err);
       }
+    } else if (isInvoiceItem(target)) {
+      const inv = parseInvoiceItem(target);
+      if (inv) {
+        try {
+          const res = await undoCardInvoicePaymentAction(inv.cardWalletId, inv.month, inv.year);
+          if (res && res.success === false) throw new Error(res.error);
+          await loadData(false);
+        } catch (err: any) {
+          console.warn("Aviso ao desfazer pagamento da fatura:", err);
+          showAlert(err?.message || "Não foi possível desfazer o pagamento da fatura.", { variant: "error" });
+          await loadData(false);
+          return;
+        }
+      }
     }
 
     showAlert(`Baixa desfeita! ${formatBRL(billAmount)} estornado para ${bankNameRefunded}.`, { variant: "info" });
@@ -1186,7 +1217,7 @@ export default function GestaoCaixaContasPage() {
       !itemToPay.id.startsWith("bill-") &&
       !itemToPay.id.startsWith("invoice-");
 
-    if (isDbUuid) {
+    if (isDbUuid || isInvoiceItem(itemToPay)) {
       setPayingCommitment(true);
       try {
         await payCommitmentAction({
@@ -1196,9 +1227,12 @@ export default function GestaoCaixaContasPage() {
           dataBaixa: new Date().toISOString().split("T")[0],
           deductFromBalance: true,
         });
+        await loadData(false);
         router.refresh();
       } catch (err: any) {
         console.warn("Aviso ao persistir baixa no backend:", err);
+        showAlert(err?.message || "Não foi possível salvar o pagamento no servidor.", { variant: "error" });
+        await loadData(false);
       } finally {
         setPayingCommitment(false);
       }
