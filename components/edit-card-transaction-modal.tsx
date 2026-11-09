@@ -29,6 +29,9 @@ export interface EditCardTransactionData {
   installmentsCount?: number;
   currentInstallment?: number;
   installmentGroupId?: string;
+  isEstorno?: boolean;
+  tags?: string;
+  tipo?: string;
 }
 
 interface EditCardTransactionModalProps {
@@ -60,6 +63,7 @@ export function EditCardTransactionModal({
   const [purchaseDate, setPurchaseDate] = useState("");
   const [walletId, setWalletId] = useState("");
   const [applyToAllInstallments, setApplyToAllInstallments] = useState(false);
+  const [isEstorno, setIsEstorno] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Detecta se o lançamento faz parte de compra parcelada
@@ -91,6 +95,14 @@ export function EditCardTransactionModal({
       setDescription(cleanDesc || transaction.description || "");
       setCategory(transaction.category || "Outros");
       setAmount(transaction.amount != null ? transaction.amount : "");
+
+      const isEst = Boolean(
+        transaction.isEstorno ||
+        transaction.tipo === "ESTORNO" ||
+        (transaction.tags && transaction.tags.toLowerCase().includes("estorno")) ||
+        (transaction.description && transaction.description.toLowerCase().startsWith("[estorno]"))
+      );
+      setIsEstorno(isEst);
 
       const dateStr =
         transaction.purchaseDate ||
@@ -140,6 +152,7 @@ export function EditCardTransactionModal({
         purchaseDate,
         walletId,
         applyToAllInstallments,
+        isEstorno,
       });
 
       if (!res.success) {
@@ -177,10 +190,10 @@ export function EditCardTransactionModal({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                Editar Lançamento do Cartão
+                {isEstorno ? "Editar Estorno / Crédito" : "Editar Lançamento do Cartão"}
               </h3>
               <p className="text-xs text-slate-400">
-                Altere os dados da compra, fatura ou parcelamento
+                {isEstorno ? "Altere os dados do estorno ou crédito na fatura" : "Altere os dados da compra, fatura ou parcelamento"}
               </p>
             </div>
           </div>
@@ -228,15 +241,51 @@ export function EditCardTransactionModal({
 
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Tipo de Lançamento */}
+          <div>
+            <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
+              Tipo de Lançamento
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEstorno(false)}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  !isEstorno
+                    ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span>💳 Compra / Despesa</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEstorno(true)}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  isEstorno
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span>🔄 Estorno / Crédito</span>
+              </button>
+            </div>
+            {isEstorno && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                ✨ Entrará como crédito na fatura, abatendo o total e liberando limite imediatamente.
+              </p>
+            )}
+          </div>
+
           {/* Descrição */}
           <div>
             <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block mb-1">
-              Descrição da Compra *
+              {isEstorno ? "Descrição do Estorno / Crédito *" : "Descrição da Compra *"}
             </label>
             <input
               type="text"
               required
-              placeholder="Ex: Tênis Esportivo, Supermercado, Aluguel"
+              placeholder={isEstorno ? "Ex: Estorno de compra cancelada, Devolução de produto" : "Ex: Tênis Esportivo, Supermercado, Aluguel"}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
@@ -368,7 +417,7 @@ export function EditCardTransactionModal({
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  Salvar Alterações
+                  {isEstorno ? "Salvar Estorno / Crédito" : "Salvar Alterações"}
                 </>
               )}
             </button>

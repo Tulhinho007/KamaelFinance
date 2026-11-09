@@ -340,3 +340,36 @@ export function getTransactionCompetence(
     : { month: m - 1, year: due.getFullYear() };
 }
 
+/**
+ * Verifica se uma transação de cartão de crédito é um estorno / crédito na fatura.
+ * Um estorno abate o valor total da fatura e libera limite imediatamente no cartão.
+ */
+export function isTransactionEstorno(tx: {
+  tags?: string | null;
+  description?: string | null;
+  source?: string | null;
+  tipo?: string | null;
+  isEstorno?: boolean | null;
+  type?: string | null;
+}): boolean {
+  if (!tx) return false;
+  if (tx.isEstorno === true) return true;
+  if (tx.tipo === "ESTORNO" || tx.tipo === "estorno") return true;
+  const src = (tx.source || "").toLowerCase();
+  if (src === "estorno") return true;
+  const tags = (tx.tags || "").toLowerCase();
+  if (tags.includes("estorno") || tags.includes("#estorno")) return true;
+  const desc = (tx.description || "").toLowerCase();
+  if (
+    desc.startsWith("[estorno]") ||
+    desc.startsWith("estorno:") ||
+    desc.startsWith("estorno -") ||
+    desc.includes("estorno na fatura") ||
+    desc.includes("crédito na fatura") ||
+    desc.includes("credito na fatura")
+  ) {
+    return true;
+  }
+  return false;
+}
+

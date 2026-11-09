@@ -199,8 +199,9 @@ export default function CartaoDetailPage() {
   const selectedTotalAmount = React.useMemo(() => {
     if (!cardData || selectedIds.length === 0) return 0;
     let sum = 0;
-    const purchaseMap = new Map((cardData.purchases || []).map(p => [p.id, p.amount]));
-    const txMap = new Map((cardData.allTransactions || []).map(t => [t.id, t.amount]));
+    const isEst = (item: any) => Boolean((item as any).isEstorno || (item as any).tipo === "ESTORNO" || (item.tags && String(item.tags).toLowerCase().includes("estorno")));
+    const purchaseMap = new Map((cardData.purchases || []).map(p => [p.id, isEst(p) ? -p.amount : p.amount]));
+    const txMap = new Map((cardData.allTransactions || []).map(t => [t.id, isEst(t) ? -t.amount : (t.type === "INCOME" ? t.amount : -t.amount)]));
 
     for (const id of selectedIds) {
       if (txMap.has(id)) {
@@ -714,9 +715,10 @@ export default function CartaoDetailPage() {
     });
 
   // Cálculos financeiros
-  const saldoAssinaturas = subscriptionPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const saldoVista = vistaPurchases.reduce((sum, p) => sum + (p.amount || 0), 0);
-  const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const isEstornoTx = (p: any) => Boolean((p as any).isEstorno || (p as any).tipo === "ESTORNO" || (p.tags && String(p.tags).toLowerCase().includes("estorno")));
+  const saldoAssinaturas = subscriptionPurchases.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
+  const saldoVista = vistaPurchases.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
+  const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
   const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
 
   // Para Cartão de Crédito - Fatura do Mês (Assinaturas + À vista + Parcelas do mês)
@@ -748,7 +750,7 @@ export default function CartaoDetailPage() {
       const isPaid = paidInvoiceKeys.has(`${pMonth}-${pYear}`);
       return isFuture && !isPaid;
     })
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
+    .reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
   // 4. Limite Real Disponível = Limite Total - (Fatura Corrente + Faturas Futuras)
   const totalComprometidoReal = faturaCorrente + faturasFuturas;
   const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - totalComprometidoReal));

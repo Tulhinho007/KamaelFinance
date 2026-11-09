@@ -64,6 +64,8 @@ export type ExpenseInitialData = {
   status?: string;
   isPaid?: boolean;
   paymentMethod?: string;
+  isEstorno?: boolean;
+  tipo?: string;
 };
 
 interface NewPurchaseModalProps {
@@ -100,6 +102,7 @@ export function NewPurchaseModal({
   const [wallets, setWallets] = useState<SimpleWallet[]>([]);
   const [selectedWalletId, setSelectedWalletId] = useState(defaultWalletId);
   const [formType, setFormType] = useState<"vista" | "parcelado">("vista");
+  const [operationType, setOperationType] = useState<"EXPENSE" | "ESTORNO">("EXPENSE");
   const [formDescription, setFormDescription] = useState("");
   const [formCategory, setFormCategory] = useState("Alimentação");
   const [formAmount, setFormAmount] = useState<string | number>("");
@@ -121,7 +124,14 @@ export function NewPurchaseModal({
           if (initialData) {
             const activeWalletId = initialData.walletId || defaultWalletId || (data.length > 0 ? data[0].id : "");
             setSelectedWalletId(activeWalletId);
-            setFormType(initialData.type || (initialData.installmentsCount && initialData.installmentsCount > 1 ? "parcelado" : "vista"));
+            const isEst = Boolean(
+              initialData.isEstorno ||
+              initialData.tipo === "ESTORNO" ||
+              (initialData.tags && initialData.tags.toLowerCase().includes("estorno")) ||
+              (initialData.description && initialData.description.toLowerCase().startsWith("[estorno]"))
+            );
+            setOperationType(isEst ? "ESTORNO" : "EXPENSE");
+            setFormType(isEst ? "vista" : (initialData.type || (initialData.installmentsCount && initialData.installmentsCount > 1 ? "parcelado" : "vista")));
             setFormDescription(initialData.description || "");
             setFormCategory(initialData.category || "Alimentação");
             setFormAmount(initialData.amount != null ? initialData.amount : "");
@@ -176,6 +186,7 @@ export function NewPurchaseModal({
             const isCred = wObj?.walletType === "CREDIT_CARD";
 
             setSelectedWalletId(initialWallet);
+            setOperationType("EXPENSE");
             setFormDescription("");
             setFormCategory("Alimentação");
             setFormAmount("");
@@ -237,7 +248,8 @@ export function NewPurchaseModal({
       return;
     }
 
-    const installments = isCredit && formType === "parcelado" && formInstallmentsCount > 1 ? formInstallmentsCount : undefined;
+    const isEstorno = isCredit && operationType === "ESTORNO";
+    const installments = isCredit && !isEstorno && formType === "parcelado" && formInstallmentsCount > 1 ? formInstallmentsCount : undefined;
     const parts = formPurchaseDate.split("-");
     const status = formIsPaid ? "COMPLETED" : "PENDING";
     const paymentMethod = isCredit ? "CREDITO" : (formPaymentMethod === "CREDITO" ? "DEBITO" : formPaymentMethod);
@@ -249,7 +261,10 @@ export function NewPurchaseModal({
       : (parts.length >= 2 ? `${parts[0]}-${parts[1]}-01` : undefined);
 
     const effectiveDate = formPurchaseDate;
-    const finalTags = initialData?.tags || "";
+    let finalTags = initialData?.tags || "";
+    if (isEstorno && !finalTags.toLowerCase().includes("estorno")) {
+      finalTags = finalTags ? `${finalTags} #estorno` : "#estorno";
+    }
     // Duplicação pontual P2P (+1 mês apenas): não salva como série recorrente infinita no banco
     const isRecurring = false;
 
@@ -274,7 +289,8 @@ export function NewPurchaseModal({
           effectiveDate,
           status,
           paymentMethod,
-          dueDateStr
+          dueDateStr,
+          isEstorno
         );
         savedId = updateRes?.id || initialData.id;
       } else {
@@ -293,7 +309,8 @@ export function NewPurchaseModal({
           effectiveDate,
           status,
           paymentMethod,
-          dueDateStr
+          dueDateStr,
+          isEstorno
         );
         savedId = createRes?.id;
       }
@@ -335,7 +352,10 @@ export function NewPurchaseModal({
               )}
             </div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-              {isEditMode ? "Editar Despesa" : "Nova Despesa"}
+              {isEditMode
+                ? (operationType === "ESTORNO" ? "Editar Estorno / Crédito" : "Editar Despesa")
+                : (operationType === "ESTORNO" ? "Novo Estorno / Crédito na Fatura" : "Nova Despesa")
+              }
             </h3>
           </div>
           <button
@@ -386,15 +406,57 @@ export function NewPurchaseModal({
             </select>
           </div>
 
+          {/* Toggle: Tipo de Lançamento (Despesa vs Estorno / Crédito) */}
+          {isCredit && (
+            <div className="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800">
+              <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+                Tipo de Lançamento
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOperationType("EXPENSE")}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    operationType === "EXPENSE"
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <span>💳 Compra / Despesa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOperationType("ESTORNO");
+                    setFormType("vista");
+                  }}
+                  className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                    operationType === "ESTORNO"
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <span>🔄 Estorno / Crédito</span>
+                </button>
+              </div>
+
+              {operationType === "ESTORNO" && (
+                <div className="mt-1 p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 leading-snug">
+                  ✨ <strong>Crédito na Fatura:</strong> O estorno subtrai do total da fatura selecionada e devolve limite imediatamente no cartão.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 2. Descrição */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-              Descrição da Despesa
+              {operationType === "ESTORNO" ? "Descrição do Estorno / Crédito" : "Descrição da Despesa"}
             </label>
             <input
               required
               type="text"
-              placeholder="Ex: Supermercado, Almoço, Gasolina..."
+              placeholder={operationType === "ESTORNO" ? "Ex: Estorno de compra cancelada, Devolução de produto..." : "Ex: Supermercado, Almoço, Gasolina..."}
               value={formDescription}
               onChange={e => setFormDescription(e.target.value)}
               className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
@@ -405,7 +467,7 @@ export function NewPurchaseModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-                Valor (R$)
+                {operationType === "ESTORNO" ? "Valor do Estorno (R$)" : "Valor (R$)"}
               </label>
               <input
                 required
@@ -437,7 +499,7 @@ export function NewPurchaseModal({
           </div>
 
           {/* 4. Modo de Pagamento (À Vista ou Parcelado no Crédito) */}
-          {isCredit && (
+          {isCredit && operationType !== "ESTORNO" && (
             <div className="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">
                 Condição de Pagamento
@@ -630,11 +692,18 @@ export function NewPurchaseModal({
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-extrabold text-xs tracking-wider shadow-lg shadow-indigo-600/30 transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase"
+            className={`w-full py-3 rounded-xl text-white font-extrabold text-xs tracking-wider shadow-lg transition-all mt-1 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer uppercase ${
+              operationType === "ESTORNO"
+                ? "bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 shadow-emerald-600/30"
+                : "bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 shadow-indigo-600/30"
+            }`}
           >
             {saving
               ? (isEditMode ? "SALVANDO..." : "REGISTRANDO...")
-              : (isEditMode ? "SALVAR ALTERAÇÕES" : "REGISTRAR DESPESA")
+              : (isEditMode
+                  ? (operationType === "ESTORNO" ? "SALVAR ESTORNO" : "SALVAR ALTERAÇÕES")
+                  : (operationType === "ESTORNO" ? "REGISTRAR ESTORNO NA FATURA" : "REGISTRAR DESPESA")
+                )
             }
           </button>
 

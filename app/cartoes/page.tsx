@@ -260,15 +260,21 @@ export default function CartoesPage() {
   const categoryBreakdown = useMemo(() => {
     const map = new Map<string, { total: number; count: number; color?: string }>();
     for (const tx of transactions) {
+      const isEst = Boolean(tx.isEstorno || tx.tipo === "ESTORNO" || (tx.tags && tx.tags.toLowerCase().includes("estorno")));
+      const amt = Number(tx.amount || 0);
       const cat = tx.category || "Outros";
       const current = map.get(cat) || { total: 0, count: 0, color: tx.categoryColor };
-      current.total += Number(tx.amount || 0);
+      current.total += isEst ? -amt : amt;
       current.count += 1;
       if (tx.categoryColor && !current.color) current.color = tx.categoryColor;
       map.set(cat, current);
     }
 
-    const totalInvoice = transactions.reduce((s, t) => s + Number(t.amount || 0), 0);
+    const totalInvoice = transactions.reduce((s, t) => {
+      const isEst = Boolean(t.isEstorno || t.tipo === "ESTORNO" || (t.tags && t.tags.toLowerCase().includes("estorno")));
+      const amt = Number(t.amount || 0);
+      return isEst ? s - amt : s + amt;
+    }, 0);
 
     const list = Array.from(map.entries()).map(([name, data]) => ({
       name,
@@ -299,12 +305,15 @@ export default function CartoesPage() {
       }
 
       // 3. Filtro de Tipo
+      const isEst = Boolean(tx.isEstorno || tx.tipo === "ESTORNO" || (tx.tags && tx.tags.toLowerCase().includes("estorno")));
       if (typeFilter === "VISTA") {
-        if ((tx.installmentsCount && tx.installmentsCount > 1) || tx.isRecurring) return false;
+        if ((tx.installmentsCount && tx.installmentsCount > 1) || tx.isRecurring || isEst) return false;
       } else if (typeFilter === "PARCELADO") {
-        if (!tx.installmentsCount || tx.installmentsCount <= 1) return false;
+        if (!tx.installmentsCount || tx.installmentsCount <= 1 || isEst) return false;
       } else if (typeFilter === "RECORRENTE") {
-        if (!tx.isRecurring) return false;
+        if (!tx.isRecurring || isEst) return false;
+      } else if (typeFilter === "ESTORNO") {
+        if (!isEst) return false;
       }
 
       // 4. Filtro de Cartão
@@ -809,6 +818,7 @@ export default function CartoesPage() {
                 <option value="VISTA">À vista</option>
                 <option value="PARCELADO">Parcelado</option>
                 <option value="RECORRENTE">Recorrente</option>
+                <option value="ESTORNO">Estornos / Créditos</option>
               </select>
             </div>
 
@@ -890,7 +900,8 @@ export default function CartoesPage() {
                   </tr>
                 ) : (
                   filteredTransactions.map((tx) => {
-                    const isInstallment = tx.installmentsCount && tx.installmentsCount > 1;
+                    const isEstorno = Boolean(tx.isEstorno || tx.tipo === "ESTORNO" || (tx.tags && tx.tags.toLowerCase().includes("estorno")));
+                    const isInstallment = !isEstorno && tx.installmentsCount && tx.installmentsCount > 1;
                     const isLastInstallment = isInstallment && (tx.currentInstallment || 1) === tx.installmentsCount;
 
                     return (
@@ -918,7 +929,12 @@ export default function CartoesPage() {
                           </span>
                         </td>
                         <td className="py-3 px-4 whitespace-nowrap">
-                          {isInstallment ? (
+                          {isEstorno ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 shadow-xs">
+                              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              Estorno
+                            </span>
+                          ) : isInstallment ? (
                             <button
                               type="button"
                               onClick={() => setViewingInstallmentTx(tx)}
@@ -949,8 +965,10 @@ export default function CartoesPage() {
                             <span className="text-slate-400 text-[11px]">À vista</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-right font-black tabular-nums text-slate-900 dark:text-white whitespace-nowrap">
-                          {brl(tx.amount)}
+                        <td className={`py-3 px-4 text-right font-black tabular-nums whitespace-nowrap ${
+                          isEstorno ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"
+                        }`}>
+                          {isEstorno ? `- ${brl(tx.amount)}` : brl(tx.amount)}
                         </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">

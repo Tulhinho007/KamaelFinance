@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { isTransactionEstorno } from "@/lib/invoice-utils";
 
 export interface CreditCardTransaction {
   id: string;
@@ -35,6 +36,9 @@ export interface CreditCardTransaction {
   tags?: string | null;
   subtype?: "vista" | "parcelado" | "assinatura" | string;
   paymentMethod?: string;
+  isEstorno?: boolean;
+  tipo?: string;
+  source?: string;
 }
 
 export interface CreditCardInvoiceTableProps {
@@ -254,7 +258,8 @@ export function CreditCardInvoiceTable({
       const group = groupsMap.get(dateKey)!;
       group.transactions.push(tx);
 
-      const isIncome = tx.type === "INCOME";
+      const isEstorno = isTransactionEstorno(tx);
+      const isIncome = tx.type === "INCOME" || isEstorno;
       const amount = typeof tx.amount === "number" ? tx.amount : Number(tx.amount) || 0;
       if (isIncome) {
         group.totalIncome += amount;
@@ -507,6 +512,8 @@ export function CreditCardInvoiceTable({
                   const isPaid = normalizedStatus === "PAID" || normalizedStatus === "COMPLETED" || normalizedStatus === "PAGO" || normalizedStatus === "RECEBIDO";
                   const isOpen = normalizedStatus === "OPEN" || normalizedStatus === "ABERTA";
 
+                  const isEstorno = isTransactionEstorno(tx);
+
                   return (
                     <tr
                       key={tx.id}
@@ -543,10 +550,17 @@ export function CreditCardInvoiceTable({
                           </span>
 
                           {/* Badges auxiliares */}
-                          {(displayInstallment || refBadge || isRepeating) && (
+                          {(isEstorno || displayInstallment || refBadge || isRepeating) && (
                             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {/* Badge de Estorno */}
+                              {isEstorno && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 whitespace-nowrap">
+                                  Estorno
+                                </span>
+                              )}
+
                               {/* Badge de Parcela */}
-                              {displayInstallment && (
+                              {displayInstallment && !isEstorno && (
                                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/80 dark:border-amber-500/20 px-1.5 py-0.5 rounded-md whitespace-nowrap">
                                   Parcela {displayInstallment}
                                 </span>
@@ -563,7 +577,7 @@ export function CreditCardInvoiceTable({
                               )}
 
                               {/* Badge de Repetição */}
-                              {isRepeating && (
+                              {isRepeating && !isEstorno && (
                                 <span
                                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 whitespace-nowrap"
                                   title="Repete no próximo mês"
@@ -596,12 +610,16 @@ export function CreditCardInvoiceTable({
                       <td className="w-32 py-2 px-3 text-right font-semibold whitespace-nowrap">
                         <span
                           className={`text-xs font-semibold tabular-nums ${
-                            tx.type === "INCOME"
-                              ? "text-emerald-600 dark:text-emerald-400"
+                            tx.type === "INCOME" || isEstorno
+                              ? "text-emerald-600 dark:text-emerald-400 font-bold"
                               : "text-slate-900 dark:text-slate-100"
                           }`}
                         >
-                          {tx.type === "INCOME" ? `+ ${formatBRL(tx.amount)}` : `- ${formatBRL(tx.amount)}`}
+                          {isEstorno
+                            ? `- ${formatBRL(tx.amount)}`
+                            : tx.type === "INCOME"
+                              ? `+ ${formatBRL(tx.amount)}`
+                              : `- ${formatBRL(tx.amount)}`}
                         </span>
                       </td>
 
