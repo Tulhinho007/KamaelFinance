@@ -410,12 +410,12 @@ export default function MetasPage() {
     setFormAporteVal("");
     setFormAporteDate(new Date().toISOString().split("T")[0]);
     const validWallets = wallets.filter((w) => w.walletType !== "CREDIT_CARD" && w.walletType !== "credit_card");
+    const isCofrinho = goal.tipo === "COFRINHO" || !!goal.isRealSaving;
     const defaultWId = (goal.walletId && validWallets.some(w => w.id === goal.walletId))
       ? goal.walletId
-      : (validWallets.length > 0 ? validWallets[0].id : "");
+      : (isCofrinho && validWallets.length > 0 ? validWallets[0].id : "");
     setFormAporteWalletId(defaultWId);
-    const isCofrinho = goal.tipo === "COFRINHO" || !!goal.isRealSaving;
-    setFormMoveRealBalance(isCofrinho || true);
+    setFormMoveRealBalance(isCofrinho);
     setModalType("aporte");
   };
 
@@ -428,8 +428,8 @@ export default function MetasPage() {
     }
 
     const isCofrinho = selectedGoal.tipo === "COFRINHO" || !!selectedGoal.isRealSaving;
-    if ((isCofrinho || formMoveRealBalance) && !formAporteWalletId) {
-      showAlert("Por favor, selecione a conta/banco vinculada para o aporte.", { variant: "warning" });
+    if (isCofrinho && !formAporteWalletId) {
+      showAlert("Por favor, selecione a conta/banco vinculada para o cofrinho.", { variant: "warning" });
       return;
     }
 
@@ -1224,24 +1224,26 @@ export default function MetasPage() {
                   <strong className="text-sm font-black text-slate-900 dark:text-white block">{selectedGoal.title}</strong>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
-                    Conta Bancária Vinculada (Entrada) *
-                  </label>
-                  <select
-                    required
-                    value={formAporteWalletId}
-                    onChange={(e) => setFormAporteWalletId(e.target.value)}
-                    className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                  >
-                    <option value="">Selecione a conta bancária do cofrinho...</option>
-                    {depositWallets.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {(selectedGoal.tipo === "COFRINHO" || selectedGoal.isRealSaving) && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-300 uppercase tracking-wider">
+                      Conta Bancária Vinculada (Entrada) *
+                    </label>
+                    <select
+                      required
+                      value={formAporteWalletId}
+                      onChange={(e) => setFormAporteWalletId(e.target.value)}
+                      className="w-full truncate pr-10 rounded-xl bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    >
+                      <option value="">Selecione a conta bancária do cofrinho...</option>
+                      {depositWallets.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col gap-1.5">
