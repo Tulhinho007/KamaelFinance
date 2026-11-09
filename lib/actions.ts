@@ -2690,6 +2690,147 @@ export async function getCardDataById(id: string, month?: number, year?: number)
   }
 }
 
+export async function getBankAccountDataById(id: string, month?: number, year?: number) {
+  try {
+    const userId = await getActiveUserId();
+    if (!userId) {
+      return null;
+    }
+
+    const wallet = await prisma.wallet.findFirst({
+      where: { id, userId },
+      include: {
+        user: { select: { name: true, email: true } },
+      },
+    });
+
+    if (!wallet) {
+      return null;
+    }
+
+    const targetYear = year || new Date().getFullYear();
+    const targetMonth = month || (new Date().getMonth() + 1);
+
+    // Sincroniza e garante integridade do saldo real da conta
+    const currentRealBalance = await syncBankAccountBalance(wallet.id);
+
+    const fromPeriod = new Date(Date.UTC(targetYear, targetMonth - 1, 1, 0, 0, 0));
+    const toPeriod = new Date(Date.UTC(targetYear, targetMonth, 0, 23, 59, 59, 999));
+
+    const fromYear = new Date(Date.UTC(targetYear, 0, 1, 0, 0, 0));
+    const toYear = new Date(Date.UTC(targetYear, 11, 31, 23, 59, 59, 999));
+
+    const allTransactions = await prisma.transaction.findMany({
+      where: {
+        walletId: wallet.id,
+        wallet: { userId },
+        deletedAt: null,
+        source: { not: "RECURRING_PROJECTION" },
+      },
+      include: {
+        category: { select: { id: true, name: true, color: true } },
+      },
+      orderBy: [
+        { date: "desc" },
+        { paymentDate: "desc" },
+      ],
+    });
+
+    // Métricas do período selecionado
+    const periodTxs = allTransactions.filter((t) => {
+      const d = t.paymentDate || t.date;
+      if (!d) return false;
+      const txDate = new Date(d);
+      return txDate >= fromPeriod && txDate <= toPeriod;
+    });
+
+    const periodIncome = periodTxs
+      .filter((t) => t.type === "INCOME")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const periodExpense = periodTxs
+      .filter((t) => t.type === "EXPENSE")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    // Métricas do ano selecionado
+    const yearTxs = allTransactions.filter((t) => {
+      const d = t.paymentDate || t.date;
+      if (!d) return false;
+      const txDate = new Date(d);
+      return txDate >= fromYear && txDate <= toYear;
+    });
+
+    const yearIncome = yearTxs
+      .filter((t) => t.type === "INCOME")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const yearExpense = yearTxs
+      .filter((t) => t.type === "EXPENSE")
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    const otherAccounts = await prisma.wallet.findMany({
+      where: {
+        userId,
+        id: { not: wallet.id },
+        walletType: { in: ["CONTA_CORRENTE", "Conta Corrente", "DEBITO", "CONTA", "POUPANCA", "CARTEIRA"] },
+      },
+      select: { id: true, title: true, bankName: true, currentBalance: true, walletType: true },
+      orderBy: { title: "asc" },
+    });
+
+    return {
+      wallet: {
+        id: wallet.id,
+        title: wallet.title || "Conta sem nome",
+        bankName: wallet.bankName || wallet.title || "Banco",
+        walletType: wallet.walletType || "CONTA_CORRENTE",
+        holder: (wallet as any).holder || wallet.user?.name || "Titular",
+        agencia: wallet.agencia || "",
+        conta: wallet.conta || "",
+        initialBalance: Number(wallet.initialBalance || 0),
+        currentRealBalance,
+      },
+      metrics: {
+        currentRealBalance,
+        periodIncome,
+        periodExpense,
+        periodNet: periodIncome - periodExpense,
+        yearIncome,
+        yearExpense,
+        yearNet: yearIncome - yearExpense,
+        totalTransactionsCount: allTransactions.length,
+      },
+      transactions: allTransactions.map((t) => ({
+        id: t.id,
+        type: t.type as "INCOME" | "EXPENSE",
+        description: t.description || "Movimentação Bancária",
+        amount: Number(t.amount || 0),
+        date: safeIsoDate(t.date),
+        paymentDate: t.paymentDate ? safeIsoDate(t.paymentDate) : null,
+        category: t.category?.name || (t.type === "INCOME" ? "Entrada" : "Saída"),
+        categoryColor: t.category?.color || (t.type === "INCOME" ? "#10B981" : "#EF4444"),
+        status: t.status || "COMPLETED",
+        paymentMethod: (t as any).paymentMethod || null,
+        tags: (t as any).tags || null,
+      })),
+      otherAccounts: otherAccounts.map((w) => ({
+        id: w.id,
+        title: w.title,
+        bankName: w.bankName || w.title,
+        balance: Number(w.currentBalance || 0),
+        walletType: w.walletType,
+      })),
+    };
+  } catch (err) {
+    console.error("Erro interno em getBankAccountDataById:", err);
+    return null;
+  }
+}
+
+export async function deleteBankAccountMovementAction(transactionId: string) {
+  return await deleteCardPurchase(transactionId);
+}
+
 export async function getAllWalletsSimple() {
   const userId = await getActiveUserId();
 

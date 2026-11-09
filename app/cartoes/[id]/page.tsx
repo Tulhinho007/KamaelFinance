@@ -222,7 +222,7 @@ export default function CartaoDetailPage() {
         getAllCardsOverview(selectedMonth, selectedYear).catch(() => []),
       ]);
       if (data && data.walletType !== "CREDIT_CARD" && data.walletType !== "TICKET") {
-        router.replace("/contas");
+        router.replace(`/contas/${data.walletId}`);
         return;
       }
       setCardData(data || null);

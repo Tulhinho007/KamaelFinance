@@ -1783,10 +1783,10 @@ export default function GestaoCaixaContasPage() {
                   key={acc.id}
                   className="px-5 py-3.5 flex items-center justify-between hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors select-none group"
                 >
-                  <div
-                    onClick={() => handleOpenManageModal(acc)}
+                  <Link
+                    href={`/contas/${acc.id}`}
                     className="flex items-center gap-3 flex-1 cursor-pointer"
-                    title={`Ajustar saldo de ${bName}`}
+                    title={`Ver detalhes e extrato de ${bName}`}
                   >
                     <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ${bankStyle.iconBg} shadow-sm shrink-0`}>
                       {bankStyle.initials}
@@ -1806,7 +1806,7 @@ export default function GestaoCaixaContasPage() {
                         <span>Titular: {acc.holder || "Titular"}</span>
                       </p>
                     </div>
-                  </div>
+                  </Link>
 
                   <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className={`font-bold text-sm tabular-nums ${currentBal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
@@ -1824,6 +1824,14 @@ export default function GestaoCaixaContasPage() {
                       <SlidersHorizontal size={13} className="text-emerald-600 dark:text-emerald-400 group-hover/btn:rotate-90 transition-transform duration-200" />
                       <span>Ajustar Saldo</span>
                     </button>
+                    <Link
+                      href={`/contas/${acc.id}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                      title={`Ver extrato de ${bName}`}
+                    >
+                      <span>Extrato</span>
+                      <ChevronRight size={13} />
+                    </Link>
                     <button
                       type="button"
                       onClick={(e) => {
