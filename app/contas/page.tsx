@@ -1589,7 +1589,7 @@ export default function GestaoCaixaContasPage() {
           contaId: managingAccount.id,
           novoSaldo: targetExact,
           descricao: newRecord.description,
-          isVisualOnly: false,
+          isVisualOnly: true,
         });
         if (!res?.success) {
           throw new Error("Não foi possível salvar o ajuste de saldo no banco de dados.");

@@ -395,8 +395,21 @@ export default function ReceitasPage() {
     };
   }, [selectedMonth, selectedYear]);
 
-  // Isolamento estrito de cartões de benefício/ticket da visualização global de receitas
-  const activeRevenues = revenues.filter((rev) => !isBenefitWallet(rev.walletType) && !rev.isBeneficio);
+  // Isolamento estrito de cartões de benefício/ticket da visualização global de receitas e exclusão de ajustes de saldo
+  const activeRevenues = revenues.filter((rev) => {
+    if (isBenefitWallet(rev.walletType) || rev.isBeneficio) return false;
+    const desc = (rev.description || "").toLowerCase();
+    const tags = ((rev as any).tags || "").toLowerCase();
+    if (
+      tags.includes("ajuste_saldo") ||
+      desc.includes("ajuste para saldo real") ||
+      desc.includes("saldo inicial") ||
+      desc.includes("abertura")
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   // Filtragem por Conta de Destino
   const walletFilteredRevenues = activeRevenues.filter((rev) => {

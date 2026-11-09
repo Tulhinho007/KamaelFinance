@@ -354,7 +354,14 @@ export async function getRevenues(
 
   let transactions: any[];
   if (preloadedTransactions) {
-    transactions = preloadedTransactions.filter((t: any) => t.type === "INCOME" && !t.deletedAt);
+    transactions = preloadedTransactions.filter(
+      (t: any) =>
+        t.type === "INCOME" &&
+        !t.deletedAt &&
+        !(t.tags || "").toLowerCase().includes("ajuste_saldo") &&
+        !(t.description || "").toLowerCase().includes("ajuste para saldo real") &&
+        !(t.description || "").toLowerCase().includes("saldo inicial")
+    );
   } else {
     const userId = await getActiveUserId();
     transactions = await prisma.transaction.findMany({
@@ -367,6 +374,11 @@ export async function getRevenues(
         },
         type: "INCOME",
         deletedAt: null,
+        NOT: [
+          { tags: { contains: "AJUSTE_SALDO", mode: "insensitive" } },
+          { description: { contains: "ajuste para saldo real", mode: "insensitive" } },
+          { description: { contains: "saldo inicial", mode: "insensitive" } },
+        ],
         OR: !isAnnualView ? [
           { competenceMonth: Number(month), competenceYear: year },
           { competenceDate: { gte: from, lte: to } },
@@ -382,11 +394,22 @@ export async function getRevenues(
     });
   }
 
-  // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios e filtragem por competência
+  // Salvaguarda adicional em memória para garantir isolamento estrito de benefícios, exclusão de ajustes e filtragem por competência
   return transactions
     .filter((t: any) => {
       const wType = (t.wallet?.walletType || "").toUpperCase();
       if (["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType)) return false;
+
+      const desc = (t.description || "").toLowerCase();
+      const tags = (t.tags || "").toLowerCase();
+      if (
+        tags.includes("ajuste_saldo") ||
+        desc.includes("ajuste para saldo real") ||
+        desc.includes("saldo inicial") ||
+        desc.includes("abertura")
+      ) {
+        return false;
+      }
 
       return isTxInPeriod(t, year, isAnnualView ? null : Number(month));
     })
@@ -4765,7 +4788,8 @@ export async function setExactBankAccountBalanceAction(input: {
   const diff = Math.round((target - currentReal) * 100) / 100;
 
   if (diff !== 0) {
-    if (input.isVisualOnly) {
+    const isVisual = input.isVisualOnly !== false;
+    if (isVisual) {
       // Ajuste puramente visual: atualiza o saldo diretamente sem criar lançamentos em Receitas/Despesas
       const netTxs = Number(bInfo.totalEntradasHoje ?? 0) - Number(bInfo.totalSaidasHoje ?? 0);
       const newInitial = Math.round((target - netTxs) * 100) / 100;
@@ -6468,6 +6492,17 @@ async function getMonthCashFlowMetrics(
 
   // Filtragem e cálculos em memória
   const monthIncomes = incomes.filter((t: any) => {
+    const desc = (t.description || "").toLowerCase();
+    const tags = (t.tags || "").toLowerCase();
+    if (
+      tags.includes("ajuste_saldo") ||
+      desc.includes("ajuste para saldo real") ||
+      desc.includes("saldo inicial") ||
+      desc.includes("abertura")
+    ) {
+      return false;
+    }
+
     if (t.competenceMonth != null && t.competenceYear != null) {
       return t.competenceMonth === m && t.competenceYear === y;
     }
@@ -7657,15 +7692,22 @@ export async function getDashboardOverviewData(
     const wType = (t.wallet?.walletType || "").toUpperCase();
     const isBenefit = ["TICKET", "BENEFICIO", "BENEFÍCIO"].includes(wType);
     const isCredit = wType === "CREDIT_CARD";
+    const desc = (t.description || "").toLowerCase();
+    const tags = (t.tags || "").toLowerCase();
+    const isAdjustment =
+      tags.includes("ajuste_saldo") ||
+      desc.includes("ajuste para saldo real") ||
+      desc.includes("saldo inicial") ||
+      desc.includes("abertura");
 
     if (t.type === "INCOME") {
-      if (isRealized && !isBenefit) {
+      if (isRealized && !isBenefit && !isAdjustment) {
         totalReceitas += amt;
       }
     } else if (t.type === "EXPENSE") {
       // APENAS despesas efetivadas (consolidadas) são consideradas no ano/período
-      // Despesas com status PENDING / futuras não devem inflar as saídas consolidadas
-      if (!isRealized) return;
+      // Despesas com status PENDING / futuras e ajustes de saldo não devem inflar as saídas consolidadas
+      if (!isRealized || isAdjustment) return;
 
       if (isCredit) {
         // Despesas lançadas em cartão de crédito no período
