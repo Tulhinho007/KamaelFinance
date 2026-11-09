@@ -86,15 +86,18 @@ export function EditCardTransactionModal({
   // Preenche o formulário quando a transação é aberta
   useEffect(() => {
     if (transaction && isOpen) {
-      // Limpa sufixo "(X/Y)" da descrição no formulário para facilitar a edição limpa
+      // Limpa sufixo "(X/Y)" e prefixos de estorno da descrição no formulário para facilitar a edição limpa
       const cleanDesc = (transaction.description || "")
         .replace(/\s*\(\d+\/\d+\)$/, "")
         .replace(/\s*Parcela\s*\d+\/\d+/i, "")
+        .replace(/^\[estorno\]\s*/i, "")
+        .replace(/^estorno:\s*/i, "")
+        .replace(/^estorno\s*-\s*/i, "")
         .trim();
 
       setDescription(cleanDesc || transaction.description || "");
       setCategory(transaction.category || "Outros");
-      setAmount(transaction.amount != null ? transaction.amount : "");
+      setAmount(transaction.amount != null ? Math.abs(Number(transaction.amount)) : "");
 
       const isEst = Boolean(
         transaction.isEstorno ||

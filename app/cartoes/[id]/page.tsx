@@ -714,12 +714,12 @@ export default function CartaoDetailPage() {
       };
     });
 
-  // Cálculos financeiros
+  // Cálculos financeiros (Item estornado/cancelado é neutro: não adiciona ao total a pagar)
   const isEstornoTx = (p: any) => Boolean((p as any).isEstorno || (p as any).tipo === "ESTORNO" || (p.tags && String(p.tags).toLowerCase().includes("estorno")));
-  const saldoAssinaturas = subscriptionPurchases.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
-  const saldoVista = vistaPurchases.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
-  const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
-  const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => sum + (p.remainingDebt || 0), 0);
+  const saldoAssinaturas = subscriptionPurchases.reduce((sum, p) => isEstornoTx(p) ? sum : sum + (p.amount || 0), 0);
+  const saldoVista = vistaPurchases.reduce((sum, p) => isEstornoTx(p) ? sum : sum + (p.amount || 0), 0);
+  const totalParceladoMes = parceladoPurchasesProcessed.reduce((sum, p) => isEstornoTx(p) ? sum : sum + (p.amount || 0), 0);
+  const dividaParcelada = parceladoPurchasesProcessed.reduce((sum, p) => isEstornoTx(p) ? sum : sum + (p.remainingDebt || 0), 0);
 
   // Para Cartão de Crédito - Fatura do Mês (Assinaturas + À vista + Parcelas do mês)
   const impactoMes = saldoAssinaturas + saldoVista + totalParceladoMes;
@@ -750,7 +750,7 @@ export default function CartaoDetailPage() {
       const isPaid = paidInvoiceKeys.has(`${pMonth}-${pYear}`);
       return isFuture && !isPaid;
     })
-    .reduce((sum, p) => isEstornoTx(p) ? sum - (p.amount || 0) : sum + (p.amount || 0), 0);
+    .reduce((sum, p) => isEstornoTx(p) ? sum : sum + (p.amount || 0), 0);
   // 4. Limite Real Disponível = Limite Total - (Fatura Corrente + Faturas Futuras)
   const totalComprometidoReal = faturaCorrente + faturasFuturas;
   const limitAvailable = Math.min(creditLimit, Math.max(0, creditLimit - totalComprometidoReal));

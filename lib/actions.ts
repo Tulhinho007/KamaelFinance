@@ -3178,11 +3178,28 @@ export async function updateCardPurchase(
         source: (existingTx as any)?.source,
       });
 
-  let finalTags = extractTags(description, tags) || "";
-  if (isEstornoTx && !finalTags.toLowerCase().includes("estorno")) {
-    finalTags = finalTags ? `${finalTags} #estorno` : "#estorno";
+  let cleanDesc = description
+    .replace(/^\[estorno\]\s*/i, "")
+    .replace(/^estorno:\s*/i, "")
+    .replace(/^estorno\s*-\s*/i, "")
+    .trim();
+
+  if (isEstornoTx && !cleanDesc.toLowerCase().startsWith("[estorno]")) {
+    cleanDesc = `[Estorno] ${cleanDesc}`;
   }
-  const source = isEstornoTx ? "ESTORNO" : ((existingTx as any)?.source || "MANUAL");
+
+  let finalTags = extractTags(cleanDesc, tags) || "";
+  if (isEstornoTx) {
+    if (!finalTags.toLowerCase().includes("estorno")) {
+      finalTags = finalTags ? `${finalTags} #estorno` : "#estorno";
+    }
+  } else {
+    finalTags = finalTags
+      .replace(/#estorno/gi, "")
+      .replace(/\bestorno\b/gi, "")
+      .trim();
+  }
+  const source = isEstornoTx ? "ESTORNO" : (existingTx?.source === "ESTORNO" ? "MANUAL" : ((existingTx as any)?.source || "MANUAL"));
 
   const purchaseDate = purchaseDateStr ? parseInputDate(purchaseDateStr) : parseInputDate(dateStr);
   const isPending = status === "PENDING";
@@ -3203,7 +3220,7 @@ export async function updateCardPurchase(
     where: { id },
     data: {
       walletId,
-      description,
+      description: cleanDesc,
       categoryId: dbCategory.id,
       amount,
       installmentsCount,
@@ -3324,11 +3341,28 @@ export async function updateCreditCardTransactionAction(
       ? Boolean(isEstorno)
       : isTransactionEstorno({ tags: tx.tags, description, source: tx.source });
 
-    let finalTags = tx.tags || "";
-    if (isEstornoTx && !finalTags.toLowerCase().includes("estorno")) {
-      finalTags = finalTags ? `${finalTags} #estorno` : "#estorno";
+    let cleanDescription = description
+      .replace(/^\[estorno\]\s*/i, "")
+      .replace(/^estorno:\s*/i, "")
+      .replace(/^estorno\s*-\s*/i, "")
+      .trim();
+
+    if (isEstornoTx && !cleanDescription.toLowerCase().startsWith("[estorno]")) {
+      cleanDescription = `[Estorno] ${cleanDescription}`;
     }
-    const sourceVal = isEstornoTx ? "ESTORNO" : (tx.source === "ESTORNO" ? "MANUAL" : tx.source);
+
+    let finalTags = tx.tags || "";
+    if (isEstornoTx) {
+      if (!finalTags.toLowerCase().includes("estorno")) {
+        finalTags = finalTags ? `${finalTags} #estorno` : "#estorno";
+      }
+    } else {
+      finalTags = finalTags
+        .replace(/#estorno/gi, "")
+        .replace(/\bestorno\b/gi, "")
+        .trim();
+    }
+    const sourceVal = isEstornoTx ? "ESTORNO" : (tx.source === "ESTORNO" ? "MANUAL" : (tx.source || "MANUAL"));
 
     const targetWallet = await prisma.wallet.findFirst({
       where: { id: walletId, userId },
@@ -3432,7 +3466,7 @@ export async function updateCreditCardTransactionAction(
       }
     }
 
-    const cleanBaseDesc = description
+    const cleanBaseDesc = cleanDescription
       .replace(/\s*\(\d+\/\d+\)$/, "")
       .replace(/\s*Parcela\s*\d+\/\d+/i, "")
       .trim();
@@ -3487,7 +3521,7 @@ export async function updateCreditCardTransactionAction(
       const invoiceMonth = invDue.getMonth();
       const invoiceYear = invDue.getFullYear();
 
-      let singleDesc = description.trim();
+      let singleDesc = cleanDescription.trim();
       const isSingleParcel = Boolean(
         (tx.installmentsCount && tx.installmentsCount > 1) ||
         /\((\d+)\/(\d+)\)/.test(tx.description || "")
@@ -5617,13 +5651,13 @@ export async function getAllCardsOverview(
       : [];
 
     const faturaAtual = isCredit
-      ? currentMonthCreditTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0)
+      ? currentMonthCreditTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0)
       : filteredTransactions.reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
 
     const faturaPaga = isCredit
       ? currentMonthCreditTxs
           .filter((t: any) => t.status === "COMPLETED" || t.status === "PAID" || t.status === "pago" || t.status === "confirmado")
-          .reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0)
+          .reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0)
       : filteredTransactions
           .filter((t: any) => t.status === "COMPLETED" || t.status === "pago" || t.status === "confirmado")
           .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
@@ -5631,7 +5665,7 @@ export async function getAllCardsOverview(
     const faturaPendente = isCredit
       ? currentMonthCreditTxs
           .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "PAID" && t.status !== "pago" && t.status !== "confirmado"))
-          .reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0)
+          .reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0)
       : filteredTransactions
           .filter((t: any) => t.status === "PENDING" || (t.status !== "COMPLETED" && t.status !== "pago" && t.status !== "confirmado"))
           .reduce((s: number, t: any) => s + Number(t.amount || 0), 0);
@@ -5653,7 +5687,7 @@ export async function getAllCardsOverview(
         )
       : [];
     const faturaMesAtual = isCredit
-      ? curMonthCreditTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0)
+      ? curMonthCreditTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0)
       : 0;
 
     let limitUsed = 0;
@@ -5667,7 +5701,7 @@ export async function getAllCardsOverview(
           const isPaid = paidKeys.has(`${comp.month}-${comp.year}`);
           return !isPaid;
         })
-        .reduce((s, t) => isTransactionEstorno(t) ? s - Number(t.amount) : s + Number(t.amount), 0);
+        .reduce((s, t) => isTransactionEstorno(t) ? s : s + Number(t.amount), 0);
     } else {
       limitUsed = balanceInfo.monthExpense;
     }
@@ -6719,10 +6753,10 @@ async function getMonthCashFlowMetrics(
     return isTransactionInInvoice(t, m, y, cardClosing, cardDue);
   });
 
-  const totalFaturas = monthCardTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0);
+  const totalFaturas = monthCardTxs.reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0);
   const faturasPendentes = monthCardTxs
     .filter((t: any) => t.status !== "COMPLETED" && t.status !== "PAID")
-    .reduce((s: number, t: any) => isTransactionEstorno(t) ? s - Number(t.amount || 0) : s + Number(t.amount || 0), 0);
+    .reduce((s: number, t: any) => isTransactionEstorno(t) ? s : s + Number(t.amount || 0), 0);
   const faturasPagas = totalFaturas - faturasPendentes;
 
   const monthCommitments = commitments.filter((t: any) => {
@@ -7902,9 +7936,7 @@ export async function getDashboardOverviewData(
 
       if (isCredit) {
         // Despesas lançadas em cartão de crédito no período
-        if (isTransactionEstorno(t)) {
-          totalCreditExpenses -= amt;
-        } else {
+        if (!isTransactionEstorno(t)) {
           totalCreditExpenses += amt;
         }
       } else if (!isBenefit) {
@@ -7977,12 +8009,12 @@ export async function getDashboardOverviewData(
     const catColor = exp.category?.color || getCategoryColor(catName);
 
     const isEst = isTransactionEstorno(exp);
-    const sign = isEst ? -1 : 1;
+    if (isEst) return; // Item estornado/cancelado é neutro: não polui categoria
 
     if (!categoryMap[catName]) {
       categoryMap[catName] = { name: catName, color: catColor, total: 0 };
     }
-    categoryMap[catName].total = Math.round((categoryMap[catName].total + (amt * sign)) * 100) / 100;
+    categoryMap[catName].total = Math.round((categoryMap[catName].total + amt) * 100) / 100;
   });
 
   const categoryBreakdown = Object.values(categoryMap).sort((a, b) => b.total - a.total);
@@ -11616,9 +11648,9 @@ export async function getMonthlyCommitmentsAction(
       const matchComp = t.competenceMonth === targetMonth && t.competenceYear === year;
       const matchDate = d >= fromMonth && d <= toMonth;
       if (matchComp || matchDate) {
-        const isEst = isTransactionEstorno(t);
-        const delta = isEst ? -Number(t.amount || 0) : Number(t.amount || 0);
-        faturaByCardId.set(t.walletId, (faturaByCardId.get(t.walletId) || 0) + delta);
+        if (!isTransactionEstorno(t)) {
+          faturaByCardId.set(t.walletId, (faturaByCardId.get(t.walletId) || 0) + Number(t.amount || 0));
+        }
       }
     }
 
@@ -11995,7 +12027,7 @@ export async function getMonthlyCommitmentsAction(
         isTransactionInInvoice(t, m, year, (card as any).diaFechamento ?? 1, card.vencimento ?? 10)
       );
 
-      const totalAmount = monthTxs.reduce((sum: number, t: any) => isTransactionEstorno(t) ? sum - Number(t.amount || 0) : sum + Number(t.amount || 0), 0);
+      const totalAmount = monthTxs.reduce((sum: number, t: any) => isTransactionEstorno(t) ? sum : sum + Number(t.amount || 0), 0);
 
       // Calcula o vencimento correto da fatura respeitando o dia configurado no cartão
       const dueDateInfo = getInvoiceDueDateInfo(

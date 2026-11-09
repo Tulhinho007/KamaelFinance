@@ -259,9 +259,10 @@ export function CreditCardInvoiceTable({
       group.transactions.push(tx);
 
       const isEstorno = isTransactionEstorno(tx);
-      const isIncome = tx.type === "INCOME" || isEstorno;
       const amount = typeof tx.amount === "number" ? tx.amount : Number(tx.amount) || 0;
-      if (isIncome) {
+      if (isEstorno) {
+        // Item estornado é neutro: cancelado, não entra nas despesas ativas da fatura
+      } else if (tx.type === "INCOME") {
         group.totalIncome += amount;
       } else {
         group.totalExpense += amount;
@@ -610,13 +611,15 @@ export function CreditCardInvoiceTable({
                       <td className="w-32 py-2 px-3 text-right font-semibold whitespace-nowrap">
                         <span
                           className={`text-xs font-semibold tabular-nums ${
-                            tx.type === "INCOME" || isEstorno
-                              ? "text-emerald-600 dark:text-emerald-400 font-bold"
-                              : "text-slate-900 dark:text-slate-100"
+                            isEstorno
+                              ? "text-slate-400 dark:text-slate-500 line-through"
+                              : tx.type === "INCOME"
+                                ? "text-emerald-600 dark:text-emerald-400 font-bold"
+                                : "text-slate-900 dark:text-slate-100"
                           }`}
                         >
                           {isEstorno
-                            ? `- ${formatBRL(tx.amount)}`
+                            ? formatBRL(tx.amount)
                             : tx.type === "INCOME"
                               ? `+ ${formatBRL(tx.amount)}`
                               : `- ${formatBRL(tx.amount)}`}

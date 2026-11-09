@@ -261,10 +261,11 @@ export default function CartoesPage() {
     const map = new Map<string, { total: number; count: number; color?: string }>();
     for (const tx of transactions) {
       const isEst = Boolean(tx.isEstorno || tx.tipo === "ESTORNO" || (tx.tags && tx.tags.toLowerCase().includes("estorno")));
+      if (isEst) continue; // Compra estornada é neutra: não acumula nas categorias ativas
       const amt = Number(tx.amount || 0);
       const cat = tx.category || "Outros";
       const current = map.get(cat) || { total: 0, count: 0, color: tx.categoryColor };
-      current.total += isEst ? -amt : amt;
+      current.total += amt;
       current.count += 1;
       if (tx.categoryColor && !current.color) current.color = tx.categoryColor;
       map.set(cat, current);
@@ -272,8 +273,9 @@ export default function CartoesPage() {
 
     const totalInvoice = transactions.reduce((s, t) => {
       const isEst = Boolean(t.isEstorno || t.tipo === "ESTORNO" || (t.tags && t.tags.toLowerCase().includes("estorno")));
+      if (isEst) return s; // Neutro na fatura: compra cancelada não entra no total a pagar
       const amt = Number(t.amount || 0);
-      return isEst ? s - amt : s + amt;
+      return s + amt;
     }, 0);
 
     const list = Array.from(map.entries()).map(([name, data]) => ({

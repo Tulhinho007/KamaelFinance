@@ -132,9 +132,14 @@ export function NewPurchaseModal({
             );
             setOperationType(isEst ? "ESTORNO" : "EXPENSE");
             setFormType(isEst ? "vista" : (initialData.type || (initialData.installmentsCount && initialData.installmentsCount > 1 ? "parcelado" : "vista")));
-            setFormDescription(initialData.description || "");
+            const cleanDesc = (initialData.description || "")
+              .replace(/^\[estorno\]\s*/i, "")
+              .replace(/^estorno:\s*/i, "")
+              .replace(/^estorno\s*-\s*/i, "")
+              .trim();
+            setFormDescription(cleanDesc || initialData.description || "");
             setFormCategory(initialData.category || "Alimentação");
-            setFormAmount(initialData.amount != null ? initialData.amount : "");
+            setFormAmount(initialData.amount != null ? Math.abs(Number(initialData.amount)) : "");
             setFormInstallmentsCount(initialData.installmentsCount || 2);
             const isInitiallyPaid = initialData.status
               ? (initialData.status !== "PENDING" && (initialData as any).status !== "pendente")
