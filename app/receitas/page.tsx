@@ -460,10 +460,13 @@ export default function ReceitasPage() {
           .filter(r => r.walletId === w.id)
           .reduce((sum, r) => sum + r.amount, 0);
         if (addedAmount === 0) return w;
+        const newTotal = (w.saldoCalculado !== undefined ? Number(w.saldoCalculado) : (w.currentTotal !== undefined ? Number(w.currentTotal) : Number(w.initialBalance || 0))) + addedAmount;
         return {
           ...w,
-          currentTotal: (w.currentTotal !== undefined ? Number(w.currentTotal) : Number(w.initialBalance || 0)) + addedAmount,
+          currentTotal: newTotal,
           currentBalance: Number(w.currentBalance || 0) + addedAmount,
+          saldoCalculado: newTotal,
+          saldoAtual: newTotal,
         };
       })
     );
@@ -516,14 +519,18 @@ export default function ReceitasPage() {
       setWallets(prev =>
         prev.map(w => {
           if (w.id !== targetRev.walletId) return w;
-          const currentTotal = w.currentTotal !== undefined
-            ? Number(w.currentTotal) + factor * targetRev.amount
-            : Number(w.initialBalance || 0) + factor * targetRev.amount;
+          const currentTotal = w.saldoCalculado !== undefined
+            ? Number(w.saldoCalculado) + factor * targetRev.amount
+            : (w.currentTotal !== undefined
+              ? Number(w.currentTotal) + factor * targetRev.amount
+              : Number(w.initialBalance || 0) + factor * targetRev.amount);
           const currentBalance = Number(w.currentBalance || 0) + factor * targetRev.amount;
           return {
             ...w,
             currentTotal,
             currentBalance,
+            saldoCalculado: currentTotal,
+            saldoAtual: currentTotal,
           };
         })
       );
@@ -1299,7 +1306,7 @@ export default function ReceitasPage() {
                         .filter((w) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && !isBenefitWallet(w.walletType))
                         .map((conta) => (
                           <option key={conta.id} value={conta.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
-                            {conta.bankName || conta.title} - Saldo: {brl(conta.currentTotal ?? 0)}
+                            {conta.bankName || conta.title} - Saldo: {brl(conta.saldoCalculado ?? conta.currentTotal ?? conta.currentBalance ?? 0)}
                           </option>
                         ))}
                     </optgroup>
@@ -1309,7 +1316,7 @@ export default function ReceitasPage() {
                           .filter((w) => isBenefitWallet(w.walletType))
                           .map((ticket) => (
                             <option key={ticket.id} value={ticket.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
-                              {ticket.bankName || ticket.title} - Saldo: {brl(ticket.currentTotal ?? 0)}
+                              {ticket.bankName || ticket.title} - Saldo: {brl(ticket.saldoCalculado ?? ticket.currentTotal ?? ticket.currentBalance ?? 0)}
                             </option>
                           ))}
                       </optgroup>

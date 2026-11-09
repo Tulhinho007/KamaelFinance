@@ -1127,7 +1127,7 @@ export default function MetasPage() {
                     <option value="">{formTipo === "COFRINHO" ? "Selecione a conta do cofrinho..." : "Nenhum cofre vinculado (Aportes manuais)"}</option>
                     {depositWallets.map((w) => (
                       <option key={w.id} value={w.id}>
-                        {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
+                        {w.bankName || w.title} • Saldo: {brl((w as any).saldoCalculado ?? w.currentTotal ?? (w as any).currentBalance ?? 0)}
                       </option>
                     ))}
                   </select>
@@ -1238,7 +1238,7 @@ export default function MetasPage() {
                       <option value="">Selecione a conta bancária do cofrinho...</option>
                       {depositWallets.map((w) => (
                         <option key={w.id} value={w.id}>
-                          {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
+                          {w.bankName || w.title} • Saldo: {brl((w as any).saldoCalculado ?? w.currentTotal ?? (w as any).currentBalance ?? 0)}
                         </option>
                       ))}
                     </select>
@@ -1360,7 +1360,7 @@ export default function MetasPage() {
                               <option value="">Selecione a conta...</option>
                               {depositWallets.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                  {w.bankName || w.title} • Saldo: {brl(w.currentTotal)}
+                                  {w.bankName || w.title} • Saldo: {brl((w as any).saldoCalculado ?? w.currentTotal ?? (w as any).currentBalance ?? 0)}
                                 </option>
                               ))}
                             </select>

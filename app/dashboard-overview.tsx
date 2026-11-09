@@ -1288,26 +1288,26 @@ export function DashboardOverview() {
                   <option value="" disabled className="bg-white dark:bg-slate-900 text-slate-500">
                     Selecione a conta de destino...
                   </option>
-                  <optgroup label="Contas Bancárias" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
-                    {dashboardWallets
-                      .filter((w) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && w.walletType !== "TICKET" && w.walletType !== "BENEFICIO")
-                      .map((conta) => (
-                        <option key={conta.id} value={conta.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
-                          {conta.bankName || conta.title} - Saldo: {brl(conta.currentTotal ?? 0)}
-                        </option>
-                      ))}
-                  </optgroup>
-                  {dashboardWallets.some((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO") && (
-                    <optgroup label="Tickets / Benefícios" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                    <optgroup label="Contas Bancárias" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
                       {dashboardWallets
-                        .filter((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO")
-                        .map((ticket) => (
-                          <option key={ticket.id} value={ticket.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
-                            {ticket.bankName || ticket.title} - Saldo: {brl(ticket.currentTotal ?? 0)}
+                        .filter((w) => w.walletType !== "CREDIT_CARD" && (w as any).tipo !== "CREDITO" && w.walletType !== "TICKET" && w.walletType !== "BENEFICIO")
+                        .map((conta) => (
+                          <option key={conta.id} value={conta.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                            {conta.bankName || conta.title} - Saldo: {brl(conta.saldoCalculado ?? conta.currentTotal ?? conta.currentBalance ?? 0)}
                           </option>
                         ))}
                     </optgroup>
-                  )}
+                    {dashboardWallets.some((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO") && (
+                      <optgroup label="Tickets / Benefícios" className="bg-white dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300">
+                        {dashboardWallets
+                          .filter((w) => w.walletType === "TICKET" || w.walletType === "BENEFICIO")
+                          .map((ticket) => (
+                            <option key={ticket.id} value={ticket.id} className="bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-normal">
+                              {ticket.bankName || ticket.title} - Saldo: {brl(ticket.saldoCalculado ?? ticket.currentTotal ?? ticket.currentBalance ?? 0)}
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
                 </select>
               </div>
 

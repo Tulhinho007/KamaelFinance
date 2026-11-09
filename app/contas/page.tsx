@@ -2655,7 +2655,7 @@ export default function GestaoCaixaContasPage() {
                 >
                   {(accounts.length > 0 ? accounts : contasBancarias).map((conta: any) => (
                     <option key={conta.id} value={conta.id}>
-                      {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoAtual ?? 0))}
+                      {conta.bankName || conta.banco || conta.title} - Saldo: {brl(Number(conta.saldoCalculado ?? conta.saldoAtual ?? conta.currentTotal ?? conta.balance ?? 0))}
                     </option>
                   ))}
                 </select>

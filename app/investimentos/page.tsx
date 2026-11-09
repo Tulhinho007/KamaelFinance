@@ -3331,7 +3331,7 @@ export default function InvestimentosPage() {
                     .filter((w: any) => w.walletType !== "CREDIT_CARD")
                     .map((w: any) => (
                       <option key={w.id} value={w.id}>
-                        {w.bankName || w.title} {w.walletType ? `(${w.walletType})` : ""} — Saldo Atual: {brl(Number(w.currentTotal ?? w.initialBalance ?? 0))}
+                        {w.bankName || w.title} {w.walletType ? `(${w.walletType})` : ""} — Saldo Atual: {brl(Number(w.saldoCalculado ?? w.currentTotal ?? w.currentBalance ?? w.initialBalance ?? 0))}
                       </option>
                     ))}
                 </select>

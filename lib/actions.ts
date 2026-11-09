@@ -527,7 +527,7 @@ export async function toggleTransactionStatusAction(id: string) {
         // Confirmação de despesa: subtrai saldo (-). Estorno de despesa: devolve saldo (+).
         const factor = isConfirming ? (isIncome ? 1 : -1) : (isIncome ? -1 : 1);
 
-        const baseBalance = wallet.currentBalance && Number(wallet.currentBalance) > 0
+        const baseBalance = wallet.currentBalance != null
           ? Number(wallet.currentBalance)
           : Number(wallet.initialBalance || 0);
 
@@ -581,7 +581,7 @@ export async function markBatchRevenuesAsReceivedAction(ids: string[]) {
         if (t.walletId && Number(t.amount) > 0) {
           const wallet = await tx.wallet.findFirst({ where: { id: t.walletId, userId } });
           if (wallet) {
-            const baseBalance = wallet.currentBalance && Number(wallet.currentBalance) > 0
+            const baseBalance = wallet.currentBalance != null
               ? Number(wallet.currentBalance)
               : Number(wallet.initialBalance || 0);
             const newBalance = Math.round((baseBalance + Number(t.amount)) * 100) / 100;
@@ -1484,23 +1484,112 @@ export async function toggleGoalStatusAction(goalId: string, status: "ACTIVE" | 
   revalidatePath("/metas");
 }
 
+/**
+ * Exemplo de cálculo unificado para todas as partes do sistema:
+ * Conta bancária: base (initialBalance se não houver tx de abertura) + soma(receitas) - soma(despesas)
+ * Cartão de crédito: saldo da fatura / limite
+ */
+export async function getContasComSaldo(userIdParam?: string) {
+  const userId = userIdParam || (await getActiveUserId());
+  if (!userId) return [];
+
+  const wallets = await prisma.wallet.findMany({
+    where: { userId },
+    include: {
+      transactions: {
+        where: {
+          deletedAt: null,
+          source: { not: "RECURRING_PROJECTION" },
+          status: { in: ["COMPLETED", "PAGO", "pago", "CONCLUIDA", "concluida"] },
+        },
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          status: true,
+          description: true,
+          tags: true,
+        },
+      },
+    },
+    orderBy: { title: "asc" },
+  });
+
+  return wallets.map((conta: any) => {
+    const isCredit = conta.walletType === "CREDIT_CARD";
+
+    // Verifica se já existe transação de saldo inicial / abertura
+    const hasOpeningTx = conta.transactions.some(
+      (t: any) =>
+        t.type === "INCOME" &&
+        ((t.description || "").toLowerCase().includes("saldo inicial") ||
+          (t.description || "").toLowerCase().includes("abertura") ||
+          (t.tags || "").toLowerCase().includes("abertura"))
+    );
+    // Saldo inicial definido no botão "Ajustar Saldo" ou no cadastro
+    const base = hasOpeningTx ? 0 : Number(conta.initialBalance ?? 0);
+
+    // Soma todas as receitas e subtrai todas as despesas da história da conta
+    const movimentacoes = conta.transactions.reduce((acc: number, t: any) => {
+      const v = Number(t.amount || 0);
+      return t.type === "INCOME" ? acc + v : acc - v;
+    }, 0);
+
+    const rawCalculated = isCredit
+      ? Number(conta.currentBalance || 0)
+      : Math.round((base + movimentacoes) * 100) / 100;
+
+    const saldoCalculado = Math.abs(rawCalculated) < 0.001 ? 0 : rawCalculated;
+
+    return {
+      ...conta,
+      id: conta.id,
+      title: conta.title,
+      bankName: conta.bankName || conta.title,
+      walletType: conta.walletType,
+      initialBalance: Number(conta.initialBalance || 0),
+      currentBalance: isCredit ? Number(conta.currentBalance || 0) : saldoCalculado,
+      creditLimit: conta.creditLimit ? Number(conta.creditLimit) : null,
+      currentTotal: saldoCalculado,
+      saldoCalculado: saldoCalculado,
+      saldoAtual: saldoCalculado,
+    };
+  });
+}
+
 export async function getWalletsAction(preloadedWallets?: any[], preloadedTransactions?: any[]) {
   if (preloadedWallets && preloadedTransactions) {
-    const totalsMap = new Map<string, { income: number; expense: number }>();
+    const totalsMap = new Map<string, { income: number; expense: number; hasOpeningTx: boolean }>();
     for (const t of preloadedTransactions) {
-      if (t.status === "COMPLETED" && !t.deletedAt) {
-        const cur = totalsMap.get(t.walletId) ?? { income: 0, expense: 0 };
+      if (
+        (t.status === "COMPLETED" || t.status === "PAGO" || t.status === "CONCLUIDA") &&
+        !t.deletedAt &&
+        t.source !== "RECURRING_PROJECTION"
+      ) {
+        const cur = totalsMap.get(t.walletId) ?? { income: 0, expense: 0, hasOpeningTx: false };
         const amt = Number(t.amount || 0);
-        if (t.type === "INCOME") cur.income += amt;
-        else if (t.type === "EXPENSE") cur.expense += amt;
+        if (t.type === "INCOME") {
+          cur.income += amt;
+          const desc = (t.description || "").toLowerCase();
+          const tags = (t.tags || "").toLowerCase();
+          if (desc.includes("saldo inicial") || desc.includes("abertura") || tags.includes("abertura")) {
+            cur.hasOpeningTx = true;
+          }
+        } else if (t.type === "EXPENSE") {
+          cur.expense += amt;
+        }
         totalsMap.set(t.walletId, cur);
       }
     }
     return preloadedWallets.map((w: any) => {
-      const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
-      const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
+      const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0, hasOpeningTx: false };
+      const base = totals.hasOpeningTx ? 0 : Number(w.initialBalance || 0);
       const isCredit = w.walletType === "CREDIT_CARD";
-      const finalBal = isCredit ? Number(w.currentBalance || 0) : currentTotal;
+      const rawCalculated = isCredit
+        ? Number(w.currentBalance || 0)
+        : Math.round((base + totals.income - totals.expense) * 100) / 100;
+      const saldoCalculado = Math.abs(rawCalculated) < 0.001 ? 0 : rawCalculated;
+
       return {
         ...w,
         id: w.id,
@@ -1508,63 +1597,16 @@ export async function getWalletsAction(preloadedWallets?: any[], preloadedTransa
         bankName: w.bankName || w.title,
         walletType: w.walletType,
         initialBalance: Number(w.initialBalance || 0),
-        currentBalance: finalBal,
+        currentBalance: isCredit ? Number(w.currentBalance || 0) : saldoCalculado,
         creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
-        currentTotal: currentTotal,
+        currentTotal: saldoCalculado,
+        saldoCalculado: saldoCalculado,
+        saldoAtual: saldoCalculado,
       };
     });
   }
 
-  const userId = await getActiveUserId();
-  const wallets = await prisma.wallet.findMany({
-    where: { userId },
-    orderBy: { title: "asc" }
-  });
-
-  if (wallets.length === 0) return [];
-
-  const walletIds = wallets.map((w: any) => w.id);
-
-  // Agrega todas as movimentações de todas as carteiras em 1 única query indexada no PostgreSQL
-  const aggregates = await prisma.transaction.groupBy({
-    by: ["walletId", "type"],
-    where: {
-      walletId: { in: walletIds },
-      deletedAt: null,
-      status: "COMPLETED",
-    },
-    _sum: {
-      amount: true,
-    },
-  });
-
-  const totalsMap = new Map<string, { income: number; expense: number }>();
-  for (const ag of aggregates) {
-    const cur = totalsMap.get(ag.walletId) ?? { income: 0, expense: 0 };
-    const amt = Number(ag._sum.amount || 0);
-    if (ag.type === "INCOME") cur.income += amt;
-    else if (ag.type === "EXPENSE") cur.expense += amt;
-    totalsMap.set(ag.walletId, cur);
-  }
-
-  return wallets.map((w: any) => {
-    const totals = totalsMap.get(w.id) ?? { income: 0, expense: 0 };
-    const currentTotal = Number(w.initialBalance || 0) + totals.income - totals.expense;
-    const isCredit = w.walletType === "CREDIT_CARD";
-    const finalBal = isCredit ? Number(w.currentBalance || 0) : currentTotal;
-
-    return {
-      ...w,
-      id: w.id,
-      title: w.title,
-      bankName: w.bankName || w.title,
-      walletType: w.walletType,
-      initialBalance: Number(w.initialBalance || 0),
-      currentBalance: finalBal,
-      creditLimit: w.creditLimit ? Number(w.creditLimit) : null,
-      currentTotal: currentTotal,
-    };
-  });
+  return getContasComSaldo();
 }
 
 export async function addAporteAction(
