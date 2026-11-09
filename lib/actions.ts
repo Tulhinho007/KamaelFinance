@@ -2736,37 +2736,91 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
       ],
     });
 
-    // Métricas do período selecionado
-    const periodTxs = allTransactions.filter((t) => {
-      const d = t.paymentDate || t.date;
-      if (!d) return false;
-      const txDate = new Date(d);
-      return txDate >= fromPeriod && txDate <= toPeriod;
+    // 1. Busca registros de auditoria persistentes de ajuste manual de saldo
+    const auditLogs = await prisma.auditLog.findMany({
+      where: {
+        action: "BALANCE_ADJUSTMENT",
+        details: { contains: wallet.id },
+      },
+      orderBy: { createdAt: "desc" },
     });
 
-    const periodIncome = periodTxs
-      .filter((t) => t.type === "INCOME")
-      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    const parsedAuditLogs = auditLogs
+      .map((log) => {
+        try {
+          const details = JSON.parse(log.details || "{}");
+          const dt = new Date(details.data || log.createdAt);
+          return {
+            id: log.id,
+            data: dt.toISOString(),
+            ano: dt.getFullYear(),
+            saldoAnterior: Number(details.saldoAnterior ?? 0),
+            novoSaldo: Number(details.novoSaldo ?? 0),
+            diff: Number(details.diff ?? 0),
+            motivo: details.motivo || "Ajuste manual de conferência",
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
 
-    const periodExpense = periodTxs
-      .filter((t) => t.type === "EXPENSE")
-      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    // 2. Busca registros históricos de ajuste vindos de transações (ex: "Ajuste para saldo real (R$ 400,00)")
+    const txAdjustments = allTransactions
+      .filter((t) => {
+        const desc = (t.description || "").toLowerCase();
+        const tags = (t.tags || "").toLowerCase();
+        return (
+          tags.includes("ajuste_saldo") ||
+          tags.includes("abertura") ||
+          desc.includes("ajuste para saldo real") ||
+          desc.includes("ajuste de saldo") ||
+          desc.includes("saldo inicial")
+        );
+      })
+      .map((t) => {
+        const dt = new Date(t.date);
+        const desc = t.description || "";
+        const amt = Number(t.amount || 0);
+        const isEntrada = t.type === "INCOME";
+        const diff = isEntrada ? amt : -amt;
 
-    // Métricas do ano selecionado
-    const yearTxs = allTransactions.filter((t) => {
-      const d = t.paymentDate || t.date;
-      if (!d) return false;
-      const txDate = new Date(d);
-      return txDate >= fromYear && txDate <= toYear;
-    });
+        const match = desc.match(/saldo real \((?:R\$\s*)?([0-9.,]+)\)/i);
+        let novoSaldo = amt;
+        if (match) {
+          const cleanNum = match[1].replace(/\./g, "").replace(",", ".");
+          const parsedNum = parseFloat(cleanNum);
+          if (!isNaN(parsedNum)) {
+            novoSaldo = parsedNum;
+          }
+        }
+        const saldoAnterior = Math.round((novoSaldo - diff) * 100) / 100;
 
-    const yearIncome = yearTxs
-      .filter((t) => t.type === "INCOME")
-      .reduce((s, t) => s + Number(t.amount || 0), 0);
+        return {
+          id: t.id,
+          data: dt.toISOString(),
+          ano: dt.getFullYear(),
+          saldoAnterior,
+          novoSaldo,
+          diff,
+          motivo: t.description || "Ajuste manual de conferência",
+        };
+      });
 
-    const yearExpense = yearTxs
-      .filter((t) => t.type === "EXPENSE")
-      .reduce((s, t) => s + Number(t.amount || 0), 0);
+    // Combina ambos e deduplica
+    const allAdjustmentsMap = new Map<string, any>();
+    for (const a of [...parsedAuditLogs, ...txAdjustments]) {
+      const key = `${a.ano}-${Math.round(a.novoSaldo * 100)}`;
+      if (!allAdjustmentsMap.has(key)) {
+        allAdjustmentsMap.set(key, a);
+      }
+    }
+
+    const allAdjustments = Array.from(allAdjustmentsMap.values()).sort(
+      (a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()
+    );
+
+    const yearAdjustments = allAdjustments.filter((a) => a.ano === targetYear);
 
     const otherAccounts = await prisma.wallet.findMany({
       where: {
@@ -2781,38 +2835,19 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
     return {
       wallet: {
         id: wallet.id,
+        nome: wallet.title || wallet.bankName || "Conta Bancária",
         title: wallet.title || "Conta sem nome",
         bankName: wallet.bankName || wallet.title || "Banco",
         walletType: wallet.walletType || "CONTA_CORRENTE",
+        titular: (wallet as any).holder || wallet.user?.name || "Titular",
         holder: (wallet as any).holder || wallet.user?.name || "Titular",
-        agencia: wallet.agencia || "",
-        conta: wallet.conta || "",
-        initialBalance: Number(wallet.initialBalance || 0),
+        saldo: currentRealBalance,
         currentRealBalance,
       },
-      metrics: {
-        currentRealBalance,
-        periodIncome,
-        periodExpense,
-        periodNet: periodIncome - periodExpense,
-        yearIncome,
-        yearExpense,
-        yearNet: yearIncome - yearExpense,
-        totalTransactionsCount: allTransactions.length,
-      },
-      transactions: allTransactions.map((t) => ({
-        id: t.id,
-        type: t.type as "INCOME" | "EXPENSE",
-        description: t.description || "Movimentação Bancária",
-        amount: Number(t.amount || 0),
-        date: safeIsoDate(t.date),
-        paymentDate: t.paymentDate ? safeIsoDate(t.paymentDate) : null,
-        category: t.category?.name || (t.type === "INCOME" ? "Entrada" : "Saída"),
-        categoryColor: t.category?.color || (t.type === "INCOME" ? "#10B981" : "#EF4444"),
-        status: t.status || "COMPLETED",
-        paymentMethod: (t as any).paymentMethod || null,
-        tags: (t as any).tags || null,
-      })),
+      anoSelecionado: targetYear,
+      anosDisponiveis: [targetYear - 1, targetYear, targetYear + 1],
+      ajustes: yearAdjustments,
+      todosAjustes: allAdjustments,
       otherAccounts: otherAccounts.map((w) => ({
         id: w.id,
         title: w.title,
@@ -5089,6 +5124,26 @@ export async function setExactBankAccountBalanceAction(input: {
       where: { id: wallet.id },
       data: { currentBalance: target }
     });
+  }
+
+  // Registra histórico persistente do ajuste manual de saldo
+  try {
+    await prisma.auditLog.create({
+      data: {
+        userId: wallet.userId || userId,
+        action: "BALANCE_ADJUSTMENT",
+        details: JSON.stringify({
+          walletId: wallet.id,
+          saldoAnterior: currentReal,
+          novoSaldo: target,
+          diff: diff,
+          motivo: input.descricao?.trim() || `Ajuste para saldo real (${target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`,
+          data: now.toISOString(),
+        }),
+      },
+    });
+  } catch (logErr) {
+    console.error("Erro ao registrar auditoria de ajuste de saldo:", logErr);
   }
 
   // Sincroniza saldo final da conta
