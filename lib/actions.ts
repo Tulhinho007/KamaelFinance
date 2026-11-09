@@ -2527,7 +2527,7 @@ export async function getCardDataById(id: string, month?: number, year?: number)
             type: "INCOME",
             status: "COMPLETED",
             categoryId: category.id,
-            date: (wallet as any).createdAt || new Date("2026-07-01T00:00:00Z"),
+            date: (wallet as any).createdAt || new Date("2026-10-01T12:00:00Z"),
           },
           include: { category: true },
         });
@@ -2752,7 +2752,9 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
           const dt = new Date(details.data || log.createdAt);
           return {
             id: log.id,
+            sourceType: "AUDIT_LOG" as const,
             data: dt.toISOString(),
+            rawDate: dt.toISOString().split("T")[0],
             ano: dt.getFullYear(),
             saldoAnterior: Number(details.saldoAnterior ?? 0),
             novoSaldo: Number(details.novoSaldo ?? 0),
@@ -2798,7 +2800,9 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
 
         return {
           id: t.id,
+          sourceType: "TRANSACTION" as const,
           data: dt.toISOString(),
+          rawDate: dt.toISOString().split("T")[0],
           ano: dt.getFullYear(),
           saldoAnterior,
           novoSaldo,
@@ -2807,10 +2811,14 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
         };
       });
 
-    // Combina ambos e deduplica
+    // Combina ambos preferindo transações reais sobre audit logs de mesmo dia e saldo
     const allAdjustmentsMap = new Map<string, any>();
-    for (const a of [...parsedAuditLogs, ...txAdjustments]) {
-      const key = `${a.ano}-${Math.round(a.novoSaldo * 100)}`;
+    for (const a of txAdjustments) {
+      const key = `${a.data.split("T")[0]}-${Math.round(a.novoSaldo * 100)}`;
+      allAdjustmentsMap.set(key, a);
+    }
+    for (const a of parsedAuditLogs) {
+      const key = `${a.data.split("T")[0]}-${Math.round(a.novoSaldo * 100)}`;
       if (!allAdjustmentsMap.has(key)) {
         allAdjustmentsMap.set(key, a);
       }
@@ -2864,6 +2872,247 @@ export async function getBankAccountDataById(id: string, month?: number, year?: 
 
 export async function deleteBankAccountMovementAction(transactionId: string) {
   return await deleteCardPurchase(transactionId);
+}
+
+export async function updateBankAccountAdjustmentAction(input: {
+  id: string;
+  sourceType?: "TRANSACTION" | "AUDIT_LOG";
+  dateStr: string;
+  novoSaldo: number;
+  motivo?: string;
+}) {
+  try {
+    const userId = await requireActiveUserId();
+    const newAmount = Number(input.novoSaldo);
+    if (isNaN(newAmount)) {
+      return { success: false, error: "Valor de saldo inválido." };
+    }
+
+    const [y, m, d] = input.dateStr.split("-").map(Number);
+    const newDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+
+    // 1. Tenta encontrar a transação correspondente
+    const tx = await prisma.transaction.findFirst({
+      where: { id: input.id },
+      include: { wallet: true },
+    });
+
+    if (tx && tx.wallet) {
+      if (tx.wallet.userId !== userId && tx.userId !== userId) {
+        return { success: false, error: "Não autorizado." };
+      }
+
+      const desc = (tx.description || "").toLowerCase();
+      const isOpening = desc.includes("saldo inicial") || desc.includes("abertura");
+
+      if (isOpening) {
+        await prisma.transaction.update({
+          where: { id: tx.id },
+          data: {
+            amount: newAmount,
+            date: newDate,
+            paymentDate: newDate,
+            purchaseDate: newDate,
+            competenceDate: newDate,
+            competenceMonth: m,
+            competenceYear: y,
+            description: input.motivo?.trim() || tx.description || "Saldo Inicial de Abertura",
+          },
+        });
+
+        await prisma.wallet.update({
+          where: { id: tx.wallet.id },
+          data: { initialBalance: newAmount },
+        });
+      } else {
+        await prisma.transaction.update({
+          where: { id: tx.id },
+          data: {
+            amount: newAmount,
+            date: newDate,
+            paymentDate: newDate,
+            purchaseDate: newDate,
+            competenceDate: newDate,
+            competenceMonth: m,
+            competenceYear: y,
+            description: input.motivo?.trim() || tx.description,
+          },
+        });
+      }
+
+      await syncBankAccountBalance(tx.wallet.id);
+
+      revalidatePath(`/contas/${tx.wallet.id}`);
+      revalidatePath("/contas");
+      revalidatePath("/dashboard");
+
+      return { success: true };
+    }
+
+    // 2. Se for um AuditLog
+    const auditLog = await prisma.auditLog.findUnique({
+      where: { id: input.id },
+    });
+
+    if (auditLog) {
+      let details: any = {};
+      try {
+        details = JSON.parse(auditLog.details || "{}");
+      } catch {}
+
+      const walletId = details.walletId;
+      details.data = newDate.toISOString();
+      details.novoSaldo = newAmount;
+      if (input.motivo) details.motivo = input.motivo.trim();
+      details.diff = Math.round((newAmount - Number(details.saldoAnterior ?? 0)) * 100) / 100;
+
+      await prisma.auditLog.update({
+        where: { id: auditLog.id },
+        data: { details: JSON.stringify(details) },
+      });
+
+      if (walletId) {
+        const openingTx = await prisma.transaction.findFirst({
+          where: {
+            walletId,
+            type: "INCOME",
+            deletedAt: null,
+            OR: [
+              { description: { contains: "saldo inicial", mode: "insensitive" } },
+              { description: { contains: "abertura", mode: "insensitive" } },
+            ],
+          },
+        });
+        if (openingTx) {
+          await prisma.transaction.update({
+            where: { id: openingTx.id },
+            data: {
+              amount: newAmount,
+              date: newDate,
+              paymentDate: newDate,
+              competenceDate: newDate,
+              competenceMonth: m,
+              competenceYear: y,
+            },
+          });
+        }
+
+        await prisma.wallet.update({
+          where: { id: walletId },
+          data: { initialBalance: newAmount },
+        });
+
+        await syncBankAccountBalance(walletId);
+
+        revalidatePath(`/contas/${walletId}`);
+        revalidatePath("/contas");
+        revalidatePath("/dashboard");
+      }
+
+      return { success: true };
+    }
+
+    return { success: false, error: "Registro de ajuste não encontrado." };
+  } catch (error: any) {
+    console.error("Erro ao atualizar ajuste de saldo:", error);
+    return { success: false, error: error?.message || "Erro interno ao atualizar ajuste." };
+  }
+}
+
+export async function deleteBankAccountAdjustmentAction(id: string) {
+  try {
+    const userId = await requireActiveUserId();
+
+    // 1. Tenta encontrar a transação
+    const tx = await prisma.transaction.findFirst({
+      where: { id },
+      include: { wallet: true },
+    });
+
+    if (tx && tx.wallet) {
+      if (tx.wallet.userId !== userId && tx.userId !== userId) {
+        return { success: false, error: "Não autorizado." };
+      }
+
+      const desc = (tx.description || "").toLowerCase();
+      const isOpening = desc.includes("saldo inicial") || desc.includes("abertura");
+
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: { deletedAt: new Date() },
+      });
+
+      if (isOpening) {
+        await prisma.wallet.update({
+          where: { id: tx.wallet.id },
+          data: { initialBalance: 0 },
+        });
+      }
+
+      await syncBankAccountBalance(tx.wallet.id);
+
+      revalidatePath(`/contas/${tx.wallet.id}`);
+      revalidatePath("/contas");
+      revalidatePath("/dashboard");
+
+      return { success: true };
+    }
+
+    // 2. Se for um AuditLog
+    const auditLog = await prisma.auditLog.findUnique({
+      where: { id },
+    });
+
+    if (auditLog) {
+      let details: any = {};
+      try {
+        details = JSON.parse(auditLog.details || "{}");
+      } catch {}
+
+      const walletId = details.walletId;
+
+      await prisma.auditLog.delete({
+        where: { id: auditLog.id },
+      });
+
+      if (walletId) {
+        const openingTx = await prisma.transaction.findFirst({
+          where: {
+            walletId,
+            type: "INCOME",
+            deletedAt: null,
+            OR: [
+              { description: { contains: "saldo inicial", mode: "insensitive" } },
+              { description: { contains: "abertura", mode: "insensitive" } },
+            ],
+          },
+        });
+        if (openingTx) {
+          await prisma.transaction.update({
+            where: { id: openingTx.id },
+            data: { deletedAt: new Date() },
+          });
+          await prisma.wallet.update({
+            where: { id: walletId },
+            data: { initialBalance: 0 },
+          });
+        }
+
+        await syncBankAccountBalance(walletId);
+
+        revalidatePath(`/contas/${walletId}`);
+        revalidatePath("/contas");
+        revalidatePath("/dashboard");
+      }
+
+      return { success: true };
+    }
+
+    return { success: false, error: "Registro de ajuste não encontrado." };
+  } catch (error: any) {
+    console.error("Erro ao excluir ajuste de saldo:", error);
+    return { success: false, error: error?.message || "Erro interno ao excluir ajuste." };
+  }
 }
 
 export async function getAllWalletsSimple() {

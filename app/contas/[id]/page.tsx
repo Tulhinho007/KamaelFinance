@@ -9,12 +9,16 @@ import {
   Sliders,
   CheckCircle2,
   Calendar,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { parseCurrencyInput } from "@/lib/constants";
 import { useModal } from "@/components/ui/custom-dialog-provider";
 import {
   getBankAccountDataById,
   setExactBankAccountBalanceAction,
+  updateBankAccountAdjustmentAction,
+  deleteBankAccountAdjustmentAction,
 } from "@/lib/actions";
 
 const formatBRL = (v: number) =>
@@ -97,7 +101,9 @@ const getBankStyle = (name: string = "") => {
 
 interface AjusteRecord {
   id: string;
+  sourceType?: "TRANSACTION" | "AUDIT_LOG";
   data: string;
+  rawDate?: string;
   ano: number;
   saldoAnterior: number;
   novoSaldo: number;
@@ -128,7 +134,7 @@ export default function ContaSimplesPage() {
   const router = useRouter();
   const accountId = params?.id as string;
 
-  const { showAlert } = useModal();
+  const { showAlert, showConfirm } = useModal();
 
   const anoAtual = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(anoAtual);
@@ -137,11 +143,19 @@ export default function ContaSimplesPage() {
   const [data, setData] = useState<AccountData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Modal Ajustar Saldo
+  // Modal Ajustar Saldo (Novo Ajuste)
   const [modalOpen, setModalOpen] = useState(false);
   const [exactBalanceInput, setExactBalanceInput] = useState("");
   const [motivoInput, setMotivoInput] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Modal Editar Lançamento de Ajuste
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingAjuste, setEditingAjuste] = useState<AjusteRecord | null>(null);
+  const [editDateInput, setEditDateInput] = useState("");
+  const [editBalanceInput, setEditBalanceInput] = useState("");
+  const [editMotivoInput, setEditMotivoInput] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Carregar dados
   const loadData = useCallback(async () => {
@@ -232,6 +246,89 @@ export default function ContaSimplesPage() {
       showAlert("Falha ao salvar novo saldo.", { variant: "danger" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Abrir Modal de Edição de Lançamento
+  const handleOpenEditModal = (ajuste: AjusteRecord) => {
+    setEditingAjuste(ajuste);
+    const rawDate = ajuste.rawDate || ajuste.data.split("T")[0];
+    setEditDateInput(rawDate);
+    setEditBalanceInput(
+      Number(ajuste.novoSaldo).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
+    setEditMotivoInput(ajuste.motivo || "");
+    setEditModalOpen(true);
+  };
+
+  // Salvar Edição de Lançamento
+  const handleSaveEditAjuste = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAjuste) return;
+
+    const targetExact = parseCurrencyInput(editBalanceInput);
+    if (isNaN(targetExact)) {
+      showAlert("Informe um valor de saldo válido.", { variant: "warning" });
+      return;
+    }
+    if (!editDateInput) {
+      showAlert("Informe a data do lançamento.", { variant: "warning" });
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const res = await updateBankAccountAdjustmentAction({
+        id: editingAjuste.id,
+        sourceType: editingAjuste.sourceType,
+        dateStr: editDateInput,
+        novoSaldo: targetExact,
+        motivo: editMotivoInput.trim() || undefined,
+      });
+
+      if (res && res.success) {
+        showAlert("Lançamento atualizado com sucesso!", { variant: "success" });
+        setEditModalOpen(false);
+        setEditingAjuste(null);
+        await loadData();
+      } else {
+        showAlert(res?.error || "Erro ao atualizar ajuste.", { variant: "danger" });
+      }
+    } catch (err) {
+      console.error("Erro ao atualizar ajuste:", err);
+      showAlert("Falha ao salvar alterações.", { variant: "danger" });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // Excluir Lançamento de Ajuste
+  const handleDeleteAjuste = async (ajuste: AjusteRecord) => {
+    const confirmed = await showConfirm(
+      "Tem certeza que deseja excluir este lançamento de ajuste de saldo? O saldo da conta será recalculado.",
+      {
+        title: "Excluir Lançamento de Ajuste",
+        variant: "danger",
+        confirmText: "Sim, Excluir",
+        cancelText: "Cancelar",
+      }
+    );
+    if (!confirmed) return;
+
+    try {
+      const res = await deleteBankAccountAdjustmentAction(ajuste.id);
+      if (res && res.success) {
+        showAlert("Lançamento de ajuste excluído com sucesso!", { variant: "success" });
+        await loadData();
+      } else {
+        showAlert(res?.error || "Erro ao excluir ajuste de saldo.", { variant: "danger" });
+      }
+    } catch (err) {
+      console.error("Erro ao excluir ajuste:", err);
+      showAlert("Falha ao excluir ajuste de saldo.", { variant: "danger" });
     }
   };
 
@@ -348,12 +445,13 @@ export default function ContaSimplesPage() {
                 <th className="py-3 px-6">Novo Saldo Definido</th>
                 <th className="py-3 px-6">Diferença</th>
                 <th className="py-3 px-6">Motivo / Observação</th>
+                <th className="py-3 px-6 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {ajustesDoAno.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-400 dark:text-slate-500">
+                  <td colSpan={6} className="py-8 text-center text-slate-400 dark:text-slate-500">
                     Nenhum ajuste manual realizado em {selectedYear}.
                   </td>
                 </tr>
@@ -381,6 +479,26 @@ export default function ContaSimplesPage() {
                       </td>
                       <td className="py-3.5 px-6 text-slate-500 dark:text-slate-400 text-xs">
                         {ajuste.motivo || "Ajuste manual"}
+                      </td>
+                      <td className="py-3.5 px-6 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditModal(ajuste)}
+                            title="Editar lançamento"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAjuste(ajuste)}
+                            title="Excluir lançamento"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -493,6 +611,114 @@ export default function ContaSimplesPage() {
                     </>
                   ) : (
                     <span>Confirmar Saldo</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL EDITAR LANÇAMENTO DE AJUSTE ────────────────────────────── */}
+      {editModalOpen && (
+        <div
+          onClick={() => setEditModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm bg-indigo-600 text-white shadow-sm shrink-0`}>
+                  <Pencil className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Editar Lançamento
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Ajuste de saldo / abertura - {bankName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditAjuste} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                  Data do Lançamento
+                </label>
+                <input
+                  type="date"
+                  value={editDateInput}
+                  onChange={(e) => setEditDateInput(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2.5 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                  Novo Saldo Definido / Valor
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
+                    R$
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="Ex: 525,18"
+                    value={editBalanceInput}
+                    onChange={(e) => setEditBalanceInput(e.target.value.replace(/[^0-9.,-]/g, ""))}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white pl-11 pr-3 py-3 rounded-xl text-lg font-bold focus:outline-none focus:border-indigo-500 shadow-2xs"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold uppercase text-slate-700 dark:text-slate-300 block mb-1.5">
+                  Motivo / Observação
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Saldo Inicial de Abertura"
+                  value={editMotivoInput}
+                  onChange={(e) => setEditMotivoInput(e.target.value)}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2.5 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(false)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit || editBalanceInput.trim() === "" || !editDateInput}
+                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
+                >
+                  {savingEdit ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    <span>Salvar Alterações</span>
                   )}
                 </button>
               </div>
