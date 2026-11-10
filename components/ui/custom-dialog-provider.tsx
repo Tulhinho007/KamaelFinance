@@ -164,7 +164,7 @@ export function CustomDialogProvider({ children }: { children: React.ReactNode }
 
       {dialog && (
         <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-200"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               if (dialog.type === "confirm") handleClose(false);
@@ -174,10 +174,12 @@ export function CustomDialogProvider({ children }: { children: React.ReactNode }
           }}
         >
           <div
-            className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
+            className="bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto flex flex-col animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200"
             role="dialog"
             aria-modal="true"
           >
+            {/* Puxador decorativo para celular */}
+            <div className="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mt-3.5 mb-1 sm:hidden shrink-0" />
             {/* Header */}
             <div className="p-6 pb-4 flex items-start justify-between gap-4">
               <div className="flex items-center gap-3.5">
@@ -235,7 +237,7 @@ export function CustomDialogProvider({ children }: { children: React.ReactNode }
                     onClick={() =>
                       handleClose(dialog.type === "confirm" ? false : null)
                     }
-                    className="px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-all cursor-pointer"
+                    className="min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center"
                   >
                     {dialog.cancelText || "Cancelar"}
                   </button>
@@ -251,7 +253,7 @@ export function CustomDialogProvider({ children }: { children: React.ReactNode }
                         : undefined
                     )
                   }
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  className={`min-h-[44px] px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
                     getVariantStyles(dialog.variant).btnClass
                   }`}
                 >

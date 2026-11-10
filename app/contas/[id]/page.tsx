@@ -436,7 +436,8 @@ export default function ContaSimplesPage() {
           </h2>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* VISÃO DESKTOP: Tabela tradicional */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase border-b border-slate-100 dark:border-slate-800">
               <tr>
@@ -507,18 +508,88 @@ export default function ContaSimplesPage() {
             </tbody>
           </table>
         </div>
+
+        {/* VISÃO MOBILE: Cards empilhados e compactos */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+          {ajustesDoAno.length === 0 ? (
+            <div className="py-8 px-4 text-center text-xs text-slate-400 dark:text-slate-500">
+              Nenhum ajuste manual realizado em {selectedYear}.
+            </div>
+          ) : (
+            ajustesDoAno.map((ajuste) => {
+              const diff = Number(ajuste.novoSaldo) - Number(ajuste.saldoAnterior);
+              return (
+                <div key={ajuste.id} className="p-4 flex flex-col gap-3 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <p className="font-bold text-slate-900 dark:text-white text-sm leading-tight">
+                        {ajuste.motivo || "Ajuste manual de saldo"}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{formatDateBR(ajuste.data)}</span>
+                        <span>•</span>
+                        <span>Anterior: {formatBRL(Number(ajuste.saldoAnterior))}</span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black text-slate-900 dark:text-white tabular-nums block">
+                        {formatBRL(Number(ajuste.novoSaldo))}
+                      </span>
+                      <span
+                        className={`text-xs font-bold tabular-nums inline-block mt-0.5 ${
+                          diff >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                        }`}
+                      >
+                        {diff > 0 ? `+` : ""}
+                        {formatBRL(diff)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100/80 dark:border-slate-800/80 text-xs">
+                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                      Lançamento
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(ajuste)}
+                        className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>Editar</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAjuste(ajuste)}
+                        className="min-h-[44px] min-w-[44px] px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Excluir</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {/* ── MODAL AJUSTAR SALDO ──────────────────────────────────────────── */}
       {modalOpen && (
         <div
           onClick={() => setModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150"
+            className="w-full sm:max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 shadow-2xl"
           >
+            {/* Puxador decorativo para celular */}
+            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${bankStyle.iconBg} shadow-sm shrink-0`}>
@@ -536,7 +607,7 @@ export default function ContaSimplesPage() {
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -587,7 +658,7 @@ export default function ContaSimplesPage() {
                   placeholder="Ex: Conferência do extrato bancário"
                   value={motivoInput}
                   onChange={(e) => setMotivoInput(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2.5 rounded-xl text-xs font-medium focus:outline-none focus:border-emerald-500"
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-3 rounded-xl text-base sm:text-xs font-medium focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
@@ -595,14 +666,14 @@ export default function ContaSimplesPage() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  className="flex-1 min-h-[44px] py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={saving || exactBalanceInput.trim() === ""}
-                  className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
+                  className="flex-1 min-h-[44px] py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -623,12 +694,15 @@ export default function ContaSimplesPage() {
       {editModalOpen && (
         <div
           onClick={() => setEditModalOpen(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-150"
+            className="w-full sm:max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-200 shadow-2xl"
           >
+            {/* Puxador decorativo para celular */}
+            <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 mb-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm bg-indigo-600 text-white shadow-sm shrink-0`}>
@@ -646,7 +720,7 @@ export default function ContaSimplesPage() {
               <button
                 type="button"
                 onClick={() => setEditModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-lg cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white p-1 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -661,7 +735,7 @@ export default function ContaSimplesPage() {
                   type="date"
                   value={editDateInput}
                   onChange={(e) => setEditDateInput(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2.5 rounded-xl text-sm font-semibold focus:outline-none focus:border-indigo-500"
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-3 rounded-xl text-base sm:text-sm font-semibold focus:outline-none focus:border-indigo-500"
                   required
                 />
               </div>
@@ -695,7 +769,7 @@ export default function ContaSimplesPage() {
                   placeholder="Ex: Saldo Inicial de Abertura"
                   value={editMotivoInput}
                   onChange={(e) => setEditMotivoInput(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-2.5 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500"
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white px-3 py-3 rounded-xl text-base sm:text-xs font-medium focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
@@ -703,14 +777,14 @@ export default function ContaSimplesPage() {
                 <button
                   type="button"
                   onClick={() => setEditModalOpen(false)}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  className="flex-1 min-h-[44px] py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center justify-center"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={savingEdit || editBalanceInput.trim() === "" || !editDateInput}
-                  className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
+                  className="flex-1 min-h-[44px] py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
                 >
                   {savingEdit ? (
                     <>

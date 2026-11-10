@@ -94,3 +94,4 @@ export async function getAnotacoes(ano?: number, categoria?: string) {
     ],
   });
 }
+

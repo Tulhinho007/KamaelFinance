@@ -353,7 +353,9 @@ export function CreditCardInvoiceTable({
           </button>
         </div>
       )}
-      <table className="w-full table-fixed border-collapse text-left">
+      {/* VISÃO DESKTOP: Tabela tradicional */}
+      <div className="hidden md:block overflow-x-auto">
+        <table className="w-full table-fixed border-collapse text-left">
         {/* Cabeçalho */}
         <thead className="sticky top-0 z-10 bg-white dark:bg-slate-900 shadow-sm border-b border-slate-200 dark:border-slate-800">
           <tr>
@@ -675,6 +677,155 @@ export function CreditCardInvoiceTable({
         )}
         </tbody>
       </table>
+    </div>
+
+      {/* VISÃO MOBILE: Cards empilhados e compactos */}
+      <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+        {isLoading ? (
+          <div className="py-12 px-4 text-center text-sm text-slate-400 dark:text-slate-500">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-medium">Carregando lançamentos...</p>
+            </div>
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="py-14 px-4 text-center text-sm text-slate-400 dark:text-slate-500">
+            <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 shadow-inner">
+                <Inbox className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Nenhuma despesa listada
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {emptyMessage}
+              </p>
+            </div>
+          </div>
+        ) : (
+          groupedTransactions.map((group) => (
+            <div key={group.dateKey} className="flex flex-col">
+              {/* Header do dia no mobile */}
+              <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span className="font-bold text-slate-700 dark:text-slate-300">{group.dateLabel}</span>
+                <span className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                  {formatBRL(group.totalExpense || group.totalIncome)}
+                </span>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                {group.transactions.map((tx: CreditCardTransaction) => {
+                  const isSelected = selectedIds.includes(tx.id);
+                  const cleanDesc = (tx.description || "Sem descrição")
+                    .replace(/#\w+/g, "")
+                    .replace(/\s+/g, " ")
+                    .trim();
+                  const isEstorno = isTransactionEstorno(tx);
+                  const isRepeating = tx.repeatNextMonth || tx.isRecurring;
+                  const catName = typeof tx.category === "object" && tx.category !== null ? tx.category.name : (typeof tx.category === "string" ? tx.category : "Outros");
+
+                  return (
+                    <div
+                      key={tx.id}
+                      className={`p-4 flex flex-col gap-2.5 transition-colors ${
+                        isSelected ? "bg-indigo-50/50 dark:bg-indigo-950/20" : "hover:bg-slate-50/80 dark:hover:bg-slate-800/30"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                          {hasSelection && (
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => onToggleSelect && onToggleSelect(tx.id)}
+                              aria-label={`Selecionar ${cleanDesc}`}
+                              className="w-4 h-4 mt-0.5 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 dark:text-white text-sm leading-snug break-words">
+                              {cleanDesc}
+                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1 text-xs">
+                              <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                                {catName}
+                              </span>
+                              {tx.installmentsCount && tx.installmentsCount > 1 && (
+                                <span className="text-[11px] text-slate-500 font-medium">
+                                  ({tx.currentInstallment || 1}/{tx.installmentsCount})
+                                </span>
+                              )}
+                              {isEstorno && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  Estorno
+                                </span>
+                              )}
+                              {isRepeating && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                  Recorrente
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span
+                            className={`text-sm font-black tabular-nums block ${
+                              isEstorno
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-slate-900 dark:text-white"
+                            }`}
+                          >
+                            {isEstorno ? `- ${formatBRL(tx.amount)}` : formatBRL(tx.amount)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Ações no Mobile com touch targets de 44px */}
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                        {onDuplicate && (
+                          <button
+                            type="button"
+                            onClick={() => onDuplicate(tx)}
+                            className="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold"
+                            title="Duplicar"
+                          >
+                            <CopyPlus className="w-4 h-4" />
+                            <span>Duplicar</span>
+                          </button>
+                        )}
+                        {onEdit && (
+                          <button
+                            type="button"
+                            onClick={() => onEdit(tx)}
+                            className="min-h-[44px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold"
+                            title="Editar"
+                          >
+                            <Pencil className="w-4 h-4" />
+                            <span>Editar</span>
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button
+                            type="button"
+                            onClick={() => onDelete(tx)}
+                            className="min-h-[44px] px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer flex items-center justify-center gap-1.5 text-xs font-semibold"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Excluir</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

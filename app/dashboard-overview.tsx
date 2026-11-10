@@ -307,7 +307,7 @@ export function DashboardOverview() {
         </div>
 
         {/* 3 KPI cards skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 my-4 md:my-6">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-36 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-5 space-y-3">
               <div className="h-4 bg-slate-200 dark:bg-zinc-800 rounded w-28" />
@@ -583,7 +583,7 @@ export function DashboardOverview() {
         const isPositivo = saldoPrevistoFinal >= 0;
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 my-4 md:my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
             <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
               <div>

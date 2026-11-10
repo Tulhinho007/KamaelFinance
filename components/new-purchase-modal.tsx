@@ -345,7 +345,9 @@ export function NewPurchaseModal({
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-end sm:items-center justify-center z-50 p-0 sm:p-4 animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-t-[32px] sm:rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-2xl w-full sm:max-w-lg flex flex-col animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-200 overflow-hidden text-slate-900 dark:text-slate-100 max-h-[92vh]">
-        
+        {/* Puxador decorativo para celular */}
+        <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mt-3 sm:hidden shrink-0" />
+
         {/* Header */}
         <div className="flex justify-between items-center px-5 sm:px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
           <div className="flex items-center gap-3">
@@ -464,7 +466,7 @@ export function NewPurchaseModal({
               placeholder={operationType === "ESTORNO" ? "Ex: Estorno de compra cancelada, Devolução de produto..." : "Ex: Supermercado, Almoço, Gasolina..."}
               value={formDescription}
               onChange={e => setFormDescription(e.target.value)}
-              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm placeholder:text-slate-400"
             />
           </div>
 
@@ -481,7 +483,7 @@ export function NewPurchaseModal({
                 placeholder="R$ 0,00"
                 value={formAmount}
                 onChange={e => setFormAmount(e.target.value)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-tnum"
+                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm font-tnum"
               />
             </div>
 
@@ -492,7 +494,7 @@ export function NewPurchaseModal({
               <select
                 value={formCategory}
                 onChange={e => setFormCategory(e.target.value)}
-                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
+                className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all shadow-sm"
               >
                 {CATEGORIES.map(cat => (
                   <option key={cat} value={cat}>
@@ -626,7 +628,7 @@ export function NewPurchaseModal({
               type="date"
               value={formPurchaseDate}
               onChange={e => handlePurchaseDateChange(e.target.value)}
-              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
+              className="w-full rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5 text-base sm:text-xs font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 [color-scheme:light] dark:[color-scheme:dark] transition-all shadow-sm"
             />
             {(formPaymentMethod === "CREDITO" || isCredit) && (
               <span className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 block">
