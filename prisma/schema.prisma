@@ -40,6 +40,7 @@ model User {
   subscriptions      Subscription[]
   transactions       Transaction[]
   invoicePayments    InvoicePayment[]
+  anotacoes          Anotacao[]
 }
 
 model Wallet {
@@ -460,5 +461,22 @@ model CreditPixOperation {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt @default(now())
   transactions        Transaction[]
+}
+
+model Anotacao {
+  id             String    @id @default(uuid())
+  titulo         String
+  conteudo       String    @db.Text
+  categoria      String    @default("Geral")
+  anoReferencia  Int       @default(2026)
+  mesReferencia  Int?
+  fixada         Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt @default(now())
+
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, anoReferencia])
 }
 

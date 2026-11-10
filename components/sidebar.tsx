@@ -22,7 +22,8 @@ import {
   Wrench,
   Plane,
   Eye,
-  EyeOff
+  EyeOff,
+  FileText
 } from "lucide-react";
 import { useTheme } from "@/components/theme-context";
 import { usePrivacyMode } from "@/components/privacy-context";
@@ -58,6 +59,7 @@ export const sidebarNavigation: SidebarNavGroup[] = [
       { name: "Planejamento de Viagens", href: "/planejamento", icon: Plane },
       { name: "Investimentos", href: "/investimentos", icon: PieChart },
       { name: "Guia Orçamentário", href: "/gestao-financeira/orcamentos", icon: BarChart3 },
+      { name: "Anotações Financeiras", href: "/anotacoes", icon: FileText },
     ],
   },
   {
