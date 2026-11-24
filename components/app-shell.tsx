@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAuthPage = pathname === "/login" || pathname === "/cadastro";
 
   if (isAuthPage) {
-    return <main className="w-full min-h-screen bg-slate-950 text-slate-100">{children}</main>;
+    return <main className="w-full min-h-screen bg-[#09090b] text-zinc-100 auth-dark-surface">{children}</main>;
   }
 
   return (

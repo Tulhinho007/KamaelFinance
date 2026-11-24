@@ -180,19 +180,19 @@ aside {
 }
 
 html.dark aside {
-  background-color: rgba(13, 19, 34, 0.95) !important;
+  background-color: rgba(9, 9, 11, 0.94) !important;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-color: rgba(255, 255, 255, 0.07) !important;
 }
 
 /* ══════════════════════════════════════════════
-   DARK MODE — Sistema de Design Unificado Glassmorphism
+   DARK MODE — Sistema de Design Unificado Grafite Neutro (Zinc)
    ══════════════════════════════════════════════ */
 
 /* Background geral da página — SOMENTE em dark mode */
 html.dark body {
-  background-color: #090D16 !important;
+  background-color: #09090b !important;
 }
 
 /* ─── Cards / Superfícies em dark ─── */
@@ -201,18 +201,18 @@ html.dark .bg-white\/97,
 html.dark .bg-white\/90,
 html.dark .bg-white\/95,
 html.dark .bg-slate-900 {
-  background-color: rgba(18, 24, 38, 0.6) !important;
+  background-color: rgba(24, 24, 27, 0.72) !important;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-color: rgba(255, 255, 255, 0.07) !important;
-  color: #F8FAFC !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #FAFAFA !important;
 }
 
 /* ─── Superfícies levantadas (modais, dropdowns) em dark ─── */
 html.dark .bg-white.shadow-2xl,
 html.dark .bg-white.rounded-2xl,
 html.dark .bg-slate-900.shadow-2xl {
-  background-color: rgba(22, 30, 48, 0.95) !important;
+  background-color: rgba(24, 24, 27, 0.96) !important;
   backdrop-filter: blur(20px);
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
@@ -223,7 +223,7 @@ html.dark .bg-slate-50\/40:not([class*="dark:bg-"]),
 html.dark .bg-slate-50\/50:not([class*="dark:bg-"]),
 html.dark .bg-slate-50\/60:not([class*="dark:bg-"]),
 html.dark .bg-slate-50\/80:not([class*="dark:bg-"]) {
-  background-color: rgba(30, 41, 59, 0.4) !important;
+  background-color: rgba(39, 39, 42, 0.45) !important;
 }
 
 html.dark .bg-slate-100:not([class*="dark:bg-"]),
@@ -237,7 +237,7 @@ html.dark .bg-gray-100:not([class*="dark:bg-"]),
 html.dark .bg-gray-200:not([class*="dark:bg-"]),
 html.dark .bg-zinc-100:not([class*="dark:bg-"]),
 html.dark .bg-zinc-200:not([class*="dark:bg-"]) {
-  background-color: rgba(30, 41, 59, 0.6) !important;
+  background-color: rgba(39, 39, 42, 0.65) !important;
 }
 
 /* ─── Badges coloridos em dark (15% de opacidade com bordas sutis) ─── */
@@ -248,14 +248,14 @@ html.dark .bg-amber-50:not([class*="dark:bg-"])   { background-color: rgba(245, 
 html.dark .bg-violet-50:not([class*="dark:bg-"])  { background-color: rgba(139, 92, 246, 0.15) !important; color: #A78BFA !important; border: 1px solid rgba(139, 92, 246, 0.25) !important; }
 html.dark .bg-blue-50:not([class*="dark:bg-"])    { background-color: rgba(59, 130, 246, 0.15) !important; color: #60A5FA !important; border: 1px solid rgba(59, 130, 246, 0.25) !important; }
 
-/* ─── Bordas em dark ─── */
+/* ─── Bordas em dark (Grafite Neutro) ─── */
 html.dark .border-slate-100:not([class*="dark:border-"]),
 html.dark .border-slate-200\/80:not([class*="dark:border-"]),
 html.dark .border-slate-200:not([class*="dark:border-"]),
 html.dark .border-slate-300:not([class*="dark:border-"]),
 html.dark .border-gray-200:not([class*="dark:border-"]),
 html.dark .border-zinc-200:not([class*="dark:border-"]) {
-  border-color: rgba(51, 65, 85, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Bordas brancas em dark */
@@ -270,14 +270,14 @@ html.dark .border-white\/70,
 html.dark .border-white\/80,
 html.dark .border-white\/90,
 html.dark .border-white\/95 {
-  border-color: rgba(30, 41, 59, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
 }
 
 /* Bordas coloridas de accent em dark */
 html.dark .border-indigo-100,
 html.dark .border-indigo-100\/50,
 html.dark .border-indigo-200 {
-  border-color: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.22) !important;
 }
 
 html.dark .border-emerald-200\/80,
@@ -288,30 +288,30 @@ html.dark .border-amber-200\/60,
 html.dark .border-amber-200    { border-color: rgba(245, 158, 11, 0.25) !important; }
 
 /* ─── Divisores em dark ─── */
-html.dark .divide-slate-100 > * + * { border-color: rgba(30, 41, 59, 0.6) !important; }
-html.dark .divide-slate-200 > * + * { border-color: rgba(30, 41, 59, 0.8) !important; }
+html.dark .divide-slate-100 > * + * { border-color: rgba(255, 255, 255, 0.06) !important; }
+html.dark .divide-slate-200 > * + * { border-color: rgba(255, 255, 255, 0.08) !important; }
 
-/* ─── Tipografia em dark — legibilidade máxima ─── */
+/* ─── Tipografia em dark — legibilidade máxima em grafite neutro ─── */
 html.dark .text-slate-900,
 html.dark .text-slate-800 {
-  color: #F8FAFC !important;
+  color: #FAFAFA !important;
 }
 
 html.dark .text-slate-700 {
-  color: #E2E8F0 !important;
+  color: #E4E4E7 !important;
 }
 
 html.dark .text-slate-600,
 html.dark .text-slate-500 {
-  color: #CBD5E1 !important;
+  color: #A1A1AA !important;
 }
 
 html.dark .text-slate-400 {
-  color: #94A3B8 !important;
+  color: #A1A1AA !important;
 }
 
 html.dark .text-slate-300 {
-  color: #E2E8F0 !important;
+  color: #D4D4D8 !important;
 }
 
 /* Cores coloridas em dark (não mudam — já têm contraste) */
@@ -350,23 +350,45 @@ html.dark .border-emerald-300\/60,
 html.dark .border-emerald-300 { border-color: rgba(16, 185, 129, 0.3) !important; }
 html.dark .border-rose-200\/60  { border-color: rgba(244, 63, 94, 0.3) !important; }
 
-/* ─── Inputs & Selects em dark ─── */
-html.dark input,
-html.dark select,
-html.dark textarea {
-  background-color: #1E293B !important;
-  border-color: rgba(51, 65, 85, 0.8) !important;
-  color: #F8FAFC !important;
+/* ─── Inputs & Selects em dark (preserva selects transparentes em pills) ─── */
+html.dark input:not(.bg-transparent),
+html.dark select:not(.bg-transparent),
+html.dark textarea:not(.bg-transparent) {
+  background-color: #18181b !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #FAFAFA !important;
+}
+
+html.dark select.bg-transparent {
+  background-color: transparent !important;
+  color: #FAFAFA !important;
 }
 
 html.dark select option,
 html.dark option {
-  background-color: #0F172A !important;
-  color: #F8FAFC !important;
+  background-color: #09090b !important;
+  color: #FAFAFA !important;
 }
 
 html.dark input::placeholder,
-html.dark textarea::placeholder { color: #64748B !important; }
+html.dark textarea::placeholder { color: #71717a !important; }
+
+/* ─── Autofill do navegador (Chrome/Edge) em superfícies escuras ─── */
+html.dark input:-webkit-autofill,
+html.dark input:-webkit-autofill:hover,
+html.dark input:-webkit-autofill:focus,
+html.dark input:-webkit-autofill:active,
+.auth-dark-surface input:-webkit-autofill,
+.auth-dark-surface input:-webkit-autofill:hover,
+.auth-dark-surface input:-webkit-autofill:focus,
+.auth-dark-surface input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #18181b inset !important;
+  box-shadow: 0 0 0 1000px #18181b inset !important;
+  -webkit-text-fill-color: #FAFAFA !important;
+  caret-color: #FAFAFA !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
 
 /* ─── Tabelas & Células em dark ─── */
 html.dark table {
@@ -375,12 +397,12 @@ html.dark table {
 
 html.dark tr {
   background-color: transparent;
-  color: #F8FAFC;
+  color: #FAFAFA;
 }
 
 html.dark td,
 html.dark th {
-  color: #F8FAFC;
+  color: #FAFAFA;
 }
 
 /* Remover fundo branco das linhas e células em dark */
@@ -392,8 +414,8 @@ html.dark tr.bg-gray-100,
 html.dark td.bg-white,
 html.dark td.bg-slate-50,
 html.dark td.bg-slate-100 {
-  background-color: rgba(19, 27, 46, 0.6) !important;
-  color: #F8FAFC !important;
+  background-color: rgba(24, 24, 27, 0.65) !important;
+  color: #FAFAFA !important;
 }
 
 /* Hover em tabelas em dark */
@@ -405,17 +427,17 @@ html.dark .hover\:bg-slate-50\/50:hover,
 html.dark .hover\:bg-slate-50\/70:hover,
 html.dark .hover\:bg-gray-50:hover,
 html.dark .hover\:bg-gray-100:hover {
-  background-color: rgba(30, 41, 59, 0.6) !important;
-  color: #F8FAFC !important;
+  background-color: rgba(39, 39, 42, 0.6) !important;
+  color: #FAFAFA !important;
 }
 
 /* ─── Cabeçalho de tabela em dark ─── */
 html.dark .bg-slate-50\/80 {
-  background-color: rgba(15, 23, 42, 0.6) !important;
+  background-color: rgba(24, 24, 27, 0.8) !important;
 }
 
 html.dark .bg-slate-50\/40 {
-  background-color: rgba(15, 23, 42, 0.4) !important;
+  background-color: rgba(24, 24, 27, 0.5) !important;
 }
 
 /* ─── Scrollbar discreta ─── */

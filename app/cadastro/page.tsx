@@ -67,31 +67,31 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 flex flex-col justify-center items-center p-4 py-8 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen w-full bg-[#09090b] auth-dark-surface flex flex-col justify-center items-center p-4 py-8 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
       {/* Elementos visuais de fundo */}
-      <div className="absolute top-1/4 -right-32 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -left-32 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
+      <div className="absolute top-1/4 -right-32 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -left-32 w-96 h-96 bg-zinc-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#27272a25_1px,transparent_1px),linear-gradient(to_bottom,#27272a25_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
 
       <div className="w-full max-w-md relative z-10">
         {/* Header da Marca */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-600/20 border border-indigo-500/30 rounded-2xl text-indigo-400 mb-3 shadow-lg shadow-indigo-500/10 backdrop-blur-xl">
+          <div className="inline-flex items-center justify-center w-14 h-14 bg-indigo-500/15 border border-indigo-500/25 rounded-2xl text-indigo-400 mb-3 shadow-lg shadow-indigo-500/10 backdrop-blur-xl">
             <ShieldCheck className="w-7 h-7 text-indigo-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
+          <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">
             Kamael <span className="font-light text-indigo-400">Finance</span>
           </h1>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-[0.2em] mt-1">
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-[0.2em] mt-1">
             Plataforma de Gestão Executiva
           </p>
         </div>
 
         {/* Card do Formulário */}
-        <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/50">
+        <div className="bg-zinc-900/80 backdrop-blur-xl border border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/60">
           <div className="mb-5">
-            <h2 className="text-xl font-bold text-slate-100">Criar Nova Conta Executiva</h2>
-            <p className="text-xs text-slate-400 mt-1">
+            <h2 className="text-xl font-bold text-zinc-100">Criar Nova Conta Executiva</h2>
+            <p className="text-xs text-zinc-400 mt-1">
               Cadastre-se para iniciar a gestão financeira unificada do seu patrimônio
             </p>
           </div>
@@ -106,11 +106,11 @@ export default function RegisterPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Campo Nome Completo */}
             <div>
-              <label htmlFor="register-name" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Nome Completo <span className="text-slate-500 font-normal normal-case">(Opcional)</span>
+              <label htmlFor="register-name" className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                Nome Completo <span className="text-zinc-500 font-normal normal-case">(Opcional)</span>
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <User className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   id="register-name"
                   name="name"
@@ -119,18 +119,18 @@ export default function RegisterPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Seu nome (opcional)"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-white/[0.1] rounded-xl text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
             </div>
 
             {/* Campo E-mail */}
             <div>
-              <label htmlFor="register-email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-email" className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 E-mail Executivo *
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <Mail className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   id="register-email"
                   name="email"
@@ -140,18 +140,18 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="exemplo@kamaelfinance.com"
                   required
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-white/[0.1] rounded-xl text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
             </div>
 
             {/* Campo Telefone */}
             <div>
-              <label htmlFor="register-phone" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-phone" className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Telefone / Celular (Opcional)
               </label>
               <div className="relative">
-                <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <Phone className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   id="register-phone"
                   name="phone"
@@ -160,18 +160,18 @@ export default function RegisterPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(11) 99999-9999"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-zinc-950/80 border border-white/[0.1] rounded-xl text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
             </div>
 
             {/* Campo Senha */}
             <div>
-              <label htmlFor="register-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-password" className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Senha *
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   id="register-password"
                   name="password"
@@ -182,12 +182,12 @@ export default function RegisterPage() {
                   placeholder="Mínimo 6 caracteres"
                   required
                   minLength={6}
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 bg-zinc-950/80 border border-white/[0.1] rounded-xl text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3 text-slate-500 hover:text-slate-300 transition-colors"
+                  className="absolute right-3.5 top-3 text-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   {showPassword ? (
                     <EyeOff className="w-4 h-4" />
@@ -200,11 +200,11 @@ export default function RegisterPage() {
 
             {/* Campo Confirmação de Senha */}
             <div>
-              <label htmlFor="register-confirm-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-confirm-password" className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                 Confirmar Senha *
               </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
+                <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" />
                 <input
                   id="register-confirm-password"
                   name="confirmPassword"
@@ -214,7 +214,7 @@ export default function RegisterPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita sua senha"
                   required
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  className="w-full pl-10 pr-10 py-2.5 bg-zinc-950/80 border border-white/[0.1] rounded-xl text-xs text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
               {confirmPassword && password === confirmPassword && (
@@ -276,11 +276,11 @@ export default function RegisterPage() {
           </form>
 
           {/* Divisor */}
-          <div className="my-5 border-t border-slate-800/80" />
+          <div className="my-5 border-t border-white/[0.08]" />
 
           {/* Link para Login */}
           <div className="text-center">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-zinc-400">
               Já possui uma conta cadastrada?{" "}
               <Link
                 href="/login"
@@ -293,7 +293,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Rodapé institucional */}
-        <p className="text-center text-[10px] text-slate-600 mt-6 font-medium">
+        <p className="text-center text-[10px] text-zinc-500 mt-6 font-medium">
           © {new Date().getFullYear()} Kamael Finance Enterprise. Todos os direitos reservados.
         </p>
       </div>

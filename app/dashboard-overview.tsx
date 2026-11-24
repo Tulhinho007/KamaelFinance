@@ -298,12 +298,12 @@ export function DashboardOverview() {
     return (
       <div className="p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 animate-pulse select-none">
         {/* Header skeleton */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-white/[0.08]">
           <div className="space-y-2">
-            <div className="h-7 bg-slate-200 dark:bg-slate-800 rounded-lg w-48" />
-            <div className="h-4 bg-slate-100 dark:bg-slate-800/60 rounded w-64" />
+            <div className="h-7 bg-slate-200 dark:bg-zinc-800 rounded-lg w-48" />
+            <div className="h-4 bg-slate-100 dark:bg-zinc-800/60 rounded w-64" />
           </div>
-          <div className="h-10 bg-slate-200 dark:bg-slate-800 rounded-xl w-72" />
+          <div className="h-10 bg-slate-200 dark:bg-zinc-800 rounded-xl w-72" />
         </div>
 
         {/* 3 KPI cards skeleton */}
@@ -318,19 +318,19 @@ export function DashboardOverview() {
         </div>
 
         {/* Carousel / Contas skeleton */}
-        <div className="h-44 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-          <div className="h-5 bg-slate-200 dark:bg-slate-800 rounded w-44" />
+        <div className="h-44 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6 space-y-4">
+          <div className="h-5 bg-slate-200 dark:bg-zinc-800 rounded w-44" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-slate-100 dark:bg-slate-800/60 rounded-xl" />
+              <div key={i} className="h-24 bg-slate-100 dark:bg-zinc-800/60 rounded-xl" />
             ))}
           </div>
         </div>
 
         {/* Charts skeleton */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6" />
-          <div className="h-72 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6" />
+          <div className="h-72 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6" />
+          <div className="h-72 bg-white dark:bg-zinc-900/60 rounded-2xl border border-slate-200/60 dark:border-white/[0.08] p-6" />
         </div>
       </div>
     );
@@ -355,7 +355,7 @@ export function DashboardOverview() {
   );
 
   return (
-    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 select-none relative font-sans text-slate-900 dark:text-white">
+    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto flex flex-col gap-6 md:gap-8 relative font-sans text-slate-900 dark:text-zinc-100">
       
       {/* ── 0. BANNER DE ALERTAS DE VENCIMENTO IMINENTE (D-3 e D-1) ─────────── */}
       <UpcomingDueAlertBanner bills={upcomingBills} />
@@ -483,8 +483,8 @@ export function DashboardOverview() {
                     }}
                     className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
                   >
-                    <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm" />
-                    <span>↗ + Adicionar Saldo</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" strokeWidth={2} />
+                    <span>Adicionar Saldo</span>
                   </button>
                   <button
                     type="button"
@@ -495,8 +495,8 @@ export function DashboardOverview() {
                     }}
                     className="w-full text-left px-3.5 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-50 dark:text-zinc-200 dark:hover:text-white dark:hover:bg-zinc-800/80 flex items-center gap-2.5 transition-colors cursor-pointer"
                   >
-                    <div className="w-2 h-2 rounded-full bg-amber-500 shadow-sm" />
-                    <span>↘ - Retirar / Abater Saldo</span>
+                    <ArrowDownRight className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" strokeWidth={2} />
+                    <span>Retirar / Abater Saldo</span>
                   </button>
                 </div>
               )}
@@ -585,7 +585,7 @@ export function DashboardOverview() {
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 my-4 md:my-6">
             {/* CARD 1: SALDO CONSOLIDADO */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
+            <div className="rounded-2xl border border-slate-200/70 dark:border-white/[0.08] bg-white dark:bg-zinc-900/70 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/30 hover:border-slate-300 dark:hover:border-white/[0.14] transition-all flex flex-col justify-between h-full">
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -596,24 +596,24 @@ export function DashboardOverview() {
                       Tempo Real
                     </span>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 text-base">
-                    👛
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20">
+                    <Wallet className="w-4 h-4" strokeWidth={1.75} />
                   </div>
                 </div>
 
-                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoAtual)}
+                <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
+                  <CurrencyValue value={saldoAtual} />
                 </div>
 
                 {/* Detalhamento das contas bancárias */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span>Contas Bancárias Ativas:</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
                       {contasBancarias.length} {contasBancarias.length === 1 ? "conta" : "contas"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span>Disponibilidade:</span>
                     <span className="font-semibold text-blue-600 dark:text-blue-400">
                       Imediata
@@ -623,14 +623,14 @@ export function DashboardOverview() {
               </div>
 
               {/* Rodapé */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
                 <span>Disponibilidade em conta</span>
-                <span className="font-medium text-slate-600 dark:text-slate-400">Tempo real</span>
+                <span className="font-medium text-slate-600 dark:text-zinc-300">Tempo real</span>
               </div>
             </div>
 
             {/* CARD 2: TOTAL A PAGAR (UNIFICADO: CARTÕES + CONTAS FIXAS PENDENTES DO MÊS) */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
+            <div className="rounded-2xl border border-slate-200/70 dark:border-white/[0.08] bg-white dark:bg-zinc-900/70 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/30 hover:border-slate-300 dark:hover:border-white/[0.14] transition-all flex flex-col justify-between h-full">
               <div>
                 {/* Cabeçalho */}
                 <div className="flex items-center justify-between">
@@ -642,37 +642,35 @@ export function DashboardOverview() {
                       {nomeMesAtual}
                     </span>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 text-base">
-                    💸
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">
+                    <CreditCard className="w-4 h-4" strokeWidth={1.75} />
                   </div>
                 </div>
 
                 {/* Valor Total Grande */}
-                <div className="mt-3 text-3xl font-extrabold text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
-                    totalAPagar
-                  )}
+                <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-zinc-100 font-tnum tabular-nums">
+                  <CurrencyValue value={totalAPagar} />
                 </div>
 
                 {/* Detalhamento Miúdo */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="capitalize">Fatura do Cartão ({nomeMesAtual}):</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalGeralCartoesMes)}
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      <CurrencyValue value={totalGeralCartoesMes} />
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span className="capitalize">Contas Fixas Pendentes ({nomeMesAtual}):</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalContasFixasPendentes)}
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      <CurrencyValue value={totalContasFixasPendentes} />
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Rodapé */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
                 <span>Faturas + Contas Fixas</span>
                 <span className="font-semibold text-rose-600 dark:text-rose-400">
                   {totalItensALiquidar}{" "}
@@ -682,7 +680,7 @@ export function DashboardOverview() {
             </div>
 
             {/* CARD 3: SALDO PREVISTO (PROJEÇÃO FINAL DO MÊS) */}
-            <div className="rounded-2xl border border-slate-100 dark:border-white/[0.08] bg-white dark:bg-zinc-900/60 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/20 flex flex-col justify-between h-full">
+            <div className="rounded-2xl border border-slate-200/70 dark:border-white/[0.08] bg-white dark:bg-zinc-900/70 backdrop-blur-md p-5 shadow-sm dark:shadow-lg dark:shadow-black/30 hover:border-slate-300 dark:hover:border-white/[0.14] transition-all flex flex-col justify-between h-full">
               <div>
                 {/* Cabeçalho */}
                 <div className="flex items-center justify-between">
@@ -701,54 +699,58 @@ export function DashboardOverview() {
                     </span>
                   </div>
                   <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm border ${
+                    className={`flex h-8 w-8 items-center justify-center rounded-xl border ${
                       isPositivo
                         ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20"
                         : "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20"
                     }`}
                   >
-                    {isPositivo ? "📈" : "📉"}
+                    {isPositivo ? (
+                      <TrendingUp className="w-4 h-4" strokeWidth={1.75} />
+                    ) : (
+                      <TrendingDown className="w-4 h-4" strokeWidth={1.75} />
+                    )}
                   </div>
                 </div>
 
                 {/* Valor Grande da Previsão */}
                 <div
-                  className={`mt-3 text-3xl font-extrabold font-tnum tabular-nums ${
+                  className={`mt-3 text-3xl font-extrabold tracking-tight font-tnum tabular-nums ${
                     isPositivo
                       ? "text-emerald-600 dark:text-emerald-400"
                       : "text-rose-600 dark:text-rose-400"
                   }`}
                 >
-                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoPrevistoFinal)}
+                  <CurrencyValue value={saldoPrevistoFinal} />
                 </div>
 
                 {/* Detalhamento do cálculo */}
                 <div className="mt-3 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span>Saldo Geral Consolidado:</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(saldoAtual)}
+                    <span className="font-semibold text-slate-800 dark:text-zinc-200 font-tnum tabular-nums">
+                      <CurrencyValue value={saldoAtual} />
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span>Receitas Previstas (+):</span>
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(receitasPrevistas)}
+                      <CurrencyValue value={receitasPrevistas} />
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
                     <span>Total a Pagar (-):</span>
                     <span className="font-semibold text-rose-600 dark:text-rose-400 font-tnum tabular-nums">
-                      {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalAPagar)}
+                      <CurrencyValue value={totalAPagar} />
                     </span>
                   </div>
                 </div>
               </div>
 
               {/* Rodapé explicativo */}
-              <div className="mt-3 flex items-center justify-between pt-1 text-[11px] text-slate-500 dark:text-slate-400">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between text-[11px] text-slate-500 dark:text-zinc-400">
                 <span>Saldo + Receitas - Total a Pagar</span>
-                <span className="font-medium text-slate-600 dark:text-slate-400 capitalize">Mês de {nomeMesAtual}</span>
+                <span className="font-medium text-slate-600 dark:text-zinc-300 capitalize">Mês de {nomeMesAtual}</span>
               </div>
             </div>
           </div>
