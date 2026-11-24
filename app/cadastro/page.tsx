@@ -104,35 +104,18 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Honeypot Bot Trap (Campos invisíveis para desarmar spambots) */}
-            <div className="sr-only hidden opacity-0 absolute -left-[9999px]" aria-hidden="true" tabIndex={-1}>
-              <input
-                type="text"
-                name="hp_website"
-                value={hpWebsite}
-                onChange={(e) => setHpWebsite(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-              <input
-                type="text"
-                name="hp_confirm"
-                value={hpConfirm}
-                onChange={(e) => setHpConfirm(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-            </div>
-
             {/* Campo Nome Completo */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-name" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Nome Completo <span className="text-slate-500 font-normal normal-case">(Opcional)</span>
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="register-name"
+                  name="name"
                   type="text"
+                  autoComplete="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Seu nome (opcional)"
@@ -143,13 +126,16 @@ export default function RegisterPage() {
 
             {/* Campo E-mail */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 E-mail Executivo *
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="register-email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="exemplo@kamaelfinance.com"
@@ -161,13 +147,16 @@ export default function RegisterPage() {
 
             {/* Campo Telefone */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-phone" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Telefone / Celular (Opcional)
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="register-phone"
+                  name="phone"
                   type="tel"
+                  autoComplete="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="(11) 99999-9999"
@@ -178,13 +167,16 @@ export default function RegisterPage() {
 
             {/* Campo Senha */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Senha *
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="register-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
@@ -208,13 +200,16 @@ export default function RegisterPage() {
 
             {/* Campo Confirmação de Senha */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              <label htmlFor="register-confirm-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Confirmar Senha *
               </label>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="register-confirm-password"
+                  name="confirmPassword"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repita sua senha"
@@ -248,6 +243,36 @@ export default function RegisterPage() {
                 </>
               )}
             </button>
+
+            {/* Honeypot Bot Trap (posicionado após os campos reais e protegido contra autofill de navegadores/gerenciadores de senha) */}
+            <div className="sr-only hidden opacity-0 pointer-events-none absolute -left-[9999px]" aria-hidden="true" tabIndex={-1}>
+              <input
+                type="text"
+                name="hp_website"
+                value={hpWebsite}
+                onChange={(e) => setHpWebsite(e.target.value)}
+                tabIndex={-1}
+                readOnly
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+              />
+              <input
+                type="text"
+                name="hp_confirm"
+                value={hpConfirm}
+                onChange={(e) => setHpConfirm(e.target.value)}
+                tabIndex={-1}
+                readOnly
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+              />
+            </div>
           </form>
 
           {/* Divisor */}

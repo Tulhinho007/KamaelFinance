@@ -36,29 +36,25 @@ CREATE INDEX IF NOT EXISTS "OtherInvestment_userId_idx" ON "OtherInvestment"("us
 CREATE INDEX IF NOT EXISTS "Subscription_userId_idx" ON "Subscription"("userId");
 CREATE INDEX IF NOT EXISTS "InvoicePayment_userId_idx" ON "InvoicePayment"("userId");
 
--- 4. ATIVAÇÃO DE ROW LEVEL SECURITY (RLS) EM TODAS AS TABELAS
-ALTER TABLE "Wallet" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Transaction" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Investment" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "VariableAsset" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "VariableTransaction" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CryptoAsset" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CryptoTransaction" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "BettingAccount" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "BettingTransaction" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "OtherInvestment" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Goal" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "GoalHistory" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "EventProject" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "EventItem" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "Subscription" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "SubscriptionPayment" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "InvoicePayment" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CategoryBudget" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "UserChallenge" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "UserBadge" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "HealthScoreHistory" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "CreditPixOperation" ENABLE ROW LEVEL SECURITY;
+-- 4. ATIVAÇÃO DE ROW LEVEL SECURITY (RLS) EM TODAS AS TABELAS DO SCHEMA PUBLIC
+-- Inclui User, Category, AuditLog, AllowedEmail, Anotacao e qualquer outra tabela existente (ex: _prisma_migrations)
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT tablename
+    FROM pg_tables
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', r.tablename);
+  END LOOP;
+END $$;
+
+-- 4.1 BLOQUEIA ACESSO DIRETO DAS ROLES PÚBLICAS DA DATA API (anon / authenticated)
+-- O Prisma conecta pela role postgres (owner/BYPASSRLS) no servidor, sem impacto no app.
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;
 
 -- 5. POLÍTICAS ESTRITAS DE ISOLAMENTO POR USUÁRIO (auth.uid() = userId)
 DO $$
@@ -126,5 +122,10 @@ BEGIN
   -- CreditPixOperation
   DROP POLICY IF EXISTS "User isolate data" ON "CreditPixOperation";
   CREATE POLICY "User isolate data" ON "CreditPixOperation"
+  FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");
+
+  -- Anotacao
+  DROP POLICY IF EXISTS "User isolate data" ON "Anotacao";
+  CREATE POLICY "User isolate data" ON "Anotacao"
   FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");
 END $$;

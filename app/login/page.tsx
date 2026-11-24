@@ -184,35 +184,18 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Honeypot Bot Trap (Campos invisíveis para desarmar spambots) */}
-            <div className="sr-only hidden opacity-0 absolute -left-[9999px]" aria-hidden="true" tabIndex={-1}>
-              <input
-                type="text"
-                name="hp_website"
-                value={hpWebsite}
-                onChange={(e) => setHpWebsite(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-              <input
-                type="text"
-                name="hp_confirm"
-                value={hpConfirm}
-                onChange={(e) => setHpConfirm(e.target.value)}
-                tabIndex={-1}
-                autoComplete="off"
-              />
-            </div>
-
             {/* Campo E-mail */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
                 E-mail Executivo
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="exemplo@kamaelfinance.com"
@@ -225,7 +208,7 @@ export default function LoginPage() {
             {/* Campo Senha */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+                <label htmlFor="login-password" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
                   Senha de Acesso
                 </label>
                 <button
@@ -239,7 +222,10 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
@@ -278,6 +264,36 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            {/* Honeypot Bot Trap (posicionado após os campos reais e protegido contra autofill de navegadores/gerenciadores de senha) */}
+            <div className="sr-only hidden opacity-0 pointer-events-none absolute -left-[9999px]" aria-hidden="true" tabIndex={-1}>
+              <input
+                type="text"
+                name="hp_website"
+                value={hpWebsite}
+                onChange={(e) => setHpWebsite(e.target.value)}
+                tabIndex={-1}
+                readOnly
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+              />
+              <input
+                type="text"
+                name="hp_confirm"
+                value={hpConfirm}
+                onChange={(e) => setHpConfirm(e.target.value)}
+                tabIndex={-1}
+                readOnly
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+              />
+            </div>
           </form>
 
           {/* Divisor */}

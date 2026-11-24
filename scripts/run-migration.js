@@ -26,29 +26,12 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS "Subscription_userId_idx" ON "Subscription"("userId");`,
   `CREATE INDEX IF NOT EXISTS "InvoicePayment_userId_idx" ON "InvoicePayment"("userId");`,
 
-  // 4. RLS Enable
-  `ALTER TABLE "Wallet" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "Transaction" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "Investment" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "VariableAsset" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "VariableTransaction" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "CryptoAsset" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "CryptoTransaction" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "BettingAccount" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "BettingTransaction" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "OtherInvestment" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "Goal" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "GoalHistory" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "EventProject" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "EventItem" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "Subscription" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "SubscriptionPayment" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "InvoicePayment" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "CategoryBudget" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "UserChallenge" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "UserBadge" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "HealthScoreHistory" ENABLE ROW LEVEL SECURITY;`,
-  `ALTER TABLE "CreditPixOperation" ENABLE ROW LEVEL SECURITY;`,
+  // 4. RLS Enable em TODAS as tabelas do schema public (inclui User, Category, AuditLog, AllowedEmail, Anotacao, etc.)
+  `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', r.tablename); END LOOP; END $$;`,
+
+  // 4.1 Revoga acesso direto das roles públicas da Data API do Supabase (não afeta o Prisma)
+  `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;`,
+  `REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon, authenticated;`,
 
   // 5. RLS Policies
   `DROP POLICY IF EXISTS "User isolate data" ON "Wallet";`,
@@ -88,7 +71,10 @@ const statements = [
   `CREATE POLICY "User isolate data" ON "CategoryBudget" FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");`,
 
   `DROP POLICY IF EXISTS "User isolate data" ON "CreditPixOperation";`,
-  `CREATE POLICY "User isolate data" ON "CreditPixOperation" FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");`
+  `CREATE POLICY "User isolate data" ON "CreditPixOperation" FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");`,
+
+  `DROP POLICY IF EXISTS "User isolate data" ON "Anotacao";`,
+  `CREATE POLICY "User isolate data" ON "Anotacao" FOR ALL USING (auth.uid()::text = "userId") WITH CHECK (auth.uid()::text = "userId");`
 ];
 
 async function main() {
